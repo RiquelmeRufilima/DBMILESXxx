@@ -1,16 +1,22 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "functions": {
     "api/index.py": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "includeFiles": "app/{templates,static,imagens}/**"
     }
   },
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index.py"
+      "src": "/(?<path>.*)",
+      "dest": "/api",
+      "transforms": [
+        {
+          "type": "request.path",
+          "op": "set",
+          "args": "/$path"
+        }
+      ]
     }
   ]
 }
