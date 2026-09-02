@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Cotações feitas | DBMILESX{% endblock %}
+{% block page_title %}Cotações feitas{% endblock %}
+{% block eyebrow %}CONTROLE COMERCIAL{% endblock %}
+{% block content %}
+<div class="page-shell quotes-made-page">
+  <div class="page-header compact-header quotes-main-head">
+    <div>
+      <p class="eyebrow">Histórico operacional</p>
+      <h1>Cotações feitas</h1>
+      <p class="muted">Lista de cálculos e cadastros de cotações de todos os usuários do grupo, com identificação de quem fez cada item.</p>
+    </div>
+    <div class="button-row compact-actions">
+      <a class="secondary-button" href="/cadastros/cotacoes"><svg class="ui-icon"><use href="#icon-check"></use></svg> Quadro</a>
+      <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico antigo</a>
+      <form method="post" action="/cadastros/cotacoes/nova" class="inline-new-quote-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Nova Cotação</button>
+      </form>
+    </div>
+  </div>
+
+  <nav class="quote-area-tabs" aria-label="Áreas de cotações">
+    <a href="/cadastros/cotacoes"><svg class="ui-icon"><use href="#icon-check"></use></svg> Quadro de controle</a>
+    <a class="active" href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
+    <a href="/cadastros/fluxo-calculo"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Fluxo de cálculo</a>
+    <a href="/cadastros/voos"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Voos</a>
+  </nav>
+
+  <form class="board-filter card smart-filter" method="get" action="/cadastros/cotacoes-feitas">
+    <label>Cliente
+      <input name="client" value="{{ filters.client or '' }}" placeholder="Todos">
+    </label>
+    <label>Tag/Identificador
+      <input name="q" value="{{ filters.q or '' }}" placeholder="Nome, código, origem, destino">
+    </label>
+    <label>Período da cotação
+      <span class="date-range"><input type="date" name="from" value="{{ filters.from }}"><b>até</b><input type="date" name="to" value="{{ filters.to }}"></span>
+    </label>
+    <label>Usuário
+      <select name="user_id">
+        <option value="">Todos</option>
+        {% for member in users %}<option value="{{ member.id }}" {% if filters.user_id == member.id|string %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Origem
+      <select name="source">
+        <option value="" {% if not filters.source %}selected{% endif %}>Todos</option>
+        <option value="calculada" {% if filters.source == 'calculada' %}selected{% endif %}>Calculadas</option>
+        <option value="manual" {% if filters.source == 'manual' %}selected{% endif %}>Manuais</option>
+        <option value="aceita" {% if filters.source == 'aceita' %}selected{% endif %}>Aceitas</option>
+      </select>
+    </label>
+    <button class="primary-button" type="submit">Pesquisar</button>
+  </form>
+
+  <section class="quotes-made-kpis stats-grid compact-stats">
+    <article class="stat-card"><span>Cotações base</span><strong>{{ made_totals.groups }}</strong><small>No filtro atual</small></article>
+    <article class="stat-card"><span>Opções calculadas</span><strong>{{ made_totals.options + made_totals.legacy }}</strong><small>Milhas, dinheiro e métodos futuros</small></article>
+    <article class="stat-card"><span>Usuários envolvidos</span><strong>{{ made_totals.users }}</strong><small>Equipe da empresa</small></article>
+    <article class="stat-card accent"><span>Valor total</span><strong>{{ made_totals.value|money }}</strong><small>Soma visível</small></article>
+  </section>
+
+  <section class="quotes-made-stack">
+    {% for card in cards %}
+      {% set maker = card.creator %}
+      <article class="quote-made-card card-panel">
+        <div class="quote-made-left">
+          <span class="card-user-avatar big" title="{{ maker.name if maker else 'Usuário' }}">
+            {% if maker and maker.profile and maker.profile.avatar_path %}<img src="/{{ maker.profile.avatar_path }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
+          </span>
+          <div>
+            <span class="eyebrow">{{ 'Manual' if card.source == 'manual' else ('Aceita' if card.source == 'aceita' else 'Calculada') }}</span>
+            <h2>{{ card.title }}</h2>
+            <p>{{ card.client }} • feita por <strong>{{ maker.name if maker else 'Usuário' }}</strong></p>
+          </div>
+        </div>
+        <div class="quote-made-meta">
+          <span><small>Código</small><b>{{ card.code }}</b></span>
+          <span><small>Data</small><b>{{ card.created|date_br }}</b></span>
+          <span><small>Rota</small><b>{{ card.group.origin or '—' }} → {{ card.group.destination or '—' }}</b></span>
+          <span><small>Opções</small><b>{{ card.options|length }}</b></span>
+          <span><small>Valor</small><b>{{ card.total|money }}</b></span>
+        </div>
+        {% if card.options %}
+          <div class="quote-made-options">
+            {% for option in card.option_details[:4] %}
+              {% set opt = option.quote %}
+              <span class="quote-made-option-chip">
+                <b>{{ option.scope_label }}</b>
+                {% if opt.airline %}{{ opt.airline.name }}{% else %}Companhia{% endif %}
+                {% if opt.calculation_type %} • {{ opt.calculation_type.name }}{% endif %}
+                • {{ opt.total|money(opt.currency) }}
+              </span>
+            {% endfor %}
+            {% if card.options|length > 4 %}<span>+{{ card.options|length - 4 }} opção(ões)</span>{% endif %}
+          </div>
+        {% endif %}
+        <div class="quote-made-actions">
+          <a class="secondary-button small-button" href="/calculations/group/{{ card.group.id }}">Abrir cálculos</a>
+          {% if card.accepted %}<a class="primary-button small-button" href="/cadastros/cotacoes/{{ card.group.id }}">Editar cotação</a>{% else %}<form method="post" action="/cadastros/cotacoes-aceitas/{{ card.group.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="primary-button small-button" type="submit">Enviar para Cotações</button></form>{% endif %}
+        </div>
+      </article>
+    {% endfor %}
+
+    {% for card in legacy_cards %}
+      {% set maker = card.creator %}
+      <article class="quote-made-card card-panel legacy-card">
+        <div class="quote-made-left">
+          <span class="card-user-avatar big" title="{{ maker.name if maker else 'Usuário' }}">
+            {% if maker and maker.profile and maker.profile.avatar_path %}<img src="/{{ maker.profile.avatar_path }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
+          </span>
+          <div>
+            <span class="eyebrow">Cotação antiga</span>
+            <h2>{{ card.quote.quote_name }}</h2>
+            <p>{{ card.client }} • feita por <strong>{{ maker.name if maker else 'Usuário' }}</strong></p>
+          </div>
+        </div>
+        <div class="quote-made-meta">
+          <span><small>Código</small><b>{{ card.code }}</b></span>
+          <span><small>Data</small><b>{{ card.created|date_br }}</b></span>
+          <span><small>Rota</small><b>{{ card.quote.origin or '—' }} → {{ card.quote.destination or '—' }}</b></span>
+          <span><small>Companhia</small><b>{{ card.quote.airline.name if card.quote.airline else '—' }}</b></span>
+          <span><small>Valor</small><b>{{ card.total|money(card.quote.currency) }}</b></span>
+        </div>
+        <div class="quote-made-actions">
+          <a class="secondary-button small-button" href="/calculations/result/{{ card.quote.id }}">Abrir</a>
+          <form method="post" action="/cadastros/cotacoes-aceitas/opcao/{{ card.quote.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="primary-button small-button" type="submit">Enviar para Cotações</button></form>
+        </div>
+      </article>
+    {% endfor %}
+
+    {% if not cards and not legacy_cards %}
+      <div class="empty-state card-panel">
+        <svg class="empty-icon"><use href="#icon-clock"></use></svg>
+        <h3>Nenhuma cotação feita encontrada.</h3>
+        <p>Altere os filtros ou crie uma nova cotação.</p>
+        <a class="primary-button" href="/calculations/new?clean=1">Nova cotação</a>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

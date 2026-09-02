@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Cadastros | DBMILESX{% endblock %}
+{% block page_title %}Cadastros{% endblock %}
+{% block eyebrow %}CENTRAL DE CADASTROS{% endblock %}
+
+{% block content %}
+<section class="hero-panel">
+    <div>
+        <span class="eyebrow">CADASTROS DO SISTEMA</span>
+        <h1>Organize pessoas, cotações e voos.</h1>
+        <p>Use esta área como a base de dados da agência. Pessoas podem nascer como cadastro rápido e ficar pendentes até completar CPF e data de nascimento.</p>
+    </div>
+    <div class="action-cluster">
+        <a class="secondary-button" href="/persons/new?quick=1"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Cadastro rápido</a>
+        <a class="primary-button" href="/persons/new"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Nova pessoa</a>
+    </div>
+</section>
+
+<section class="home-action-grid">
+    <a class="home-action-card primary-home-action" href="/persons">
+        <span class="home-action-icon"><svg class="ui-icon"><use href="#icon-user"></use></svg></span>
+        <div><strong>Pessoas</strong><small>Clientes, passageiros, fornecedores e representantes</small></div>
+        <svg class="ui-icon"><use href="#icon-chevron"></use></svg>
+    </a>
+    <a class="home-action-card" href="/cadastros/cotacoes">
+        <span class="home-action-icon"><svg class="ui-icon"><use href="#icon-check"></use></svg></span>
+        <div><strong>Cotações</strong><small>Quadro de cotações aceitas, manuais e lançadas</small></div>
+        <svg class="ui-icon"><use href="#icon-chevron"></use></svg>
+    </a>
+    <a class="home-action-card" href="/cadastros/voos">
+        <span class="home-action-icon"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>
+        <div><strong>Voos</strong><small>Somente os marcados no histórico</small></div>
+        <svg class="ui-icon"><use href="#icon-chevron"></use></svg>
+    </a>
+</section>
+
+<section class="content-grid two-one">
+    <article class="panel">
+        <div class="panel-heading">
+            <div><span class="eyebrow">ESTRUTURA</span><h2>Como fica organizado</h2></div>
+        </div>
+        <div style="display:grid;gap:8px;">
+            <a href="/persons" class="quick-link">
+                <svg class="quick-icon"><use href="#icon-user"></use></svg>
+                <div><strong>Pessoas</strong><small>Cadastro completo ou rápido. Nome salva; CPF e data deixam o cadastro completo.</small></div>
+            </a>
+            <a href="/cadastros/cotacoes" class="quick-link">
+                <svg class="quick-icon"><use href="#icon-check"></use></svg>
+                <div><strong>Cotações</strong><small>Kanban com filtros, fases, edição completa e controle de venda.</small></div>
+            </a>
+
+            <a href="/cadastros/cotacoes-feitas" class="quick-link">
+                <span><svg class="ui-icon"><use href="#icon-clock"></use></svg></span>
+                <div><strong>Cotações feitas</strong><small>Histórico comercial com todos os cálculos e cadastros por usuário.</small></div>
+            </a>
+            <a href="/cadastros/voos" class="quick-link">
+                <svg class="quick-icon"><use href="#icon-plane"></use></svg>
+                <div><strong>Voos</strong><small>Usa somente as cotações marcadas no histórico como voos, ordenadas por data.</small></div>
+            </a>
+            <a href="/airlines" class="quick-link">
+                <svg class="quick-icon"><use href="#icon-plane"></use></svg>
+                <div><strong>Companhias</strong><small>Regras de cálculo e companhias personalizadas continuam na área de companhias.</small></div>
+            </a>
+        </div>
+    </article>
+    <aside class="panel">
+        <span class="eyebrow">PENDÊNCIAS</span>
+        <h2>Pessoas pendentes</h2>
+        <p style="color:var(--muted);font-size:.9rem;">Cadastros criados só com o nome aparecem aqui até completar CPF e data de nascimento.</p>
+        {% if pending_people %}
+        <div style="display:grid;gap:8px;margin-top:12px;">
+            {% for person in pending_people %}
+            <a class="quick-link" href="/persons/{{ person.id }}">
+                <svg class="quick-icon"><use href="#icon-user"></use></svg>
+                <div><strong>{{ person.name }}</strong><small>{{ person.person_type|title }} • pendente</small></div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state small"><h3>Nada pendente</h3><p>Quando salvar uma pessoa só pelo nome, ela aparecerá aqui.</p></div>
+        {% endif %}
+    </aside>
+</section>
+{% endblock %}

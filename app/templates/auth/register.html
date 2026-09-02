@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Criar conta | DBMILESX{% endblock %}
+{% block content %}
+<section class="auth-shell auth-shell-branded">
+  <div class="auth-visual register-visual"><div class="login-brand-row"><img class="login-main-logo" src="/static/brand/dbmilesx-dark.png" alt="DBMILESX"><img class="login-mark" src="/static/brand/marca.png" alt="Marca"></div><p class="eyebrow">NOVO ACESSO</p><h1>Crie sua conta e leve suas cotações para qualquer tela.</h1><p>Depois você pode criar ou entrar em uma empresa, personalizar companhias e colaborar com a equipe.</p></div>
+  <div class="auth-card"><div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX"><div><h2>Criar conta</h2><p>Preencha os dados para começar.</p></div></div><form method="post" action="/register" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Nome completo<input name="name" required></label><label>E-mail<input type="email" name="email" required></label><label>Senha<input type="password" name="password" required></label><label>Confirmar senha<input type="password" name="password_confirm" required></label><button class="primary-button full large" type="submit">Criar minha conta</button></form><p class="auth-switch">Já possui conta? <a href="/login">Entrar</a></p></div>
+</section>
+{% endblock %}

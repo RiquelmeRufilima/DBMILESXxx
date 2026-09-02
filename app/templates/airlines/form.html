@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Criar companhia | DBMILESX{% endblock %}
+{% block page_title %}Criar companhia{% endblock %}
+{% block eyebrow %}CONSTRUTOR DE CÁLCULO{% endblock %}
+{% block head %}
+<style>
+.airline-profile-box{margin-top:18px;padding:18px;border:1px solid rgba(98,176,231,.22);border-radius:16px;background:linear-gradient(135deg,rgba(28,105,151,.08),rgba(26,191,145,.04))}
+.airline-profile-box h3{margin:0 0 5px}.airline-profile-box>p{margin:0 0 14px;color:#91aabd;font-size:.83rem}
+.partner-multi-select{min-height:190px;padding:8px!important}.partner-multi-select option{padding:7px 9px;border-radius:7px}
+.partner-help{display:grid;gap:3px;margin-top:6px;color:#7f9aaf;font-size:.72rem}
+.market-pill-note{padding:11px 13px;border-radius:12px;background:rgba(45,155,214,.08);border:1px solid rgba(77,175,226,.18);color:#9bc9e4;font-size:.76rem}
+</style>
+{% endblock %}
+{% block content %}
+<section class="page-heading"><div><span class="eyebrow">SEM ALTERAR CÓDIGO</span><h1>Crie uma companhia e a própria lógica de cálculo.</h1><p>Você define os campos e monta a fórmula. Por padrão, o sistema usa <code>(milhas * milheiro) + taxa</code>.</p></div></section>
+
+<form method="post" action="/airlines/new" enctype="multipart/form-data" class="builder-layout" id="airlineBuilderForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="fields_json" id="fieldsJson">
+  <section class="panel builder-main">
+    <div class="form-section no-top"><div class="section-title"><span class="step-badge">1</span><div><h2>Identidade da companhia</h2><p>Nome obrigatório. Foto e cor são opcionais.</p></div></div>
+      <div class="form-grid cols-2"><label>Nome da companhia<input name="name" required placeholder="Ex: TAP Milhas"></label><label>Cor principal<input type="color" name="color" value="#24b7d3"></label></div>
+      <label>Logo opcional<input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml"><small>PNG, JPG, WEBP ou SVG; até 4 MB.</small></label>
+
+      <div class="airline-profile-box">
+        <h3>Operação e parcerias</h3>
+        <p>Defina onde essa companhia será usada e, se quiser, cadastre parceiras habituais. Parceria é opcional tanto em operação nacional quanto internacional.</p>
+        <div class="form-grid cols-2">
+          <label>Atuação da companhia
+            <select name="market_scope">
+              <option value="both" selected>Nacional + internacional</option>
+              <option value="national">Somente nacional</option>
+              <option value="international">Somente internacional</option>
+            </select>
+            <span class="partner-help"><span>Isso controla como a operação aparece na tela de cálculo.</span></span>
+          </label>
+          <label>Companhias parceiras habituais <span class="optional-pill">opcional</span>
+            <select name="partner_airlines" class="partner-multi-select" multiple size="9">
+              {% for partner in partner_airlines %}
+              <option value="{{ partner.name }}">{{ partner.name }}{% if partner.market_scope == 'national' %} • Nacional{% elif partner.market_scope == 'international' %} • Internacional{% else %} • Nacional + internacional{% endif %}</option>
+              {% endfor %}
+            </select>
+            <span class="partner-help">
+              <span>Todas as companhias cadastradas no sistema aparecem aqui.</span>
+              <span>No computador, use Ctrl para selecionar várias.</span>
+            </span>
+          </label>
+        </div>
+        <label>Outras parceiras que ainda não estão cadastradas <span class="optional-pill">opcional</span>
+          <textarea name="partner_airlines_extra" rows="3" placeholder="Ex: Etihad Airways, Alaska Airlines"></textarea>
+          <small>Separe por vírgula ou uma companhia por linha. Elas também ficarão disponíveis como parceiras desta companhia.</small>
+        </label>
+        <div class="market-pill-note">Você poderá alterar Nacional / Internacional e as parceiras depois, em <b>Companhias → Detalhes</b>.</div>
+      </div>
+    </div>
+
+    <div class="form-section"><div class="section-title"><span class="step-badge">2</span><div><h2>Primeiro tipo de cálculo</h2><p>Uma companhia pode ter vários tipos depois.</p></div></div>
+      <div class="form-grid cols-2"><label>Nome do cálculo<input name="calculation_name" value="Cálculo padrão" required></label><label>Como aplicar o resultado<select name="apply_mode"><option value="total">O valor informado já é o total</option><option value="per_passenger">Multiplicar o resultado por passageiro</option></select></label></div>
+      <label>Descrição opcional<textarea name="description" rows="2" placeholder="Explique quando usar esta regra"></textarea></label>
+    </div>
+
+    <div class="form-section"><div class="section-title"><span class="step-badge">3</span><div><h2>Campos da calculadora</h2><p>Crie os dados que o atendente preencherá. Você pode usar cada chave dentro da fórmula.</p></div></div>
+      <div class="field-builder-toolbar"><button class="secondary-button" type="button" data-add-field>＋ Adicionar campo</button><button class="ghost-button" type="button" data-add-preset="discount">＋ Desconto</button><button class="ghost-button" type="button" data-add-preset="interest">＋ Juros</button><button class="ghost-button" type="button" data-add-preset="fee">＋ Taxa adicional</button></div>
+      <div id="fieldBuilder" class="field-builder"></div>
+      <p class="hint">Variáveis fixas disponíveis em toda fórmula: <code>passageiros</code>, <code>bebes</code> e <code>bagagens</code>.</p>
+    </div>
+
+    <div class="form-section"><div class="section-title"><span class="step-badge">4</span><div><h2>Fórmula</h2><p>Use as chaves dos campos com +, -, *, /, %, ** e parênteses.</p></div></div>
+      <label>Fórmula principal<textarea name="formula" id="formulaInput" rows="4" required>(milhas * milheiro) + taxa</textarea></label>
+      <div class="formula-help"><strong>Exemplos:</strong><code>(milhas * milheiro) + taxa</code><code>((valor - desconto) * (1 + juros / 100)) + taxa</code><code>(milhas * milheiro) + (taxa * (1 - desconto_taxa / 100))</code></div>
+    </div>
+
+    <div class="form-actions"><a class="secondary-button" href="/airlines">Cancelar</a><button class="primary-button large" type="submit">Criar companhia →</button></div>
+  </section>
+  <aside class="panel builder-preview"><span class="eyebrow">COMO FUNCIONA</span><h2>Motor flexível, sem usar <code>eval</code>.</h2><p>A fórmula é validada por um interpretador seguro. Ela só pode acessar os campos criados e operações matemáticas permitidas.</p><div class="safe-list"><div><span>✓</span> Desconto por percentual</div><div><span>✓</span> Valor por passageiro ou total</div><div><span>✓</span> Juros e taxas extras</div><div><span>✓</span> Desconto sobre taxa</div><div><span>✓</span> Campos adicionais e seleção</div></div><div class="info-card"><strong>Cálculo padrão</strong><code>(milhas * milheiro) + taxa</code><small>Já vem preparado quando você abre esta tela.</small></div></aside>
+</form>
+{% endblock %}
+{% block scripts %}<script src="/static/js/company-builder.js" defer></script>{% endblock %}

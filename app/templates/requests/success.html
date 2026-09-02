@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Solicitação enviada | DBMILESX{% endblock %}
+{% block content %}<section class="public-request-shell"><article class="public-request-card public-success"><div class="success-circle"><svg class="ui-icon"><use href="#icon-check"></use></svg></div><span class="eyebrow">SOLICITAÇÃO ENVIADA</span><h1>Recebemos seus dados.</h1><p>Sua solicitação #{{ request_id }} foi enviada para a equipe responsável. Agora é só aguardar o contato.</p><a class="secondary-button" href="/request/{{ public_link.token }}">Enviar outra solicitação</a></article></section>{% endblock %}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">{% if pdf_mode %}<style>{{ pdf_css|safe }}</style>{% else %}<link rel="stylesheet" href="/static/css/pdf.css">{% endif %}<title>{{ group_title }}</title></head>
+<body class="pdf-body"><main class="group-pdf-document">
+  <section class="proposal-sheet group-cover-sheet">
+    <header class="proposal-header branded-pdf-header">
+      <div class="proposal-brand multi-brand-lockup">
+        {% if show_company_logo and company_logo %}<div class="pdf-company-logo-block" data-pdf-visibility="company"><img class="pdf-company-logo" src="{{ company_logo }}" alt="{{ company_name or 'Empresa' }}"></div>{% endif %}
+        {% if show_system_brand %}<div class="pdf-system-brand" data-pdf-visibility="system">{% if brand_logo %}<img class="pdf-brand-logo" src="{{ brand_logo }}" alt="DBMILESX">{% else %}<strong>DBMILESX</strong>{% endif %}</div>{% endif %}
+      </div>
+      <div class="proposal-date"><span>PROPOSTA EM GRUPO</span><strong>{{ items|length }} opção(ões)</strong></div>
+    </header>
+
+    <section class="group-cover-title"><span class="proposal-kicker">COTAÇÕES SELECIONADAS</span><h1>{{ group_title }}</h1>{% if group_subtitle %}<p>{{ group_subtitle }}</p>{% endif %}</section>
+
+    {% if group_image %}<section class="group-hero-image" data-pdf-visibility="group-image"><img src="{{ group_image }}" alt="Foto do grupo"></section>{% endif %}
+
+    <section class="group-summary-grid"><article><span>OPÇÕES</span><strong>{{ items|length }}</strong><small>cotações reunidas</small></article><article><span>VALOR TOTAL</span><strong>{{ grand_total|money }}</strong><small>soma das propostas</small></article><article><span>EMPRESA</span><strong>{{ company_name or 'Conta individual' }}</strong><small>responsável pelo documento</small></article></section>
+
+    {% if group_notes %}<section class="proposal-note"><div class="section-label">OBSERVAÇÕES GERAIS</div><p>{{ group_notes }}</p></section>{% endif %}
+
+    <section class="group-option-index"><div class="section-label">RESUMO DAS OPÇÕES</div>{% for item in items %}<div class="group-index-row"><span>{{ loop.index }}</span><div><strong>{{ item.display_title }}</strong><small>{{ item.quote.origin or '—' }} → {{ item.quote.destination or '—' }}</small></div><strong>{{ item.sale_value|money(item.quote.currency) }}</strong></div>{% endfor %}</section>
+
+    <footer class="proposal-footer"><div>{% if show_system_brand %}<span class="pdf-system-brand" data-pdf-visibility="system">{% if brand_mark %}<img class="pdf-footer-mark" src="{{ brand_mark }}" alt="DBMILESX">{% endif %}<strong>DBMILESX</strong></span>{% endif %}<small>Documento de cotação em grupo</small></div><p>Valores sujeitos a alteração e disponibilidade.</p></footer>
+  </section>
+
+  {% for item in items %}
+  <section class="proposal-sheet group-option-sheet">
+    <header class="proposal-header branded-pdf-header">
+      <div class="proposal-brand multi-brand-lockup">
+        {% if show_company_logo and item.company_logo %}<div class="pdf-company-logo-block" data-pdf-visibility="company"><img class="pdf-company-logo" src="{{ item.company_logo }}" alt="{{ item.company_name or 'Empresa' }}"></div>{% endif %}
+        {% if show_system_brand %}<div class="pdf-system-brand" data-pdf-visibility="system">{% if item.brand_logo %}<img class="pdf-brand-logo" src="{{ item.brand_logo }}" alt="DBMILESX">{% endif %}</div>{% endif %}
+      </div>
+      <div class="proposal-date"><span>OPÇÃO {{ loop.index }} DE {{ items|length }}</span><strong>PROPOSTA Nº {{ '%05d'|format(item.quote.id) }}</strong></div>
+    </header>
+    <section class="proposal-title-block"><div><span class="proposal-kicker">OPÇÃO {{ loop.index }}</span><h1>{{ item.display_title }}</h1><p>{% if item.display_client_name %}Preparada para {{ item.display_client_name }}{% else %}Cotação aérea personalizada{% endif %}</p></div><div class="quote-price-box"><span>VALOR DE VENDA</span><strong>{{ item.sale_value|money(item.quote.currency) }}</strong><small>{% if item.quote.passengers > 1 %}{{ (item.sale_value / item.quote.passengers)|money(item.quote.currency) }} por passageiro{% endif %}</small></div></section>
+    <section class="proposal-airline" style="--airline-color: {{ item.quote.airline.color if item.quote.airline else '#24b7d3' }}"><div class="proposal-airline-logo">{% if item.airline_logo %}<img src="{{ item.airline_logo }}" alt="{{ item.quote.airline.name }}">{% else %}<span>✈</span>{% endif %}</div><div><span class="proposal-kicker">COMPANHIA E TARIFA</span><h2>{{ item.quote.airline.name if item.quote.airline else 'Cotação importada' }}</h2><p>{{ item.quote.calculation_type.name if item.quote.calculation_type else 'Condição de viagem' }}</p></div></section>
+    <section class="proposal-route"><div><span>ORIGEM</span><strong>{{ item.quote.origin or 'A definir' }}</strong></div><span class="route-line"><i></i>✈<i></i></span><div class="right"><span>DESTINO</span><strong>{{ item.quote.destination or 'A definir' }}</strong></div></section>
+    {% if item.trip %}<section class="trip-badges"><div><span>TIPO DE VIAGEM</span><strong>{{ 'Ida e volta' if item.trip.travel_type == 'round_trip' else ('Somente ida' if item.trip.travel_type == 'one_way' else 'Multitrecho') }}</strong></div><div><span>DATA DE IDA</span><strong>{{ item.trip.departure_date|date_br }}</strong></div><div><span>DATA DE VOLTA</span><strong>{{ item.trip.return_date|date_br }}</strong></div></section>{% endif %}
+    <section class="proposal-grid"><article><span>PASSAGEIROS</span><strong>{{ item.quote.passengers }}</strong><small>pagantes</small></article><article><span>BEBÊS</span><strong>{{ item.quote.babies }}</strong><small>informados</small></article><article><span>BAGAGENS</span><strong>{{ item.quote.bags }}</strong><small>adicionais</small></article><article class="highlight"><span>VALOR</span><strong>{{ item.sale_value|money(item.quote.currency) }}</strong><small>proposta</small></article></section>
+    {% if item.display_notes %}<section class="proposal-note"><div class="section-label">OBSERVAÇÕES</div><p>{{ item.display_notes }}</p></section>{% endif %}
+    <footer class="proposal-footer"><div>{% if show_system_brand %}<span class="pdf-system-brand" data-pdf-visibility="system"><strong>DBMILESX</strong></span>{% endif %}<small>Opção {{ loop.index }} de {{ items|length }}</small></div><p>Valores sujeitos a alteração sem aviso prévio.</p></footer>
+  </section>
+  {% endfor %}
+</main></body></html>

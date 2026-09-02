@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}{{ person.name }} | DBMILESX{% endblock %}
+{% block page_title %}{{ person.name }}{% endblock %}
+{% block eyebrow %}DETALHES DA PESSOA{% endblock %}
+
+{% block content %}
+<section class="page-heading inline">
+    <div>
+        <span class="eyebrow">PESSOA</span>
+        <h1>{{ person.name }}</h1>
+        <p>{{ person.person_type|title }} • {% if person.is_complete %}✅ Cadastro completo{% else %}⚠️ Cadastro pendente{% endif %}</p>
+    </div>
+    <div class="action-cluster">
+        <a class="secondary-button" href="/persons">← Voltar</a>
+        <a class="primary-button" href="/persons/{{ person.id }}/edit">Editar</a>
+        <form method="post" action="/persons/{{ person.id }}/delete" style="display:inline;" onsubmit="return confirm('Excluir {{ person.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="ghost-button danger" type="submit">Excluir</button>
+        </form>
+    </div>
+</section>
+
+<section class="content-grid two-one">
+    <article class="panel">
+        <!-- Dados principais -->
+        <div class="detail-section">
+            <div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-user"></use></svg></div><div><h3>Dados principais</h3></div></div>
+            <div class="detail-info-grid">
+                <div><span>Nome</span><strong>{{ person.name }}</strong></div>
+                <div><span>CPF/CNPJ</span><strong>{{ person.cpf_cnpj or '—' }}</strong></div>
+                <div><span>Data de Nascimento</span><strong>{{ person.birth_date|date_br if person.birth_date else '—' }}</strong></div>
+                <div><span>Tipo</span><strong>{{ person.person_type|title }}</strong></div>
+                <div><span>Sexo</span><strong>{{ person.gender or '—' }}</strong></div>
+                <div><span>Status</span><strong>{% if person.active %}Ativo{% else %}Inativo{% endif %}</strong></div>
+            </div>
+        </div>
+
+        <!-- Contato -->
+        {% if person.phone or person.mobile or person.email %}
+        <div class="detail-section">
+            <div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-phone"></use></svg></div><div><h3>Contato</h3></div></div>
+            <div class="detail-info-grid">
+                <div><span>Telefone</span><strong>{{ person.phone or '—' }}</strong></div>
+                <div><span>Celular</span><strong>{{ person.mobile or '—' }}</strong></div>
+                <div><span>E-mail</span><strong>{{ person.email or '—' }}</strong></div>
+                <div><span>Site</span><strong>{{ person.website or '—' }}</strong></div>
+                <div><span>Chave Pix</span><strong>{{ person.pix_key or '—' }}</strong></div>
+                <div><span>Aceita comunicação</span><strong>{{ 'Sim' if person.accepts_communication else 'Não' }}</strong></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Documentos -->
+        {% if person.rg or person.passport or person.nationality %}
+        <div class="detail-section">
+            <div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-file"></use></svg></div><div><h3>Documentos</h3></div></div>
+            <div class="detail-info-grid">
+                <div><span>RG</span><strong>{{ person.rg or '—' }}</strong></div>
+                <div><span>ID Estrangeiro</span><strong>{{ person.foreign_id or '—' }}</strong></div>
+                <div><span>Passaporte</span><strong>{{ person.passport or '—' }}</strong></div>
+                <div><span>Emissão Passaporte</span><strong>{{ person.passport_issue_date|date_br if person.passport_issue_date else '—' }}</strong></div>
+                <div><span>Vencimento Passaporte</span><strong>{{ person.passport_expiry_date|date_br if person.passport_expiry_date else '—' }}</strong></div>
+                <div><span>Nacionalidade Passaporte</span><strong>{{ person.passport_nationality or '—' }}</strong></div>
+                <div><span>Visto</span><strong>{{ person.visa or '—' }}</strong></div>
+                <div><span>Validade Visto</span><strong>{{ person.visa_expiry_date|date_br if person.visa_expiry_date else '—' }}</strong></div>
+                <div><span>Órgão Emissor</span><strong>{{ person.issuing_agency or '—' }}</strong></div>
+                <div><span>Nacionalidade</span><strong>{{ person.nationality or '—' }}</strong></div>
+                <div><span>Estado Civil</span><strong>{{ person.marital_status or '—' }}</strong></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Informações -->
+        {% if person.profession or person.income %}
+        <div class="detail-section">
+            <div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-briefcase"></use></svg></div><div><h3>Informações</h3></div></div>
+            <div class="detail-info-grid">
+                <div><span>Profissão</span><strong>{{ person.profession or '—' }}</strong></div>
+                <div><span>Renda</span><strong>{{ 'R$ ' + person.income|string if person.income else '—' }}</strong></div>
+                <div><span>Canal de Venda</span><strong>{{ person.sales_channel or '—' }}</strong></div>
+                <div><span>Contato Emergência</span><strong>{{ person.emergency_contact_name or '—' }}</strong></div>
+                <div><span>Telefone Emergência</span><strong>{{ person.emergency_contact_phone or '—' }}</strong></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Endereço -->
+        {% if person.country or person.city %}
+        <div class="detail-section">
+            <div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-home"></use></svg></div><div><h3>Endereço</h3></div></div>
+            <div class="detail-info-grid">
+                <div><span>País</span><strong>{{ person.country or '—' }}</strong></div>
+                <div><span>CEP</span><strong>{{ person.postal_code or '—' }}</strong></div>
+                <div><span>Estado</span><strong>{{ person.state or '—' }}</strong></div>
+                <div><span>Cidade</span><strong>{{ person.city or '—' }}</strong></div>
+                <div><span>Bairro</span><strong>{{ person.neighborhood or '—' }}</strong></div>
+                <div><span>Endereço</span><strong>{{ person.street or '—' }}</strong></div>
+                <div><span>Número</span><strong>{{ person.number or '—' }}</strong></div>
+                <div><span>Complemento</span><strong>{{ person.complement or '—' }}</strong></div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Observação -->
+        {% if person.notes %}
+        <div class="detail-section">
+            <div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-file"></use></svg></div><div><h3>Observação</h3></div></div>
+            <p class="long-note">{{ person.notes }}</p>
+        </div>
+        {% endif %}
+
+        <div class="detail-section">
+            <small class="muted-copy">Cadastrado em {{ person.created_at.strftime('%d/%m/%Y - %H:%M') }}{% if person.created_at != person.updated_at %} • Atualizado em {{ person.updated_at.strftime('%d/%m/%Y - %H:%M') }}{% endif %}</small>
+        </div>
+    </article>
+
+    <aside class="panel sticky-side-panel">
+        <span class="eyebrow">RESUMO</span>
+        <h2>{{ person.name }}</h2>
+        <div style="display:grid;gap:8px;margin:12px 0;">
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--muted);">Tipo</span>
+                <strong>{{ person.person_type|title }}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--muted);">Status</span>
+                <strong>{% if person.is_complete %}✅ Completo{% else %}⚠️ Pendente{% endif %}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <span style="color:var(--muted);">Ativo</span>
+                <strong>{{ 'Sim' if person.active else 'Não' }}</strong>
+            </div>
+        </div>
+        <hr>
+        <a class="primary-button full" href="/persons/{{ person.id }}/edit">Editar cadastro</a>
+        <a class="secondary-button full" href="/calculations/new?person_id={{ person.id }}">Criar cotação</a>
+        <form method="post" action="/persons/{{ person.id }}/delete" style="margin-top:8px;" onsubmit="return confirm('Excluir {{ person.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="ghost-button danger full" type="submit">Excluir pessoa</button>
+        </form>
+    </aside>
+</section>
+{% endblock %}

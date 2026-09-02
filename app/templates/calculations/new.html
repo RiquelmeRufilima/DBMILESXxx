@@ -1,0 +1,1421 @@
+{% extends "base.html" %}
+{% block title %}Nova cotação | DBMILESX{% endblock %}
+{% block page_title %}{{ 'Calcular companhias da cotação' if group and not edit_base else 'Nova cotação principal' }}{% endblock %}
+{% block eyebrow %}MOTOR DE CÁLCULO{% endblock %}
+{% block head %}
+<style>
+/* V5.9.5 - botões bonitos de escopo, forçado nesta tela para evitar cache antigo */
+.segment-scope-panel{border:1px solid rgba(93,188,255,.18)!important;background:linear-gradient(135deg,rgba(44,118,255,.08),rgba(19,197,144,.055))!important;border-radius:24px!important;}
+.calc-scope-layout{display:grid!important;gap:16px!important;margin-top:14px!important}.scope-category-block{display:grid;gap:10px}.calc-scope-cards{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))!important;gap:12px!important}.scope-category-heading{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:12px!important;grid-column:auto!important}.scope-category-heading>div{display:grid!important;gap:4px!important}.scope-category-heading strong,.scope-category-heading small{display:block!important}.skip-category-block{padding-top:12px;border-top:1px solid rgba(255,190,72,.18)}.scope-route-warning{color:#ffbc72!important;font-weight:800!important}
+.calc-scope-card{appearance:none!important;-webkit-appearance:none!important;border:1px solid rgba(139,177,220,.18)!important;background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.032))!important;color:#eaf6ff!important;border-radius:18px!important;padding:16px 16px!important;min-height:96px!important;text-align:left!important;cursor:pointer!important;display:flex!important;align-items:flex-start!important;gap:12px!important;box-shadow:0 10px 24px rgba(0,0,0,.14)!important;transition:.18s ease!important;font:inherit!important;line-height:1.2!important;}
+.calc-scope-card:hover{transform:translateY(-1px)!important;border-color:rgba(80,170,255,.45)!important;background:linear-gradient(180deg,rgba(65,135,255,.13),rgba(255,255,255,.04))!important;}
+.calc-scope-card.active{border-color:rgba(30,213,156,.82)!important;background:linear-gradient(135deg,rgba(30,213,156,.20),rgba(57,131,255,.14))!important;box-shadow:0 0 0 3px rgba(30,213,156,.10),0 18px 36px rgba(0,0,0,.22)!important;}
+.scope-icon-soft{width:38px;height:38px;border-radius:14px;display:grid;place-items:center;flex:0 0 38px;background:rgba(72,146,255,.16);border:1px solid rgba(102,175,255,.20);color:#9bd6ff;font-weight:900;font-size:18px;}
+.calc-scope-card.active .scope-icon-soft{background:rgba(30,213,156,.18);border-color:rgba(30,213,156,.30);color:#65ffd0;}
+.scope-copy-soft{display:grid;gap:5px;min-width:0;}
+.scope-copy-soft strong{display:block!important;font-size:15px!important;margin:0!important;color:#fff!important;letter-spacing:-.01em!important;}
+.scope-copy-soft small{display:block!important;color:#a9c2dc!important;font-size:.82rem!important;line-height:1.35!important;white-space:normal!important;}
+.scope-badge-soft{display:inline-flex;align-items:center;width:max-content;border-radius:999px;padding:3px 8px;font-size:.66rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;background:rgba(46,213,156,.13);border:1px solid rgba(46,213,156,.24);color:#70ffd2;margin-bottom:2px;}
+.scope-route-muted{font-size:.78rem;color:#8fb0cd;}
+@media(max-width:760px){.calc-scope-cards{grid-template-columns:1fr!important}.calc-scope-card{min-height:auto!important}.scope-category-heading{flex-direction:column!important}}
+.variant-switcher{display:grid;gap:12px;margin-bottom:16px}.variant-tabs{display:flex;gap:8px;flex-wrap:wrap}.variant-tab{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border-radius:14px;border:1px solid rgba(139,177,220,.18);background:rgba(255,255,255,.035);color:#cfe7ff;text-decoration:none;font-weight:800}.variant-tab.active{border-color:rgba(30,213,156,.7);background:rgba(30,213,156,.13);color:#7dffd8}.variant-tab small{font-weight:600;color:#8faac4}.skip-airport-panel{border-color:rgba(255,190,72,.30)!important;background:linear-gradient(135deg,rgba(255,178,44,.09),rgba(255,255,255,.025))!important}.skip-route-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.skip-route-preview span{display:inline-flex;padding:7px 10px;border-radius:999px;border:1px solid rgba(255,196,87,.22);background:rgba(255,196,87,.08);color:#ffe2a3;font-size:.78rem;font-weight:800}.variant-scope-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.variant-name-pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:rgba(72,146,255,.14);border:1px solid rgba(72,146,255,.24);color:#9bd6ff;font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.skip-financial-panel{border-color:rgba(30,213,156,.34)!important;background:linear-gradient(135deg,rgba(30,213,156,.10),rgba(57,131,255,.055))!important}.skip-financial-panel input{font-size:1.05rem;font-weight:900}.skip-financial-note{align-self:end}
+
+/* V5.10.24 - acabamento profissional e cores semânticas */
+.airline-national-badge{display:inline-flex;margin-left:auto;padding:3px 7px;border-radius:999px;background:rgba(30,213,156,.12);border:1px solid rgba(30,213,156,.24);color:#72ffd5;font-size:.60rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase}.airline-mini.national-priority{border-color:rgba(30,213,156,.20);background:linear-gradient(135deg,rgba(30,213,156,.06),rgba(255,255,255,.025))}.operation-profile-panel{border-color:rgba(87,163,255,.28)!important;background:linear-gradient(135deg,rgba(57,131,255,.09),rgba(30,213,156,.045))!important}.operation-profile-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.operation-profile-chip{display:inline-flex;padding:6px 10px;border-radius:999px;background:rgba(57,131,255,.14);border:1px solid rgba(87,163,255,.25);color:#b9dcff;font-size:.76rem;font-weight:900}.partner-field[hidden]{display:none!important}.metadata-cost-fields[hidden]{display:none!important}.scope-availability-pill{display:inline-flex;padding:5px 9px;border-radius:999px;background:rgba(255,184,62,.10);border:1px solid rgba(255,184,62,.28);color:#ffd98a;font-size:.68rem;font-weight:900}.button-edit{background:rgba(255,184,62,.12)!important;border-color:rgba(255,184,62,.30)!important;color:#ffd98a!important}.button-create{background:rgba(30,213,156,.14)!important;border-color:rgba(30,213,156,.30)!important;color:#78ffd6!important}.button-delete{background:rgba(255,91,110,.08)!important;border-color:rgba(255,91,110,.30)!important;color:#ff9aa8!important}.button-open{background:rgba(57,131,255,.12)!important;border-color:rgba(87,163,255,.30)!important;color:#b9dcff!important}.button-save{background:linear-gradient(135deg,#00a76f,#17b8aa)!important;color:#fff!important}.option-metadata-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.skip-metadata-note{display:none}.is-skip-mode .skip-metadata-note{display:block}.is-skip-mode .metadata-cost-fields{display:none!important}.is-skip-mode #optionMetadataSection{border-color:rgba(255,184,62,.30)}
+.airline-list-section-title{position:sticky;top:0;z-index:2;padding:9px 10px 6px;background:var(--panel,#102238);color:#7fa8c9;font-size:.62rem;font-weight:950;letter-spacing:.12em}.button-send{background:linear-gradient(135deg,#0ea5e9,#2563eb)!important}.button-edit{background:#8a5a00!important;border-color:#d99a25!important;color:#fff2c4!important}.button-open{background:#124c8c!important;border-color:#2f8ee8!important;color:#fff!important}.button-duplicate{background:#5b32a8!important;border-color:#8c68df!important;color:#fff!important}.button-fare{background:#7b2e87!important;border-color:#c067d0!important;color:#fff!important}.button-accept{background:#087c5c!important;border-color:#1bc79b!important;color:#fff!important}.button-flight{background:#076b82!important;border-color:#21b7d8!important;color:#fff!important}.button-delete{background:#7f1d2d!important;border-color:#e04f66!important;color:#fff!important}
+
+
+.operation-profile-panel-visible{
+  display:block!important;
+  border:1px solid rgba(35,210,178,.34)!important;
+  background:linear-gradient(135deg,rgba(18,100,126,.14),rgba(14,86,72,.11))!important;
+}
+.operation-quick-grid{
+  display:grid;
+  grid-template-columns:minmax(220px,.72fr) minmax(300px,1.28fr);
+  gap:14px;
+  margin-top:14px;
+}
+.operation-main-field{display:grid;gap:7px}
+.operation-main-field>span{font-size:.78rem;font-weight:900;color:#d9efff}
+.operation-main-field select,.operation-main-field input{
+  width:100%;
+  min-height:46px;
+  border-radius:12px;
+  border:1px solid rgba(103,172,217,.25);
+  background:#071827;
+  color:#f6fbff;
+  padding:0 13px;
+  font:inherit;
+  font-weight:800;
+}
+.operation-main-field input{padding-top:10px;padding-bottom:10px}
+.operation-main-field select:focus,.operation-main-field input:focus,.partner-segment-field input:focus{
+  outline:none;
+  border-color:#25c8d7;
+  box-shadow:0 0 0 3px rgba(37,200,215,.10);
+}
+.operation-main-field small{color:#89a8bd;line-height:1.45}
+.partner-airline-panel-always{
+  display:block!important;
+  margin-top:15px;
+  padding-top:14px;
+  border-top:1px solid rgba(98,176,231,.17);
+}
+.partner-segment-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:10px;
+}
+.partner-segment-field{
+  display:grid;
+  grid-template-columns:minmax(120px,.7fr) minmax(180px,1.3fr);
+  gap:10px;
+  align-items:center;
+  padding:11px;
+  border:1px solid rgba(91,155,199,.17);
+  border-radius:12px;
+  background:rgba(4,21,35,.28);
+}
+.partner-segment-field>span{display:grid;gap:2px}
+.partner-segment-field>span>b{color:#dff5ff;font-size:.78rem}
+.partner-segment-field>span>small{color:#7fa2b8;font-size:.68rem}
+.partner-segment-field input{
+  width:100%;
+  min-height:40px;
+  border-radius:10px;
+  border:1px solid rgba(103,172,217,.22);
+  background:#071827;
+  color:#fff;
+  padding:8px 10px;
+}
+@media(max-width:760px){
+  .operation-quick-grid,.partner-segment-grid{grid-template-columns:1fr}
+  .partner-segment-field{grid-template-columns:1fr}
+}
+
+
+/* V2.8 — seletor profissional de companhia parceira */
+.operation-profile-panel-visible{
+  position:relative;
+  overflow:visible!important;
+  display:block!important;
+  padding:18px!important;
+  border:1px solid rgba(55,205,210,.26)!important;
+  border-radius:18px!important;
+  background:
+    radial-gradient(circle at 100% 0%,rgba(32,176,194,.12),transparent 34%),
+    linear-gradient(145deg,rgba(12,42,64,.96),rgba(8,29,48,.98))!important;
+  box-shadow:0 12px 32px rgba(0,0,0,.16);
+}
+.operation-panel-header{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:13px;
+  align-items:center;
+  padding-bottom:15px;
+  border-bottom:1px solid rgba(107,177,218,.14);
+}
+.operation-panel-icon{
+  width:42px;height:42px;border-radius:13px;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,#19b8ec,#167fdd);
+  color:white;font-size:1.05rem;font-weight:950;
+  box-shadow:0 8px 22px rgba(25,184,236,.19);
+}
+.operation-panel-copy{min-width:0}
+.operation-panel-copy h3{margin:1px 0 3px;color:#f5fbff;font-size:1rem}
+.operation-panel-copy p{margin:0;color:#8caec3;font-size:.74rem;line-height:1.5}
+.operation-kicker{color:#36d5df;font-size:.61rem;font-weight:950;letter-spacing:.11em}
+.operation-current-profile{display:grid;justify-items:end;gap:3px}
+.operation-current-profile small{color:#718fa5;font-size:.61rem}
+.operation-profile-badge{
+  display:inline-flex;align-items:center;min-height:28px;padding:0 10px;
+  border-radius:999px;font-size:.68rem;font-weight:900;border:1px solid transparent;
+}
+.operation-profile-badge.national{color:#82f6ca;background:rgba(28,179,134,.12);border-color:rgba(28,179,134,.26)}
+.operation-profile-badge.international{color:#9dd4ff;background:rgba(48,138,220,.12);border-color:rgba(48,138,220,.27)}
+.operation-profile-badge.both{color:#d9c0ff;background:rgba(143,92,216,.13);border-color:rgba(143,92,216,.27)}
+
+.operation-professional-grid{
+  display:grid;grid-template-columns:minmax(220px,.72fr) minmax(360px,1.28fr);
+  gap:14px;margin-top:15px;align-items:start;
+}
+.operation-pro-field{display:grid;gap:7px;min-width:0;position:relative}
+.operation-pro-label{display:flex;align-items:center;gap:7px;color:#d9effc;font-size:.76rem;font-weight:900}
+.operation-pro-field>small{color:#7799ae;font-size:.66rem;line-height:1.45}
+.operation-select-wrap select{
+  width:100%;height:46px;border:1px solid rgba(104,169,209,.24);
+  border-radius:12px;background:#071827;color:#f5fbff;padding:0 13px;
+  font:inherit;font-weight:850;cursor:pointer;
+}
+.operation-select-wrap select:focus{outline:none;border-color:#31c8d6;box-shadow:0 0 0 3px rgba(49,200,214,.10)}
+
+.optional-pill{
+  display:inline-flex;align-items:center;min-height:20px;padding:0 7px;border-radius:999px;
+  font-style:normal;text-transform:uppercase;letter-spacing:.04em;font-size:.55rem;font-weight:900;
+  color:#8ebde0;background:rgba(87,153,203,.10);border:1px solid rgba(87,153,203,.18);
+}
+
+.partner-combobox{position:relative;z-index:20}
+.partner-combobox:focus-within{z-index:120}
+.partner-input-shell{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;
+  min-height:46px;border:1px solid rgba(104,169,209,.24);border-radius:12px;
+  background:#071827;transition:.15s ease;
+}
+.partner-input-shell:focus-within{
+  border-color:#31c8d6;box-shadow:0 0 0 3px rgba(49,200,214,.10);
+}
+.partner-input-icon{padding-left:12px;color:#6f9db8;font-size:.9rem}
+.partner-combobox-input{
+  width:100%;min-width:0;border:0!important;outline:0!important;box-shadow:none!important;
+  background:transparent!important;color:#fff!important;padding:10px 9px!important;
+  font:inherit;font-size:.78rem;font-weight:800;
+}
+.partner-combobox-input::placeholder{color:#5f7f94;font-weight:650}
+.partner-clear-button{
+  width:34px;height:34px;margin-right:5px;border:0;border-radius:9px;background:transparent;
+  color:#6e91a8;font-size:1rem;cursor:pointer;
+}
+.partner-clear-button:hover{background:rgba(255,255,255,.06);color:#fff}
+
+.partner-dropdown{
+  position:absolute;left:0;right:0;top:calc(100% + 7px);z-index:900;
+  border:1px solid rgba(80,151,197,.24);border-radius:14px;
+  background:#061523;box-shadow:0 20px 55px rgba(0,0,0,.52);overflow:hidden;
+}
+.partner-dropdown[hidden]{display:none!important}
+.partner-dropdown-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 11px;border-bottom:1px solid rgba(91,155,199,.13);
+  color:#bfe9fa;font-size:.68rem;
+}
+.partner-dropdown-head span{color:#648ba5;font-size:.61rem}
+.partner-dropdown-list{max-height:310px;overflow:auto;padding:6px}
+.partner-option{
+  display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:9px;align-items:center;
+  width:100%;padding:8px;border:0;border-radius:10px;background:transparent;color:#fff;
+  text-align:left;cursor:pointer;
+}
+.partner-option:hover,.partner-option.active{background:rgba(30,152,189,.12)}
+.partner-option-logo{
+  width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+  background:#f6fbff;overflow:hidden;border:1px solid rgba(255,255,255,.08);
+}
+.partner-option-logo img{width:100%;height:100%;object-fit:contain;padding:4px}
+.partner-option-logo span{color:#178fc2;font-weight:950}
+.partner-option-copy{display:grid;gap:2px;min-width:0}
+.partner-option-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem}
+.partner-option-copy small{color:#6e94ac;font-size:.61rem}
+.partner-option-badge{
+  padding:4px 7px;border-radius:999px;background:rgba(74,139,184,.11);
+  color:#94c2dd;font-size:.55rem;font-weight:850;white-space:nowrap
+}
+.partner-option-badge.configured{color:#73e9c4;background:rgba(30,187,139,.11)}
+.partner-manual-note{
+  padding:9px 11px;border-top:1px solid rgba(91,155,199,.12);
+  color:#678ba2;background:rgba(255,255,255,.018);font-size:.61rem;
+}
+.partner-empty{padding:18px 12px;text-align:center;color:#6f91a6;font-size:.69rem}
+
+.partner-featured{
+  margin-top:14px;padding:12px;border:1px solid rgba(88,154,196,.13);
+  border-radius:14px;background:rgba(2,17,29,.25);
+}
+.partner-featured-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:9px}
+.partner-featured-head>div{display:grid;gap:1px}
+.partner-featured-head strong{color:#d8f0fb;font-size:.75rem}
+.partner-featured-head small,.partner-featured-head>span{color:#668ca5;font-size:.6rem}
+.partner-featured-list{display:flex;flex-wrap:wrap;gap:7px}
+.partner-featured-chip{
+  display:flex;align-items:center;gap:7px;min-height:39px;max-width:210px;padding:5px 9px;
+  border:1px solid rgba(86,153,196,.17);border-radius:11px;background:#092034;color:#fff;cursor:pointer;
+}
+.partner-featured-chip:hover{border-color:rgba(43,199,208,.42);background:#0b2a41;transform:translateY(-1px)}
+.partner-featured-chip img,.partner-logo-fallback{
+  width:27px;height:27px;border-radius:8px;background:#fff;object-fit:contain;padding:3px;flex:0 0 auto
+}
+.partner-logo-fallback{display:grid;place-items:center;color:#168fc1;font-size:.7rem}
+.partner-featured-copy{display:grid;min-width:0;text-align:left}
+.partner-featured-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.66rem}
+.partner-featured-copy small{color:#6f96ae;font-size:.55rem}
+
+.partner-airline-panel-always{
+  display:block!important;margin-top:14px;padding-top:13px;border-top:1px solid rgba(96,163,202,.13);
+}
+.partner-panel-heading.professional{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.partner-panel-heading.professional>div{display:grid;gap:2px}
+.partner-panel-heading.professional strong{color:#e5f6fd;font-size:.78rem}
+.partner-panel-heading.professional small{color:#708fa4;font-size:.62rem}
+.partner-segment-grid.professional{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:10px}
+.partner-segment-card{
+  min-width:0;padding:10px;border:1px solid rgba(87,151,191,.13);
+  border-radius:13px;background:rgba(3,17,28,.24);overflow:visible;
+}
+.partner-segment-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.partner-segment-number{
+  width:28px;height:28px;border-radius:9px;display:grid;place-items:center;
+  color:#95e9f2;background:rgba(27,159,176,.12);border:1px solid rgba(27,159,176,.21);
+  font-size:.68rem;font-weight:950;
+}
+.partner-segment-route{display:grid;gap:1px}
+.partner-segment-route strong{color:#d9eef8;font-size:.69rem}
+.partner-segment-route small{color:#65879c;font-size:.58rem}
+.partner-combobox.compact .partner-input-shell{min-height:40px}
+.partner-combobox.compact .partner-combobox-input{font-size:.7rem;padding-top:8px!important;padding-bottom:8px!important}
+
+@media(max-width:820px){
+  .operation-panel-header{grid-template-columns:auto minmax(0,1fr)}
+  .operation-current-profile{grid-column:1/-1;justify-items:start;padding-left:55px}
+  .operation-professional-grid,.partner-segment-grid.professional{grid-template-columns:1fr}
+}
+
+
+/* V2.9 - correção definitiva do seletor de parceiras */
+.partner-dropdown{
+  z-index:2600!important;
+  max-height:330px!important;
+}
+.partner-dropdown-list{
+  max-height:245px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+}
+.partner-option{
+  min-height:48px!important;
+  grid-template-columns:34px minmax(0,1fr) auto!important;
+}
+.partner-option-logo{
+  width:30px!important;
+  height:30px!important;
+  min-width:30px!important;
+  border-radius:9px!important;
+  display:grid!important;
+  place-items:center!important;
+  background:linear-gradient(135deg,rgba(28,160,192,.18),rgba(51,110,191,.16))!important;
+  border:1px solid rgba(74,174,205,.24)!important;
+  color:#a6efff!important;
+  overflow:hidden!important;
+  font-size:.58rem!important;
+  font-weight:950!important;
+  letter-spacing:.02em!important;
+}
+.partner-option-logo img,
+.partner-featured-chip img,
+.partner-combobox img{
+  width:28px!important;
+  height:28px!important;
+  max-width:28px!important;
+  max-height:28px!important;
+  object-fit:contain!important;
+}
+.partner-name-mark{
+  width:28px;
+  height:28px;
+  min-width:28px;
+  display:grid;
+  place-items:center;
+  border-radius:8px;
+  background:linear-gradient(135deg,rgba(28,160,192,.17),rgba(51,110,191,.15));
+  border:1px solid rgba(74,174,205,.22);
+  color:#b6efff;
+  font-size:.56rem;
+  font-weight:950;
+  letter-spacing:.02em;
+}
+.partner-featured-chip{
+  min-height:42px!important;
+  max-width:230px!important;
+  padding:6px 10px!important;
+}
+.partner-featured-copy strong{
+  font-size:.69rem!important;
+}
+.partner-featured-copy small{
+  font-size:.56rem!important;
+}
+.partner-dropdown-list::-webkit-scrollbar{width:8px}
+.partner-dropdown-list::-webkit-scrollbar-thumb{
+  background:rgba(96,157,195,.28);
+  border-radius:999px;
+}
+
+</style>
+{% endblock %}
+{% block content %}
+<section class="page-heading inline">
+  <div>
+    <span class="eyebrow">MOTOR DE CÁLCULO</span>
+    {% if group and not edit_base %}
+      <h1>Bancada de cálculo da cotação.</h1>
+      <p>Calcule ida e volta, só ida, só volta ou trechos específicos dentro da mesma cotação, sem criar outra ficha.</p>
+    {% else %}
+      <h1>Crie uma cotação limpa para cálculo.</h1>
+      <p>Informe só a base da viagem. Depois você calcula quantas opções quiser, separadas por trecho e por tipo de cálculo.</p>
+    {% endif %}
+  </div>
+  <div class="action-cluster">
+    <a class="secondary-button" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg><span class="icon-label">Nova cotação limpa</span></a>
+    <a class="ghost-button" href="/calculations/history">Histórico</a>
+  </div>
+</section>
+
+{% if group and not edit_base %}
+<section class="notice-card success-notice">
+  <div class="notice-icon"><svg class="ui-icon"><use href="#icon-check"></use></svg></div>
+  <div>
+    <strong>Cotação base fixa</strong>
+    <p>{{ base.quote_name }}{% if base.origin or base.destination %} • {{ base.origin or '---' }} → {{ base.destination or '---' }}{% endif %}. Para mudar esses dados, clique em <b>Alterar dados da cotação</b>.</p>
+  </div>
+</section>
+
+<section class="variant-switcher card-panel compact-toolbar">
+  <div class="panel-heading compact">
+    <div><span class="eyebrow">ROTAS DENTRO DA MESMA COTAÇÃO</span><h3>Principal e subcotações</h3><p>Troque a rota ativa sem criar outra ficha de cliente.</p></div>
+    <a class="secondary-button small-button button-create" href="/calculations/group/{{ group.id }}/variant/new"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Nova subcotação</a>
+  </div>
+  <div class="variant-tabs">
+    {% for variant in group_variants %}
+      <a class="variant-tab {% if selected_variant_key == variant.key %}active{% endif %}" href="/calculations/new?group_id={{ group.id }}&variant_key={{ variant.key }}&airline_id={{ selected_airline.id if selected_airline else '' }}&type_id={{ selected_type.id if selected_type else '' }}&calc=1">
+        <span>{{ 'Principal' if variant.key == 'primary' else variant.name }}</span><small>{{ variant.origin or '?' }} → {{ variant.destination or '?' }} • {{ variant.passengers|default(base.passengers, true) }} passageiro(s)</small>
+      </a>
+    {% endfor %}
+  </div>
+  {% if selected_variant_key != 'primary' %}
+  <div class="action-cluster">
+    <a class="ghost-button small-button button-edit" href="/calculations/group/{{ group.id }}/variant/{{ selected_variant_key }}/edit"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Editar subcotação</a>
+    <form method="post" action="/calculations/group/{{ group.id }}/variant/{{ selected_variant_key }}/delete" onsubmit="return confirm('Excluir esta subcotação e todas as opções calculadas dentro dela?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger small-button button-delete" type="submit"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir subcotação</button></form>
+  </div>
+  {% endif %}
+</section>
+
+<section class="quote-base-summary card-panel compact-summary">
+  <div class="panel-heading compact">
+    <div>
+      <span class="eyebrow">ROTA ATIVA</span>
+      <h2>{{ base.quote_name }}{% if selected_variant_key != 'primary' %} • {{ selected_variant_name }}{% endif %}</h2>
+      <p>Os cálculos abaixo serão salvos dentro de <b>{{ selected_variant_name }}</b>.</p>
+    </div>
+    {% if selected_variant_key == 'primary' %}<a class="secondary-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_base=1&variant_key=primary"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cotação principal</a>{% else %}<a class="secondary-button button-edit" href="/calculations/group/{{ group.id }}/variant/{{ selected_variant_key }}/edit"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar subcotação</a>{% endif %}
+  </div>
+  <div class="summary-grid">
+    <div><small>Rota</small><strong>{{ base.origin or '---' }} → {{ base.destination or '---' }}</strong></div>
+    <div><small>Tipo de viagem</small><strong>{% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %}</strong></div>
+    <div><small>Ida</small><strong>{{ base.departure_date or 'Data opcional' }}</strong></div>
+    <div><small>Volta</small><strong>{% if base.travel_type == 'one_way' %}Não se aplica{% else %}{{ base.return_date or 'Data opcional' }}{% endif %}</strong></div>
+    <div><small>Passageiros</small><strong>{{ base.passengers }}</strong></div>
+    <div><small>Bebês</small><strong>{{ base.babies }}</strong></div>
+    <div><small>Flexibilidade</small><strong>{% if base.flexibility_days|default(0) %}± {{ base.flexibility_days }} dia(s){% else %}Data fixa{% endif %}</strong></div>
+    <div><small>Bagagens</small><strong>Definidas por opção</strong></div>
+    <div><small>Cliente</small><strong>{{ base.client_name or 'Não informado' }}</strong></div>
+  </div>
+</section>
+
+<section class="wizard-grid old-calculation-layout">
+  <aside class="panel selector-panel">
+    <div class="section-title">
+      <span class="step-badge">1</span>
+      <div><h2>Companhia</h2><p>Escolha a regra de cálculo.</p></div>
+    </div>
+    <a class="create-airline-shortcut" href="/airlines/new">
+      <svg class="ui-icon"><use href="#icon-plus-circle"></use></svg>
+      <span><strong>Criar companhia própria</strong><small>Fórmulas, descontos, juros e taxas</small></span>
+    </a>
+    <div class="airline-search-box">
+      <svg class="ui-icon"><use href="#icon-search"></use></svg>
+      <input type="search" id="airlineCalcSearch" placeholder="Pesquisar companhia..." autocomplete="off">
+    </div>
+    <div class="airline-mini-list" id="airlineCalcList">
+      {% if national_airlines %}<div class="airline-list-section-title">NACIONAIS</div>{% endif %}
+      {% for airline in national_airlines %}
+      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini national-priority {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</small></span><em class="airline-national-badge">Prioridade</em>
+      </a>{% endfor %}
+      {% if other_airlines %}<div class="airline-list-section-title">INTERNACIONAIS E OUTRAS</div>{% endif %}
+      {% for airline in other_airlines %}
+      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
+      </a>{% endfor %}
+    </div>
+  </aside>
+
+  <div class="panel form-panel">
+    {% if selected_airline and selected_type %}
+    <div class="selected-airline-head" style="--airline-color: {{ selected_airline.color }}">
+      <div>{% if selected_airline.logo_path %}<img src="/{{ selected_airline.logo_path }}" alt="{{ selected_airline.name }}">{% else %}<span class="brand-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}</div>
+      <div>
+        <span class="eyebrow">COMPANHIA SELECIONADA</span>
+        <h2>{{ selected_airline.name }}</h2>
+        <p>{{ selected_type.description or 'Preencha os parâmetros para calcular uma opção dentro desta cotação.' }}</p>
+      </div>
+      {% if not selected_airline.builtin %}<span class="badge custom">Personalizada</span>{% endif %}
+    </div>
+
+    {% set active_types = selected_airline.calculation_types|selectattr('active')|list %}
+    {% if active_types|length > 1 %}
+    <div class="type-tabs">
+      {% for type in active_types %}
+      <a class="type-tab {% if type.id == selected_type.id %}active{% endif %}" href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ selected_airline.id }}&type_id={{ type.id }}&calc=1">{{ type.name }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/calculations/calculate" class="form-stack calculation-form" id="quoteForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="group_id" value="{{ group.id }}">
+      <input type="hidden" name="airline_id" value="{{ selected_airline.id }}">
+      <input type="hidden" name="calculation_type_id" value="{{ selected_type.id }}">
+      <input type="hidden" name="option_id" value="{{ option_id or '' }}">
+      <input type="hidden" name="variant_key" value="{{ selected_variant_key or 'primary' }}">
+      <input type="hidden" name="scope_key" id="scopeKeyInput" value="{{ selected_scope_key or (route_scopes[0].key if route_scopes else '') }}">
+
+      {% set partnership = partnership_meta or {} %}
+      {% set saved_operation_scope = partnership.get('operation_scope') or operation_profile.fixed_market or 'national' %}
+      <div class="form-section soft operation-profile-panel operation-profile-panel-visible" id="operationProfilePanel" data-partner-allowed="1">
+        <div class="operation-panel-header">
+          <div class="operation-panel-icon">✈</div>
+          <div class="operation-panel-copy">
+            <span class="operation-kicker">OPERAÇÃO DO VOO</span>
+            <h3>Nacional, internacional e parcerias</h3>
+            <p>Defina o tipo desta opção e, somente se houver, escolha a companhia parceira. A parceria continua opcional.</p>
+          </div>
+          <div class="operation-current-profile">
+            {% if operation_profile.market_scope == 'national' %}
+              <span class="operation-profile-badge national">Nacional</span>
+            {% elif operation_profile.market_scope == 'international' %}
+              <span class="operation-profile-badge international">Internacional</span>
+            {% else %}
+              <span class="operation-profile-badge both">Nacional + internacional</span>
+            {% endif %}
+            <small>perfil da companhia</small>
+          </div>
+        </div>
+
+        <div class="operation-professional-grid">
+          <label class="operation-pro-field">
+            <span class="operation-pro-label">Tipo da operação</span>
+            <span class="operation-select-wrap">
+              <select name="operation_scope" id="operationScopeSelect">
+                <option value="national" {% if saved_operation_scope == 'national' %}selected{% endif %}>🇧🇷 Nacional</option>
+                <option value="international" {% if saved_operation_scope == 'international' %}selected{% endif %}>🌎 Internacional</option>
+              </select>
+            </span>
+            <small>Você pode usar parceria tanto em voo nacional quanto internacional.</small>
+          </label>
+
+          <div class="operation-pro-field partner-combobox-field">
+            <span class="operation-pro-label">
+              Companhia parceira principal
+              <em class="optional-pill">opcional</em>
+            </span>
+
+            <div class="partner-combobox" data-partner-combobox>
+              <div class="partner-input-shell">
+                <span class="partner-input-icon">⌕</span>
+                <input
+                  type="text"
+                  name="partner_airline"
+                  id="partnerAirlineInput"
+                  class="partner-combobox-input"
+                  value="{{ partnership.get('partner_airline','') }}"
+                  placeholder="Pesquisar ou digitar uma companhia..."
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+                <button class="partner-clear-button" type="button" data-partner-clear aria-label="Limpar companhia">×</button>
+              </div>
+
+              <div class="partner-dropdown" data-partner-dropdown hidden>
+                <div class="partner-dropdown-head">
+                  <strong>Companhias disponíveis por nome</strong>
+                  <span data-partner-count></span>
+                </div>
+                <div class="partner-dropdown-list" data-partner-list></div>
+                <div class="partner-manual-note">
+                  Não encontrou? Você também pode digitar o nome manualmente.
+                </div>
+              </div>
+            </div>
+
+            <small>As sugestões abaixo usam apenas o nome real das companhias cadastradas no DBMILESX.</small>
+          </div>
+        </div>
+
+        {% if partner_airline_options %}
+        <div class="partner-featured">
+          <div class="partner-featured-head">
+            <div>
+              <strong>Companhias</strong>
+              <small>Clique para selecionar rapidamente.</small>
+            </div>
+            <span>{{ partner_airline_options|length }} disponível(is)</span>
+          </div>
+          <div class="partner-featured-list">
+            {% for partner in partner_airline_options[:12] %}
+            <button type="button" class="partner-featured-chip" data-partner-pick="{{ partner.name }}">
+              <span class="partner-name-mark">{{ partner.name[:2]|upper }}</span>
+              <span class="partner-featured-copy">
+                <strong>{{ partner.name }}</strong>
+                <small>{{ partner.market_label }}</small>
+              </span>
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="partner-airline-panel partner-airline-panel-always" id="partnerAirlineField">
+          <div class="partner-panel-heading professional">
+            <div>
+              <strong>Parceira por trecho</strong>
+              <small>Use apenas quando um trecho for operado por uma companhia diferente.</small>
+            </div>
+            <span class="optional-pill">opcional</span>
+          </div>
+
+          <div class="partner-segment-grid professional">
+            {% for row in partner_segment_rows %}
+            <div class="partner-segment-card">
+              <div class="partner-segment-top">
+                <span class="partner-segment-number">{{ row.segment }}</span>
+                <span class="partner-segment-route">
+                  <strong>Trecho {{ row.segment }}</strong>
+                  <small>{{ row.route }}</small>
+                </span>
+              </div>
+
+              <div class="partner-combobox compact" data-partner-combobox>
+                <div class="partner-input-shell">
+                  <span class="partner-input-icon">⌕</span>
+                  <input
+                    name="partner_segment_{{ row.segment }}"
+                    class="partner-segment-input partner-combobox-input"
+                    data-segment="{{ row.segment }}"
+                    value="{{ row.partner_airline }}"
+                    placeholder="Nenhuma parceira"
+                    autocomplete="off"
+                    spellcheck="false"
+                  >
+                  <button class="partner-clear-button" type="button" data-partner-clear aria-label="Limpar companhia">×</button>
+                </div>
+                <div class="partner-dropdown" data-partner-dropdown hidden>
+                  <div class="partner-dropdown-head">
+                    <strong>Escolher companhia</strong>
+                    <span data-partner-count></span>
+                  </div>
+                  <div class="partner-dropdown-list" data-partner-list></div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
+
+      <div class="form-section soft segment-scope-panel">
+        <div class="section-title"><span class="step-badge">1</span><div><h3 class="variant-scope-heading">O que você quer calcular agora? <span class="variant-name-pill">{{ selected_variant_name }}</span></h3><p>Escolha a opção principal e, quando necessário, use Skip Normal ou Skip Inverso. Os dois modos Skip ficam disponíveis em Só ida e em Ida e volta, sempre separados no histórico.</p></div></div>
+        <div class="calc-scope-layout" id="calcScopeGrid">
+          {% if route_scopes %}
+          <section class="scope-category-block">
+            <div class="scope-category-heading">
+              <div><strong>Opções principais</strong><small>Escolha Só ida, Ida e volta, Só volta ou um trecho específico.</small></div>
+            </div>
+            <div class="calc-scope-cards">
+              {% for scope in route_scopes %}
+                {% if scope.key not in ['skip_normal', 'skip_inverse'] %}
+                <button type="button" class="calc-scope-card {% if (selected_scope_key and selected_scope_key == scope.key) or (not selected_scope_key and loop.first) %}active{% endif %}" data-scope-key="{{ scope.key }}" data-departure-date="{{ scope.departure_date or '' }}" data-return-date="{{ scope.return_date or '' }}" data-requires-skip-airport="{{ '1' if scope.requires_skip_airport else '0' }}" data-skip-mode="{{ scope.skip_mode or '' }}" data-route-ready="1">
+                  <span class="scope-icon-soft">{% if scope.key == 'round_trip' %}↔{% elif scope.key == 'outbound' or scope.key == 'one_way' %}→{% elif scope.key == 'return' %}←{% elif scope.key == 'multi_city' %}⋯{% else %}{{ loop.index }}{% endif %}</span>
+                  <span class="scope-copy-soft">
+                    <span class="scope-badge-soft">{% if scope.key == 'round_trip' %}Ida + volta{% elif scope.key == 'outbound' or scope.key == 'one_way' %}Só ida{% elif scope.key == 'return' %}Só volta{% elif scope.key == 'multi_city' %}Multitrecho{% else %}Trecho específico{% endif %}</span>
+                    <strong>{% if scope.key == 'round_trip' %}Calcular ida e volta{% elif scope.key == 'outbound' or scope.key == 'one_way' %}Calcular somente a ida{% elif scope.key == 'return' %}Calcular somente a volta{% elif scope.key == 'multi_city' %}Calcular todos os trechos{% else %}Calcular {{ scope.label }}{% endif %}</strong>
+                    <small>{{ scope.hint }}</small>
+                  </span>
+                </button>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </section>
+
+          {% if skip_scopes %}
+          <section class="scope-category-block skip-category-block">
+            <div class="scope-category-heading skip-category-heading">
+              <div><strong>Opções Skip</strong><small>Disponíveis tanto para cotações Só ida quanto para cotações Ida e volta.</small></div>
+              <span class="scope-availability-pill">Só ida + Ida e volta</span>
+            </div>
+            <div class="calc-scope-cards skip-scope-cards">
+              {% for scope in skip_scopes %}
+                <button type="button" class="calc-scope-card skip-scope-card {% if selected_scope_key == scope.key %}active{% endif %}" data-scope-key="{{ scope.key }}" data-departure-date="{{ scope.departure_date or '' }}" data-return-date="{{ scope.return_date or '' }}" data-requires-skip-airport="1" data-skip-mode="{{ scope.skip_mode or '' }}" data-route-ready="{{ '1' if scope.route_ready|default(false) else '0' }}">
+                  <span class="scope-icon-soft">{% if scope.key == 'skip_normal' %}⇥{% else %}⇤{% endif %}</span>
+                  <span class="scope-copy-soft">
+                    <span class="scope-badge-soft">{% if scope.key == 'skip_normal' %}Skip normal{% else %}Skip inverso{% endif %}</span>
+                    <strong>{% if scope.key == 'skip_normal' %}Montar Skip normal{% else %}Montar Skip inverso{% endif %}</strong>
+                    <small>{{ scope.hint }}</small>
+                    {% if not scope.route_ready|default(false) %}<small class="scope-route-warning">Informe origem e destino em “Alterar cotação” para usar esta opção.</small>{% endif %}
+                  </span>
+                </button>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+          {% else %}
+            <div class="calc-scope-cards">
+              <button type="button" class="calc-scope-card active" data-scope-key="one_way" data-route-ready="0"><span class="scope-icon-soft">→</span><span class="scope-copy-soft"><span class="scope-badge-soft">Só ida</span><strong>Calcular somente ida</strong><small>Cadastre a origem e o destino para iniciar.</small></span></button>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="form-section soft skip-airport-panel" id="skipAirportPanel" hidden>
+        <div class="section-title"><span class="step-badge">2</span><div><h3>Trecho não voado do Skip</h3><p>O trecho que o passageiro realmente voa fica bloqueado. Você altera somente o trecho não voado, como em um pequeno multitrecho.</p></div></div>
+        <div class="notice-card muted compact-note"><strong>Trecho voado — bloqueado</strong><br><span id="skipFlownSegmentText">Selecione o tipo de Skip para ver a organização.</span></div>
+        <div class="form-grid cols-3 top-gap">
+          <label>Origem do trecho não voado
+            <input class="multi-iata-input" name="skip_edit_origin" id="skipEditOrigin" value="{{ saved_skip_origin or '' }}" placeholder="Ex.: GRU ou GRU, CGH" autocomplete="off">
+          </label>
+          <label>Destino do trecho não voado
+            <input class="multi-iata-input" name="skip_edit_destination" id="skipEditDestination" value="{{ saved_skip_destination or '' }}" placeholder="Ex.: FLN" autocomplete="off">
+          </label>
+          <label>Data do trecho não voado <span class="optional-pill">opcional</span>
+            <input type="date" name="skip_edit_date" id="skipEditDate" value="{{ saved_skip_date or '' }}">
+          </label>
+        </div>
+        <input type="hidden" name="skip_airport" id="skipAirportInput" value="{{ saved_skip_airport or '' }}">
+        <div class="skip-route-preview" id="skipRoutePreview"></div>
+      </div>
+
+      <div class="form-section soft skip-financial-panel" id="skipFinancialPanel" hidden>
+        <div class="section-title"><span class="step-badge">4</span><div><h3>Registro financeiro do Skip</h3><p>Informe somente o valor da opção. A comissão é opcional e serve apenas para registro interno.</p></div></div>
+        <div class="form-grid cols-2">
+          <label>Valor da opção Skip
+            <input type="number" name="skip_value" id="skipValueInput" value="{{ saved_skip_value or '' }}" min="0.01" step="0.01" placeholder="0,00">
+            <small>Este valor será o total exibido no histórico.</small>
+          </label>
+          <label>Valor da comissão <span class="optional-pill">opcional</span>
+            <input type="number" name="skip_commission" id="skipCommissionInput" value="{{ saved_skip_commission or '' }}" min="0" step="0.01" placeholder="0,00">
+            <small>Somente para registro; não altera o total da opção.</small>
+          </label>
+        </div>
+        <div class="notice-card muted compact-note skip-financial-note"><strong>Registro simplificado</strong><br>Nos modos Skip, os campos de milhas, taxas, bagagens e custos adicionais ficam ocultos. Datas e horários continuam opcionais.</div>
+      </div>
+
+      <input type="hidden" name="option_dates_touched" id="optionDatesTouched" value="0">
+      <div class="form-section soft option-date-panel" id="optionDatePanel">
+        <div class="section-title"><span class="step-badge">2</span><div><h3>Datas desta opção <span class="optional-pill">opcional</span></h3><p>Você pode manter as datas da cotação principal, trocar somente nesta opção ou deixar sem data.</p></div></div>
+        <div class="form-grid cols-2 option-date-grid">
+          <label id="optionDepartureDateLabel">Data de ida desta opção
+            <input type="date" name="option_departure_date" id="optionDepartureDate" value="{{ option_departure_date or '' }}">
+            <small>Não altera a data principal da cotação.</small>
+          </label>
+          <label id="optionReturnDateLabel">Data de volta desta opção
+            <input type="date" name="option_return_date" id="optionReturnDate" value="{{ option_return_date or '' }}">
+            <small>Use somente quando houver volta ou último trecho.</small>
+          </label>
+        </div>
+        <div class="option-date-actions"><button type="button" class="ghost-button tiny-button" id="clearOptionDates">Limpar datas desta opção</button></div>
+      </div>
+
+      <div class="form-section soft flight-details-panel" id="flightDetailsPanel">
+        <input type="hidden" name="flight_details_json" id="flightDetailsJson" value="[]">
+        <input type="hidden" name="flight_details_touched" id="flightDetailsTouched" value="0">
+        <script type="application/json" id="flightDetailsInitial">{{ (option_flight_details or [])|tojson }}</script>
+        <script type="application/json" id="routeScopesData">{{ (route_scopes or [])|tojson }}</script>
+        <div class="section-title flight-details-title">
+          <span class="step-badge">3</span>
+          <div>
+            <h3>Horários e possibilidades de voo <span class="optional-pill">opcional</span></h3>
+            <p>Adicione horários por trecho. Em ida e volta, você pode ter Ida • Opção 1, Ida • Opção 2, Volta • Opção 1, Volta • Opção 2. Em multitrecho, cada Trecho pode ter quantas opções de horário forem necessárias.</p>
+          </div>
+        </div>
+        <div class="flight-details-helper">
+          <span>Exemplo: <b>Ida • Opção 1 • 31/08 08:20 → 10:45</b></span>
+          <span>As possibilidades aparecerão como selos pequenos no histórico.</span>
+        </div>
+        <div class="flight-details-rows" id="flightDetailsRows"></div>
+        <div class="flight-details-actions">
+          <button type="button" class="secondary-button small-button" id="addFlightDetail"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Adicionar opção de horário</button>
+          <button type="button" class="ghost-button small-button" id="clearFlightDetails">Limpar detalhes</button>
+        </div>
+      </div>
+
+      <div class="form-section" data-standard-calculation-section>
+        <div class="section-title"><span class="step-badge">4</span><div><h3>{{ selected_type.name }}</h3><p>{% if selected_airline.engine_type == 'legacy' %}Regra original preservada e protegida.{% else %}Fórmula: <code>{{ selected_type.formula }}</code>{% endif %}</p></div></div>
+        <div class="form-grid cols-2">
+        {% set fields_to_render = calculation_fields or selected_type.fields %}
+        {% if not fields_to_render %}
+          <div class="notice-card warning span-2"><strong>Campos de cálculo não carregados.</strong><br>Abra Companhias e confira se essa companhia tem pelo menos um tipo de cálculo com campos cadastrados.</div>
+        {% endif %}
+        {% for field in fields_to_render %}
+          {% set saved_value = (field_display_values or {}).get(field.key, field_values.get(field.key, field.default_value or '0')) %}
+          <label>{{ field.label }}
+            {% if field.field_type == 'select' %}
+              <select name="field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                {% for option in field.options_json|from_json %}<option value="{{ option }}" {% if option|string == saved_value|string %}selected{% endif %}>{{ option }}</option>{% endfor %}
+              </select>
+            {% elif field.field_type == 'text' %}
+              <input type="text" name="field_{{ field.key }}" value="{{ saved_value }}" {% if field.required %}required{% endif %}>
+            {% else %}
+              <input type="text" inputmode="decimal" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="0,00">
+            {% endif %}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          </label>
+        {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-section soft" data-standard-calculation-section>
+        <div class="section-title"><span class="step-badge">5</span><div><h3>Bagagens desta opção</h3><p>Defina aqui a quantidade de bagagens apenas para a companhia selecionada.</p></div></div>
+        <div class="form-grid cols-2">
+          <label>Quantidade de bagagens adicionais<input type="number" name="bags_override" value="{{ option_bags or 0 }}" min="0" max="100" step="1"></label>
+          <div class="notice-card muted compact-note">Essa quantidade será usada somente nesta opção de cálculo. A base fixa da cotação não será alterada.</div>
+        </div>
+      </div>
+
+      <div class="form-section soft" id="optionMetadataSection" data-option-metadata-section>
+        <div class="option-metadata-header"><div class="section-title"><span class="step-badge">6</span><div><h3>Tarifa, classe e identificação</h3><p>Esses dados também ficam disponíveis nas opções Skip e podem ser alterados depois.</p></div></div><span class="skip-metadata-note scope-availability-pill">Disponível no Skip</span></div>
+        {% set meta = option_meta or {} %}
+        {% set airline_name_l = (selected_airline.name|lower) if selected_airline else '' %}
+        <div class="form-grid cols-2">
+          <label class="metadata-cost-fields">Nome do custo<input name="extra_name" value="{{ meta.get('extra_name','') }}" placeholder="Taxa de serviço"></label>
+          <label class="metadata-cost-fields">Valor da taxa adicional<input type="number" name="extra_value" value="{{ meta.get('extra_value','0') or '0' }}" min="0" step="0.01"></label>
+          <label class="span-2">Observação / descrição<textarea name="option_description" rows="3" placeholder="Ex: melhor horário, conexão longa, conferir disponibilidade...">{{ meta.get('description','') }}</textarea></label>
+          <label>Classe opcional
+            <select name="cabin_class">
+              <option value="">Não informar</option>
+              {% for cls in ['Econômica','Premium Economy','Executiva','Business','Primeira classe','Conforto'] %}
+                <option value="{{ cls }}" {% if meta.get('cabin_class') == cls %}selected{% endif %}>{{ cls }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Tarifa
+            <select name="fare_brand">
+              {% if 'latam' in airline_name_l %}
+                {% set fares = ['Light','Standard','Full'] %}
+              {% elif 'smiles' in airline_name_l or 'gol' in airline_name_l %}
+                {% set fares = ['Light','Classic','Flex'] %}
+              {% elif 'azul' in airline_name_l or 'tudoazul' in airline_name_l or 'tudo azul' in airline_name_l %}
+                {% set fares = ['Azul','Mais Azul','Azul Super','Business'] %}
+              {% else %}
+                {% set fares = ['Com bagagem','Sem bagagem'] %}
+              {% endif %}
+              {% for fare in fares %}
+                <option value="{{ fare }}" {% if meta.get('fare_brand') == fare %}selected{% endif %}>{{ fare }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="sticky-form-actions">
+        <a class="ghost-button button-open" href="/calculations/group/{{ group.id }}">Ver opções salvas</a>
+        <button class="primary-button large button-save" type="submit" id="saveCalculationButton"><svg class="ui-icon"><use href="#icon-calculator"></use></svg><span id="saveCalculationLabel">{{ 'Salvar alteração da opção' if option_id else 'Calcular e salvar opção' }}</span></button>
+      </div>
+    </form>
+    {% else %}
+      <div class="empty-state"><svg class="empty-icon"><use href="#icon-plane"></use></svg><h3>Nenhuma companhia disponível</h3><p>Crie uma companhia personalizada para começar.</p><a class="primary-button" href="/airlines/new">Criar companhia</a></div>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+<section class="card-panel base-create-panel">
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">BASE FIXA</span>
+      <h2>Dados da cotação</h2>
+      <p>Esses dados só mudam quando você salvar esta base ou clicar em Alterar dados da cotação.</p>
+    </div>
+  </div>
+  <form method="post" action="/calculations/base/save" class="form-stack" id="quoteBaseForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="group_id" value="{{ base.group_id or '' }}">
+    <input type="hidden" name="option_id" value="{{ option_id or '' }}">
+    <input type="hidden" name="source_request_id" value="{{ base.source_request_id or '' }}">
+    <input type="hidden" name="segments_json" id="segmentsJson" value='{{ base.segments|tojson }}'>
+
+    <div class="form-grid cols-3" id="standardRouteFields">
+      <label>Nome da cotação<input name="quote_name" value="{{ base.quote_name }}" required></label>
+      <label>Origem<input class="multi-iata-input" name="origin" value="{{ base.origin }}" placeholder="Digite IATA ou cidade; ex.: GRU, CGH, VCP" autocomplete="off"><small>Reconhecidos viram filtros individuais. IATA manual de 3 letras também é aceito.</small></label>
+      <label>Destino<input class="multi-iata-input" name="destination" value="{{ base.destination }}" placeholder="Digite IATA ou cidade; ex.: BSB, GIG, SDU" autocomplete="off"><small>Você pode adicionar quantos aeroportos alternativos precisar, separados por vírgula.</small></label>
+    </div>
+    <div class="notice-card muted compact-note" id="multiRouteInfo" hidden><strong>Rota definida pelos trechos.</strong><br>No modo Multitrecho, Origem e Destino acima são substituídos pelos segmentos abaixo. O sistema usa a origem do primeiro trecho e o destino do último automaticamente.</div>
+
+    <div class="travel-type-grid" data-current="{{ base.travel_type }}">
+      <label class="travel-option"><input type="radio" name="travel_type" value="one_way" {% if base.travel_type == 'one_way' %}checked{% endif %}><span><svg class="ui-icon"><use href="#icon-arrow-right"></use></svg><strong>Somente ida</strong><small>Um trecho</small></span></label>
+      <label class="travel-option"><input type="radio" name="travel_type" value="round_trip" {% if base.travel_type == 'round_trip' %}checked{% endif %}><span><svg class="ui-icon"><use href="#icon-repeat"></use></svg><strong>Ida e volta</strong><small>Ida e retorno</small></span></label>
+      <label class="travel-option"><input type="radio" name="travel_type" value="multi_city" {% if base.travel_type == 'multi_city' %}checked{% endif %}><span><svg class="ui-icon"><use href="#icon-route"></use></svg><strong>Multitrecho</strong><small>Vários segmentos</small></span></label>
+    </div>
+
+    <div class="form-grid cols-2" id="standardDates">
+      <label>Data de ida<input type="date" name="departure_date" value="{{ base.departure_date }}"></label>
+      <label id="returnDateLabel">Data de volta<input type="date" name="return_date" value="{{ base.return_date }}"></label>
+    </div>
+
+    <div class="form-grid cols-2 quote-flexibility-row">
+      <label>Flexibilidade de datas
+        <input type="number" name="flexibility_days" value="{{ base.flexibility_days|default(0) }}" min="0" max="30" step="1">
+        <small>0 = data fixa. Ex.: 3 significa até 3 dias antes ou depois (±3 dias).</small>
+      </label>
+      <div class="notice-card muted compact-note"><strong>Como funciona</strong><br>A flexibilidade fica registrada na cotação e nas subcotações para orientar a busca de alternativas.</div>
+    </div>
+
+    <div class="multi-city-builder" id="multiCityBuilder">
+      <div class="panel-heading compact"><div><span class="eyebrow">MULTITRECHO</span><h3>Segmentos da viagem</h3></div><button type="button" class="secondary-button small-button" id="addSegment"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Adicionar trecho</button></div>
+      <div id="segmentRows"></div>
+    </div>
+
+    <div class="form-grid cols-2">
+      <label>Passageiros pagantes<input type="number" name="passengers" value="{{ base.passengers }}" min="1" max="100" required></label>
+      <label>Bebês<input type="number" name="babies" value="{{ base.babies }}" min="0" max="100"></label>
+    </div>
+    <div class="notice-card muted compact-note">
+      <strong>Bagagens serão definidas no cálculo.</strong><br>
+      A quantidade de bagagens fica editável em cada companhia/opção, sem alterar os dados fixos da cotação.
+    </div>
+
+    <details class="inline-details" {% if base.client_name or base.notes %}open{% endif %}><summary>Dados do cliente e observações</summary>
+      <div class="form-grid cols-3 compact top-gap">
+        <label class="person-search-wrapper">Nome do cliente
+          <input class="person-search" name="client_name" value="{{ base.client_name }}" placeholder="Digite para filtrar os clientes" autocomplete="off" data-person-type="cliente,passageiro" data-require-selection="1">
+          <input type="hidden" name="client_person_id" class="person-id" value="{{ base.client_person_id or '' }}">
+          <small>Selecione um cadastro existente. Se não aparecer, cadastre o cliente antes de continuar.</small>
+        </label>
+        <label>E-mail<input type="email" name="client_email" value="{{ base.client_email }}" placeholder="Opcional"></label>
+        <label>Telefone<input name="client_phone" value="{{ base.client_phone }}" placeholder="Opcional"></label>
+      </div>
+      <div class="action-cluster top-gap">
+        <a class="secondary-button small-button" href="/persons/new?quick=1&person_type=cliente" target="_blank"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Cadastrar pessoa</a>
+        <a class="ghost-button small-button" href="/persons" target="_blank">Ver cadastros</a>
+      </div>
+      <label class="top-gap">Observações<textarea name="notes" rows="3" placeholder="Informações importantes para a proposta">{{ base.notes }}</textarea></label>
+    </details>
+
+    <div class="sticky-form-actions">
+      <a class="ghost-button" href="/calculations/new?clean=1">Cancelar e limpar</a>
+      <button class="primary-button large button-save" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Salvar base e ir para cálculo</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/quote-form.js?v=5.10.40" defer></script>
+<script>
+document.addEventListener('person-selected', function(event) {
+  const person = event.detail && event.detail.person ? event.detail.person : null;
+  if (!person) return;
+  const form = event.target.closest('form');
+  if (!form) return;
+  const email = form.querySelector('[name="client_email"]');
+  const phone = form.querySelector('[name="client_phone"]');
+  if (email && person.email && !email.value) email.value = person.email;
+  if (phone && person.phone && !phone.value) phone.value = person.phone;
+});
+
+(function(){
+  const grid = document.getElementById('calcScopeGrid');
+  const input = document.getElementById('scopeKeyInput');
+  const departureInput = document.getElementById('optionDepartureDate');
+  const returnInput = document.getElementById('optionReturnDate');
+  const departureLabel = document.getElementById('optionDepartureDateLabel');
+  const returnLabel = document.getElementById('optionReturnDateLabel');
+  const clearButton = document.getElementById('clearOptionDates');
+  const optionDatesTouched = document.getElementById('optionDatesTouched');
+  const skipPanel = document.getElementById('skipAirportPanel');
+  const skipInput = document.getElementById('skipAirportInput');
+  const skipEditOrigin = document.getElementById('skipEditOrigin');
+  const skipEditDestination = document.getElementById('skipEditDestination');
+  const skipEditDate = document.getElementById('skipEditDate');
+  const skipPreview = document.getElementById('skipRoutePreview');
+  const skipFlownText = document.getElementById('skipFlownSegmentText');
+  const skipFinancialPanel = document.getElementById('skipFinancialPanel');
+  const skipValueInput = document.getElementById('skipValueInput');
+  const skipCommissionInput = document.getElementById('skipCommissionInput');
+  const standardCalculationSections = Array.from(document.querySelectorAll('[data-standard-calculation-section]'));
+  const saveCalculationLabel = document.getElementById('saveCalculationLabel');
+  let scopeData = [];
+  try { scopeData = JSON.parse(document.getElementById('routeScopesData')?.textContent || '[]'); } catch(_error) { scopeData = []; }
+  if(!grid || !input) return;
+
+  function updateSkipPanel(key){
+    const scope = scopeData.find(item => item && item.key === key) || {};
+    const isSkip = key === 'skip_normal' || key === 'skip_inverse';
+    const activeButton = grid.querySelector(`.calc-scope-card[data-scope-key="${key}"]`);
+    const routeReady = !isSkip || activeButton?.dataset.routeReady === '1';
+    if(skipPanel) skipPanel.hidden = !isSkip;
+    if(skipFinancialPanel) skipFinancialPanel.hidden = !isSkip;
+    [skipEditOrigin, skipEditDestination, skipEditDate].forEach(field => { if(field) field.disabled = !isSkip; });
+    if(skipEditOrigin) skipEditOrigin.required = isSkip;
+    if(skipEditDestination) skipEditDestination.required = isSkip;
+    if(skipValueInput){ skipValueInput.required = isSkip; skipValueInput.disabled = !isSkip; }
+    if(skipCommissionInput) skipCommissionInput.disabled = !isSkip;
+    document.body.classList.toggle('is-skip-mode', isSkip);
+    standardCalculationSections.forEach(section => {
+      section.hidden = isSkip;
+      section.querySelectorAll('input,select,textarea').forEach(field => { field.disabled = isSkip; });
+    });
+    document.querySelectorAll('.metadata-cost-fields input').forEach(field => { field.disabled = isSkip; });
+    if(saveCalculationLabel) saveCalculationLabel.textContent = isSkip ? '{{ 'Salvar alteração do Skip' if option_id else 'Salvar opção Skip' }}' : '{{ 'Salvar alteração da opção' if option_id else 'Calcular e salvar opção' }}';
+    if(!isSkip) return;
+    const segments = Array.isArray(scope.segments) ? scope.segments.map(item => ({...item})) : [];
+    const editableIndex = key === 'skip_normal' ? 1 : 0;
+    const flownIndex = key === 'skip_normal' ? 0 : 1;
+    const editable = segments[editableIndex] || {};
+    const previousSkipKey = skipPanel?.dataset.activeSkipKey || '';
+    const changedSkipMode = Boolean(previousSkipKey && previousSkipKey !== key);
+    if(skipPanel) skipPanel.dataset.activeSkipKey = key;
+    if(skipEditOrigin && (changedSkipMode || !skipEditOrigin.value)) skipEditOrigin.value = editable.origin || '';
+    if(skipEditDestination && (changedSkipMode || !skipEditDestination.value)) skipEditDestination.value = editable.destination || '';
+    if(skipEditDate && (changedSkipMode || !skipEditDate.value)) skipEditDate.value = editable.date || '';
+    if(skipInput) skipInput.value = key === 'skip_normal' ? (skipEditDestination?.value || '') : (skipEditOrigin?.value || '');
+    if(skipPreview){
+      skipPreview.replaceChildren();
+      segments.forEach((segment,index) => {
+        let origin = segment.origin || '?';
+        let destination = segment.destination || '?';
+        if(index === editableIndex){ origin = (skipEditOrigin?.value || origin || '?').trim().toUpperCase(); destination = (skipEditDestination?.value || destination || '?').trim().toUpperCase(); }
+        const chip = document.createElement('span');
+        chip.textContent = `Trecho ${index+1} • ${origin || '?'} → ${destination || '?'}${index === flownIndex ? ' • VOADO' : ' • NÃO VOADO / EDITÁVEL'}`;
+        skipPreview.appendChild(chip);
+      });
+    }
+    if(skipFlownText){
+      const flown = segments[flownIndex] || {};
+      skipFlownText.textContent = !routeReady
+        ? 'Antes de salvar, use “Alterar cotação” e informe origem e destino.'
+        : `Trecho ${flownIndex + 1}: ${flown.origin || '?'} → ${flown.destination || '?'} — este trecho não pode ser alterado no Skip.`;
+    }
+  }
+
+  function applyDateMode(btn, replaceDates){
+    const key = btn?.dataset.scopeKey || input.value || 'one_way';
+    const isReturn = key === 'return';
+    const isRoundTrip = key === 'round_trip';
+    const isMulti = key === 'multi_city';
+    const isSkip = key === 'skip_normal' || key === 'skip_inverse';
+
+    if(departureLabel){
+      departureLabel.hidden = isReturn;
+      const text = departureLabel.childNodes[0];
+      if(text) text.nodeValue = isSkip ? 'Data do trecho 1 desta opção ' : (isMulti ? 'Data do primeiro trecho desta opção ' : 'Data de ida desta opção ');
+    }
+    if(returnLabel){
+      returnLabel.hidden = !(isReturn || isRoundTrip || isMulti || isSkip);
+      const text = returnLabel.childNodes[0];
+      if(text) text.nodeValue = isSkip ? 'Data do trecho 2 desta opção ' : (isReturn ? 'Data da volta desta opção ' : (isMulti ? 'Data do último trecho desta opção ' : 'Data de volta desta opção '));
+    }
+    updateSkipPanel(key);
+    if(replaceDates){
+      if(departureInput) departureInput.value = btn?.dataset.departureDate || '';
+      if(returnInput) returnInput.value = btn?.dataset.returnDate || '';
+    }
+  }
+
+  grid.querySelectorAll('.calc-scope-card').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const previousKey = input.value || '';
+      const nextKey = btn.dataset.scopeKey || previousKey;
+      document.dispatchEvent(new CustomEvent('calculation-scope-will-change', {detail:{from:previousKey,to:nextKey}}));
+      grid.querySelectorAll('.calc-scope-card').forEach(item => item.classList.remove('active'));
+      btn.classList.add('active');
+      input.value = nextKey;
+      if(optionDatesTouched) optionDatesTouched.value = '1';
+      applyDateMode(btn, true);
+      document.dispatchEvent(new CustomEvent('calculation-scope-changed', {detail:{from:previousKey,to:nextKey}}));
+    });
+  });
+
+  departureInput?.addEventListener('input', () => { if(optionDatesTouched) optionDatesTouched.value = '1'; });
+  returnInput?.addEventListener('input', () => { if(optionDatesTouched) optionDatesTouched.value = '1'; });
+  clearButton?.addEventListener('click', () => {
+    if(optionDatesTouched) optionDatesTouched.value = '1';
+    if(departureInput) departureInput.value = '';
+    if(returnInput) returnInput.value = '';
+  });
+  [skipEditOrigin, skipEditDestination, skipEditDate].forEach(field => {
+    field?.addEventListener('input', () => updateSkipPanel(input.value));
+    field?.addEventListener('change', () => updateSkipPanel(input.value));
+  });
+
+  applyDateMode(grid.querySelector('.calc-scope-card.active') || grid.querySelector('.calc-scope-card'), false);
+})();
+
+(function(){
+  const rowsBox = document.getElementById('flightDetailsRows');
+  const addButton = document.getElementById('addFlightDetail');
+  const clearButton = document.getElementById('clearFlightDetails');
+  const hiddenInput = document.getElementById('flightDetailsJson');
+  const touchedInput = document.getElementById('flightDetailsTouched');
+  const scopeInput = document.getElementById('scopeKeyInput');
+  const form = document.getElementById('quoteForm');
+  if(!rowsBox || !hiddenInput || !scopeInput || !form) return;
+
+  function readJson(id, fallback){
+    try{
+      const el = document.getElementById(id);
+      return el ? JSON.parse(el.textContent || '') : fallback;
+    }catch(_error){ return fallback; }
+  }
+  function esc(value){
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  }
+  const scopes = readJson('routeScopesData', []);
+  const initial = readJson('flightDetailsInitial', []);
+  let activeScopeKey = scopeInput.value || (scopes[0]?.key || 'one_way');
+  const detailsByScope = {[activeScopeKey]: Array.isArray(initial) ? initial : []};
+
+  function currentScope(){
+    return scopes.find(scope => scope && scope.key === activeScopeKey) || scopes[0] || {key:activeScopeKey,segments:[]};
+  }
+  function segmentLabel(key, index){
+    if(['outbound','one_way','ida'].includes(key)) return 'Ida';
+    if(['return','volta'].includes(key)) return 'Volta';
+    const match = String(key || '').match(/(\d+)$/);
+    return match ? `Trecho ${match[1]}` : `Trecho ${index + 1}`;
+  }
+  function segmentChoices(){
+    const scope = currentScope();
+    let segments = Array.isArray(scope.segments) ? scope.segments : [];
+    if(scope.skip_mode && scope.flown_segment){
+      const flownIndex = Math.max(0, Number(scope.flown_segment) - 1);
+      segments = segments[flownIndex] ? [segments[flownIndex]] : segments.slice(0, 1);
+    }
+    if(segments.length){
+      return segments.map((segment,index) => ({
+        key:String(segment.key || `segment_${index+1}`),
+        label:segmentLabel(String(segment.key || ''), index),
+        route:[segment.origin,segment.destination].filter(Boolean).join(' → ')
+      }));
+    }
+    const key = activeScopeKey === 'return' ? 'return' : (activeScopeKey === 'round_trip' ? 'outbound' : activeScopeKey);
+    return [{key, label:segmentLabel(key,0), route:''}];
+  }
+  function markTouched(){ if(touchedInput) touchedInput.value = '1'; }
+  function collectRows(){
+    return Array.from(rowsBox.querySelectorAll('[data-flight-detail-row]')).map(row => ({
+      segment_key:row.querySelector('[data-detail-field="segment_key"]')?.value || '',
+      departure_date:row.querySelector('[data-detail-field="departure_date"]')?.value || '',
+      departure_time:row.querySelector('[data-detail-field="departure_time"]')?.value || '',
+      arrival_date:row.querySelector('[data-detail-field="arrival_date"]')?.value || '',
+      arrival_time:row.querySelector('[data-detail-field="arrival_time"]')?.value || ''
+    })).filter(item => item.departure_date || item.departure_time || item.arrival_date || item.arrival_time);
+  }
+  function syncHidden(){
+    hiddenInput.value = JSON.stringify(collectRows());
+  }
+  function rowHtml(detail, index){
+    const choices = segmentChoices();
+    const chosen = choices.some(choice => choice.key === detail.segment_key) ? detail.segment_key : (choices[0]?.key || 'outbound');
+    const options = choices.map(choice => `<option value="${esc(choice.key)}" ${choice.key===chosen?'selected':''}>${esc(choice.label)}${choice.route ? ` • ${esc(choice.route)}` : ''}</option>`).join('');
+    return `<article class="flight-detail-row" data-flight-detail-row>
+      <div class="flight-detail-row-head"><span>Opção ${index+1}</span><small>Todos os campos são opcionais</small><button type="button" class="ghost-button danger tiny-button" data-remove-flight-detail>Excluir</button></div>
+      <div class="flight-detail-grid">
+        <label>Trecho<select data-detail-field="segment_key">${options}</select></label>
+        <label>Data de embarque<input type="date" data-detail-field="departure_date" value="${esc(detail.departure_date || '')}"></label>
+        <label>Hora de embarque<input type="time" data-detail-field="departure_time" value="${esc(detail.departure_time || '')}"></label>
+        <label>Data de desembarque<input type="date" data-detail-field="arrival_date" value="${esc(detail.arrival_date || '')}"></label>
+        <label>Hora de desembarque<input type="time" data-detail-field="arrival_time" value="${esc(detail.arrival_time || '')}"></label>
+      </div>
+    </article>`;
+  }
+  function render(){
+    const items = Array.isArray(detailsByScope[activeScopeKey]) ? detailsByScope[activeScopeKey] : [];
+    rowsBox.innerHTML = items.length
+      ? items.map(rowHtml).join('')
+      : '<div class="flight-details-empty"><strong>Nenhum horário informado.</strong><span>A cotação pode ser salva normalmente sem esses dados.</span></div>';
+    syncHidden();
+  }
+  function saveActive(){
+    detailsByScope[activeScopeKey] = collectRows();
+  }
+
+  addButton?.addEventListener('click', () => {
+    markTouched();
+    saveActive();
+    const items = detailsByScope[activeScopeKey] || [];
+    if(items.length >= 20){ window.alert('É possível adicionar até 20 possibilidades por cálculo.'); return; }
+    const firstChoice = segmentChoices()[0]?.key || 'outbound';
+    items.push({segment_key:firstChoice,departure_date:'',departure_time:'',arrival_date:'',arrival_time:''});
+    detailsByScope[activeScopeKey] = items;
+    render();
+    rowsBox.querySelector('[data-flight-detail-row]:last-child input')?.focus();
+  });
+  clearButton?.addEventListener('click', () => {
+    markTouched();
+    detailsByScope[activeScopeKey] = [];
+    render();
+  });
+  rowsBox.addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove-flight-detail]');
+    if(!remove) return;
+    markTouched();
+    remove.closest('[data-flight-detail-row]')?.remove();
+    saveActive();
+    render();
+  });
+  rowsBox.addEventListener('input', () => { markTouched(); syncHidden(); });
+  rowsBox.addEventListener('change', () => { markTouched(); syncHidden(); });
+  document.addEventListener('calculation-scope-will-change', () => saveActive());
+  document.addEventListener('calculation-scope-changed', event => {
+    activeScopeKey = event.detail?.to || scopeInput.value || activeScopeKey;
+    if(!Array.isArray(detailsByScope[activeScopeKey])) detailsByScope[activeScopeKey] = [];
+    render();
+  });
+  form.addEventListener('submit', () => {
+    saveActive();
+    hiddenInput.value = JSON.stringify(detailsByScope[activeScopeKey] || []);
+  });
+  render();
+})();
+
+(function(){
+  const panel = document.getElementById('operationProfilePanel');
+  const select = document.getElementById('operationScopeSelect');
+  const partnerField = document.getElementById('partnerAirlineField');
+  const partnerInput = document.getElementById('partnerAirlineInput');
+  const partnerSegmentInputs = Array.from(document.querySelectorAll('.partner-segment-input'));
+  if(!panel || !select || !partnerField) return;
+
+  // Parceria é opcional, mas o bloco deve permanecer sempre disponível.
+  partnerField.hidden = false;
+  if(partnerInput) partnerInput.disabled = false;
+  partnerSegmentInputs.forEach(input => { input.disabled = false; });
+
+  partnerSegmentInputs.forEach((input)=>input.addEventListener('input',()=>{
+    if(partnerInput && String(input.dataset.segment || '') === '1' && !partnerInput.value.trim()){
+      partnerInput.value = input.value;
+    }
+  }));
+})();
+
+
+(function(){
+  const source = document.getElementById('partnerAirlineOptionsJson');
+  if(!source) return;
+
+  let options = [];
+  try {
+    const parsed = JSON.parse(source.textContent || '[]');
+    options = Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    options = [];
+  }
+
+  // Defesa extra: somente objetos simples com nome textual entram na interface.
+  options = options
+    .map(item => ({
+      id: Number(item?.id || 0),
+      name: String(item?.name || '').trim(),
+      logo_path: String(item?.logo_path || '').trim(),
+      market_label: String(item?.market_label || 'Companhia').trim(),
+      configured: Boolean(item?.configured)
+    }))
+    .filter(item => item.name && !item.name.includes('<app.models.'));
+
+  const norm = value => String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim();
+
+  function logoHtml(item){
+    const initials = String(item?.name || 'CP')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0,2)
+      .map(part => part[0] || '')
+      .join('')
+      .toUpperCase();
+    return `<span class="partner-option-logo"><span>${initials || 'CP'}</span></span>`;
+  }
+
+  function setupCombobox(root){
+    const input = root.querySelector('.partner-combobox-input');
+    const dropdown = root.querySelector('[data-partner-dropdown]');
+    const list = root.querySelector('[data-partner-list]');
+    const count = root.querySelector('[data-partner-count]');
+    const clear = root.querySelector('[data-partner-clear]');
+    if(!input || !dropdown || !list) return;
+
+    let activeIndex = -1;
+    let visible = [];
+
+    function close(){
+      dropdown.hidden = true;
+      activeIndex = -1;
+    }
+
+    function choose(item){
+      input.value = item.name;
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+      close();
+    }
+
+    function render(){
+      const query = norm(input.value);
+      visible = options
+        .filter(item => !query || norm(item.name).includes(query))
+        .slice(0, 18);
+
+      if(count) count.textContent = `${visible.length} resultado(s)`;
+      list.innerHTML = '';
+
+      if(!visible.length){
+        list.innerHTML = `<div class="partner-empty">Nenhuma companhia encontrada. Você pode manter o nome digitado manualmente.</div>`;
+      } else {
+        visible.forEach((item,index)=>{
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'partner-option';
+          button.innerHTML = `
+            ${logoHtml(item)}
+            <span class="partner-option-copy">
+              <strong></strong>
+              <small></small>
+            </span>
+            <span class="partner-option-badge ${item.configured ? 'configured' : ''}">${item.configured ? 'PARCEIRA' : 'CADASTRADA'}</span>
+          `;
+          button.querySelector('strong').textContent = item.name;
+          button.querySelector('small').textContent = item.market_label;
+          button.addEventListener('mousedown', event => {
+            event.preventDefault();
+            choose(item);
+          });
+          list.appendChild(button);
+        });
+      }
+
+      dropdown.hidden = false;
+      activeIndex = -1;
+    }
+
+    function updateActive(){
+      const nodes = Array.from(list.querySelectorAll('.partner-option'));
+      nodes.forEach((node,index)=>node.classList.toggle('active',index===activeIndex));
+      nodes[activeIndex]?.scrollIntoView({block:'nearest'});
+    }
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', event => {
+      if(dropdown.hidden && (event.key === 'ArrowDown' || event.key === 'ArrowUp')){
+        render();
+      }
+      if(event.key === 'Escape'){
+        close();
+        return;
+      }
+      if(event.key === 'ArrowDown'){
+        event.preventDefault();
+        if(visible.length) activeIndex = Math.min(visible.length-1,activeIndex+1);
+        updateActive();
+      } else if(event.key === 'ArrowUp'){
+        event.preventDefault();
+        if(visible.length) activeIndex = Math.max(0,activeIndex-1);
+        updateActive();
+      } else if(event.key === 'Enter' && activeIndex >= 0 && visible[activeIndex]){
+        event.preventDefault();
+        event.stopPropagation();
+        choose(visible[activeIndex]);
+      }
+    });
+    input.addEventListener('blur', ()=>setTimeout(close,120));
+    clear?.addEventListener('click',()=>{
+      input.value='';
+      input.focus();
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  }
+
+  document.querySelectorAll('[data-partner-combobox]').forEach(setupCombobox);
+
+  document.querySelectorAll('[data-partner-pick]').forEach(button=>{
+    button.addEventListener('click',()=>{
+      const input = document.getElementById('partnerAirlineInput');
+      if(!input) return;
+      input.value = String(button.dataset.partnerPick || '');
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+      input.focus();
+    });
+  });
+})();
+
+
+(function(){
+  const input = document.getElementById('airlineCalcSearch');
+  const items = Array.from(document.querySelectorAll('[data-airline-item]'));
+  if(!input || !items.length) return;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    items.forEach(item => {
+      const text = (item.dataset.airlineName || item.textContent || '').toLowerCase();
+      item.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+})();
+
+
+(function(){
+  function protectForm(form){
+    if(!form) return;
+    form.addEventListener('keydown', function(event){
+      if(event.key !== 'Enter') return;
+      const target = event.target;
+      if(target && target.tagName === 'TEXTAREA') return;
+
+      const active = document.activeElement;
+      const submitFocused = active && active.form === form &&
+        ((active.tagName === 'BUTTON' && (active.type || 'submit') === 'submit') ||
+         (active.tagName === 'INPUT' && active.type === 'submit'));
+
+      if(submitFocused) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+    });
+  }
+
+  protectForm(document.getElementById('quoteForm'));
+  protectForm(document.getElementById('quoteBaseForm'));
+})();
+(function(){
+  // Função para campos de Dinheiro (2 casas decimais: 1.223,55)
+  const formatMoney = (val) => {
+    let clean = val.replace(/[^\d,]/g, '');
+    let parts = clean.split(',');
+    if (parts.length > 2) parts = [parts[0], parts.slice(1).join('')];
+    let intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return parts.length > 1 ? intPart + ',' + parts[1] : intPart;
+  };
+
+  // Função para campos de Milhas/Pontos (Escala de milhar / 3 casas visuais)
+  const formatMiles = (val) => {
+    let clean = val.replace(/[^\d]/g, ''); // Milhas normalmente não usam vírgula para centavos, focam em inteiros multiplicados
+    if (!clean) return '';
+    return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  // Aplica a máscara inteligente baseada no tipo de campo
+  document.querySelectorAll('input[inputmode="decimal"]').forEach(input => {
+    // Identifica se é um campo de milhas/pontos pelo nome ou pelo label ao redor
+    const nameAttr = (input.getAttribute('name') || '').toLowerCase();
+    const labelText = input.closest('label')?.textContent.toLowerCase() || '';
+    const isMilesField = nameAttr.includes('milha') || nameAttr.includes('ponto') || labelText.includes('milha') || labelText.includes('ponto');
+
+    // Formatação inicial ao carregar
+    if(input.value) {
+      let initialVal = input.value.replace('.', ',');
+      input.value = isMilesField ? formatMiles(initialVal) : formatMoney(initialVal);
+    }
+
+    // Evento ao digitar
+    input.addEventListener('input', function(e) {
+      let cursorPos = this.selectionStart;
+      this.value = isMilesField ? formatMiles(this.value) : formatMoney(this.value);
+    });
+  });
+})();
+</script>
+{% endblock %}
