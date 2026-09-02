@@ -1,0 +1,29 @@
+DBMILESX WEB V5 — VERIFICAÇÃO DA ENTREGA
+
+Testes executados antes de gerar os ZIPs:
+
+1. Compilação de todo o código Python: OK
+2. Testes automáticos da calculadora: 5 aprovados
+3. Cadastro e login: OK
+4. Tela de início: OK
+5. Perfil: OK
+6. Configurações: OK
+7. Notificações: OK
+8. Links públicos: OK
+9. Formulário público e recebimento da solicitação: OK
+10. Caixa de entrada de solicitações: OK
+11. Criação de companhia personalizada: OK
+12. Fórmula personalizada com desconto: OK
+13. Nova cotação: OK
+14. Fórmula LATAM preservada no teste de referência: R$ 1.030,00
+15. Edição de cotação: OK
+16. Histórico: OK
+17. Prévia HTML do PDF de cotação: OK
+18. Prévia HTML do PDF de custo: OK
+19. Prévia HTML do PDF de lucro: OK
+20. Atualização de um banco no formato V4 para V5: OK
+21. Recuperação de tipo de viagem e datas do histórico antigo: OK
+
+Observação:
+A geração do arquivo PDF binário depende do Chromium do Playwright instalado no computador.
+O instalar.bat executa essa instalação. Se necessário, use instalar_pdf.bat.

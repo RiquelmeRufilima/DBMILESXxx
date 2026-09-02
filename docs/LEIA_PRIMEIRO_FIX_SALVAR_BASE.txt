@@ -1,0 +1,11 @@
+FIX DEFINITIVO - SALVAR BASE DA COTACAO
+
+1) Feche o DBMILESX Server.
+2) Extraia este ZIP diretamente dentro de C:\sistema_aereo.
+3) Escolha Mesclar/Substituir quando o Windows perguntar.
+4) Execute APLICAR_FIX_SALVAR_BASE.bat.
+5) Depois abra iniciar_app.bat.
+
+Este pacote nao apaga banco, usuarios, historico, uploads nem formulas.
+Ele substitui apenas arquivos de codigo/tela necessarios para registrar:
+POST /calculations/base/save

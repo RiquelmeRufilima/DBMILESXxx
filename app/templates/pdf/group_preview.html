@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}PDF em grupo | DBMILESX{% endblock %}
+{% block page_title %}Cotação em grupo{% endblock %}
+{% block eyebrow %}EDITOR DE PDF{% endblock %}
+{% block content %}
+<section class="page-heading inline"><div><span class="eyebrow">PDF EM GRUPO</span><h1>Monte uma proposta com várias cotações.</h1><p>Edite os valores de venda, escolha as marcas visíveis e adicione uma foto opcional do grupo, clube, empresa ou filial.</p></div><a class="secondary-button" href="/calculations/history">← Voltar ao histórico</a></section>
+
+<section class="pdf-editor-layout">
+  <aside class="panel pdf-editor-panel">
+    <div class="panel-heading"><div><span class="eyebrow">PERSONALIZAÇÃO</span><h2>Editar documento</h2></div><svg class="panel-icon"><use href="#icon-edit"></use></svg></div>
+    <form method="post" action="/quotes/group/update" enctype="multipart/form-data" class="form-stack" id="groupPdfEditor">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Título<input name="title" value="{{ group_title }}" maxlength="220"></label>
+      <label>Subtítulo<input name="subtitle" value="{{ group_subtitle }}" maxlength="500" placeholder="Ex.: Delegação para campeonato"></label>
+      <label>Observações gerais<textarea name="notes" rows="3">{{ group_notes }}</textarea></label>
+
+      <div class="pdf-visibility-list">
+        <label class="eye-toggle"><span><svg class="ui-icon"><use href="#icon-eye"></use></svg><strong>Logo da empresa</strong><small>Exibir a identidade do grupo empresarial.</small></span><input type="checkbox" name="show_company_logo" {% if show_company_logo %}checked{% endif %} data-preview-toggle="company"></label>
+        <label class="eye-toggle"><span><svg class="ui-icon"><use href="#icon-eye"></use></svg><strong>Marcas do DBMILESX</strong><small>Ocultar ou mostrar a marca do sistema.</small></span><input type="checkbox" name="show_system_brand" {% if show_system_brand %}checked{% endif %} data-preview-toggle="system"></label>
+        <label class="eye-toggle"><span><svg class="ui-icon"><use href="#icon-eye"></use></svg><strong>Foto do grupo</strong><small>Empresa, clube, filial ou outra imagem.</small></span><input type="checkbox" name="show_group_image" {% if show_group_image %}checked{% endif %} data-preview-toggle="group-image"></label>
+      </div>
+
+      <label>Foto opcional do grupo<input type="file" name="group_image" accept="image/png,image/jpeg,image/webp"><small>PNG, JPG ou WEBP até 8 MB.</small></label>
+      {% if group_image %}<label class="inline-check danger-check"><input type="checkbox" name="remove_group_image" value="1"> Remover a foto atual</label>{% endif %}
+
+      <div class="group-sale-editor"><span class="eyebrow">VALORES DE VENDA</span>{% for item in items %}<label>#{{ item.quote.id }} · {{ item.display_title }}<input type="number" step="0.01" min="0" name="sale_{{ item.quote.id }}" value="{{ '%.2f'|format(item.sale_value) }}"></label>{% endfor %}</div>
+      <button class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Atualizar prévia</button>
+    </form>
+  </aside>
+
+  <div class="pdf-editor-preview-column">
+    <section class="preview-toolbar sticky-preview-toolbar"><span>{{ items|length }} cotação(ões) · Total {{ grand_total|money }}</span><a class="primary-button" href="/quotes/group/pdf"><svg class="ui-icon"><use href="#icon-download"></use></svg> Baixar PDF em grupo</a></section>
+    <div class="pdf-preview-frame" id="pdfLivePreview">{% include "pdf/group.html" %}</div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/pdf-editor.js" defer></script>{% endblock %}

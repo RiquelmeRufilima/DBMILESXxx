@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Recuperação da calculadora | DBMILESX{% endblock %}
+{% block eyebrow %}RECUPERAÇÃO AUTOMÁTICA{% endblock %}
+{% block page_title %}A calculadora não pôde ser aberta{% endblock %}
+{% block content %}
+<section class="panel recovery-panel">
+  <span class="eyebrow">SEUS DADOS FORAM PRESERVADOS</span>
+  <h2>O sistema bloqueou a tela antes de alterar a cotação.</h2>
+  <p>O diagnóstico foi registrado com o código <strong>{{ reference }}</strong>. Nenhuma cotação, cliente, usuário ou arquivo foi excluído.</p>
+  <div class="action-cluster top-gap">
+    <a class="secondary-button button-open" href="{{ back_url }}">Voltar para a cotação</a>
+    <a class="primary-button button-accept" href="/calculations/new?clean=1">Abrir cotação limpa</a>
+    <a class="ghost-button" href="/dashboard">Tela de início</a>
+  </div>
+</section>
+{% endblock %}

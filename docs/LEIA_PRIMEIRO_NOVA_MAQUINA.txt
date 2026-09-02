@@ -1,0 +1,34 @@
+DBMILESX WEB V5 - NOVA MAQUINA
+
+Este pacote contem os arquivos que faltavam na raiz mostrada na foto, incluindo o instalador.
+
+PASSO A PASSO
+1. Feche o DBMILESX.
+2. Extraia TODO o conteudo deste ZIP diretamente em:
+   C:\sistema_aereo
+3. Quando o Windows perguntar, escolha Mesclar/Substituir apenas os arquivos deste pacote.
+4. Execute primeiro:
+   INSTALAR_NESTA_MAQUINA.bat
+5. Quando terminar, execute:
+   iniciar_app.bat
+
+IMPORTANTE
+- Como esta e outra maquina, nao use a .venv copiada do computador antigo.
+- O instalador especial renomeia a .venv existente para backup e cria uma nova.
+- Ele nao apaga data\, uploads\ nem o banco de dados.
+- Se o Windows marcar os arquivos como baixados da internet, abra o PowerShell na pasta e rode:
+  Get-ChildItem -Path . -Recurse -File | Unblock-File
+
+ARQUIVOS INCLUIDOS
+- INSTALAR_NESTA_MAQUINA.bat
+- instalar.bat
+- instalar_pdf.bat
+- criar_atalho_desktop.bat
+- migrar_dados_legados.py
+- README.md
+- NOVIDADES_V5.txt
+- VERIFICACAO_V5.txt
+- Dockerfile
+- Procfile
+- .dockerignore
+- .env.example

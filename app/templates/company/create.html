@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Criar empresa | DBMILESX{% endblock %}
+{% block page_title %}Empresa{% endblock %}
+{% block eyebrow %}EQUIPE E OPERAÇÃO{% endblock %}
+{% block content %}
+<section class="centered-panel-wrap">
+  <article class="panel create-company-panel">
+    <span class="brand-mark jumbo">▦</span><span class="eyebrow">PAINEL DA EMPRESA</span><h1>Crie sua empresa dentro do sistema.</h1><p>O histórico, as companhias próprias, o dashboard e o chat passam a ser compartilhados com a equipe.</p>
+    <form method="post" action="/company/create" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Nome da empresa<input name="name" required placeholder="Ex: ISI Viagens"></label>
+      <label>CNPJ opcional<input name="cnpj" placeholder="00.000.000/0000-00"></label>
+      <button class="primary-button large full" type="submit">Criar empresa</button>
+    </form>
+  </article>
+</section>
+{% endblock %}

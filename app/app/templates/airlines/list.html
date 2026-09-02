@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Companhias | DBMILESX{% endblock %}
+{% block page_title %}Companhias{% endblock %}
+{% block eyebrow %}MOTORES DE CÁLCULO{% endblock %}
+{% block content %}
+<section class="page-heading inline">
+  <div><span class="eyebrow">COMPANHIAS</span><h1>Regras originais e cálculos criados por você.</h1><p>As companhias padrão preservam a lógica atual. As personalizadas permitem editar fórmula, campos, descontos, juros e taxas.</p></div>
+  <a class="primary-button" href="/airlines/new"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Criar companhia personalizada</a>
+</section>
+<section class="generic-airline-callout"><div class="generic-airline-icon"><svg class="ui-icon"><use href="#icon-sparkles"></use></svg></div><div><span class="eyebrow">COMPANHIA GENÉRICA E CUSTOMIZÁVEL</span><h2>Tarifa informada menos X% — e tudo editável.</h2><p>O modelo padrão calcula o desconto diretamente sobre a tarifa. Depois você pode editar a fórmula ou criar outros tipos de cálculo.</p></div><a class="secondary-button" href="/airlines/new">Abrir construtor →</a></section>
+<div class="airline-page-search card-panel compact-toolbar"><svg class="ui-icon"><use href="#icon-search"></use></svg><input type="search" id="airlinePageSearch" placeholder="Pesquisar companhia..." autocomplete="off"></div>
+<section class="airline-grid" id="airlinePageGrid">
+{% for airline in airlines %}
+  <article class="airline-card" data-airline-page-card data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+    <div class="airline-card-top">
+      <span class="status-dot"></span>
+      <span class="badge {{ 'builtin' if airline.builtin else 'custom' }}">{{ 'Regra original' if airline.builtin else 'Personalizada' }}</span>
+    </div>
+    <div class="airline-logo-wrap">
+      {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback large"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}
+    </div>
+    <h2>{{ airline.name }}</h2>
+    <p>{{ airline.calculation_types|selectattr('active')|list|length }} tipo(s) de cálculo disponível(is).</p>
+    <div class="airline-types">{% for type in airline.calculation_types if type.active %}{% if loop.index <= 3 %}<span>{{ type.name }}</span>{% endif %}{% endfor %}</div>
+    <div class="card-actions">
+      <a class="secondary-button" href="/airlines/{{ airline.id }}">Detalhes</a>
+      <a class="primary-button" href="/calculations/new?airline_id={{ airline.id }}">Calcular</a>
+      {% if airline.id in manageable_airline_ids %}
+      <form method="post" action="/airlines/{{ airline.id }}/delete" onsubmit="return confirm('Excluir esta companhia personalizada? O histórico será preservado.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="ghost-button danger" type="submit"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir</button>
+      </form>
+      {% endif %}
+    </div>
+  </article>
+{% endfor %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const input = document.getElementById('airlinePageSearch');
+  const cards = Array.from(document.querySelectorAll('[data-airline-page-card]'));
+  if(!input || !cards.length) return;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    cards.forEach(card => {
+      const text = (card.dataset.airlineName || card.textContent || '').toLowerCase();
+      card.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

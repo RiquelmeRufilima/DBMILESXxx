@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+*.log
+data/.secret_key
+data/.local_control_hash
+data/backups/
+data/logs/*
+data/exports/*
+!data/logs/.gitkeep
+!data/exports/.gitkeep
+uploads/*
+!uploads/.gitkeep

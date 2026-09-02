@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Excluir {{ airline.name }} | DBMILESX{% endblock %}
+{% block page_title %}Excluir companhia{% endblock %}
+{% block eyebrow %}COMPANHIA PERSONALIZADA{% endblock %}
+{% block content %}
+<section class="page-heading">
+  <div>
+    <span class="eyebrow">CONFIRMAÇÃO</span>
+    <h1>Excluir {{ airline.name }}?</h1>
+    <p>A companhia deixará de aparecer em novos cálculos. As cotações e o histórico já existentes serão preservados.</p>
+  </div>
+</section>
+
+<section class="panel" style="max-width:760px;">
+  <div class="safe-list">
+    <div><span>✓</span> Histórico preservado</div>
+    <div><span>✓</span> Cotações antigas preservadas</div>
+    <div><span>✓</span> Apenas a companhia personalizada é desativada</div>
+  </div>
+
+  <div class="form-actions" style="margin-top:24px;">
+    <a class="secondary-button" href="/airlines/{{ airline.id }}">Cancelar</a>
+    <form method="post" action="/airlines/{{ airline.id }}/delete">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="ghost-button danger" type="submit">Excluir companhia</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

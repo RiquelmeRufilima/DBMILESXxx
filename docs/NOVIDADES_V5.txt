@@ -1,0 +1,36 @@
+DBMILESX WEB V5 — NOVIDADES
+
+Adicionado nesta versão:
+
+- Perfil com foto e dados pessoais
+- Configurações e personalização de tema
+- Modo claro, escuro e conforme o sistema
+- Paletas e cor principal personalizada
+- Notificações internas
+- Chat da empresa
+- Painel administrativo
+- Painel de membro
+- Links públicos de solicitação de cotação
+- Formulário público para clientes
+- Caixa de entrada de solicitações
+- Transformar solicitação em cotação
+- Companhia genérica/customizável
+- Campos e fórmulas criados pelo usuário
+- Vários tipos de cálculo por companhia
+- Somente ida, ida e volta e multitrecho
+- Datas e segmentos
+- Nova cotação limpa
+- Limpar formulário
+- Editar cotação
+- Duplicar cotação
+- Histórico detalhado
+- PDF de cotação
+- PDF de custo
+- PDF de lucro
+- Logos reais do DBMILESX na tela de login
+- Ícone azul como favicon/PWA/atalho
+- Mais ícones no sistema
+- Inicializador que espera o servidor ficar pronto
+- Recuperação de detalhes de viagem do histórico antigo
+
+As fórmulas legadas das companhias existentes não foram alteradas.

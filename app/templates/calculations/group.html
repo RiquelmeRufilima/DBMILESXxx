@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ group.quote_name }} | DBMILESX{% endblock %}
+{% block eyebrow %}COTAÇÃO PRINCIPAL{% endblock %}
+{% block page_title %}Opções por companhia{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <div>
+    <span class="eyebrow">COTAÇÃO PRINCIPAL</span>
+    <h1>{{ group.quote_name }}</h1>
+    <p>{{ base.origin or '—' }} → {{ base.destination or '—' }} • {% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %} • {{ base.passengers }} passageiro(s)</p><p class="muted">Dentro desta cotação você pode ter cálculos separados para ida e volta, só ida, só volta ou cada trecho.</p>
+    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else 'Não definido' }}</strong></small>
+  </div>
+  <div class="page-actions">
+    <a class="primary-button button-create" href="/calculations/new?group_id={{ group.id }}&calc=1"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Calcular outra companhia</a>
+    <a class="secondary-button button-create" href="/calculations/group/{{ group.id }}/variant/new"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Nova subcotação</a>
+    <a class="secondary-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
+  </div>
+</section>
+
+<section class="quote-group-layout">
+  <aside class="card-panel quote-base-panel compact-summary">
+    <div class="panel-heading"><div><span class="eyebrow">BASE FIXA</span><h2>Dados da cotação</h2></div></div>
+    <div class="quote-base-summary">
+      <div><small>Cliente</small><strong>{{ base.client_name or 'Não informado' }}</strong></div>
+      <div><small>Rota</small><strong>{{ base.origin or '—' }} → {{ base.destination or '—' }}</strong></div>
+      <div><small>Tipo</small><strong>{% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %}</strong></div>
+      <div><small>Ida</small><strong>{{ base.departure_date|date_br }}</strong></div>
+      {% if base.travel_type == 'round_trip' %}<div><small>Volta</small><strong>{{ base.return_date|date_br }}</strong></div>{% endif %}
+      <div><small>Passageiros</small><strong>{{ base.passengers }} pagante(s), {{ base.babies }} bebê(s)</strong></div>
+      <div><small>Bagagens</small><strong>Por opção</strong></div>
+      {% if base.notes %}<div class="span-all"><small>Observações</small><p>{{ base.notes }}</p></div>{% endif %}
+    </div>
+    <div class="quote-management-grid top-gap">
+      <form method="post" action="/calculations/group/{{ group.id }}/client" class="quote-management-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="management-card-head"><div><small>CLIENTE DA COTAÇÃO</small><strong>Editar cliente</strong></div><a class="secondary-button tiny-button button-create" href="/persons/new?quick=1&person_type=cliente" target="_blank" rel="noopener">+ Cadastrar cliente</a></div>
+        <div class="person-search-wrapper">
+          <input type="hidden" class="person-id" name="client_person_id" value="{{ base.client_person_id or '' }}">
+          <input name="client_name" value="{{ base.client_name or '' }}" placeholder="Digite para filtrar clientes cadastrados" data-person-search data-person-type="cliente,passageiro" data-require-selection="1" data-person-id-name="client_person_id" autocomplete="off">
+        </div>
+        <button class="secondary-button button-save" type="submit">Salvar cliente</button>
+      </form>
+      <form method="post" action="/calculations/group/{{ group.id }}/assign" class="quote-management-card">
+        <input type="hidden" name="return_to" value="/calculations/group/{{ group.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="management-card-head"><div><small>RESPONSÁVEL</small><strong>Identificar de quem é a cotação</strong></div></div>
+        <select name="assigned_user_id">
+          {% for member in team_users %}<option value="{{ member.id }}" {% if group.assigned_user_id == member.id or (not group.assigned_user_id and group.user_id == member.id) %}selected{% endif %}>{{ member.name }} — {{ member.role|title }}{% if group.user_id == member.id %} • criador{% endif %}</option>{% endfor %}
+        </select>
+        <button class="secondary-button button-assign" type="submit">Salvar responsável</button>
+      </form>
+    </div>
+
+    {% if group_variants|length > 1 %}
+    <div class="top-gap">
+      <small class="eyebrow">SUBCOTAÇÕES</small>
+      <div class="variant-tabs top-gap">
+        {% for variant in group_variants %}
+        <a class="variant-tab" href="/calculations/new?group_id={{ group.id }}&variant_key={{ variant.key }}&calc=1"><span>{{ 'Principal' if variant.key == 'primary' else variant.name }}</span><small>{{ variant.origin or '?' }} → {{ variant.destination or '?' }} • {{ variant.passengers|default(base.passengers, true) }} passageiro(s)</small></a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="button-row stacked-mobile">
+      <a class="secondary-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_base=1&variant_key=primary"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cotação</a>
+      <a class="secondary-button button-open" href="/calculations/new?group_id={{ group.id }}&calc=1"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Aba calculadora</a>
+      <form method="post" action="/calculations/group/{{ group.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button button-duplicate" type="submit"><svg class="ui-icon"><use href="#icon-copy"></use></svg> Duplicar</button></form>
+    </div>
+  </aside>
+
+  <main class="card-panel">
+    <div class="panel-heading">
+      <div><span class="eyebrow">OPÇÕES CALCULADAS</span><h2>Companhias dentro desta cotação</h2><p>Estas opções pertencem à mesma cotação principal.</p></div>
+      <a class="primary-button button-create" href="/calculations/new?group_id={{ group.id }}&calc=1"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Adicionar opção</a>
+    </div>
+
+    {% if options %}
+    <form method="post" action="/quotes/group/prepare" id="groupPdfForm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>
+    <div class="quote-options-list">
+      {% for variant_block in option_variant_groups %}
+      <section class="variant-option-block card-panel soft-panel" data-variant="{{ variant_block.key }}">
+        <div class="panel-heading compact">
+          <div><span class="eyebrow">{{ 'COTAÇÃO PRINCIPAL' if variant_block.is_primary else 'SUBCOTAÇÃO' }}</span><h3>{{ variant_block.label }}</h3><p>{{ variant_block.passengers }} passageiro(s) pagante(s), {{ variant_block.babies }} bebê(s) • {{ variant_block['items']|length }} opção(ões) calculada(s).</p></div>
+          <a class="secondary-button small-button" href="/calculations/new?group_id={{ group.id }}&variant_key={{ variant_block.key }}&calc=1"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Calcular nesta rota</a>
+        </div>
+        {% for block in variant_block.scope_groups %}
+        <section class="history-scope-block group-scope-block" data-scope="{{ block["key"] }}">
+          <div class="history-scope-title"><span>{{ block["label"] }}</span><small>{{ block["items"]|length }} opção(ões)</small></div>
+          {% for quote in block["items"] %}
+          {% set flight_chips = quote.flight_detail_chips|default([], true) %}
+          {% set flexible_schedule = quote.has_flexible_schedule|default(false) %}
+          <article class="quote-option-row clean-option-row">
+            <label class="select-check"><input type="checkbox" name="quote_ids" value="{{ quote.id }}" checked form="groupPdfForm"><span></span></label>
+            <div class="option-airline">
+              <div class="history-logo-seal">{% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path }}" alt="{{ quote.airline.name }}">{% else %}<span>{{ (quote.airline.name[:1] if quote.airline else 'C')|upper }}</span>{% endif %}</div>
+              <div><strong>{{ quote.airline.name if quote.airline else 'Companhia' }}</strong><small>{{ quote.method_label or (quote.calculation_type.name if quote.calculation_type else 'Cálculo') }}</small><small class="quote-option-author">Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong></small><div class="history-chip-row">{% if quote.fare_brand %}<span class="history-chip fare-chip">{{ quote.fare_brand }}</span>{% endif %}{% if quote.cabin_class %}<span class="history-chip class-chip">{{ quote.cabin_class }}</span>{% endif %}<span class="history-chip scope-chip">{{ quote.scope_label }}</span><span class="history-chip">{{ quote.passengers }} passageiro(s)</span>{% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% endif %}{% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}{% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}{% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}{% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}</div><div class="history-segment-list">{% for row in quote.segment_rows %}<div class="history-segment-row {% if row.status == 'flown' %}segment-flown{% elif row.status == 'not_flown' %}segment-unflown{% endif %}"><div class="history-segment-route"><span class="segment-number">Trecho {{ row.segment }}</span><strong>{{ row.route }}</strong>{% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}{% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}</div><div class="history-segment-schedule">{% if row.schedules %}{% for schedule in row.schedules %}<span>{{ schedule }}</span>{% endfor %}{% elif row.status == 'not_flown' %}<span class="schedule-muted">Sem horário — trecho não utilizado</span>{% else %}<span class="schedule-muted">Data e horário não informados</span>{% endif %}</div></div>{% endfor %}</div></div>
+            </div>
+            <div class="option-value"><small>Total</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+            <div class="option-actions">
+              <a class="ghost-button small-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a>
+              <a class="secondary-button small-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1">Editar cálculo</a>
+              <a class="secondary-button small-button button-fare" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1#optionMetadataSection">Alterar tarifa</a>
+              <form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button small-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>
+              <form method="post" action="/cadastros/cotacoes-aceitas/opcao/{{ quote.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary-button small-button button-accept" type="submit">Aceitar/transformar</button></form>
+              <form method="post" action="/cadastros/voos/opcao/{{ quote.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button small-button button-flight" type="submit">Enviar para voos</button></form>
+              <form method="post" action="/calculations/{{ quote.id }}/delete" onsubmit="return confirm('Excluir esta opção?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button small-button danger button-delete" type="submit">Excluir</button></form>
+            </div>
+          </article>
+          {% endfor %}
+        </section>
+        {% endfor %}
+      </section>
+      {% endfor %}
+      <div class="sticky-form-actions compact-actions"><button class="primary-button large" type="submit" form="groupPdfForm"><svg class="ui-icon"><use href="#icon-file"></use></svg> Gerar PDF de cotação em grupo</button></div>
+    </div>
+    {% else %}
+    <div class="empty-state"><svg class="empty-icon"><use href="#icon-plane"></use></svg><h3>Nenhuma companhia calculada ainda.</h3><p>Clique em adicionar opção e escolha uma companhia para calcular em cima da base fixa.</p></div>
+    {% endif %}
+  </main>
+</section>
+{% endblock %}

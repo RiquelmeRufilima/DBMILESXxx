@@ -1,0 +1,14 @@
+.venv
+.venv_antiga_*
+data
+uploads
+__pycache__
+*.pyc
+*.db
+*.sqlite
+*.sqlite3
+*.log
+app_BACKUP*
+app (2)
+backup
+backups

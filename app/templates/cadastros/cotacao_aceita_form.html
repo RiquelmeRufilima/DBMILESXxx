@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Editar cotação aceita | DBMILESX{% endblock %}
+{% block page_title %}Editar cotação aceita{% endblock %}
+{% block eyebrow %}CADASTROS{% endblock %}
+
+{% block content %}
+<section class="page-heading inline">
+  <div>
+    <span class="eyebrow">COTAÇÃO ACEITA</span>
+    <h1>{{ group.quote_name }}</h1>
+    <p>{{ group.origin or '—' }} → {{ group.destination or '—' }}{% if quote and quote.airline %} • {{ quote.airline.name }}{% endif %}. Todos os campos abaixo são opcionais.</p>
+  </div>
+  <div class="action-cluster">
+    <a class="secondary-button" href="/cadastros/cotacoes-aceitas">← Voltar</a>
+    {% if quote %}<a class="ghost-button" href="/calculations/result/{{ quote.id }}">Abrir opção calculada</a>{% endif %}
+  </div>
+</section>
+
+<form method="post" action="/cadastros/cotacoes-aceitas/{{ group.id }}/editar" class="panel manual-quote-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="panel-heading"><div><span class="eyebrow">DADOS COMERCIAIS</span><h2>Venda, localizador e observações</h2><p>Nada é obrigatório para salvar.</p></div></div>
+
+  <div class="form-grid three">
+    <label>Status
+      <select name="status">
+        {% for value,label in [('aceita','Aceita'),('aguardando_pagamento','Aguardando pagamento'),('emitida','Emitida'),('finalizada','Finalizada'),('cancelada','Cancelada')] %}
+        <option value="{{ value }}" {% if item.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Canal de venda<input name="channel" value="{{ item.channel or '' }}" placeholder="WhatsApp, balcão, Instagram..."></label>
+    <label>Localizador<input name="locator" value="{{ item.locator or '' }}" placeholder="Ex: ABC123"></label>
+  </div>
+
+  <div class="form-grid three">
+    <label>Valor de venda<input name="sale_value" value="{{ item.sale_value or '' }}" placeholder="Ex: 13240,12"></label>
+    <label>Status do pagamento<input name="payment_status" value="{{ item.payment_status or '' }}" placeholder="Pago, sinal, pendente..."></label>
+    <label>Fatura<input name="invoice_status" value="{{ item.invoice_status or '' }}" placeholder="Emitida, pendente..."></label>
+  </div>
+
+  <div class="quote-base-summary" style="margin:16px 0;">
+    <div><small>Cliente</small><strong>{{ group.trip.client_name if group.trip and group.trip.client_name else 'Não informado' }}</strong></div>
+    <div><small>Companhia aceita</small><strong>{{ quote.airline.name if quote and quote.airline else 'Não definida' }}</strong></div>
+    <div><small>Custo calculado</small><strong>{{ quote.total|money(quote.currency) if quote else '—' }}</strong></div>
+    <div><small>Passageiros</small><strong>{{ group.passengers }} pagante(s), {{ group.babies }} bebê(s)</strong></div>
+  </div>
+
+  <label>Observações internas / detalhes da viagem
+    <textarea name="notes" rows="6" placeholder="Pode colocar qualquer informação: emissão, cobrança, regras, pendências, observações do cliente...">{{ item.notes or '' }}</textarea>
+  </label>
+
+  <label>Termos e condições / texto comercial
+    <textarea name="terms" rows="8" placeholder="Texto opcional para manter junto da venda ou usar em PDF futuro.">{{ item.terms or '' }}</textarea>
+  </label>
+
+  <div class="sticky-form-actions">
+    <a class="ghost-button" href="/cadastros/cotacoes-aceitas">Cancelar</a>
+    <button class="primary-button large" type="submit">Salvar cotação aceita</button>
+  </div>
+</form>
+{% endblock %}
