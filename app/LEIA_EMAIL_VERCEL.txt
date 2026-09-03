@@ -1,0 +1,28 @@
+DBMILESX V2.12 - CADASTRO + CONFIRMACAO POR EMAIL + ESQUECI A SENHA
+
+O fluxo agora e integrado ao login:
+- Criar conta
+- Confirmar e-mail com codigo de 6 digitos
+- Reenviar codigo
+- Esqueci minha senha
+- Enviar codigo por e-mail
+- Redefinir senha com codigo
+
+ENVIO DE E-MAIL - OPCAO 1: RESEND (recomendado para hospedagem)
+No Vercel > Settings > Environment Variables configure:
+RESEND_API_KEY=...
+AUTH_EMAIL_FROM=DBMILESX <seu-remetente@seudominio.com>
+
+ENVIO DE E-MAIL - OPCAO 2: SMTP/GMAIL
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=seuemail@gmail.com
+SMTP_PASSWORD=SENHA_DE_APP_DO_GMAIL
+SMTP_STARTTLS=true
+AUTH_EMAIL_FROM=seuemail@gmail.com
+
+Observacoes:
+- Nunca coloque senhas/API keys no GitHub.
+- A tabela web_auth_email_codes e criada automaticamente, somente quando o primeiro codigo for solicitado.
+- Os codigos expiram em 15 minutos e possuem limite de tentativas.
+- O cadastro publico nao depende mais de REGISTRATION_ENABLED=false antigo: o botao Criar conta fica integrado ao login.

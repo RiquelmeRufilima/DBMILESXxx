@@ -13,7 +13,18 @@ class Base(DeclarativeBase):
     pass
 
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+elif IS_VERCEL:
+    # Falha rápido se o Neon/Postgres estiver indisponível, em vez de deixar a
+    # Function presa até o timeout da Vercel.
+    connect_args = {
+        "connect_timeout": 8,
+        "application_name": "dbmilesx-vercel",
+    }
+else:
+    connect_args = {}
+
 engine_options = {
     "connect_args": connect_args,
     "pool_pre_ping": True,

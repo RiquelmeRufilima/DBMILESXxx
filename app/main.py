@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import select
@@ -57,24 +57,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Cria tabelas e aplica pequenas migrações também no PostgreSQL hospedado.
+    if IS_VERCEL:
+        # IMPORTANTE:
+        # Em Vercel, o cold start não pode ficar criando/migrando/seedando o
+        # PostgreSQL. Essas tarefas prendiam a Function antes da primeira
+        # resposta e causavam FUNCTION_INVOCATION_TIMEOUT (504).
+        #
+        # O banco deve ser preparado uma única vez pelo script:
+        #   python scripts/inicializar_neon.py
+        logger.info("Vercel: inicialização leve concluída; banco não é migrado no cold start.")
+        yield
+        return
+
+    # Execução local/servidor tradicional: mantém o comportamento anterior.
     Base.metadata.create_all(bind=engine)
     ensure_runtime_schema(engine)
 
     db = SessionLocal()
     try:
-        if IS_VERCEL:
-            # Cold starts podem acontecer várias vezes. Só executa o seed pesado
-            # se ainda não existir nenhuma companhia padrão.
-            builtin_exists = db.scalar(
-                select(Airline.id).where(Airline.builtin.is_(True)).limit(1)
-            )
-            if builtin_exists is None:
-                seed_builtin_airlines(db)
-        else:
-            seed_builtin_airlines(db)
-
-        hosted_admin_created = ensure_hosted_admin(db) if IS_VERCEL else False
+        seed_builtin_airlines(db)
 
         if RUN_FULL_STARTUP_MAINTENANCE:
             migration = migrate_legacy_data(db)
@@ -83,15 +84,12 @@ async def lifespan(app: FastAPI):
                 ensure_user_defaults(db, user)
             owners_fixed = ensure_company_owners(db)
         else:
-            migration = {"status": "ignorado-no-cold-start"}
+            migration = {"status": "ignorado"}
             trip_backfill = 0
             owners_fixed = 0
 
         logger.info(
-            "Inicialização concluída. Vercel=%s | admin inicial=%s | "
-            "migração=%s | viagens recuperadas=%s | proprietários ajustados=%s",
-            IS_VERCEL,
-            hosted_admin_created,
+            "Inicialização concluída. Migração=%s | viagens=%s | proprietários=%s",
             migration,
             trip_backfill,
             owners_fixed,
@@ -171,7 +169,29 @@ async def unhandled_exception_handler(request, exc):
 
 @app.get("/health")
 def health():
+    # Não toca no banco: serve para confirmar que a Function/FastAPI iniciou.
     return {"status": "ok", "app": APP_NAME, "version": "5.10.35-subcotacoes-separadas-historico-vertical"}
+
+
+@app.get("/health/db")
+def health_db():
+    """Testa o Neon/PostgreSQL sem expor credenciais."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as exc:
+        logger.exception("Falha no teste do banco hospedado")
+        return JSONResponse(
+            {
+                "status": "error",
+                "database": "unavailable",
+                "error_type": type(exc).__name__,
+                "message": str(exc)[:500],
+            },
+            status_code=503,
+        )
 
 
 @app.get("/cotacoes")
