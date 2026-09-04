@@ -10,6 +10,12 @@
 </style>
 {% endblock %}
 {% block content %}
+{% if user.company_id %}
+<div style="margin-bottom:14px;padding:10px 13px;border:1px solid rgba(38,197,230,.14);border-radius:12px;color:#90adbf;font-size:.76rem">
+  Companhias personalizadas criadas dentro da empresa ficam disponíveis para toda a equipe.
+</div>
+{% endif %}
+
 <section class="page-heading inline">
   <div><span class="eyebrow">COMPANHIAS</span><h1>Regras originais e cálculos criados por você.</h1><p>As companhias padrão preservam a lógica atual. As personalizadas permitem fórmulas, campos, descontos, juros e taxas próprias.</p></div>
   <a class="primary-button" href="/airlines/new"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Criar companhia personalizada</a>

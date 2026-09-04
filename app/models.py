@@ -24,6 +24,32 @@ class WebCompany(Base):
     users: Mapped[list["WebUser"]] = orm_relationship(back_populates="company")
 
 
+class CompanyInvite(Base):
+    __tablename__ = "web_company_invites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("web_companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    invited_user_id: Mapped[int] = mapped_column(
+        ForeignKey("web_users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    invited_email: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
+    invited_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey("web_users.id"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+
 class WebUser(Base):
     __tablename__ = "web_users"
 

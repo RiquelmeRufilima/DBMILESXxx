@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Convite para empresa | DBMILESX{% endblock %}
+{% block page_title %}Convite para empresa{% endblock %}
+{% block eyebrow %}EQUIPE{% endblock %}
+{% block content %}
+<section class="centered-panel-wrap">
+  <article class="panel" style="width:min(100%,620px);padding:30px">
+    {% if invite.status == 'pending' %}
+      <span class="eyebrow">CONVITE PENDENTE</span>
+      <h1 style="margin:.45rem 0">{{ company.name if company else 'Empresa' }}</h1>
+      <p style="color:#94afc1;line-height:1.6">
+        {% if inviter %}<strong>{{ inviter.name }}</strong> convidou você para fazer parte da equipe.{% else %}Você recebeu um convite para esta empresa.{% endif %}
+      </p>
+
+      {% if user.company_id %}
+        <div class="empty-state small">
+          <h3>Sua conta já pertence a uma empresa</h3>
+          <p>Saia da empresa atual antes de aceitar outro convite.</p>
+        </div>
+      {% else %}
+        <p>Ao aceitar, você entra inicialmente como <strong>Consultor</strong>. O administrador poderá alterar seu nível depois.</p>
+        <div class="form-actions" style="margin-top:20px">
+          <form method="post" action="/company/invitations/{{ invite.id }}/accept">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="primary-button" type="submit">Aceitar e entrar na empresa</button>
+          </form>
+          <form method="post" action="/company/invitations/{{ invite.id }}/decline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="ghost-button danger" type="submit">Recusar convite</button>
+          </form>
+        </div>
+      {% endif %}
+    {% elif invite.status == 'accepted' %}
+      <h2>Convite já aceito</h2>
+      <p>Você já respondeu a este convite.</p>
+      <a class="primary-button" href="/company">Abrir empresa</a>
+    {% else %}
+      <h2>Convite encerrado</h2>
+      <p>Este convite não está mais disponível.</p>
+      <a class="secondary-button" href="/notifications">Voltar às notificações</a>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

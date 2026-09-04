@@ -64,7 +64,13 @@ def _can_manage(user, airline: Airline) -> bool:
     if airline.builtin:
         return bool(getattr(user, "is_owner", False) or getattr(user, "role", "") in {"admin", "gerente"})
     if user.company_id:
-        return airline.owner_company_id == user.company_id and user.role in {"admin", "gerente"}
+        return (
+            airline.owner_company_id == user.company_id
+            and (
+                user.role in {"admin", "gerente"}
+                or airline.owner_user_id == user.id
+            )
+        )
     return airline.owner_user_id == user.id
 
 
@@ -216,9 +222,6 @@ def new_airline_page(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if user.company_id and user.role not in {"admin", "gerente"}:
-        flash(request, "Somente administradores e gerentes podem criar companhias para a empresa.", "error")
-        return RedirectResponse("/airlines", status_code=303)
     partner_airlines = _available_partner_airlines(db, user)
     return templates.TemplateResponse(
         request,
@@ -232,10 +235,6 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if user.company_id and user.role not in {"admin", "gerente"}:
-        flash(request, "Você não tem permissão para criar companhias.", "error")
-        return RedirectResponse("/airlines", status_code=303)
-
     form = await request.form()
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
         flash(request, "Sessão expirada. Tente novamente.", "error")
@@ -282,8 +281,11 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/airlines/new", status_code=303)
 
     airline = Airline(
+        # Se o usuário pertence a uma empresa, a companhia pertence à empresa
+        # e fica visível para TODOS os usuários dela. owner_user_id registra o
+        # criador para que ele também possa editar a própria companhia.
         owner_company_id=user.company_id,
-        owner_user_id=None if user.company_id else user.id,
+        owner_user_id=user.id,
         name=name,
         slug=f"{slugify(name)}-{secrets.token_hex(3)}",
         logo_path=logo_path,

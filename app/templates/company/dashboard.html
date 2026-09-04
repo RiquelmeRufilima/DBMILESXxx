@@ -49,6 +49,49 @@
   </div>
 </section>
 
+<section class="panel" id="convites" style="margin-bottom:18px">
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">CONVIDAR PELO E-MAIL</span>
+      <h2>Convidar usuário para a empresa</h2>
+      <p>O usuário recebe o convite dentro do DBMILESX pelo sininho de notificações.</p>
+    </div>
+  </div>
+
+  <form method="post" action="/company/invite" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="form-grid cols-2">
+      <label>E-mail do usuário
+        <input type="email" name="email" required placeholder="usuario@email.com">
+        <small>O e-mail precisa já ter uma conta cadastrada no DBMILESX.</small>
+      </label>
+      <div style="display:flex;align-items:end">
+        <button class="primary-button full" type="submit">Enviar convite pelo sininho</button>
+      </div>
+    </div>
+  </form>
+
+  {% if pending_invites %}
+  <div style="margin-top:18px">
+    <strong>Convites pendentes</strong>
+    <div style="display:grid;gap:9px;margin-top:10px">
+      {% for invitation in pending_invites %}
+      <div style="display:flex;justify-content:space-between;gap:14px;align-items:center;padding:11px 13px;border:1px solid rgba(83,167,215,.16);border-radius:12px">
+        <div>
+          <strong>{{ invitation.invited_email }}</strong>
+          <small style="display:block;color:#809caf">Enviado em {{ invitation.created_at.strftime('%d/%m/%Y %H:%M') }}</small>
+        </div>
+        <form method="post" action="/company/invitations/{{ invitation.id }}/cancel">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="ghost-button small-button danger" type="submit">Cancelar</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</section>
+
 <section class="panel team-create-panel" id="adicionar-membro">
   <div class="panel-heading">
     <div><span class="eyebrow">ADICIONAR MEMBRO</span><h2>Criar um novo usuário da empresa</h2><p>O administrador define o e-mail, a senha inicial e o nível de acesso. É possível manter até {{ max_team_users }} usuários adicionais.</p></div>
