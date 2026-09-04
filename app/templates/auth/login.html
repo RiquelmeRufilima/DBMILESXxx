@@ -12,7 +12,7 @@
     <div class="auth-feature-grid"><span><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Calculadora</span><span><svg class="ui-icon"><use href="#icon-link"></use></svg> Links públicos</span><span><svg class="ui-icon"><use href="#icon-chat"></use></svg> Chat</span><span><svg class="ui-icon"><use href="#icon-file"></use></svg> PDFs</span></div>
   </div>
   <div class="auth-card">
-    <div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX"><div><h2>Bem-vindo de volta</h2><p>Entre com sua conta para continuar.</p></div></div>
+    <div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX"><div><h2>Bem-vindo de volta</h2><p>Entre com sua conta. O acesso é protegido pelo Google Authenticator.</p></div></div>
     <form method="post" action="/login" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="seu@email.com"></label>

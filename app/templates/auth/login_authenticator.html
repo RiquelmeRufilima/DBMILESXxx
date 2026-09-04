@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Verificação em duas etapas | DBMILESX{% endblock %}
+{% block head %}
+<style>
+.code-input{font-size:1.65rem!important;text-align:center;letter-spacing:.3em;font-weight:900}
+.auth-help{padding:12px 14px;border-radius:13px;background:rgba(38,197,230,.07);border:1px solid rgba(38,197,230,.16);color:#9fc5d7;font-size:.76rem;line-height:1.5}
+</style>
+{% endblock %}
+{% block content %}
+<section class="auth-shell auth-shell-branded">
+  <div class="auth-visual">
+    <div class="login-brand-row"><img class="login-main-logo" src="/static/brand/dbmilesx-dark.png" alt="DBMILESX"><img class="login-mark" src="/static/brand/marca.png" alt="Marca"></div>
+    <p class="eyebrow">VERIFICAÇÃO EM DUAS ETAPAS</p>
+    <h1>Confirme no Google Authenticator.</h1>
+    <p>Abra o aplicativo no seu celular e informe o código atual de 6 dígitos.</p>
+  </div>
+  <div class="auth-card">
+    <div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX"><div><h2>Código de segurança</h2><p>{{ email }}</p></div></div>
+    <form method="post" action="/login/authenticator" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Código do Authenticator ou código de recuperação
+        <input class="code-input" name="code" autocomplete="one-time-code" required placeholder="000000">
+      </label>
+      <div class="auth-help">Se você perdeu acesso ao celular, pode usar um dos códigos de recuperação salvos na configuração inicial.</div>
+      <button class="primary-button full large" type="submit">Confirmar e entrar</button>
+    </form>
+    <p class="auth-switch"><a href="/login">Voltar para o login</a></p>
+  </div>
+</section>
+{% endblock %}

@@ -86,6 +86,39 @@ class AuthEmailCode(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class AuthTotpCredential(Base):
+    __tablename__ = "web_auth_totp_credentials"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("web_users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+
+class AuthRecoveryCode(Base):
+    __tablename__ = "web_auth_recovery_codes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("web_users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    code_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Airline(Base):
     __tablename__ = "web_airlines"
 

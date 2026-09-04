@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Configurar Authenticator | DBMILESX{% endblock %}
+{% block head %}
+<style>
+.totp-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.86fr);gap:20px;max-width:1060px;margin:0 auto}
+.totp-panel{border:1px solid rgba(83,167,215,.22);background:#0d1d30;border-radius:22px;padding:28px}
+.totp-steps{display:grid;gap:12px;margin:18px 0}.totp-step{display:flex;gap:12px;align-items:flex-start;color:#b5ccdc;line-height:1.55}.totp-step b{display:grid;place-items:center;min-width:28px;height:28px;border-radius:9px;background:#1f9fe5;color:white}
+.qr-box{display:grid;place-items:center;background:white;border-radius:18px;padding:16px;width:max-content;margin:16px auto}.qr-box img{width:230px;height:230px;display:block}
+.secret-key{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all;letter-spacing:.08em;text-align:center;background:#07182a;border:1px dashed #2f657f;padding:13px;border-radius:12px;color:#9cefff;font-weight:800}
+.code-input{font-size:1.7rem!important;text-align:center;letter-spacing:.34em;font-weight:900}
+@media(max-width:820px){.totp-layout{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<section class="totp-layout">
+  <div class="totp-panel">
+    <p class="eyebrow">GOOGLE AUTHENTICATOR</p>
+    <h1 style="font-size:2rem;margin:.4rem 0">Proteja sua conta</h1>
+    <p style="color:#9fb8ca">Vincule o DBMILESX ao Google Authenticator. O código muda a cada 30 segundos e funciona mesmo sem internet.</p>
+
+    <div class="totp-steps">
+      <div class="totp-step"><b>1</b><span>Abra o <strong>Google Authenticator</strong> no celular.</span></div>
+      <div class="totp-step"><b>2</b><span>Toque em <strong>+</strong> e escolha <strong>Ler um QR Code</strong>.</span></div>
+      <div class="totp-step"><b>3</b><span>Escaneie o QR Code ao lado e digite abaixo o código de 6 dígitos gerado.</span></div>
+    </div>
+
+    <p style="font-size:.78rem;color:#8ca7bb">Se não puder escanear, escolha “Inserir chave de configuração” no Authenticator e use:</p>
+    <div class="secret-key">{{ secret }}</div>
+  </div>
+
+  <div class="totp-panel">
+    <h2 style="text-align:center">Vincular Authenticator</h2>
+    <p style="text-align:center;color:#98b1c4">{{ email }}</p>
+    <div class="qr-box"><img src="{{ qr_data }}" alt="QR Code para Google Authenticator"></div>
+
+    <form method="post" action="/setup-authenticator" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Código atual do Authenticator
+        <input class="code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required placeholder="000000">
+      </label>
+      <button class="primary-button full large" type="submit">Confirmar e ativar conta</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
