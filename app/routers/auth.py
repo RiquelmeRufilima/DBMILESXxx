@@ -224,6 +224,71 @@ def register(
     return RedirectResponse("/setup-authenticator", status_code=303)
 
 
+@router.get("/reset-authenticator")
+def reset_authenticator_page(request: Request, db: Session = Depends(get_db)):
+    """Tela segura para recriar o QR Code usando um código de recuperação."""
+    if request.session.get("user_id"):
+        return RedirectResponse("/dashboard", status_code=303)
+
+    user = _pending_user(request, db, "pending_2fa_user_id")
+    if user is None:
+        flash(request, "Entre com e-mail e senha antes de recriar o Authenticator.", "info")
+        return RedirectResponse("/login", status_code=303)
+
+    return templates.TemplateResponse(
+        request,
+        "auth/reset_authenticator.html",
+        context(request, email=user.email),
+    )
+
+
+@router.post("/reset-authenticator")
+def reset_authenticator(
+    request: Request,
+    recovery_code: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Autoriza a geração de um NOVO segredo TOTP com código de recuperação.
+
+    O QR antigo deixa de funcionar. O código de recuperação usado é consumido.
+    """
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada. Entre novamente.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    user = _pending_user(request, db, "pending_2fa_user_id")
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    # Import local para manter a lista principal de imports mais enxuta.
+    from ..services.auth_totp import consume_recovery_code
+
+    if not consume_recovery_code(db, int(user.id), recovery_code):
+        db.rollback()
+        flash(
+            request,
+            "Código de recuperação inválido ou já utilizado. "
+            "Use um dos códigos de recuperação salvos anteriormente.",
+            "error",
+        )
+        return RedirectResponse("/reset-authenticator", status_code=303)
+
+    # Gera um segredo TOTP totalmente novo e desativa o anterior.
+    ensure_pending_credential(db, user, reset_secret=True)
+    db.commit()
+
+    request.session.pop("pending_2fa_user_id", None)
+    request.session["pending_totp_user_id"] = int(user.id)
+
+    flash(
+        request,
+        "Novo QR Code gerado. Escaneie no Google Authenticator e confirme o código atual.",
+        "success",
+    )
+    return RedirectResponse("/setup-authenticator", status_code=303)
+
+
 @router.get("/setup-authenticator")
 def setup_authenticator_page(request: Request, db: Session = Depends(get_db)):
     if request.session.get("user_id"):

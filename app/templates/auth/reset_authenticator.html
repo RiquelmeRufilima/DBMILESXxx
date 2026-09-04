@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Gerar novo QR Code | DBMILESX{% endblock %}
+{% block head %}
+<style>
+.reset-qr-note{padding:13px 14px;border-radius:13px;background:rgba(255,182,45,.07);border:1px solid rgba(255,182,45,.22);color:#ffd58a;font-size:.76rem;line-height:1.55}
+.recovery-input{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:center;letter-spacing:.12em;font-weight:850}
+</style>
+{% endblock %}
+{% block content %}
+<section class="auth-shell auth-shell-branded">
+  <div class="auth-visual">
+    <div class="login-brand-row">
+      <img class="login-main-logo" src="/static/brand/dbmilesx-dark.png" alt="DBMILESX">
+      <img class="login-mark" src="/static/brand/marca.png" alt="Marca">
+    </div>
+    <p class="eyebrow">RECUPERAR AUTHENTICATOR</p>
+    <h1>Gere um novo QR Code.</h1>
+    <p>Use esta opção se você apagou a conta do DBMILESX do Google Authenticator ou trocou de celular.</p>
+  </div>
+
+  <div class="auth-card">
+    <div class="auth-card-head branded-head">
+      <img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX">
+      <div>
+        <h2>Novo QR Code</h2>
+        <p>{{ email }}</p>
+      </div>
+    </div>
+
+    <div class="reset-qr-note">
+      <strong>Atenção:</strong> o QR Code anterior será invalidado. Para confirmar que é você,
+      informe um dos códigos de recuperação gerados quando o Authenticator foi configurado.
+    </div>
+
+    <form method="post" action="/reset-authenticator" class="form-stack" style="margin-top:14px">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Código de recuperação
+        <input
+          class="recovery-input"
+          name="recovery_code"
+          autocomplete="one-time-code"
+          required
+          placeholder="ABCD-EFGH-IJKL"
+        >
+      </label>
+      <button class="primary-button full large" type="submit">Validar e gerar novo QR Code</button>
+    </form>
+
+    <p class="auth-switch"><a href="/login/authenticator">Voltar para o código de segurança</a></p>
+  </div>
+</section>
+{% endblock %}
