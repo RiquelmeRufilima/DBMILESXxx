@@ -19,6 +19,36 @@
 </section>
 
 {% if can_manage_members %}
+<section class="panel" id="codigo-entrada" style="margin-bottom:18px">
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">ACESSO DA EQUIPE</span>
+      <h2>Código de entrada da empresa</h2>
+      <p>Compartilhe o nome da empresa e este código com quem deve entrar na equipe.</p>
+    </div>
+  </div>
+
+  <div class="form-grid cols-2">
+    <div style="padding:14px;border:1px solid rgba(83,167,215,.18);border-radius:14px;background:rgba(38,197,230,.04)">
+      <strong>Nome para informar ao membro</strong>
+      <div style="font-size:1.15rem;margin-top:6px;color:#a8edff">{{ company.name }}</div>
+      <small>O usuário deverá digitar este nome na tela “Entrar em uma empresa”.</small>
+    </div>
+
+    <form method="post" action="/company/access-code" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Novo código de entrada
+        <input type="password" name="join_code" minlength="6" maxlength="64" required placeholder="Mínimo 6 caracteres">
+      </label>
+      <label>Confirmar novo código
+        <input type="password" name="join_code_confirm" minlength="6" maxlength="64" required placeholder="Repita o código">
+      </label>
+      <small>Por segurança, o código atual não é exibido. Se esquecer, defina um novo.</small>
+      <button class="secondary-button" type="submit">Alterar código de entrada</button>
+    </form>
+  </div>
+</section>
+
 <section class="panel team-create-panel" id="adicionar-membro">
   <div class="panel-heading">
     <div><span class="eyebrow">ADICIONAR MEMBRO</span><h2>Criar um novo usuário da empresa</h2><p>O administrador define o e-mail, a senha inicial e o nível de acesso. É possível manter até {{ max_team_users }} usuários adicionais.</p></div>

@@ -1,16 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Criar empresa | DBMILESX{% endblock %}
+{% block title %}Empresa | DBMILESX{% endblock %}
 {% block page_title %}Empresa{% endblock %}
 {% block eyebrow %}EQUIPE E OPERAÇÃO{% endblock %}
+{% block head %}
+<style>
+.company-entry-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1100px;margin:34px auto}
+.company-entry-card{background:#112238;border:1px solid rgba(83,167,215,.23);border-radius:22px;padding:28px;min-height:100%;box-shadow:0 20px 55px rgba(0,0,0,.08)}
+.company-entry-icon{width:68px;height:68px;border-radius:18px;display:grid;place-items:center;margin-bottom:18px;background:linear-gradient(135deg,#22c3e8,#3182f6);font-size:1.7rem;color:white;font-weight:900}
+.company-entry-card h2{font-size:1.55rem;margin:0 0 8px}.company-entry-card>p{color:#8eabc0;line-height:1.55;margin:0 0 22px}
+.company-entry-card.join-card{background:#0e1d31}.join-hint{padding:11px 13px;border-radius:12px;background:rgba(38,197,230,.06);border:1px solid rgba(38,197,230,.15);color:#94bdcf;font-size:.75rem;line-height:1.5}
+@media(max-width:850px){.company-entry-grid{grid-template-columns:1fr;max-width:620px}}
+</style>
+{% endblock %}
 {% block content %}
-<section class="centered-panel-wrap">
-  <article class="panel create-company-panel">
-    <span class="brand-mark jumbo">▦</span><span class="eyebrow">PAINEL DA EMPRESA</span><h1>Crie sua empresa dentro do sistema.</h1><p>O histórico, as companhias próprias, o dashboard e o chat passam a ser compartilhados com a equipe.</p>
+<section class="company-entry-grid">
+  <article class="company-entry-card">
+    <div class="company-entry-icon">▦</div>
+    <span class="eyebrow">CRIAR EMPRESA</span>
+    <h2>Crie sua empresa</h2>
+    <p>Você será o administrador principal e poderá compartilhar um código de entrada com sua equipe.</p>
+
     <form method="post" action="/company/create" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>Nome da empresa<input name="name" required placeholder="Ex: ISI Viagens"></label>
-      <label>CNPJ opcional<input name="cnpj" placeholder="00.000.000/0000-00"></label>
+      <label>Nome da empresa
+        <input name="name" required placeholder="Ex.: ISI Viagens">
+      </label>
+      <label>CNPJ opcional
+        <input name="cnpj" placeholder="00.000.000/0000-00">
+      </label>
+      <label>Código de entrada da empresa
+        <input type="password" name="join_code" minlength="6" maxlength="64" required placeholder="Crie um código para sua equipe">
+        <small>Esse código será usado por novos membros para entrar na empresa.</small>
+      </label>
       <button class="primary-button large full" type="submit">Criar empresa</button>
+    </form>
+  </article>
+
+  <article class="company-entry-card join-card">
+    <div class="company-entry-icon">↪</div>
+    <span class="eyebrow">ENTRAR EM UMA EMPRESA</span>
+    <h2>Já faz parte de uma equipe?</h2>
+    <p>Informe o nome exato da empresa e o código de entrada fornecido pelo administrador.</p>
+
+    <form method="post" action="/company/join" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Nome da empresa
+        <input name="company_name" required placeholder="Ex.: ISI Viagens">
+      </label>
+      <label>Código de entrada
+        <input type="password" name="join_code" required placeholder="Código fornecido pela empresa">
+      </label>
+      <div class="join-hint">
+        Ao entrar, sua conta será vinculada à empresa como <strong>Consultor</strong>.
+        O administrador poderá alterar seu nível depois.
+      </div>
+      <button class="secondary-button large full" type="submit">Entrar na empresa</button>
     </form>
   </article>
 </section>

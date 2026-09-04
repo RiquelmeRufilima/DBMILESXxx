@@ -17,6 +17,8 @@ class WebCompany(Base):
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     email: Mapped[str | None] = mapped_column(String(180), nullable=True)
     logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Código de entrada da empresa. Nunca é salvo em texto puro.
+    join_code_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     users: Mapped[list["WebUser"]] = orm_relationship(back_populates="company")

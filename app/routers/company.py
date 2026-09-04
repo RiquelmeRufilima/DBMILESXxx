@@ -13,7 +13,7 @@ from ..config import CHAT_UPLOAD_DIR, COMPANY_UPLOAD_DIR, MAX_TEAM_USERS
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
 from ..models import ChatMessage, WebCompany, WebQuote, WebUser
-from ..security import hash_password, validate_csrf_token, validate_password
+from ..security import hash_password, validate_csrf_token, validate_password, verify_password
 from ..services.notifications import create_notification
 from ..services.realtime import avatar_url, manager
 from ..services.team_accounts import can_create_team_user, remaining_team_slots, team_user_count
@@ -237,6 +237,7 @@ def create_company(
     request: Request,
     name: str = Form(...),
     cnpj: str = Form(""),
+    join_code: str = Form(...),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
@@ -245,6 +246,123 @@ def create_company(
         return RedirectResponse("/login", status_code=303)
     if user.company_id:
         return RedirectResponse("/company", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    name = " ".join(str(name or "").split())[:180]
+    cnpj = str(cnpj or "").strip()[:30]
+    join_code = str(join_code or "").strip()
+
+    if len(name) < 2:
+        flash(request, "Informe o nome da empresa.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if len(join_code) < 6 or len(join_code) > 64:
+        flash(request, "O código de entrada precisa ter entre 6 e 64 caracteres.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    company = WebCompany(
+        name=name,
+        cnpj=cnpj or None,
+        join_code_hash=hash_password(join_code),
+    )
+    db.add(company)
+    db.flush()
+
+    user.company_id = company.id
+    user.role = "admin"
+    user.is_owner = True
+    user.active = True
+    user.auth_version = int(user.auth_version or 1) + 1
+    db.commit()
+
+    request.session["auth_version"] = int(user.auth_version or 1)
+    flash(
+        request,
+        f"Empresa '{name}' criada. Compartilhe o código de entrada apenas com quem deve fazer parte da equipe.",
+        "success",
+    )
+    return RedirectResponse("/company", status_code=303)
+
+
+@router.post("/join")
+def join_company(
+    request: Request,
+    company_name: str = Form(...),
+    join_code: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.company_id:
+        flash(request, "Sua conta já pertence a uma empresa.", "info")
+        return RedirectResponse("/company", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    company_name = " ".join(str(company_name or "").split())[:180]
+    join_code = str(join_code or "").strip()
+
+    if len(company_name) < 2 or not join_code:
+        flash(request, "Informe o nome da empresa e o código de entrada.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    companies = db.scalars(
+        select(WebCompany).where(func.lower(WebCompany.name) == company_name.lower())
+    ).all()
+
+    matched_company = None
+    for company in companies:
+        if company.join_code_hash and verify_password(join_code, company.join_code_hash):
+            matched_company = company
+            break
+
+    if matched_company is None:
+        flash(request, "Nome da empresa ou código de entrada incorreto.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    if not can_create_team_user(db, matched_company.id):
+        flash(request, f"Esta empresa atingiu o limite de {MAX_TEAM_USERS} usuários adicionais.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    user.company_id = matched_company.id
+    user.role = "membro"
+    user.is_owner = False
+    user.active = True
+    user.auth_version = int(user.auth_version or 1) + 1
+
+    # Avisa administradores da empresa sobre o novo acesso.
+    admins = db.scalars(
+        select(WebUser).where(
+            WebUser.company_id == matched_company.id,
+            WebUser.role == "admin",
+            WebUser.active.is_(True),
+            WebUser.id != user.id,
+        )
+    ).all()
+    for admin in admins:
+        create_notification(
+            db,
+            admin.id,
+            "Novo membro entrou na empresa",
+            f"{user.name} entrou em {matched_company.name} usando o código da empresa.",
+            kind="company",
+            link="/company#equipe",
+            commit=False,
+        )
+
+    db.commit()
+    request.session["auth_version"] = int(user.auth_version or 1)
+
+    flash(
+        request,
+        f"Você entrou em '{matched_company.name}' como Consultor.",
+        "success",
+    )
+    return RedirectResponse("/company", status_code=303)
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/company", status_code=303)
@@ -265,6 +383,49 @@ def create_company(
     db.commit()
     request.session["auth_version"] = int(user.auth_version or 1)
     flash(request, f"Empresa '{name}' criada. Agora você pode adicionar até {MAX_TEAM_USERS} usuários.", "success")
+    return RedirectResponse("/company", status_code=303)
+
+
+@router.post("/access-code")
+def change_company_access_code(
+    request: Request,
+    join_code: str = Form(...),
+    join_code_confirm: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not _is_company_admin(user):
+        flash(request, "Somente o administrador pode alterar o código de entrada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    join_code = str(join_code or "").strip()
+    join_code_confirm = str(join_code_confirm or "").strip()
+
+    if len(join_code) < 6 or len(join_code) > 64:
+        flash(request, "O código de entrada precisa ter entre 6 e 64 caracteres.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if join_code != join_code_confirm:
+        flash(request, "Os códigos informados não coincidem.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    company = db.get(WebCompany, user.company_id)
+    if company is None:
+        flash(request, "Empresa não encontrada.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    company.join_code_hash = hash_password(join_code)
+    db.commit()
+    flash(
+        request,
+        "Código de entrada atualizado. Compartilhe o novo código somente com sua equipe.",
+        "success",
+    )
     return RedirectResponse("/company", status_code=303)
 
 
