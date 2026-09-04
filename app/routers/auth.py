@@ -427,6 +427,56 @@ def old_reset_resend(request: Request):
     return RedirectResponse("/reset-password", status_code=303)
 
 
+@router.post("/security/recovery-codes/regenerate")
+def regenerate_recovery_codes(
+    request: Request,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Gera um novo conjunto de códigos de recuperação para usuário autenticado.
+
+    Todos os códigos antigos são invalidados imediatamente.
+    """
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada. Entre novamente.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    user_id = request.session.get("user_id")
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        flash(request, "Entre novamente para gerar novos códigos.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    user = db.get(WebUser, user_id)
+    if user is None or not user.active:
+        request.session.clear()
+        flash(request, "Sua sessão não é mais válida. Entre novamente.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    if not authenticator_enabled(db, user_id):
+        flash(request, "Configure o Google Authenticator antes de gerar códigos de recuperação.", "error")
+        return RedirectResponse("/setup-authenticator", status_code=303)
+
+    recovery_codes = generate_recovery_codes(db, user_id, count=8)
+    db.commit()
+
+    flash(
+        request,
+        "Novos códigos gerados. Todos os códigos de recuperação anteriores foram invalidados.",
+        "success",
+    )
+    return templates.TemplateResponse(
+        request,
+        "auth/recovery_codes.html",
+        context(
+            request,
+            recovery_codes=recovery_codes,
+            regenerated=True,
+        ),
+    )
+
+
 @router.post("/logout")
 def logout(request: Request, csrf_token: str = Form(...)):
     if not validate_csrf_token(request.session, csrf_token):
