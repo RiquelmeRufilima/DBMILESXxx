@@ -1,27 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Entrar | DBMILESX{% endblock %}
-{% block head %}<style>
-.auth-account-links{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:10px;font-size:.78rem}.auth-account-links a{color:#7fe8ff;font-weight:850;text-decoration:none}.auth-account-links a:hover{text-decoration:underline}.auth-account-links .create-link{color:#8bffcc}
-</style>{% endblock %}
+{% block head %}
+<style>
+.login-simple{min-height:72vh;display:grid;place-items:center;padding:28px 16px}
+.login-box{width:min(100%,430px);background:#0d1d30;border:1px solid rgba(83,167,215,.22);border-radius:22px;padding:28px;box-shadow:0 22px 65px rgba(0,0,0,.16)}
+.login-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}.login-brand img{width:54px;height:54px;border-radius:14px}.login-brand h1{font-size:1.45rem;margin:0}.login-brand p{margin:3px 0 0;color:#8faabd;font-size:.78rem}
+.login-links{display:flex;justify-content:space-between;gap:12px;margin-top:3px;font-size:.78rem}.login-links a{color:#65ddf6;text-decoration:none;font-weight:800}.login-links a:last-child{color:#7ff0c4}
+.login-note{margin-top:18px;padding-top:16px;border-top:1px solid rgba(83,167,215,.14);color:#7895a9;font-size:.72rem;text-align:center;line-height:1.45}
+</style>
+{% endblock %}
 {% block content %}
-<section class="auth-shell auth-shell-branded">
-  <div class="auth-visual">
-    <div class="login-brand-row"><img class="login-main-logo" src="/static/brand/dbmilesx-dark.png" alt="DBMILESX"><img class="login-mark" src="/static/brand/marca.png" alt="Marca DBMILESX"></div>
-    <p class="eyebrow">DBMILESX WEB V5</p><h1>Seu sistema de cotações, agora mais completo e personalizável.</h1>
-    <p>Use no computador, celular, Android e iPhone. Perfis, empresa, chat, solicitações por link, notificações, PDFs e companhias personalizadas.</p>
-    <div class="auth-feature-grid"><span><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Calculadora</span><span><svg class="ui-icon"><use href="#icon-link"></use></svg> Links públicos</span><span><svg class="ui-icon"><use href="#icon-chat"></use></svg> Chat</span><span><svg class="ui-icon"><use href="#icon-file"></use></svg> PDFs</span></div>
-  </div>
-  <div class="auth-card">
-    <div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX"><div><h2>Bem-vindo de volta</h2><p>Entre com sua conta. O acesso é protegido pelo Google Authenticator.</p></div></div>
+<section class="login-simple">
+  <div class="login-box">
+    <div class="login-brand">
+      <img src="/static/icons/icon-192.png" alt="DBMILESX">
+      <div><h1>Entrar no DBMILESX</h1><p>Acesse sua conta para continuar.</p></div>
+    </div>
+
     <form method="post" action="/login" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="seu@email.com"></label>
-      <label>Senha<input type="password" name="password" autocomplete="current-password" required placeholder="••••••••"></label>
-      <div class="auth-account-links"><a href="/forgot-password">Esqueci minha senha</a><a class="create-link" href="/register">Criar conta</a></div>
-      <button type="submit" class="primary-button full large"><svg class="ui-icon"><use href="#icon-arrow-right"></use></svg> Entrar no DBMILESX</button>
+      <label>E-mail
+        <input type="email" name="email" autocomplete="email" required placeholder="seu@email.com">
+      </label>
+      <label>Senha
+        <input type="password" name="password" autocomplete="current-password" required placeholder="Sua senha">
+      </label>
+
+      <div class="login-links">
+        <a href="/forgot-password">Esqueci minha senha</a>
+        <a href="/register">Criar conta</a>
+      </div>
+
+      <button type="submit" class="primary-button full large">Entrar</button>
     </form>
-    <p class="auth-switch">Novo por aqui? <a href="/register">Criar minha conta</a></p>
-    <div class="auth-footer-logo"><img src="/static/brand/dbmilesx-dark.png" alt="DBMILESX"></div>
+
+    <div class="login-note">
+      Se você ativou a verificação em duas etapas nas configurações, o código do Google Authenticator será solicitado depois da senha.
+    </div>
   </div>
 </section>
 {% endblock %}

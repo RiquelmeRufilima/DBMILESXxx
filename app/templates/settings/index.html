@@ -3,7 +3,77 @@
 {% block page_title %}Configurações{% endblock %}
 {% block eyebrow %}PERSONALIZAÇÃO{% endblock %}
 {% block content %}
-<section class="page-heading"><div><span class="eyebrow">CONFIGURAÇÕES</span><h1>Deixe o sistema com a sua cara.</h1><p>Escolha tema, cor principal, fundo, densidade e preferências de notificações.</p></div></section>
+<section class="page-heading"><div><span class="eyebrow">CONFIGURAÇÕES</span><h1>Configurações da sua conta.</h1><p>Ajuste aparência, notificações e segurança do acesso.</p></div></section>
+
+<section class="panel" style="margin-bottom:18px">
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">SEGURANÇA</span>
+      <h2>Google Authenticator</h2>
+    </div>
+    <svg class="panel-icon"><use href="#icon-shield"></use></svg>
+  </div>
+
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.8fr);gap:18px;align-items:start">
+    <div>
+      {% if authenticator_configured %}
+        <div style="padding:13px 14px;border-radius:13px;background:rgba(28,202,151,.07);border:1px solid rgba(28,202,151,.2);margin-bottom:12px">
+          <strong style="color:#91f1cf">Authenticator configurado</strong>
+          <p style="margin:4px 0 0;color:#9cb7c8;font-size:.78rem">
+            O código do Google também pode ser usado para redefinir sua senha.
+          </p>
+        </div>
+
+        {% if two_factor_enabled %}
+          <p style="color:#b8ccda">A verificação em duas etapas está <strong>ativa no login</strong>.</p>
+          <form method="post" action="/settings/security/2fa/disable" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Código atual do Google Authenticator
+              <input name="code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required placeholder="000000">
+            </label>
+            <button class="secondary-button" type="submit">Desativar código no login</button>
+          </form>
+        {% else %}
+          <p style="color:#b8ccda">O Authenticator está vinculado, mas <strong>não é exigido para entrar</strong>.</p>
+          <form method="post" action="/settings/security/2fa/enable" class="form-stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Código atual do Google Authenticator
+              <input name="code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required placeholder="000000">
+            </label>
+            <button class="primary-button" type="submit">Ativar verificação no login</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <p style="color:#b8ccda;line-height:1.6">
+          O Google Authenticator é opcional. Você entra normalmente com e-mail e senha.
+          Ative aqui apenas se quiser uma segunda etapa de segurança e recuperação de senha por código.
+        </p>
+        <form method="post" action="/settings/security/authenticator/start">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="primary-button" type="submit">Configurar Google Authenticator</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if authenticator_configured %}
+    <div style="padding:14px;border-radius:14px;background:rgba(35,78,103,.16);border:1px solid rgba(83,167,215,.18)">
+      <strong>Reconfigurar QR Code</strong>
+      <p style="font-size:.76rem;color:#8faabc;line-height:1.5">
+        Se trocou de celular ou quer gerar um QR novo, confirme sua senha atual.
+        O QR anterior será invalidado.
+      </p>
+      <form method="post" action="/settings/security/authenticator/reset" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Senha atual
+          <input type="password" name="password" autocomplete="current-password" required placeholder="Sua senha">
+        </label>
+        <button class="secondary-button" type="submit">Gerar novo QR Code</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
 <section class="content-grid two-one settings-layout">
   <article class="panel">
     <div class="panel-heading"><div><span class="eyebrow">APARÊNCIA</span><h2>Tema e cores</h2></div><svg class="panel-icon"><use href="#icon-palette"></use></svg></div>

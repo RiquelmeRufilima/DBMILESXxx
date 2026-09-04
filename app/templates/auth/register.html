@@ -2,30 +2,19 @@
 {% block title %}Criar conta | DBMILESX{% endblock %}
 {% block head %}
 <style>
-.auth-note{padding:12px 14px;border-radius:13px;background:rgba(38,197,230,.07);border:1px solid rgba(38,197,230,.16);color:#9fc5d7;font-size:.74rem;line-height:1.55}
-.auth-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:600px){.auth-two{grid-template-columns:1fr}}
+.login-simple{min-height:72vh;display:grid;place-items:center;padding:28px 16px}
+.login-box{width:min(100%,560px);background:#0d1d30;border:1px solid rgba(83,167,215,.22);border-radius:22px;padding:28px}
+.auth-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.auth-two{grid-template-columns:1fr}}
 </style>
 {% endblock %}
 {% block content %}
-<section class="auth-shell auth-shell-branded">
-  <div class="auth-visual register-visual">
-    <div class="login-brand-row">
-      <img class="login-main-logo" src="/static/brand/dbmilesx-dark.png" alt="DBMILESX">
-      <img class="login-mark" src="/static/brand/marca.png" alt="Marca">
-    </div>
-    <p class="eyebrow">NOVO ACESSO</p>
-    <h1>Crie sua conta e proteja o acesso com o Google Authenticator.</h1>
-    <p>Depois do cadastro, você escaneia um QR Code no Authenticator e confirma um código de 6 dígitos. Não dependemos mais de e-mail para a autenticação.</p>
-  </div>
+<section class="login-simple">
+  <div class="login-box">
+    <span class="eyebrow">NOVA CONTA</span>
+    <h1 style="font-size:1.55rem;margin:.45rem 0">Criar conta</h1>
+    <p style="color:#91aabd">O Google Authenticator é opcional e pode ser ativado depois em Configurações → Segurança.</p>
 
-  <div class="auth-card">
-    <div class="auth-card-head branded-head">
-      <img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX">
-      <div><h2>Criar conta</h2><p>Preencha seus dados para começar.</p></div>
-    </div>
-
-    <form method="post" action="/register" class="form-stack">
+    <form method="post" action="/register" class="form-stack" style="margin-top:18px">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>Nome completo<input name="name" autocomplete="name" required placeholder="Seu nome completo"></label>
       <div class="auth-two">
@@ -34,13 +23,11 @@
       </div>
       <label>E-mail<input type="email" name="email" autocomplete="email" required placeholder="seu@email.com"></label>
       <div class="auth-two">
-        <label>Senha<input type="password" name="password" autocomplete="new-password" required placeholder="Mínimo 8 caracteres"></label>
+        <label>Senha<input type="password" name="password" autocomplete="new-password" required placeholder="Sua senha"></label>
         <label>Confirmar senha<input type="password" name="password_confirm" autocomplete="new-password" required placeholder="Repita a senha"></label>
       </div>
-      <div class="auth-note">Após criar a conta, abra o Google Authenticator no celular e escaneie o QR Code exibido pelo DBMILESX.</div>
-      <button class="primary-button full large" type="submit">Criar conta e configurar Authenticator</button>
+      <button class="primary-button full large" type="submit">Criar conta</button>
     </form>
-
     <p class="auth-switch">Já possui conta? <a href="/login">Entrar</a></p>
   </div>
 </section>

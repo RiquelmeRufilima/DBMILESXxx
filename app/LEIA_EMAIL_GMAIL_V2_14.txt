@@ -1,0 +1,31 @@
+DBMILESX V2.14 — CORREÇÃO DEFINITIVA DO FLUXO DE E-MAIL
+
+O que foi corrigido:
+- Remove automaticamente espaços da Senha de app do Gmail.
+- Valida se a senha de app do Gmail tem 16 caracteres.
+- Usa SMTP 587 + STARTTLS e tenta automaticamente 465 + SSL se houver falha de conexão.
+- Exibe erro específico quando Gmail recusa autenticação, remetente ou destinatário.
+- O código de confirmação só é gravado no banco depois que o provedor aceita o e-mail.
+- Cadastro pendente continua salvo mesmo se o envio falhar.
+- Reenvio e recuperação de senha não deixam códigos falsamente "enviados".
+- Criar conta e Esqueci minha senha usam exatamente o mesmo serviço de e-mail.
+
+No Vercel (Production):
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=seu-remetente@gmail.com
+SMTP_PASSWORD=senha-de-app-do-google
+SMTP_STARTTLS=true
+SMTP_SSL=false
+SMTP_FROM_NAME=DBMILESX
+AUTH_EMAIL_FROM=DBMILESX <seu-remetente@gmail.com>
+SMTP_TIMEOUT=15
+SMTP_SEND_ATTEMPTS=2
+
+IMPORTANTE:
+- SMTP_USER e o e-mail em AUTH_EMAIL_FROM devem ser a mesma conta Gmail.
+- SMTP_PASSWORD é Senha de app do Google, não a senha normal.
+- Se a Senha de app vier como "abcd efgh ijkl mnop", pode colar com espaços:
+  a V2.14 remove os espaços automaticamente.
+- Depois de alterar variáveis, faça Redeploy no Vercel.

@@ -8,7 +8,16 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import current_user
-from ..security import validate_csrf_token
+from ..security import validate_csrf_token, verify_password
+from ..services.auth_totp import (
+    authenticator_configured,
+    credential_secret,
+    ensure_pending_credential,
+    ensure_totp_schema,
+    get_credential,
+    login_2fa_enabled,
+    verify_totp,
+)
 from ..web import THEME_PRESETS, context, flash, templates
 
 router = APIRouter(tags=["settings"])
@@ -19,7 +28,17 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    return templates.TemplateResponse(request, "settings/index.html", context(request, user=user))
+    ensure_totp_schema(db)
+    return templates.TemplateResponse(
+        request,
+        "settings/index.html",
+        context(
+            request,
+            user=user,
+            authenticator_configured=authenticator_configured(db, int(user.id)),
+            two_factor_enabled=login_2fa_enabled(db, int(user.id)),
+        ),
+    )
 
 
 @router.get("/settings/appearance")
@@ -82,3 +101,109 @@ def update_notification_preferences(
     db.commit()
     flash(request, "Preferências de notificação atualizadas.", "success")
     return RedirectResponse("/settings", status_code=303)
+
+
+
+@router.post("/settings/security/authenticator/start")
+def start_authenticator_setup(
+    request: Request,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    ensure_totp_schema(db)
+    ensure_pending_credential(db, user, reset_secret=not authenticator_configured(db, int(user.id)))
+    db.commit()
+    return RedirectResponse("/setup-authenticator", status_code=303)
+
+
+@router.post("/settings/security/2fa/enable")
+def enable_login_2fa(
+    request: Request,
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    credential = get_credential(db, int(user.id))
+    if credential is None or not credential.enabled:
+        return RedirectResponse("/setup-authenticator", status_code=303)
+
+    if not verify_totp(credential_secret(credential), code):
+        flash(request, "Código do Google Authenticator incorreto.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    credential.login_2fa_enabled = True
+    db.commit()
+    flash(request, "Verificação em duas etapas ativada no login.", "success")
+    return RedirectResponse("/settings", status_code=303)
+
+
+@router.post("/settings/security/2fa/disable")
+def disable_login_2fa(
+    request: Request,
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    credential = get_credential(db, int(user.id))
+    if credential is None or not credential.enabled:
+        flash(request, "Google Authenticator não está configurado.", "info")
+        return RedirectResponse("/settings", status_code=303)
+
+    if not verify_totp(credential_secret(credential), code):
+        flash(request, "Código do Google Authenticator incorreto.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    # Mantém o Authenticator vinculado para recuperação de senha.
+    credential.login_2fa_enabled = False
+    db.commit()
+    flash(
+        request,
+        "Código no login desativado. O Authenticator continua disponível para recuperar sua senha.",
+        "success",
+    )
+    return RedirectResponse("/settings", status_code=303)
+
+
+@router.post("/settings/security/authenticator/reset")
+def reset_authenticator_from_settings(
+    request: Request,
+    password: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    if not verify_password(password, user.password_hash):
+        flash(request, "Senha atual incorreta.", "error")
+        return RedirectResponse("/settings", status_code=303)
+
+    ensure_pending_credential(db, user, reset_secret=True)
+    db.commit()
+    flash(request, "Novo QR Code preparado. Escaneie para concluir.", "success")
+    return RedirectResponse("/setup-authenticator", status_code=303)

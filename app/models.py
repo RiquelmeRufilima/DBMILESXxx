@@ -95,6 +95,10 @@ class AuthTotpCredential(Base):
     )
     secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Compatibilidade: "enabled" significa que o Authenticator foi vinculado.
+    # O login só exige o segundo fator quando esta opção for ativada pelo usuário
+    # em Configurações > Segurança.
+    login_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

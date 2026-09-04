@@ -1,0 +1,84 @@
+DBMILESX V2.13 — E-MAIL REAL EM PRODUÇÃO NO VERCEL
+
+O cadastro, confirmação de conta e recuperação de senha enviam códigos REAIS.
+Não existe código de teste/fixo.
+
+============================================================
+OPÇÃO MAIS RÁPIDA: GMAIL SMTP
+============================================================
+
+No Google:
+1. Ative a Verificação em duas etapas na conta Gmail que enviará os códigos.
+2. Abra Senhas de app da Conta Google.
+3. Gere uma Senha de app para "DBMILESX".
+4. Copie os 16 caracteres gerados. NÃO use a senha normal do Gmail.
+
+No Vercel > Project > Settings > Environment Variables (Production):
+
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=SEU_EMAIL_GMAIL
+SMTP_PASSWORD=SENHA_DE_APP_DE_16_CARACTERES
+SMTP_STARTTLS=true
+SMTP_SSL=false
+SMTP_FROM_NAME=DBMILESX
+AUTH_EMAIL_FROM=DBMILESX <SEU_EMAIL_GMAIL>
+SMTP_TIMEOUT=15
+SMTP_SEND_ATTEMPTS=2
+
+Salve e faça REDEPLOY. Não publique essas credenciais no GitHub.
+
+============================================================
+OPÇÃO RECOMENDADA PARA ESCALA: RESEND
+============================================================
+
+No Resend:
+1. Crie uma conta.
+2. Adicione e verifique um domínio próprio.
+3. Crie uma API Key.
+
+No Vercel:
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_xxxxxxxxx
+AUTH_EMAIL_FROM=DBMILESX <acesso@SEU_DOMINIO.COM>
+
+Depois faça REDEPLOY.
+
+Observação:
+- onboarding@resend.dev é útil para o início/testes da própria conta Resend.
+- Para usuários reais em produção, use um domínio verificado.
+
+============================================================
+FLUXOS QUE USAM O E-MAIL
+============================================================
+
+/register
+  -> cria conta inativa
+  -> gera código de 6 dígitos
+  -> envia o código real
+  -> /verify-email confirma e ativa a conta
+
+/forgot-password
+  -> gera código real
+  -> envia para o e-mail cadastrado
+  -> /reset-password valida o código e troca a senha
+
+Os códigos:
+- possuem 6 dígitos;
+- expiram em 15 minutos;
+- têm limite de tentativas;
+- códigos antigos são invalidados ao gerar um novo;
+- são armazenados somente como hash no PostgreSQL.
+
+============================================================
+SEGURANÇA
+============================================================
+
+NUNCA coloque SMTP_PASSWORD ou RESEND_API_KEY em:
+- .env.example
+- GitHub
+- README público
+- código Python
+
+Use somente Environment Variables do Vercel em Production.

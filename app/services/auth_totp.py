@@ -13,7 +13,7 @@ from urllib.parse import quote
 
 import qrcode
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import delete, select
+from sqlalchemy import delete, inspect, select, text
 from sqlalchemy.orm import Session
 
 from ..config import APP_NAME, SECRET_KEY
@@ -32,9 +32,25 @@ def ensure_totp_schema(db: Session) -> None:
     global _TOTP_SCHEMA_READY
     if _TOTP_SCHEMA_READY:
         return
+
     bind = db.get_bind()
     AuthTotpCredential.__table__.create(bind=bind, checkfirst=True)
     AuthRecoveryCode.__table__.create(bind=bind, checkfirst=True)
+
+    # V2.16: login com Authenticator passou a ser opcional. Bancos já existentes
+    # não possuem esta coluna, portanto ela é adicionada sem apagar o TOTP atual.
+    # DEFAULT FALSE garante que ninguém passe a exigir 2FA automaticamente só
+    # porque usava a versão antiga obrigatória.
+    columns = {col["name"] for col in inspect(bind).get_columns("web_auth_totp_credentials")}
+    if "login_2fa_enabled" not in columns:
+        with bind.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE web_auth_totp_credentials "
+                    "ADD COLUMN login_2fa_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+
     _TOTP_SCHEMA_READY = True
 
 
@@ -142,6 +158,7 @@ def ensure_pending_credential(
             user_id=int(user.id),
             secret_encrypted=encrypt_secret(generate_totp_secret()),
             enabled=False,
+            login_2fa_enabled=False,
         )
         db.add(credential)
         db.flush()
@@ -150,6 +167,7 @@ def ensure_pending_credential(
     if reset_secret or not credential.secret_encrypted:
         credential.secret_encrypted = encrypt_secret(generate_totp_secret())
         credential.enabled = False
+        credential.login_2fa_enabled = False
         credential.confirmed_at = None
         credential.updated_at = datetime.utcnow()
         db.flush()
@@ -161,9 +179,24 @@ def credential_secret(credential: AuthTotpCredential) -> str:
     return decrypt_secret(credential.secret_encrypted)
 
 
-def authenticator_enabled(db: Session, user_id: int) -> bool:
+def authenticator_configured(db: Session, user_id: int) -> bool:
     credential = get_credential(db, user_id)
     return bool(credential and credential.enabled and credential.confirmed_at)
+
+
+def authenticator_enabled(db: Session, user_id: int) -> bool:
+    """Compatibilidade: Authenticator configurado, independente do login 2FA."""
+    return authenticator_configured(db, user_id)
+
+
+def login_2fa_enabled(db: Session, user_id: int) -> bool:
+    credential = get_credential(db, user_id)
+    return bool(
+        credential
+        and credential.enabled
+        and credential.confirmed_at
+        and credential.login_2fa_enabled
+    )
 
 
 def _normalize_recovery_code(code: str) -> str:
