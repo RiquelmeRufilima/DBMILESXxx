@@ -3732,14 +3732,25 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
     except (TypeError, ValueError):
         page = 1
     q = q.strip()
-    group_filter = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
+    # Mostra o histórico compartilhado da empresa e também as cotações que
+    # pertencem ao próprio usuário. Isso preserva cotações criadas antes de o
+    # usuário entrar/criar uma empresa (company_id ainda nulo ou diferente).
+    group_filter = (
+        or_(QuoteGroup.company_id == user.company_id, QuoteGroup.user_id == user.id)
+        if user.company_id
+        else QuoteGroup.user_id == user.id
+    )
     group_conditions = [group_filter]
     if q:
         pattern = f"%{q}%"
         group_conditions.append(or_(QuoteGroup.quote_name.ilike(pattern), QuoteGroup.origin.ilike(pattern), QuoteGroup.destination.ilike(pattern)))
 
     linked_ids = select(QuoteOptionIndex.quote_id)
-    access_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
+    access_filter = (
+        or_(WebQuote.company_id == user.company_id, WebQuote.user_id == user.id)
+        if user.company_id
+        else WebQuote.user_id == user.id
+    )
     legacy_conditions = [access_filter, WebQuote.id.notin_(linked_ids)]
     if q:
         pattern = f"%{q}%"
