@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from sqlalchemy import select
 
 from .config import (
@@ -103,7 +104,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=f"{APP_NAME} Web V5.10.35 / V2.19 Performance",
+    title=f"{APP_NAME} Web V5.10.35 / V2.20 Performance Mobile",
     description="Sistema web responsivo de cotações aéreas.",
     debug=DEBUG,
     lifespan=lifespan,
@@ -118,6 +119,9 @@ app.add_middleware(
     max_age=60 * 60 * 12,
 )
 
+# HTML/JSON e arquivos textuais ficam menores no celular e em conexões móveis.
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
+
 
 @app.middleware("http")
 async def performance_timing(request, call_next):
@@ -125,11 +129,16 @@ async def performance_timing(request, call_next):
     started = time.perf_counter()
     response = await call_next(request)
     elapsed_ms = (time.perf_counter() - started) * 1000
-    if not request.url.path.startswith("/static/"):
+    path = request.url.path
+    if path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400")
+    elif path.startswith("/imagens/"):
+        response.headers.setdefault("Cache-Control", "public, max-age=86400, stale-while-revalidate=86400")
+    else:
         response.headers["Server-Timing"] = f"app;dur={elapsed_ms:.1f}"
         response.headers["X-DBMILESX-Time"] = f"{elapsed_ms:.0f}ms"
         if elapsed_ms >= 800:
-            logger.warning("Rota lenta: %s %s %.0fms", request.method, request.url.path, elapsed_ms)
+            logger.warning("Rota lenta: %s %s %.0fms", request.method, path, elapsed_ms)
     return response
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

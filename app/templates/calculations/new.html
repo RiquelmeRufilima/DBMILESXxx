@@ -413,11 +413,11 @@
   </div>
 </section>
 
-<section class="wizard-grid old-calculation-layout">
+<section class="wizard-grid old-calculation-layout {% if request.query_params.get('airline_id') or option_id %}mobile-airline-confirmed{% endif %}" id="calculationWizard">
   <aside class="panel selector-panel">
     <div class="section-title">
-      <span class="step-badge">1</span>
-      <div><h2>Companhia</h2><p>Escolha a regra de cálculo.</p></div>
+      <span class="step-badge">0</span>
+      <div><h2>Escolha a companhia</h2><p>No celular, o cálculo aparece depois da escolha.</p></div>
     </div>
     <a class="create-airline-shortcut" href="/airlines/new">
       <svg class="ui-icon"><use href="#icon-plus-circle"></use></svg>
@@ -431,12 +431,12 @@
       {% if national_airlines %}<div class="airline-list-section-title">NACIONAIS</div>{% endif %}
       {% for airline in national_airlines %}
       <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini national-priority {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
-        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</small></span><em class="airline-national-badge">Prioridade</em>
+        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}" loading="lazy" decoding="async">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</small></span><em class="airline-national-badge">Prioridade</em>
       </a>{% endfor %}
       {% if other_airlines %}<div class="airline-list-section-title">INTERNACIONAIS E OUTRAS</div>{% endif %}
       {% for airline in other_airlines %}
       <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
-        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
+        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}" loading="lazy" decoding="async">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
       </a>{% endfor %}
     </div>
   </aside>
@@ -444,12 +444,13 @@
   <div class="panel form-panel">
     {% if selected_airline and selected_type %}
     <div class="selected-airline-head" style="--airline-color: {{ selected_airline.color }}">
-      <div>{% if selected_airline.logo_path %}<img src="/{{ selected_airline.logo_path }}" alt="{{ selected_airline.name }}">{% else %}<span class="brand-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}</div>
+      <div>{% if selected_airline.logo_path %}<img src="/{{ selected_airline.logo_path }}" alt="{{ selected_airline.name }}" decoding="async">{% else %}<span class="brand-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}</div>
       <div>
         <span class="eyebrow">COMPANHIA SELECIONADA</span>
         <h2>{{ selected_airline.name }}</h2>
         <p>{{ selected_type.description or 'Preencha os parâmetros para calcular uma opção dentro desta cotação.' }}</p>
       </div>
+      <button type="button" class="ghost-button small-button mobile-change-airline" data-mobile-airline-toggle>Trocar companhia</button>
       {% if not selected_airline.builtin %}<span class="badge custom">Personalizada</span>{% endif %}
     </div>
 
@@ -473,148 +474,42 @@
 
       {% set partnership = partnership_meta or {} %}
       {% set saved_operation_scope = partnership.get('operation_scope') or operation_profile.fixed_market or 'national' %}
-      <div class="form-section soft operation-profile-panel operation-profile-panel-visible" id="operationProfilePanel" data-partner-allowed="1">
-        <div class="operation-panel-header">
-          <div class="operation-panel-icon">✈</div>
-          <div class="operation-panel-copy">
-            <span class="operation-kicker">OPERAÇÃO DO VOO</span>
-            <h3>Nacional, internacional e parcerias</h3>
-            <p>Defina o tipo desta opção e, somente se houver, escolha a companhia parceira. A parceria continua opcional.</p>
-          </div>
-          <div class="operation-current-profile">
-            {% if operation_profile.market_scope == 'national' %}
-              <span class="operation-profile-badge national">Nacional</span>
-            {% elif operation_profile.market_scope == 'international' %}
-              <span class="operation-profile-badge international">Internacional</span>
-            {% else %}
-              <span class="operation-profile-badge both">Nacional + internacional</span>
-            {% endif %}
-            <small>perfil da companhia</small>
-          </div>
-        </div>
-
-        <div class="operation-professional-grid">
-          <label class="operation-pro-field">
-            <span class="operation-pro-label">Tipo da operação</span>
-            <span class="operation-select-wrap">
-              <select name="operation_scope" id="operationScopeSelect">
-                <option value="national" {% if saved_operation_scope == 'national' %}selected{% endif %}>🇧🇷 Nacional</option>
-                <option value="international" {% if saved_operation_scope == 'international' %}selected{% endif %}>🌎 Internacional</option>
-              </select>
-            </span>
-            <small>Você pode usar parceria tanto em voo nacional quanto internacional.</small>
-          </label>
-
-          <div class="operation-pro-field partner-combobox-field">
-            <span class="operation-pro-label">
-              Companhia parceira principal
-              <em class="optional-pill">opcional</em>
-            </span>
-
-            <div class="partner-combobox" data-partner-combobox>
-              <div class="partner-input-shell">
-                <span class="partner-input-icon">⌕</span>
-                <input
-                  type="text"
-                  name="partner_airline"
-                  id="partnerAirlineInput"
-                  class="partner-combobox-input"
-                  value="{{ partnership.get('partner_airline','') }}"
-                  placeholder="Pesquisar ou digitar uma companhia..."
-                  autocomplete="off"
-                  spellcheck="false"
-                >
-                <button class="partner-clear-button" type="button" data-partner-clear aria-label="Limpar companhia">×</button>
-              </div>
-
-              <div class="partner-dropdown" data-partner-dropdown hidden>
-                <div class="partner-dropdown-head">
-                  <strong>Companhias disponíveis por nome</strong>
-                  <span data-partner-count></span>
-                </div>
-                <div class="partner-dropdown-list" data-partner-list></div>
-                <div class="partner-manual-note">
-                  Não encontrou? Você também pode digitar o nome manualmente.
-                </div>
-              </div>
+      <div class="quote-step quote-step-primary" data-mobile-stage="1">
+        <div class="mobile-step-kicker"><span>1</span><div><strong>Companhia e cálculo</strong><small>Escolha a operação e o que deseja calcular.</small></div></div>
+        <div class="form-section soft operation-profile-panel operation-profile-panel-visible compact-operation-panel" id="operationProfilePanel" data-partner-allowed="0">
+          <div class="operation-panel-header compact">
+            <div class="operation-panel-icon">✈</div>
+            <div class="operation-panel-copy">
+              <span class="operation-kicker">OPERAÇÃO DO VOO</span>
+              <h3>Nacional ou internacional</h3>
+              <p>Escolha apenas o tipo da operação. Companhias parceiras foram removidas desta tela para deixá-la mais simples e rápida.</p>
             </div>
-
-            <small>As sugestões abaixo usam apenas o nome real das companhias cadastradas no DBMILESX.</small>
-          </div>
-        </div>
-
-        {% if partner_airline_options %}
-        <div class="partner-featured">
-          <div class="partner-featured-head">
-            <div>
-              <strong>Companhias</strong>
-              <small>Clique para selecionar rapidamente.</small>
+            <div class="operation-current-profile">
+              {% if operation_profile.market_scope == 'national' %}
+                <span class="operation-profile-badge national">Nacional</span>
+              {% elif operation_profile.market_scope == 'international' %}
+                <span class="operation-profile-badge international">Internacional</span>
+              {% else %}
+                <span class="operation-profile-badge both">Nacional + internacional</span>
+              {% endif %}
+              <small>perfil da companhia</small>
             </div>
-            <span>{{ partner_airline_options|length }} disponível(is)</span>
           </div>
-          <div class="partner-featured-list">
-            {% for partner in partner_airline_options[:12] %}
-            <button type="button" class="partner-featured-chip" data-partner-pick="{{ partner.name }}">
-              <span class="partner-name-mark">{{ partner.name[:2]|upper }}</span>
-              <span class="partner-featured-copy">
-                <strong>{{ partner.name }}</strong>
-                <small>{{ partner.market_label }}</small>
+          <div class="operation-compact-row">
+            <label class="operation-pro-field compact-operation-field">
+              <span class="operation-pro-label">Tipo da operação</span>
+              <span class="operation-select-wrap">
+                <select name="operation_scope" id="operationScopeSelect">
+                  <option value="national" {% if saved_operation_scope == 'national' %}selected{% endif %}>🇧🇷 Nacional</option>
+                  <option value="international" {% if saved_operation_scope == 'international' %}selected{% endif %}>🌎 Internacional</option>
+                </select>
               </span>
-            </button>
-            {% endfor %}
+            </label>
           </div>
+          {# Preserva dados antigos de parceria sem exibir a interface repetitiva. #}
+          <input type="hidden" name="partner_airline" value="{{ partnership.get('partner_airline','') }}">
+          {% for row in partner_segment_rows %}<input type="hidden" name="partner_segment_{{ row.segment }}" value="{{ row.partner_airline }}">{% endfor %}
         </div>
-        {% endif %}
-
-        <div class="partner-airline-panel partner-airline-panel-always" id="partnerAirlineField">
-          <div class="partner-panel-heading professional">
-            <div>
-              <strong>Parceira por trecho</strong>
-              <small>Use apenas quando um trecho for operado por uma companhia diferente.</small>
-            </div>
-            <span class="optional-pill">opcional</span>
-          </div>
-
-          <div class="partner-segment-grid professional">
-            {% for row in partner_segment_rows %}
-            <div class="partner-segment-card">
-              <div class="partner-segment-top">
-                <span class="partner-segment-number">{{ row.segment }}</span>
-                <span class="partner-segment-route">
-                  <strong>Trecho {{ row.segment }}</strong>
-                  <small>{{ row.route }}</small>
-                </span>
-              </div>
-
-              <div class="partner-combobox compact" data-partner-combobox>
-                <div class="partner-input-shell">
-                  <span class="partner-input-icon">⌕</span>
-                  <input
-                    name="partner_segment_{{ row.segment }}"
-                    class="partner-segment-input partner-combobox-input"
-                    data-segment="{{ row.segment }}"
-                    value="{{ row.partner_airline }}"
-                    placeholder="Nenhuma parceira"
-                    autocomplete="off"
-                    spellcheck="false"
-                  >
-                  <button class="partner-clear-button" type="button" data-partner-clear aria-label="Limpar companhia">×</button>
-                </div>
-                <div class="partner-dropdown" data-partner-dropdown hidden>
-                  <div class="partner-dropdown-head">
-                    <strong>Escolher companhia</strong>
-                    <span data-partner-count></span>
-                  </div>
-                  <div class="partner-dropdown-list" data-partner-list></div>
-                </div>
-              </div>
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-      </div>
-
-      <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
 
       <div class="form-section soft segment-scope-panel">
         <div class="section-title"><span class="step-badge">1</span><div><h3 class="variant-scope-heading">O que você quer calcular agora? <span class="variant-name-pill">{{ selected_variant_name }}</span></h3><p>Escolha a opção principal e, quando necessário, use Skip Normal ou Skip Inverso. Os dois modos Skip ficam disponíveis em Só ida e em Ida e volta, sempre separados no histórico.</p></div></div>
@@ -668,6 +563,7 @@
           {% endif %}
         </div>
       </div>
+      </div><!-- /quote-step-primary -->
 
       <div class="form-section soft skip-airport-panel" id="skipAirportPanel" hidden>
         <div class="section-title"><span class="step-badge">2</span><div><h3>Trecho não voado do Skip</h3><p>O trecho que o passageiro realmente voa fica bloqueado. Você altera somente o trecho não voado, como em um pequeno multitrecho.</p></div></div>
@@ -702,6 +598,9 @@
         <div class="notice-card muted compact-note skip-financial-note"><strong>Registro simplificado</strong><br>Nos modos Skip, os campos de milhas, taxas, bagagens e custos adicionais ficam ocultos. Datas e horários continuam opcionais.</div>
       </div>
 
+      <details class="quote-optional-block" id="optionalFlightSection">
+        <summary><span class="optional-summary-icon">＋</span><span><strong>Datas e horários</strong><small>Opcional — abra somente se precisar informar.</small></span><em>OPCIONAL</em></summary>
+        <div class="quote-optional-content">
       <input type="hidden" name="option_dates_touched" id="optionDatesTouched" value="0">
       <div class="form-section soft option-date-panel" id="optionDatePanel">
         <div class="section-title"><span class="step-badge">2</span><div><h3>Datas desta opção <span class="optional-pill">opcional</span></h3><p>Você pode manter as datas da cotação principal, trocar somente nesta opção ou deixar sem data.</p></div></div>
@@ -740,7 +639,11 @@
           <button type="button" class="ghost-button small-button" id="clearFlightDetails">Limpar detalhes</button>
         </div>
       </div>
+        </div>
+      </details>
 
+      <div class="quote-step quote-step-values" data-mobile-stage="2">
+        <div class="mobile-step-kicker"><span>2</span><div><strong>Valores e bagagens</strong><small>Preencha os valores da companhia e a quantidade de bagagens.</small></div></div>
       <div class="form-section" data-standard-calculation-section>
         <div class="section-title"><span class="step-badge">4</span><div><h3>{{ selected_type.name }}</h3><p>{% if selected_airline.engine_type == 'legacy' %}Regra original preservada e protegida.{% else %}Fórmula: <code>{{ selected_type.formula }}</code>{% endif %}</p></div></div>
         <div class="form-grid cols-2">
@@ -773,8 +676,9 @@
           <div class="notice-card muted compact-note">Essa quantidade será usada somente nesta opção de cálculo. A base fixa da cotação não será alterada.</div>
         </div>
       </div>
+      </div><!-- /quote-step-values -->
 
-      <div class="form-section soft" id="optionMetadataSection" data-option-metadata-section>
+      <div class="form-section soft quote-step-metadata" id="optionMetadataSection" data-option-metadata-section>
         <div class="option-metadata-header"><div class="section-title"><span class="step-badge">6</span><div><h3>Tarifa, classe e identificação</h3><p>Esses dados também ficam disponíveis nas opções Skip e podem ser alterados depois.</p></div></div><span class="skip-metadata-note scope-availability-pill">Disponível no Skip</span></div>
         {% set meta = option_meta or {} %}
         {% set airline_name_l = (selected_airline.name|lower) if selected_airline else '' %}
@@ -1171,179 +1075,6 @@ document.addEventListener('person-selected', function(event) {
 })();
 
 (function(){
-  const panel = document.getElementById('operationProfilePanel');
-  const select = document.getElementById('operationScopeSelect');
-  const partnerField = document.getElementById('partnerAirlineField');
-  const partnerInput = document.getElementById('partnerAirlineInput');
-  const partnerSegmentInputs = Array.from(document.querySelectorAll('.partner-segment-input'));
-  if(!panel || !select || !partnerField) return;
-
-  // Parceria é opcional, mas o bloco deve permanecer sempre disponível.
-  partnerField.hidden = false;
-  if(partnerInput) partnerInput.disabled = false;
-  partnerSegmentInputs.forEach(input => { input.disabled = false; });
-
-  partnerSegmentInputs.forEach((input)=>input.addEventListener('input',()=>{
-    if(partnerInput && String(input.dataset.segment || '') === '1' && !partnerInput.value.trim()){
-      partnerInput.value = input.value;
-    }
-  }));
-})();
-
-
-(function(){
-  const source = document.getElementById('partnerAirlineOptionsJson');
-  if(!source) return;
-
-  let options = [];
-  try {
-    const parsed = JSON.parse(source.textContent || '[]');
-    options = Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    options = [];
-  }
-
-  // Defesa extra: somente objetos simples com nome textual entram na interface.
-  options = options
-    .map(item => ({
-      id: Number(item?.id || 0),
-      name: String(item?.name || '').trim(),
-      logo_path: String(item?.logo_path || '').trim(),
-      market_label: String(item?.market_label || 'Companhia').trim(),
-      configured: Boolean(item?.configured)
-    }))
-    .filter(item => item.name && !item.name.includes('<app.models.'));
-
-  const norm = value => String(value || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .toLowerCase().trim();
-
-  function logoHtml(item){
-    const initials = String(item?.name || 'CP')
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0,2)
-      .map(part => part[0] || '')
-      .join('')
-      .toUpperCase();
-    return `<span class="partner-option-logo"><span>${initials || 'CP'}</span></span>`;
-  }
-
-  function setupCombobox(root){
-    const input = root.querySelector('.partner-combobox-input');
-    const dropdown = root.querySelector('[data-partner-dropdown]');
-    const list = root.querySelector('[data-partner-list]');
-    const count = root.querySelector('[data-partner-count]');
-    const clear = root.querySelector('[data-partner-clear]');
-    if(!input || !dropdown || !list) return;
-
-    let activeIndex = -1;
-    let visible = [];
-
-    function close(){
-      dropdown.hidden = true;
-      activeIndex = -1;
-    }
-
-    function choose(item){
-      input.value = item.name;
-      input.dispatchEvent(new Event('input',{bubbles:true}));
-      input.dispatchEvent(new Event('change',{bubbles:true}));
-      close();
-    }
-
-    function render(){
-      const query = norm(input.value);
-      visible = options
-        .filter(item => !query || norm(item.name).includes(query))
-        .slice(0, 18);
-
-      if(count) count.textContent = `${visible.length} resultado(s)`;
-      list.innerHTML = '';
-
-      if(!visible.length){
-        list.innerHTML = `<div class="partner-empty">Nenhuma companhia encontrada. Você pode manter o nome digitado manualmente.</div>`;
-      } else {
-        visible.forEach((item,index)=>{
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'partner-option';
-          button.innerHTML = `
-            ${logoHtml(item)}
-            <span class="partner-option-copy">
-              <strong></strong>
-              <small></small>
-            </span>
-            <span class="partner-option-badge ${item.configured ? 'configured' : ''}">${item.configured ? 'PARCEIRA' : 'CADASTRADA'}</span>
-          `;
-          button.querySelector('strong').textContent = item.name;
-          button.querySelector('small').textContent = item.market_label;
-          button.addEventListener('mousedown', event => {
-            event.preventDefault();
-            choose(item);
-          });
-          list.appendChild(button);
-        });
-      }
-
-      dropdown.hidden = false;
-      activeIndex = -1;
-    }
-
-    function updateActive(){
-      const nodes = Array.from(list.querySelectorAll('.partner-option'));
-      nodes.forEach((node,index)=>node.classList.toggle('active',index===activeIndex));
-      nodes[activeIndex]?.scrollIntoView({block:'nearest'});
-    }
-
-    input.addEventListener('focus', render);
-    input.addEventListener('input', render);
-    input.addEventListener('keydown', event => {
-      if(dropdown.hidden && (event.key === 'ArrowDown' || event.key === 'ArrowUp')){
-        render();
-      }
-      if(event.key === 'Escape'){
-        close();
-        return;
-      }
-      if(event.key === 'ArrowDown'){
-        event.preventDefault();
-        if(visible.length) activeIndex = Math.min(visible.length-1,activeIndex+1);
-        updateActive();
-      } else if(event.key === 'ArrowUp'){
-        event.preventDefault();
-        if(visible.length) activeIndex = Math.max(0,activeIndex-1);
-        updateActive();
-      } else if(event.key === 'Enter' && activeIndex >= 0 && visible[activeIndex]){
-        event.preventDefault();
-        event.stopPropagation();
-        choose(visible[activeIndex]);
-      }
-    });
-    input.addEventListener('blur', ()=>setTimeout(close,120));
-    clear?.addEventListener('click',()=>{
-      input.value='';
-      input.focus();
-      input.dispatchEvent(new Event('input',{bubbles:true}));
-    });
-  }
-
-  document.querySelectorAll('[data-partner-combobox]').forEach(setupCombobox);
-
-  document.querySelectorAll('[data-partner-pick]').forEach(button=>{
-    button.addEventListener('click',()=>{
-      const input = document.getElementById('partnerAirlineInput');
-      if(!input) return;
-      input.value = String(button.dataset.partnerPick || '');
-      input.dispatchEvent(new Event('input',{bubbles:true}));
-      input.dispatchEvent(new Event('change',{bubbles:true}));
-      input.focus();
-    });
-  });
-})();
-
-
-(function(){
   const input = document.getElementById('airlineCalcSearch');
   const items = Array.from(document.querySelectorAll('[data-airline-item]'));
   if(!input || !items.length) return;
@@ -1414,6 +1145,17 @@ document.addEventListener('person-selected', function(event) {
     input.addEventListener('input', function(e) {
       let cursorPos = this.selectionStart;
       this.value = isMilesField ? formatMiles(this.value) : formatMoney(this.value);
+    });
+  });
+})();
+
+(function(){
+  const wizard = document.getElementById('calculationWizard');
+  if(!wizard) return;
+  document.querySelectorAll('[data-mobile-airline-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+      wizard.classList.add('mobile-picking-airline');
+      wizard.querySelector('.selector-panel')?.scrollIntoView({behavior:'smooth', block:'start'});
     });
   });
 })();

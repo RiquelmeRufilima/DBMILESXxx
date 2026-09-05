@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="{{ theme.primary }}">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="DBMILESX">
   <title>{% block title %}DBMILESX{% endblock %}</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icons/favicon-64.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <link rel="stylesheet" href="/static/css/app.css?v=5.10.41">
+  <link rel="stylesheet" href="/static/css/app.css?v=5.10.42">
   {% block head %}{% endblock %}
 <style>
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
@@ -178,7 +178,7 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=5.10.41" defer></script>
+  <script src="/static/js/app.js?v=5.10.42" defer></script>
   <script src="/static/js/password-toggle.js?v=5.10.41" defer></script>
   {% if user %}<script src="/static/js/person-search.js?v=5.10.41" defer></script><script src="/static/js/airport-search.js?v=5.10.41" defer></script>{% endif %}
   {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.10.41" defer></script>{% endif %}

@@ -1978,16 +1978,39 @@ def _airline_operation_profile(airline_or_name: Airline | str | None) -> dict[st
         "configured_partners": _configured_partner_names(airline),
     }
 
-def _selected_airline_and_type(db: Session, user, airline_id: int | None, type_id: int | None):
+def _selected_airline_and_type(
+    db: Session,
+    user,
+    airline_id: int | None,
+    type_id: int | None,
+    *,
+    auto_select: bool = True,
+):
+    """Carrega a lista de companhias de forma leve e os campos só da selecionada.
+
+    Antes, a tela trazia todos os tipos + todos os campos das 40+ companhias em
+    cada abertura. Em banco remoto isso aumenta bastante o payload e o tempo de
+    hidratação do ORM. A lista lateral precisa somente dos dados da companhia;
+    relacionamentos completos são carregados apenas para a companhia ativa.
+    """
     airlines = list(db.scalars(
         _visible_airlines_query(user)
-        .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
         .order_by(Airline.builtin.desc(), Airline.name)
     ).all())
     airlines.sort(key=_airline_sort_key)
-    selected_airline = next((item for item in airlines if item.id == airline_id), None)
-    if selected_airline is None and airlines:
-        selected_airline = airlines[0]
+
+    selected_stub = next((item for item in airlines if item.id == airline_id), None)
+    if selected_stub is None and auto_select and airlines:
+        selected_stub = airlines[0]
+
+    selected_airline = None
+    if selected_stub is not None:
+        selected_airline = db.scalar(
+            select(Airline)
+            .where(Airline.id == selected_stub.id)
+            .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
+            .execution_options(populate_existing=True)
+        ) or selected_stub
 
     selected_type = None
     if selected_airline:
@@ -2378,10 +2401,15 @@ def _new_calculation_impl(
         if _group_allowed(user, group):
             request.session["active_quote_group_id"] = group.id
             base = _base_from_group(group, variant_key)
-            options = _load_options(db, user, group.id)
-            if str(variant_key or "primary") in {"", "primary"} and _recover_group_route_from_options(db, user, group, options):
-                db.commit()
-                base = _base_from_group(group, variant_key)
+            # A lista completa de opções não é usada nesta tela. Só a buscamos
+            # para reparar cotações antigas cuja rota esteja realmente vazia.
+            # Isso elimina várias consultas e relacionamentos em cada abertura.
+            route_missing = not (_required_iata_code(group.origin) and _required_iata_code(group.destination))
+            if str(variant_key or "primary") in {"", "primary"} and route_missing:
+                options = _load_options(db, user, group.id)
+                if _recover_group_route_from_options(db, user, group, options):
+                    db.commit()
+                    base = _base_from_group(group, variant_key)
         else:
             group = None
             request.session.pop("active_quote_group_id", None)
@@ -2522,7 +2550,12 @@ def _new_calculation_impl(
             variant_key = str(saved_variant.get("key") or variant_key or "primary")
             base = _base_from_group(group, variant_key)
 
-    airlines, selected_airline, selected_type = _selected_airline_and_type(db, user, airline_id, type_id)
+    user_agent = str(request.headers.get("user-agent") or "").lower()
+    mobile_request = any(token in user_agent for token in ("android", "iphone", "ipod", "mobile", "windows phone"))
+    auto_select_airline = not (mobile_request and airline_id is None and edit_id is None and clone_id is None)
+    airlines, selected_airline, selected_type = _selected_airline_and_type(
+        db, user, airline_id, type_id, auto_select=auto_select_airline
+    )
     calculation_fields = _effective_calculation_fields(db, selected_type)
     if selected_type is not None and calculation_fields and not selected_type.fields:
         db.commit()
@@ -2634,8 +2667,9 @@ def _new_calculation_impl(
             operation_profile=_airline_operation_profile(selected_airline),
             partnership_meta=partnership_meta,
             partner_segment_rows=partner_segment_rows,
-            partner_airline_choices=_partner_airline_choices(airlines, selected_airline),
-            partner_airline_options=_partner_airline_options(airlines, selected_airline),
+            # V2.20: seletor visual de parceiras removido da calculadora.
+            partner_airline_choices=[],
+            partner_airline_options=[],
             national_airlines=[item for item in airlines if _is_priority_national_airline(item.name)],
             other_airlines=[item for item in airlines if not _is_priority_national_airline(item.name)],
             edit_base=edit_base_mode,
@@ -3423,9 +3457,13 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     raw_operation_scope = str(form.get("operation_scope") or operation_profile.get("fixed_market") or "national").strip().lower()
     if raw_operation_scope not in {"national", "international"}:
         raw_operation_scope = str(operation_profile.get("fixed_market") or "national")
-    visible_partner_airlines = list(db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all())
-    allowed_partners = _partner_airline_choices(visible_partner_airlines, airline)
-    allowed_partner_map = {_normalized_token(name): name for name in allowed_partners}
+    raw_partner_values = [str(form.get("partner_airline") or "").strip()]
+    raw_partner_values.extend(str(form.get(f"partner_segment_{number}") or "").strip() for number in range(1, 13))
+    allowed_partner_map: dict[str, str] = {}
+    if any(raw_partner_values):
+        visible_partner_airlines = list(db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all())
+        allowed_partners = _partner_airline_choices(visible_partner_airlines, airline)
+        allowed_partner_map = {_normalized_token(name): name for name in allowed_partners}
 
     def normalized_partner(raw_value: Any) -> str:
         raw_name = " ".join(str(raw_value or "").split()).strip()[:180]

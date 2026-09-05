@@ -35,45 +35,45 @@
 <section class="page-hero result-hero">
   <div>
     <span class="eyebrow">OPÇÃO DA COTAÇÃO</span>
-    <h1>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }} — {{ quote.total|money(quote.currency) }}[cite: 39]</h1>
-    <p>{{ quote.quote_name }}{% if quote.variant_key|default('primary') != 'primary' %} • {{ quote.variant_name }}{% endif %} • {{ quote.scope_label or 'Cálculo' }} • {{ quote.origin or '—' }} → {{ quote.destination or '—' }}[cite: 39]</p>
-    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}[cite: 39]</small>
+    <h1>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }} — {{ quote.total|money(quote.currency) }}</h1>
+    <p>{{ quote.quote_name }}{% if quote.variant_key|default('primary') != 'primary' %} • {{ quote.variant_name }}{% endif %} • {{ quote.scope_label or 'Cálculo' }} • {{ quote.origin or '—' }} → {{ quote.destination or '—' }}</p>
+    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}</small>
   </div>
   <div class="page-actions">
-    {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação principal</a>{% endif %}[cite: 39]
-    <a class="secondary-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cálculo</a>[cite: 39]
-    <a class="secondary-button button-fare" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}#optionMetadataSection">Alterar tarifa</a>[cite: 39]
-    {% if group_id %}<form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>{% endif %}[cite: 39]
-    <a class="ghost-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>[cite: 39]
+    {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação principal</a>{% endif %}
+    <a class="secondary-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cálculo</a>
+    <a class="secondary-button button-fare" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}#optionMetadataSection">Alterar tarifa</a>
+    {% if group_id %}<form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>{% endif %}
+    <a class="ghost-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
   </div>
 </section>
 
 <section class="result-grid">
   <div class="card-panel">
     <div class="selected-company-bar">
-      {% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path }}" alt="{{ quote.airline.name }}">{% endif %}[cite: 39]
-      <div><span class="eyebrow">COMPANHIA</span><h2>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }}</h2><p>{{ quote.calculation_type.name if quote.calculation_type else 'Cálculo' }}</p></div>[cite: 39]
+      {% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path }}" alt="{{ quote.airline.name }}">{% endif %}
+      <div><span class="eyebrow">COMPANHIA</span><h2>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }}</h2><p>{{ quote.calculation_type.name if quote.calculation_type else 'Cálculo' }}</p></div>
     </div>
-    <div class="result-total-card"><small>{{ 'Valor registrado' if quote.is_skip_record else 'Custo calculado' }}</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>[cite: 39]
+    <div class="result-total-card"><small>{{ 'Valor registrado' if quote.is_skip_record else 'Custo calculado' }}</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
     {% if quote.commercial and (quote.commercial.profit_value or 0) > 0 %}
-    <div class="result-total-card"><small>Lucro / margem</small><strong>{{ quote.commercial.profit_value|money(quote.currency) }} • {{ '%.2f'|format(quote.commercial.profit_percent or 0) }}%</strong></div>[cite: 39]
-    <div class="result-total-card"><small>Venda à vista</small><strong>{{ quote.commercial.sale_value|money(quote.currency) }}</strong>{% if quote.commercial.sent_to_client_at %}<small>Marcada como enviada</small>{% endif %}</div>[cite: 39]
-    {% if (quote.commercial.card_installments or 1) > 1 %}<div class="result-total-card"><small>Cartão</small><strong>{{ quote.commercial.card_installments }}x de {{ (quote.commercial.card_installment_value or 0)|money(quote.currency) }}</strong><small>{% if quote.commercial.card_interest_mode == 'with_interest' %}Total {{ (quote.commercial.card_total_value or quote.commercial.sale_value)|money(quote.currency) }} • diferença {{ (quote.commercial.card_difference_value or 0)|money(quote.currency) }}{% else %}Sem juros{% endif %}</small></div>{% endif %}[cite: 39]
+    <div class="result-total-card"><small>Lucro / margem</small><strong>{{ quote.commercial.profit_value|money(quote.currency) }} • {{ '%.2f'|format(quote.commercial.profit_percent or 0) }}%</strong></div>
+    <div class="result-total-card"><small>Venda à vista</small><strong>{{ quote.commercial.sale_value|money(quote.currency) }}</strong>{% if quote.commercial.sent_to_client_at %}<small>Marcada como enviada</small>{% endif %}</div>
+    {% if (quote.commercial.card_installments or 1) > 1 %}<div class="result-total-card"><small>Cartão</small><strong>{{ quote.commercial.card_installments }}x de {{ (quote.commercial.card_installment_value or 0)|money(quote.currency) }}</strong><small>{% if quote.commercial.card_interest_mode == 'with_interest' %}Total {{ (quote.commercial.card_total_value or quote.commercial.sale_value)|money(quote.currency) }} • diferença {{ (quote.commercial.card_difference_value or 0)|money(quote.currency) }}{% else %}Sem juros{% endif %}</small></div>{% endif %}
     {% endif %}
     <div class="history-meta-grid top-gap">
-      <div><small>Passageiros</small><strong>{{ quote.passengers }}</strong></div>[cite: 39]
-      <div><small>Bebês</small><strong>{{ quote.babies }}</strong></div>[cite: 39]
-      <div><small>Bagagens</small><strong>{{ quote.bags }}</strong></div>[cite: 39]
-      <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>[cite: 39]
+      <div><small>Passageiros</small><strong>{{ quote.passengers }}</strong></div>
+      <div><small>Bebês</small><strong>{{ quote.babies }}</strong></div>
+      <div><small>Bagagens</small><strong>{{ quote.bags }}</strong></div>
+      <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
     </div>
     {% if route_items or flight_chips or quote.flown_segment|default(None) or quote.operation_scope_label or quote.partner_airline %}
     <div class="result-flight-chips">
-      {% if quote.variant_key|default('primary') != 'primary' %}<span class="history-chip">Subcotação • {{ quote.variant_name }}</span>{% endif %}[cite: 39]
-      {% if quote.flown_segment|default(None) %}<span class="history-chip skip-chip">Passageiro voa o trecho {{ quote.flown_segment }}</span>{% endif %}[cite: 39]
-      {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}[cite: 39]
-      {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}[cite: 39]
-      {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}[cite: 39]
-      {% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}[cite: 39]
+      {% if quote.variant_key|default('primary') != 'primary' %}<span class="history-chip">Subcotação • {{ quote.variant_name }}</span>{% endif %}
+      {% if quote.flown_segment|default(None) %}<span class="history-chip skip-chip">Passageiro voa o trecho {{ quote.flown_segment }}</span>{% endif %}
+      {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}
+      {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}
+      {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}
+      {% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}
     </div>
     
     <!-- TRECHOS COM O BOTÃO DO OLHINHO INTEGRADO -->
@@ -111,11 +111,11 @@
   <div class="card-panel">
     <div class="panel-heading"><div><span class="eyebrow">AÇÕES</span><h2>Documentos e alterações</h2></div></div>
     <div class="button-column">
-      <a class="primary-button" href="/quotes/{{ quote.id }}/preview?kind=quote"><svg class="ui-icon"><use href="#icon-file"></use></svg> PDF de cotação</a>[cite: 39]
-      <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=cost">PDF de custo</a>[cite: 39]
-      <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=profit">PDF de lucro</a>[cite: 39]
-      <a class="ghost-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>[cite: 39]
-      <form method="post" action="/calculations/{{ quote.id }}/delete" onsubmit="return confirm('Excluir esta opção?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger full button-delete" type="submit">Excluir opção</button></form>[cite: 39]
+      <a class="primary-button" href="/quotes/{{ quote.id }}/preview?kind=quote"><svg class="ui-icon"><use href="#icon-file"></use></svg> PDF de cotação</a>
+      <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=cost">PDF de custo</a>
+      <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=profit">PDF de lucro</a>
+      <a class="ghost-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
+      <form method="post" action="/calculations/{{ quote.id }}/delete" onsubmit="return confirm('Excluir esta opção?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger full button-delete" type="submit">Excluir opção</button></form>
     </div>
   </div>
 </section>
@@ -124,12 +124,12 @@
   <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO</span><h2>Campos usados no cálculo</h2></div></div>
   <div class="history-meta-grid">
     {% if quote.is_skip_record %}
-      <div><small>Tipo de registro</small><strong>Skip simplificado</strong></div>[cite: 39]
-      <div><small>Valor registrado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>[cite: 39]
-      <div><small>Comissão</small><strong>{{ quote.skip_commission_value|money('BRL') if quote.skip_commission_value else 'Não informada' }}</strong></div>[cite: 39]
-      <div><small>Trecho utilizado</small><strong>Trecho {{ quote.flown_segment }}</strong></div>[cite: 39]
+      <div><small>Tipo de registro</small><strong>Skip simplificado</strong></div>
+      <div><small>Valor registrado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+      <div><small>Comissão</small><strong>{{ quote.skip_commission_value|money('BRL') if quote.skip_commission_value else 'Não informada' }}</strong></div>
+      <div><small>Trecho utilizado</small><strong>Trecho {{ quote.flown_segment }}</strong></div>
     {% else %}
-      {% for key, value in inputs.items() %}{% if not key.startswith('_') %}<div><small>{{ key }}</small><strong class="editable-preview-field" data-field-key="{{ key }}">{{ value }}</strong></div>{% endif %}{% endfor %}[cite: 39]
+      {% for key, value in inputs.items() %}{% if not key.startswith('_') %}<div><small>{{ key }}</small><strong class="editable-preview-field" data-field-key="{{ key }}">{{ value }}</strong></div>{% endif %}{% endfor %}
     {% endif %}
   </div>
 </section>

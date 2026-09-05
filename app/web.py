@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import date, datetime
 
 from fastapi import Request
@@ -107,40 +108,59 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
     unread_count = 0
     pending_task_count = 0
     if user is not None:
-        try:
-            db = object_session(user)
-            if db is not None:
-                # Em vez de carregar TODAS as notificações e ainda executar outra
-                # consulta para tarefas, usamos dois subselects em um único roundtrip.
-                title_lower = func.lower(Notification.title)
-                unread_sq = (
-                    select(func.count(Notification.id))
-                    .where(
-                        Notification.user_id == user.id,
-                        Notification.read.is_(False),
-                        func.lower(Notification.kind) != "quote",
-                        ~title_lower.like("atualização de cotação%"),
-                        ~title_lower.like("atualizacao de cotacao%"),
+        # Os badges do topo não precisam consultar o Neon a cada clique. Um cache
+        # de poucos segundos na sessão elimina um roundtrip em quase toda troca
+        # de tela sem deixar a interface perceptivelmente desatualizada.
+        cache_key = "nav_counts_v220"
+        cached = request.session.get(cache_key) or {}
+        now = time.time()
+        force_refresh = request.url.path.startswith("/notifications") or request.url.path.startswith("/tasks")
+        if (
+            not force_refresh
+            and isinstance(cached, dict)
+            and int(cached.get("user_id") or 0) == int(user.id)
+            and now - float(cached.get("at") or 0) < 15
+        ):
+            unread_count = int(cached.get("unread") or 0)
+            pending_task_count = int(cached.get("tasks") or 0)
+        else:
+            try:
+                db = object_session(user)
+                if db is not None:
+                    title_lower = func.lower(Notification.title)
+                    unread_sq = (
+                        select(func.count(Notification.id))
+                        .where(
+                            Notification.user_id == user.id,
+                            Notification.read.is_(False),
+                            func.lower(Notification.kind) != "quote",
+                            ~title_lower.like("atualização de cotação%"),
+                            ~title_lower.like("atualizacao de cotacao%"),
+                        )
+                        .scalar_subquery()
                     )
-                    .scalar_subquery()
-                )
-                task_scope = (
-                    CompanyTask.company_id == user.company_id
-                    if user.company_id
-                    else CompanyTask.created_by_user_id == user.id
-                )
-                tasks_sq = (
-                    select(func.count(CompanyTask.id))
-                    .where(task_scope, CompanyTask.status == "pendente")
-                    .scalar_subquery()
-                )
-                counts = db.execute(select(unread_sq, tasks_sq)).one()
-                unread_count = int(counts[0] or 0)
-                pending_task_count = int(counts[1] or 0)
-        except Exception:
-            # Mantém a interface disponível mesmo durante atualização de schema.
-            unread_count = 0
-            pending_task_count = 0
+                    task_scope = (
+                        CompanyTask.company_id == user.company_id
+                        if user.company_id
+                        else CompanyTask.created_by_user_id == user.id
+                    )
+                    tasks_sq = (
+                        select(func.count(CompanyTask.id))
+                        .where(task_scope, CompanyTask.status == "pendente")
+                        .scalar_subquery()
+                    )
+                    counts = db.execute(select(unread_sq, tasks_sq)).one()
+                    unread_count = int(counts[0] or 0)
+                    pending_task_count = int(counts[1] or 0)
+                    request.session[cache_key] = {
+                        "user_id": int(user.id),
+                        "unread": unread_count,
+                        "tasks": pending_task_count,
+                        "at": now,
+                    }
+            except Exception:
+                unread_count = 0
+                pending_task_count = 0
 
     preset_key = getattr(preference, "theme_preset", "ocean") if preference else "ocean"
     preset = THEME_PRESETS.get(preset_key, THEME_PRESETS["ocean"])
