@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -50,6 +51,7 @@ from .services.user_defaults import ensure_user_defaults
 from .services.team_accounts import ensure_company_owners
 from .models import Airline, WebUser
 from .services.hosted_bootstrap import ensure_hosted_admin
+from .services.performance import ensure_performance_indexes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -72,6 +74,7 @@ async def lifespan(app: FastAPI):
     # Execução local/servidor tradicional: mantém o comportamento anterior.
     Base.metadata.create_all(bind=engine)
     ensure_runtime_schema(engine)
+    ensure_performance_indexes(engine)
 
     db = SessionLocal()
     try:
@@ -100,7 +103,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=f"{APP_NAME} Web V5.10.35",
+    title=f"{APP_NAME} Web V5.10.35 / V2.19 Performance",
     description="Sistema web responsivo de cotações aéreas.",
     debug=DEBUG,
     lifespan=lifespan,
@@ -114,6 +117,20 @@ app.add_middleware(
     https_only=SESSION_HTTPS_ONLY,
     max_age=60 * 60 * 12,
 )
+
+
+@app.middleware("http")
+async def performance_timing(request, call_next):
+    """Mede rotas sem alterar a resposta; facilita achar a próxima tela lenta."""
+    started = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    if not request.url.path.startswith("/static/"):
+        response.headers["Server-Timing"] = f"app;dur={elapsed_ms:.1f}"
+        response.headers["X-DBMILESX-Time"] = f"{elapsed_ms:.0f}ms"
+        if elapsed_ms >= 800:
+            logger.warning("Rota lenta: %s %s %.0fms", request.method, request.url.path, elapsed_ms)
+    return response
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(AIRLINE_UPLOAD_DIR.parent)), name="uploads")

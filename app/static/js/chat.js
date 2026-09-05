@@ -278,7 +278,16 @@
     }
   });
 
-  setInterval(syncMessages, 4000);
+  // O WebSocket entrega mensagens imediatamente no Render. O polling fica
+  // apenas como fallback e não consulta o servidor com a aba oculta.
+  const fallbackPoll = () => {
+    if (document.visibilityState !== 'visible' || connected) return;
+    syncMessages();
+  };
+  setInterval(fallbackPoll, 12000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncMessages();
+  });
   renderStatus();
   syncMessages();
 })();

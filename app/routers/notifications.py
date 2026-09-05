@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -19,13 +19,20 @@ def notifications_page(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    items = list(db.scalars(select(Notification).where(Notification.user_id == user.id).order_by(desc(Notification.created_at)).limit(300)).all())
-    items = [
-        item for item in items
-        if str(item.kind or "").lower() != "quote"
-        and not str(item.title or "").strip().lower().startswith("atualização de cotação")
-        and not str(item.title or "").strip().lower().startswith("atualizacao de cotacao")
-    ][:200]
+    title_lower = func.lower(Notification.title)
+    items = list(
+        db.scalars(
+            select(Notification)
+            .where(
+                Notification.user_id == user.id,
+                func.lower(Notification.kind) != "quote",
+                ~title_lower.like("atualização de cotação%"),
+                ~title_lower.like("atualizacao de cotacao%"),
+            )
+            .order_by(desc(Notification.created_at))
+            .limit(200)
+        ).all()
+    )
     return templates.TemplateResponse(request, "notifications/index.html", context(request, user=user, notifications=items))
 
 

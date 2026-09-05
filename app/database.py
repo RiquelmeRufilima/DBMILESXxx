@@ -23,7 +23,12 @@ elif IS_VERCEL:
         "application_name": "dbmilesx-vercel",
     }
 else:
-    connect_args = {}
+    # Em servidor tradicional (Render/Railway), reaproveitar conexões reduz
+    # bastante a latência de abrir uma nova conexão com o Neon a cada tela.
+    connect_args = {
+        "connect_timeout": 8,
+        "application_name": "dbmilesx-web",
+    }
 
 engine_options = {
     "connect_args": connect_args,
@@ -34,6 +39,15 @@ if IS_VERCEL and not DATABASE_URL.startswith("sqlite"):
     # Evita manter pools locais presos a instâncias serverless diferentes.
     # Se o provedor oferecer URL de pooler (Neon/Supabase), use-a em DATABASE_URL.
     engine_options["poolclass"] = NullPool
+elif not DATABASE_URL.startswith("sqlite"):
+    # Pool pequeno é suficiente para a equipe atual e evita abrir conexões
+    # repetidamente. Mantém folga sem pressionar o limite do Neon.
+    engine_options.update({
+        "pool_size": 5,
+        "max_overflow": 5,
+        "pool_timeout": 10,
+        "pool_recycle": 600,
+    })
 
 engine = create_engine(DATABASE_URL, **engine_options)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)

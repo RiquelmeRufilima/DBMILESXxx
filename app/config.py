@@ -198,7 +198,7 @@ DEBUG = _env_bool("DEBUG", False)
 SESSION_HTTPS_ONLY = _env_bool("SESSION_HTTPS_ONLY", IS_PRODUCTION)
 
 # Em Vercel, tarefas pesadas de manutenção não precisam rodar em todo cold start.
-RUN_FULL_STARTUP_MAINTENANCE = _env_bool("RUN_FULL_STARTUP_MAINTENANCE", not IS_VERCEL)
+RUN_FULL_STARTUP_MAINTENANCE = _env_bool("RUN_FULL_STARTUP_MAINTENANCE", not IS_PRODUCTION)
 
 # Uploads no filesystem do Vercel não são persistentes. Deixamos bloqueado por
 # padrão; ative apenas para testes temporários.

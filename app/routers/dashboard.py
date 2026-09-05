@@ -25,14 +25,26 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=303)
 
     quote_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
-    total_quotes = db.scalar(select(func.count(WebQuote.id)).where(quote_filter)) or 0
-    total_value = db.scalar(select(func.coalesce(func.sum(WebQuote.total), 0)).where(quote_filter)) or 0
-    custom_airlines = db.scalar(
-        select(func.count(Airline.id)).where(
-            Airline.builtin.is_(False),
-            Airline.owner_company_id == user.company_id if user.company_id else Airline.owner_user_id == user.id,
-        )
-    ) or 0
+    airline_filter = (
+        Airline.owner_company_id == user.company_id
+        if user.company_id
+        else Airline.owner_user_id == user.id
+    )
+    custom_airlines_sq = (
+        select(func.count(Airline.id))
+        .where(Airline.builtin.is_(False), airline_filter)
+        .scalar_subquery()
+    )
+    stats = db.execute(
+        select(
+            func.count(WebQuote.id),
+            func.coalesce(func.sum(WebQuote.total), 0),
+            custom_airlines_sq,
+        ).where(quote_filter)
+    ).one()
+    total_quotes = int(stats[0] or 0)
+    total_value = float(stats[1] or 0)
+    custom_airlines = int(stats[2] or 0)
     recent_quotes = db.scalars(
         select(WebQuote).where(quote_filter).options(selectinload(WebQuote.airline)).order_by(desc(WebQuote.created_at)).limit(6)
     ).all()

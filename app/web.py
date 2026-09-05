@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import object_session
 
-from .models import CompanyTask
+from .models import CompanyTask, Notification
 
 from .config import TEMPLATES_DIR
 from .security import ensure_csrf_token
@@ -103,39 +103,43 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
     flashes = request.session.pop("flashes", [])
     preference = getattr(user, "preference", None) if user else None
     profile = getattr(user, "profile", None) if user else None
-    all_notifications = list(getattr(user, "notifications", []) or []) if user else []
-    # Atualizações automáticas de cotação pertencem ao fluxo visual do chat,
-    # não ao sininho. Também escondemos registros antigos já gravados no banco.
-    notifications = [
-        item for item in all_notifications
-        if str(getattr(item, "kind", "") or "").lower() != "quote"
-        and not str(getattr(item, "title", "") or "").strip().lower().startswith("atualização de cotação")
-        and not str(getattr(item, "title", "") or "").strip().lower().startswith("atualizacao de cotacao")
-    ]
-    unread_count = sum(1 for item in notifications if not item.read)
 
+    unread_count = 0
     pending_task_count = 0
     if user is not None:
         try:
             db = object_session(user)
             if db is not None:
+                # Em vez de carregar TODAS as notificações e ainda executar outra
+                # consulta para tarefas, usamos dois subselects em um único roundtrip.
+                title_lower = func.lower(Notification.title)
+                unread_sq = (
+                    select(func.count(Notification.id))
+                    .where(
+                        Notification.user_id == user.id,
+                        Notification.read.is_(False),
+                        func.lower(Notification.kind) != "quote",
+                        ~title_lower.like("atualização de cotação%"),
+                        ~title_lower.like("atualizacao de cotacao%"),
+                    )
+                    .scalar_subquery()
+                )
                 task_scope = (
                     CompanyTask.company_id == user.company_id
                     if user.company_id
                     else CompanyTask.created_by_user_id == user.id
                 )
-                pending_task_count = int(
-                    db.scalar(
-                        select(func.count(CompanyTask.id)).where(
-                            task_scope,
-                            CompanyTask.status == "pendente",
-                        )
-                    )
-                    or 0
+                tasks_sq = (
+                    select(func.count(CompanyTask.id))
+                    .where(task_scope, CompanyTask.status == "pendente")
+                    .scalar_subquery()
                 )
+                counts = db.execute(select(unread_sq, tasks_sq)).one()
+                unread_count = int(counts[0] or 0)
+                pending_task_count = int(counts[1] or 0)
         except Exception:
-            # Mantém as demais páginas funcionando mesmo em banco antigo
-            # antes da criação/migração da tabela de tarefas.
+            # Mantém a interface disponível mesmo durante atualização de schema.
+            unread_count = 0
             pending_task_count = 0
 
     preset_key = getattr(preference, "theme_preset", "ocean") if preference else "ocean"
@@ -163,6 +167,7 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
         "flashes": flashes,
         **kwargs,
     }
+
 # Adicione esta função no seu arquivo web.py
 
 def format_money(value: float, currency: str = "BRL") -> str:

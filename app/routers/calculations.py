@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import delete, desc, func, inspect, or_, select
+from sqlalchemy import delete, desc, func, inspect, literal, or_, select, union_all
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db, engine
@@ -3715,12 +3715,10 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
 
 @router.get("/history")
 def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(get_db)):
-    """Histórico paginado sem esconder cotações recentes.
+    """Histórico paginado no PostgreSQL.
 
-    A versão anterior paginava primeiro todos os grupos e somente depois as
-    cotações antigas/sem vínculo. Com muitos grupos, uma cotação criada agora
-    podia cair em uma página distante e parecer que tinha desaparecido. Aqui
-    montamos uma única linha do tempo por data e só depois aplicamos a página.
+    Não baixa mais todos os IDs do histórico para ordenar em Python. O banco
+    une grupos + cotações legadas, ordena e devolve somente a página atual.
     """
     user = current_user(request, db)
     if user is None:
@@ -3732,9 +3730,7 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
     except (TypeError, ValueError):
         page = 1
     q = q.strip()
-    # Mostra o histórico compartilhado da empresa e também as cotações que
-    # pertencem ao próprio usuário. Isso preserva cotações criadas antes de o
-    # usuário entrar/criar uma empresa (company_id ainda nulo ou diferente).
+
     group_filter = (
         or_(QuoteGroup.company_id == user.company_id, QuoteGroup.user_id == user.id)
         if user.company_id
@@ -3743,7 +3739,13 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
     group_conditions = [group_filter]
     if q:
         pattern = f"%{q}%"
-        group_conditions.append(or_(QuoteGroup.quote_name.ilike(pattern), QuoteGroup.origin.ilike(pattern), QuoteGroup.destination.ilike(pattern)))
+        group_conditions.append(
+            or_(
+                QuoteGroup.quote_name.ilike(pattern),
+                QuoteGroup.origin.ilike(pattern),
+                QuoteGroup.destination.ilike(pattern),
+            )
+        )
 
     linked_ids = select(QuoteOptionIndex.quote_id)
     access_filter = (
@@ -3754,31 +3756,48 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
     legacy_conditions = [access_filter, WebQuote.id.notin_(linked_ids)]
     if q:
         pattern = f"%{q}%"
-        legacy_conditions.append(or_(WebQuote.quote_name.ilike(pattern), WebQuote.origin.ilike(pattern), WebQuote.destination.ilike(pattern)))
+        legacy_conditions.append(
+            or_(
+                WebQuote.quote_name.ilike(pattern),
+                WebQuote.origin.ilike(pattern),
+                WebQuote.destination.ilike(pattern),
+            )
+        )
 
-    # Consulta somente IDs e datas: leve mesmo com histórico grande.
-    group_rows = db.execute(
-        select(QuoteGroup.id, QuoteGroup.created_at).where(*group_conditions)
-    ).all()
-    legacy_rows = db.execute(
-        select(WebQuote.id, WebQuote.created_at).where(*legacy_conditions)
-    ).all()
+    group_timeline = select(
+        QuoteGroup.created_at.label("sort_at"),
+        QuoteGroup.id.label("sort_id"),
+        literal("group").label("kind"),
+        QuoteGroup.id.label("item_id"),
+    ).where(*group_conditions)
+    legacy_timeline = select(
+        WebQuote.created_at.label("sort_at"),
+        WebQuote.id.label("sort_id"),
+        literal("legacy").label("kind"),
+        WebQuote.id.label("item_id"),
+    ).where(*legacy_conditions)
 
-    minimum_date = datetime.min
-    timeline: list[tuple[datetime, int, str, int]] = []
-    for row in group_rows:
-        sort_at = row.created_at or minimum_date
-        timeline.append((sort_at, int(row.id or 0), "group", int(row.id)))
-    for row in legacy_rows:
-        sort_at = row.created_at or minimum_date
-        timeline.append((sort_at, int(row.id or 0), "legacy", int(row.id)))
-    timeline.sort(key=lambda item: (item[0], item[1]), reverse=True)
-
-    total_items = len(timeline)
+    timeline_sq = union_all(group_timeline, legacy_timeline).subquery("history_timeline")
+    total_items = int(db.scalar(select(func.count()).select_from(timeline_sq)) or 0)
     total_pages = max(1, (total_items + page_size - 1) // page_size)
     page = min(page, total_pages)
     offset = (page - 1) * page_size
-    page_entries = timeline[offset:offset + page_size]
+
+    page_rows = db.execute(
+        select(
+            timeline_sq.c.sort_at,
+            timeline_sq.c.sort_id,
+            timeline_sq.c.kind,
+            timeline_sq.c.item_id,
+        )
+        .order_by(timeline_sq.c.sort_at.desc(), timeline_sq.c.sort_id.desc())
+        .offset(offset)
+        .limit(page_size)
+    ).all()
+    page_entries = [
+        (row.sort_at or datetime.min, int(row.sort_id or 0), str(row.kind), int(row.item_id))
+        for row in page_rows
+    ]
 
     selected_group_ids = [item[3] for item in page_entries if item[2] == "group"]
     selected_legacy_ids = [item[3] for item in page_entries if item[2] == "legacy"]
@@ -3811,13 +3830,9 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
         ).all()
         legacy_by_id = {item.id: item for item in loaded_legacy}
 
-    # Carrega todos os cards de grupo desta página em lote. Isso elimina o
-    # padrão N+1 de consultas que deixava o Histórico lento.
     page_groups = [groups_by_id[gid] for gid in selected_group_ids if gid in groups_by_id]
     group_cards_batch = _history_group_cards_batch(db, user, page_groups)
 
-    # Mantém exatamente a ordem cronológica da página, inclusive ao misturar
-    # grupos e registros antigos que ainda não possuem vínculo.
     history_entries: list[dict[str, Any]] = []
     history_load_errors = 0
     for _sort_at, _sort_id, kind, item_id in page_entries:
@@ -3833,7 +3848,6 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
                 continue
             history_entries.append({"kind": "legacy", "quote": _decorate_quote_scope(quote)})
 
-    # Compatibilidade com templates/integrações anteriores.
     group_cards = [item["card"] for item in history_entries if item["kind"] == "group"]
     legacy_quotes = [item["quote"] for item in history_entries if item["kind"] == "legacy"]
 
@@ -3857,7 +3871,6 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
             has_next=page < total_pages,
         ),
     )
-
 
 
 @router.post("/option/{quote_id}/delete")
