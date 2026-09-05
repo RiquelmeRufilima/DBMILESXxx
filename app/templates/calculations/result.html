@@ -32,21 +32,11 @@
   }
 </style>
 
-<section class="page-hero result-hero">
-  <div>
-    <span class="eyebrow">OPÇÃO DA COTAÇÃO</span>
-    <h1>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }} — {{ quote.total|money(quote.currency) }}</h1>
-    <p>{{ quote.quote_name }}{% if quote.variant_key|default('primary') != 'primary' %} • {{ quote.variant_name }}{% endif %} • {{ quote.scope_label or 'Cálculo' }} • {{ quote.origin or '—' }} → {{ quote.destination or '—' }}</p>
-    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}</small>
-  </div>
-  <div class="page-actions">
-    {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação principal</a>{% endif %}
-    <a class="secondary-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cálculo</a>
-    <a class="secondary-button button-fare" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}#optionMetadataSection">Alterar tarifa</a>
-    {% if group_id %}<form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>{% endif %}
-    <a class="ghost-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
-  </div>
-</section>
+<div class="result-quick-actions" aria-label="Ações da opção">
+  {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação</a>{% endif %}
+  {% if group_id %}<form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button button-duplicate" type="submit">Duplicar opção</button></form>{% endif %}
+  <a class="ghost-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
+</div>
 
 <section class="result-grid">
   <div class="card-panel">
@@ -115,6 +105,7 @@
       <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=cost">PDF de custo</a>
       <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=profit">PDF de lucro</a>
       <a class="ghost-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
+      <a class="ghost-button button-fare" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}#optionMetadataSection">Alterar tarifa</a>
       <form method="post" action="/calculations/{{ quote.id }}/delete" onsubmit="return confirm('Excluir esta opção?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger full button-delete" type="submit">Excluir opção</button></form>
     </div>
   </div>

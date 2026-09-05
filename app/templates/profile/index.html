@@ -9,6 +9,10 @@
     {% if profile and profile.avatar_path %}<img class="profile-avatar" src="/{{ profile.avatar_path }}" alt="{{ user.name }}">{% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
     <h2>{{ user.name }}</h2><p>{{ profile.job_title or user.role|title }}</p><span class="badge custom">{{ user.role|title }}</span>
     <div class="profile-meta"><div><svg class="ui-icon"><use href="#icon-building"></use></svg><span>{{ user.company.name if user.company else 'Conta individual' }}</span></div><div><svg class="ui-icon"><use href="#icon-user"></use></svg><span>{{ user.email }}</span></div></div>
+    <form method="post" action="/logout" class="profile-mobile-logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="ghost-button danger full" type="submit"><svg class="ui-icon"><use href="#icon-logout"></use></svg> Sair da conta</button>
+    </form>
   </aside>
   <article class="panel">
     <div class="panel-heading"><div><span class="eyebrow">DADOS PESSOAIS</span><h2>Editar perfil</h2></div></div>

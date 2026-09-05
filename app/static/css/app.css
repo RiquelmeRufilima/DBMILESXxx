@@ -1659,3 +1659,40 @@ html{scroll-padding-top:calc(var(--topbar) + var(--safe-top) + 10px)}
   .mobile-change-airline{font-size:.56rem!important;padding:5px!important}
   .compact-summary .summary-grid{grid-template-columns:1fr 1fr!important}
 }
+
+/* ============================================================
+   V2.21 — RESULTADO COMPACTO + PARCERIA DINÂMICA POR TRECHO
+   ============================================================ */
+.result-quick-actions{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;
+  padding:8px;border:1px solid var(--border);border-radius:14px;
+  background:rgba(255,255,255,.018)
+}
+.result-quick-actions form{display:flex;margin:0}
+.result-quick-actions .primary-button,.result-quick-actions .ghost-button{min-height:38px;padding:8px 11px;font-size:.76rem}
+.partner-segment-only{margin-top:10px;padding:10px!important;gap:8px!important}
+.partner-segment-only .partner-panel-heading small{display:block;color:var(--muted);font-size:.66rem;margin-top:2px}
+.partner-segment-only .partner-segment-grid{gap:7px}
+.partner-segment-only .partner-segment-card{padding:8px!important;border-radius:11px!important}
+.profile-mobile-logout{display:none;margin-top:14px;width:100%}
+
+@media(max-width:920px){
+  .result-quick-actions{overflow-x:auto;flex-wrap:nowrap;padding:6px;margin-bottom:8px;scrollbar-width:none}
+  .result-quick-actions::-webkit-scrollbar{display:none}
+  .result-quick-actions>*{flex:0 0 auto}
+  .result-quick-actions .primary-button,.result-quick-actions .ghost-button{min-height:34px;padding:7px 9px;font-size:.66rem;white-space:nowrap}
+  .partner-segment-only{margin-top:6px!important;padding:7px!important;border-radius:11px!important}
+  .partner-segment-only .partner-panel-heading{margin-bottom:2px}
+  .partner-segment-only .partner-panel-heading strong{font-size:.7rem!important}
+  .partner-segment-only .partner-panel-heading small{font-size:.56rem!important}
+  .partner-segment-only .partner-segment-grid{grid-template-columns:1fr!important;gap:5px!important}
+  .partner-segment-only .partner-segment-card{padding:6px!important;display:grid;grid-template-columns:minmax(90px,.42fr) minmax(0,1fr);align-items:center;gap:6px}
+  .partner-segment-only .partner-segment-top{margin:0!important;min-width:0}
+  .partner-segment-only .partner-segment-number{width:24px!important;height:24px!important;min-width:24px!important;font-size:.62rem!important}
+  .partner-segment-only .partner-segment-route strong{font-size:.65rem!important}
+  .partner-segment-only .partner-segment-route small{font-size:.54rem!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+  .partner-segment-only .partner-input-shell{min-height:34px!important}
+  .partner-segment-only .partner-combobox-input{min-height:34px!important;padding:6px 28px 6px 26px!important;font-size:.65rem!important}
+  .profile-mobile-logout{display:block}
+}
+

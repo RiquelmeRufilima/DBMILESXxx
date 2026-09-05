@@ -506,10 +506,58 @@
               </span>
             </label>
           </div>
-          {# Preserva dados antigos de parceria sem exibir a interface repetitiva. #}
-          <input type="hidden" name="partner_airline" value="{{ partnership.get('partner_airline','') }}">
-          {% for row in partner_segment_rows %}<input type="hidden" name="partner_segment_{{ row.segment }}" value="{{ row.partner_airline }}">{% endfor %}
+          {# V2.21 — apenas parceria POR TRECHO. Sem parceira principal e sem lista repetitiva de chips. #}
+          <input type="hidden" name="partner_airline" value="">
+          <div class="partner-airline-panel partner-airline-panel-always partner-segment-only" id="partnerAirlineField">
+            <div class="partner-panel-heading professional">
+              <div>
+                <strong>Companhia parceira por trecho</strong>
+                <small>Só aparecem os trechos da opção escolhida.</small>
+              </div>
+              <span class="optional-pill">opcional</span>
+            </div>
+
+            <div class="partner-segment-grid professional" id="partnerSegmentGrid">
+              {% for row in partner_segment_rows %}
+              <div class="partner-segment-card" data-partner-segment-card="{{ row.segment }}">
+                <div class="partner-segment-top">
+                  <span class="partner-segment-number">{{ row.segment }}</span>
+                  <span class="partner-segment-route">
+                    <strong>Trecho {{ row.segment }}</strong>
+                    <small data-partner-segment-route>{{ row.route }}</small>
+                  </span>
+                </div>
+
+                <div class="partner-combobox compact" data-partner-combobox>
+                  <div class="partner-input-shell">
+                    <span class="partner-input-icon">⌕</span>
+                    <input
+                      name="partner_segment_{{ row.segment }}"
+                      class="partner-segment-input partner-combobox-input"
+                      data-segment="{{ row.segment }}"
+                      value="{{ row.partner_airline }}"
+                      placeholder="Nenhuma parceira"
+                      autocomplete="off"
+                      spellcheck="false"
+                    >
+                    <button class="partner-clear-button" type="button" data-partner-clear aria-label="Limpar companhia">×</button>
+                  </div>
+                  <div class="partner-dropdown" data-partner-dropdown hidden>
+                    <div class="partner-dropdown-head">
+                      <strong>Escolher companhia</strong>
+                      <span data-partner-count></span>
+                    </div>
+                    <div class="partner-dropdown-list" data-partner-list></div>
+                    <div class="partner-manual-note">Também é possível digitar o nome manualmente.</div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
         </div>
+
+      <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
 
       <div class="form-section soft segment-scope-panel">
         <div class="section-title"><span class="step-badge">1</span><div><h3 class="variant-scope-heading">O que você quer calcular agora? <span class="variant-name-pill">{{ selected_variant_name }}</span></h3><p>Escolha a opção principal e, quando necessário, use Skip Normal ou Skip Inverso. Os dois modos Skip ficam disponíveis em Só ida e em Ida e volta, sempre separados no histórico.</p></div></div>
@@ -1072,6 +1120,123 @@ document.addEventListener('person-selected', function(event) {
     hiddenInput.value = JSON.stringify(detailsByScope[activeScopeKey] || []);
   });
   render();
+})();
+
+(function(){
+  const source = document.getElementById('partnerAirlineOptionsJson');
+  const scopeSource = document.getElementById('routeScopesData');
+  const scopeInput = document.getElementById('scopeKeyInput');
+  const grid = document.getElementById('partnerSegmentGrid');
+  if(!source || !scopeSource || !scopeInput || !grid) return;
+
+  let options = [];
+  let scopes = [];
+  try { options = JSON.parse(source.textContent || '[]'); } catch(_error) { options = []; }
+  try { scopes = JSON.parse(scopeSource.textContent || '[]'); } catch(_error) { scopes = []; }
+  options = (Array.isArray(options) ? options : []).map(item => ({
+    id:Number(item?.id || 0),
+    name:String(item?.name || '').trim(),
+    market_label:String(item?.market_label || 'Companhia').trim(),
+    configured:Boolean(item?.configured)
+  })).filter(item => item.name && !item.name.includes('<app.models.'));
+
+  const norm = value => String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().trim();
+  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+
+  function setupCombobox(root){
+    const input = root.querySelector('.partner-combobox-input');
+    const dropdown = root.querySelector('[data-partner-dropdown]');
+    const list = root.querySelector('[data-partner-list]');
+    const count = root.querySelector('[data-partner-count]');
+    const clear = root.querySelector('[data-partner-clear]');
+    if(!input || !dropdown || !list) return;
+    let activeIndex = -1;
+    let visible = [];
+    const close = () => { dropdown.hidden = true; activeIndex = -1; };
+    const choose = item => {
+      input.value = item.name;
+      input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.dispatchEvent(new Event('change',{bubbles:true}));
+      close();
+    };
+    function render(){
+      const query = norm(input.value);
+      visible = options.filter(item => !query || norm(item.name).includes(query)).slice(0,16);
+      if(count) count.textContent = `${visible.length} resultado(s)`;
+      if(!visible.length){
+        list.innerHTML = '<div class="partner-empty">Nenhuma companhia encontrada. Você pode manter o nome digitado.</div>';
+      } else {
+        list.innerHTML = visible.map((item,index) => `
+          <button type="button" class="partner-option" data-partner-index="${index}">
+            <span class="partner-option-logo"><span>${esc(item.name.slice(0,2).toUpperCase())}</span></span>
+            <span class="partner-option-copy"><strong>${esc(item.name)}</strong><small>${esc(item.market_label)}</small></span>
+            <span class="partner-option-badge ${item.configured ? 'configured' : ''}">${item.configured ? 'PARCEIRA' : 'CADASTRADA'}</span>
+          </button>`).join('');
+        list.querySelectorAll('[data-partner-index]').forEach(button => {
+          button.addEventListener('mousedown', event => {
+            event.preventDefault();
+            choose(visible[Number(button.dataset.partnerIndex || 0)]);
+          });
+        });
+      }
+      dropdown.hidden = false;
+      activeIndex = -1;
+    }
+    function updateActive(){
+      const nodes = Array.from(list.querySelectorAll('.partner-option'));
+      nodes.forEach((node,index)=>node.classList.toggle('active',index===activeIndex));
+      nodes[activeIndex]?.scrollIntoView({block:'nearest'});
+    }
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', event => {
+      if(dropdown.hidden && ['ArrowDown','ArrowUp'].includes(event.key)) render();
+      if(event.key === 'Escape'){ close(); return; }
+      if(event.key === 'ArrowDown'){
+        event.preventDefault();
+        if(visible.length) activeIndex = Math.min(visible.length-1,activeIndex+1);
+        updateActive();
+      } else if(event.key === 'ArrowUp'){
+        event.preventDefault();
+        if(visible.length) activeIndex = Math.max(0,activeIndex-1);
+        updateActive();
+      } else if(event.key === 'Enter' && activeIndex >= 0 && visible[activeIndex]){
+        event.preventDefault(); event.stopPropagation(); choose(visible[activeIndex]);
+      }
+    });
+    input.addEventListener('blur', ()=>setTimeout(close,120));
+    clear?.addEventListener('click',()=>{
+      input.value=''; input.focus(); input.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  }
+  grid.querySelectorAll('[data-partner-combobox]').forEach(setupCombobox);
+
+  function activeScope(key){
+    return scopes.find(scope => scope && scope.key === key) || scopes[0] || {segments:[]};
+  }
+  function routeLabel(segment){
+    const origin = String(segment?.origin || '?').trim() || '?';
+    const destination = String(segment?.destination || '?').trim() || '?';
+    return `${origin} → ${destination}`;
+  }
+  function renderSegments(key){
+    const scope = activeScope(key || scopeInput.value);
+    const segments = Array.isArray(scope?.segments) ? scope.segments : [];
+    const wanted = Math.max(1, Math.min(12, segments.length || 1));
+    grid.querySelectorAll('[data-partner-segment-card]').forEach(card => {
+      const number = Number(card.dataset.partnerSegmentCard || 0);
+      const input = card.querySelector('.partner-segment-input');
+      const route = card.querySelector('[data-partner-segment-route]');
+      const visible = number >= 1 && number <= wanted;
+      card.hidden = !visible;
+      if(input) input.disabled = !visible;
+      if(route && visible) route.textContent = routeLabel(segments[number-1] || {});
+    });
+  }
+  document.addEventListener('calculation-scope-changed', event => renderSegments(event.detail?.to || scopeInput.value));
+  renderSegments(scopeInput.value);
 })();
 
 (function(){

@@ -2667,9 +2667,10 @@ def _new_calculation_impl(
             operation_profile=_airline_operation_profile(selected_airline),
             partnership_meta=partnership_meta,
             partner_segment_rows=partner_segment_rows,
-            # V2.20: seletor visual de parceiras removido da calculadora.
-            partner_airline_choices=[],
-            partner_airline_options=[],
+            # V2.21: somente o seletor de parceira POR TRECHO volta para a tela.
+            # A lista é montada a partir das companhias já carregadas, sem nova consulta ao banco.
+            partner_airline_choices=_partner_airline_choices(airlines, selected_airline),
+            partner_airline_options=_partner_airline_options(airlines, selected_airline),
             national_airlines=[item for item in airlines if _is_priority_national_airline(item.name)],
             other_airlines=[item for item in airlines if not _is_priority_national_airline(item.name)],
             edit_base=edit_base_mode,
