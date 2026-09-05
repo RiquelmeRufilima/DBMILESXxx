@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icons/favicon-64.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <link rel="stylesheet" href="/static/css/app.css?v=5.10.43">
+  <link rel="stylesheet" href="/static/css/app.css?v=5.10.42">
   {% block head %}{% endblock %}
 <style>
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
@@ -34,6 +34,18 @@
     .dbm-btn-primary{color:#fff;background:linear-gradient(90deg,var(--cyan,#22d3ee),var(--blue,#3b82f6));box-shadow:0 12px 26px rgba(41,131,255,.28)}
     .dbm-modal[data-tone="danger"] .dbm-btn-primary{background:linear-gradient(90deg,#ff5b6e,#ff8a5b);box-shadow:0 12px 26px rgba(255,91,110,.28)}
     .dbm-modal[data-tone="save"] .dbm-btn-primary{background:linear-gradient(90deg,#1ed760,#36d399);box-shadow:0 12px 26px rgba(30,215,96,.24)}
+
+    /* Loader global com avião */
+    .global-loader{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(4,10,20,.68);backdrop-filter:blur(4px);z-index:99999;padding:20px}
+    .global-loader.is-visible{display:flex}
+    .global-loader-card{width:min(380px,92vw);padding:24px 22px;border-radius:24px;border:1px solid rgba(110,185,255,.18);background:linear-gradient(180deg,rgba(13,28,55,.98),rgba(8,18,37,.98));box-shadow:0 24px 80px rgba(0,0,0,.42);text-align:center}
+    .global-loader-track{position:relative;height:72px;margin-bottom:10px;overflow:hidden}
+    .global-loader-line{position:absolute;left:8%;right:8%;top:50%;transform:translateY(-50%);border-top:2px dashed rgba(255,255,255,.18)}
+    .global-loader-plane{position:absolute;top:50%;left:8%;width:44px;height:44px;color:#fff;transform:translateY(-50%);filter:drop-shadow(0 8px 18px rgba(255,255,255,.10));animation:loader-plane-fly 2s linear infinite,loader-plane-float 1.2s ease-in-out infinite}
+    .global-loader-title{display:block;font-size:1.06rem;font-weight:800;color:#fff;margin-top:4px}
+    .global-loader-text{display:block;margin-top:7px;color:rgba(226,237,255,.78);line-height:1.45}
+    @keyframes loader-plane-fly{0%{left:8%}50%{left:calc(100% - 72px)}100%{left:8%}}
+    @keyframes loader-plane-float{0%,100%{transform:translateY(-50%) translateY(0) rotate(-2deg)}50%{transform:translateY(-50%) translateY(-5px) rotate(1deg)}}
   </style>
 </head>
 <body class="{% if not user %}auth-body{% endif %} bg-{{ theme.background_style }} {% if theme.compact_mode %}compact-ui{% endif %}"{% if user %} data-current-user-id="{{ user.id }}" data-company-id="{{ user.company_id or '' }}"{% endif %}>
@@ -178,6 +190,34 @@
     </div>
   </div>
 
+
+  <div id="globalLoader" class="global-loader" aria-hidden="true">
+    <div class="global-loader-card" role="status" aria-live="polite">
+      <div class="global-loader-track" aria-hidden="true">
+        <div class="global-loader-line"></div>
+        <svg class="ui-icon global-loader-plane" viewBox="0 0 24 24">
+          <use href="#icon-plane"></use>
+        </svg>
+      </div>
+      <strong class="global-loader-title">Carregando...</strong>
+      <small class="global-loader-text" id="globalLoaderText">Aguarde enquanto processamos sua solicitação.</small>
+    </div>
+  </div>
+
+
+  <div id="globalLoader" class="global-loader" aria-hidden="true">
+    <div class="global-loader-card">
+      <div class="global-loader-track">
+        <div class="global-loader-line"></div>
+        <svg class="ui-icon global-loader-plane" viewBox="0 0 24 24" aria-hidden="true">
+          <use href="#icon-plane"></use>
+        </svg>
+      </div>
+      <strong class="global-loader-title">Carregando...</strong>
+      <small class="global-loader-text" id="globalLoaderText">Aguarde enquanto processamos sua solicitação.</small>
+    </div>
+  </div>
+
   <script src="/static/js/app.js?v=5.10.42" defer></script>
   <script src="/static/js/password-toggle.js?v=5.10.41" defer></script>
   {% if user %}<script src="/static/js/person-search.js?v=5.10.41" defer></script><script src="/static/js/airport-search.js?v=5.10.41" defer></script>{% endif %}
@@ -305,6 +345,57 @@
       }
       trigger.dataset.confirmArmed = '1';
       trigger.click();
+    }, true);
+  })();
+  </script>
+
+  <script>
+  (() => {
+    const loader = document.getElementById('globalLoader');
+    const loaderText = document.getElementById('globalLoaderText');
+    if (!loader) return;
+
+    let loaderTimer = null;
+
+    function showLoader(message = 'Aguarde enquanto processamos sua solicitação.') {
+      if (loaderText) loaderText.textContent = message;
+      clearTimeout(loaderTimer);
+      loaderTimer = setTimeout(() => {
+        loader.classList.add('is-visible');
+        loader.setAttribute('aria-hidden', 'false');
+      }, 120);
+    }
+
+    function hideLoader() {
+      clearTimeout(loaderTimer);
+      loader.classList.remove('is-visible');
+      loader.setAttribute('aria-hidden', 'true');
+    }
+
+    window.dbmShowLoader = showLoader;
+    window.dbmHideLoader = hideLoader;
+
+    window.addEventListener('load', hideLoader);
+    window.addEventListener('pageshow', hideLoader);
+
+    document.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      if (form.dataset.noLoader === '1') return;
+      showLoader(form.dataset.loaderMessage || 'Carregando...');
+    }, true);
+
+    document.addEventListener('click', (event) => {
+      const link = event.target.closest?.('a');
+      if (!link) return;
+      const href = (link.getAttribute('href') || '').trim();
+      if (
+        link.dataset.noLoader === '1' || !href || href.startsWith('#') ||
+        href.startsWith('javascript:') || href.startsWith('mailto:') ||
+        href.startsWith('tel:') || link.target === '_blank' ||
+        link.hasAttribute('download')
+      ) return;
+      showLoader(link.dataset.loaderMessage || 'Abrindo página...');
     }, true);
   })();
   </script>
