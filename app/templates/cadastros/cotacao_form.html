@@ -99,7 +99,7 @@
           <p>Organize os voos e os serviços da viagem. O PDF será gerado somente em “Visualizar reserva”.</p>
         </div>
         <div class="button-row">
-          <button class="secondary-button tiny" type="button" onclick="openFlightModal('ida')">+ Incluir voo</button>
+          <button id="addFlightButton" class="secondary-button tiny" type="button" onclick="openNextFlightModal()">+ Incluir voo de ida</button>
           <button class="ghost-button tiny" type="button" disabled>Buscar via fornecedor</button>
           <button class="ghost-button tiny" type="button" disabled>Incluir via localizador</button>
         </div>
@@ -234,7 +234,7 @@
       <label>Hora de chegada<input id="f_arrival_time" type="time"></label>
     </div>
     <div class="form-grid cols-4">
-      <label>Duração<input id="f_duration" placeholder="04:20"></label>
+      <label>Duração<input id="f_duration" placeholder="Calculada automaticamente" readonly></label>
       <label>Nº da Compra<input id="f_purchase_number"></label>
       <label>Classe<input id="f_class" placeholder="Econômica"></label>
       <label>Conexões<select id="f_connections"><option>Direto</option><option>1 Parada</option><option>2 Paradas</option><option>3 Paradas</option><option>Múltiplas paradas</option></select></label>
@@ -449,10 +449,44 @@ function captureSaleDraft(){
   sale.notes=val('saleNotes');
   commission.extra=parseMoney(val('commissionExtra'));
 }
-function renderAll(){captureSaleDraft();normalizeScheduleSelections();renderCommercialSeed();renderFlights();renderPassengers();renderValues();renderServices();renderSale();syncHidden();uiRendered=true;}
+function updateAddFlightButton(){
+  const btn=document.getElementById('addFlightButton');
+  if(!btn)return;
+  const hasOutbound=flights.some(f=>String(f.kind||'').toLowerCase()==='ida' || String(f.segment_key||'').toLowerCase()==='outbound');
+  const hasReturn=flights.some(f=>String(f.kind||'').toLowerCase()==='volta' || String(f.segment_key||'').toLowerCase()==='return');
+  if(!hasOutbound){btn.textContent='+ Incluir voo de ida';btn.dataset.nextKind='ida';}
+  else if(!hasReturn){btn.textContent='+ Incluir voo de volta';btn.dataset.nextKind='volta';}
+  else{btn.textContent='+ Incluir outro voo';btn.dataset.nextKind='interno';}
+}
+function openNextFlightModal(){
+  const btn=document.getElementById('addFlightButton');
+  openFlightModal(btn?.dataset.nextKind||'ida');
+}
+function renderAll(){captureSaleDraft();normalizeScheduleSelections();renderCommercialSeed();renderFlights();renderPassengers();renderValues();renderServices();renderSale();updateAddFlightButton();syncHidden();uiRendered=true;}
 function defaultFlight(kind='ida'){
   const label = kind==='volta'?'Voo de Volta':kind==='interno'?'Voo Interno':'Voo de Ida';
   return {kind,label,segment_key:kind==='volta'?'return':'outbound',schedule_option_number:1,selected_schedule:true,bags_personal:1,bags_carry:1,bags_checked:0,connections:'Direto',checkin_status:'pendente',class:'Econômica',stops:[]};
+}
+function calculateFlightDuration(){
+  const depDate=val('f_departure_date');
+  const depTime=val('f_departure_time');
+  const arrDate=val('f_arrival_date') || depDate;
+  const arrTime=val('f_arrival_time');
+  const out=document.getElementById('f_duration');
+  if(!out || !depDate || !depTime || !arrDate || !arrTime)return;
+  const start=new Date(`${depDate}T${depTime}:00`);
+  let end=new Date(`${arrDate}T${arrTime}:00`);
+  if(Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))return;
+  // Se a data de chegada não foi alterada e o horário é menor, considera chegada no dia seguinte.
+  if(end < start && arrDate===depDate){
+    end=new Date(end.getTime()+24*60*60*1000);
+    const y=end.getFullYear(),m=String(end.getMonth()+1).padStart(2,'0'),d=String(end.getDate()).padStart(2,'0');
+    setVal('f_arrival_date',`${y}-${m}-${d}`);
+  }
+  const minutes=Math.round((end-start)/60000);
+  if(minutes<0)return;
+  const h=Math.floor(minutes/60),m=minutes%60;
+  out.value=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
 }
 function openFlightModal(kind='ida', index=null){
   editFlightIndex=index;
@@ -468,6 +502,10 @@ function openFlightModal(kind='ida', index=null){
 }
 ['f_airline','f_locator','f_purchase_number'].forEach(id=>document.getElementById(id)?.addEventListener('change',refreshCheckinLinkField));
 ['f_origin','f_destination'].forEach(id=>document.getElementById(id)?.addEventListener('input',updateAirportHints));
+['f_departure_date','f_departure_time','f_arrival_date','f_arrival_time'].forEach(id=>{
+  document.getElementById(id)?.addEventListener('change',calculateFlightDuration);
+  document.getElementById(id)?.addEventListener('input',calculateFlightDuration);
+});
 function saveFlightFromModal(){
   if(window.validateAirportInput){
     const originOk=window.validateAirportInput(document.getElementById('f_origin'),true);
@@ -696,7 +734,34 @@ async function saveAndLaunchSale(event){
   }catch(error){alert(error.message||'Erro ao lançar venda.'); if(button){button.disabled=false;button.textContent='Lançar venda';}}
 }
 document.querySelectorAll('.quote-tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.quote-tabs button').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.dataset.tab)?.classList.add('active');}));
-document.querySelectorAll('.status-step').forEach(btn=>btn.addEventListener('dblclick',async()=>{document.getElementById('statusField').value=btn.dataset.status;document.querySelectorAll('.status-step').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const fd=new FormData();fd.append('csrf_token','{{ csrf_token }}');fd.append('status',btn.dataset.status);try{const r=await fetch('/cadastros/cotacoes/{{ group.id }}/status',{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}});if(btn.dataset.status==='venda_cadastrada'||btn.dataset.status==='aprovado'||btn.dataset.status==='lancada') location.reload();}catch(e){console.warn(e);}}));
+document.querySelectorAll('.status-step').forEach(btn=>btn.addEventListener('dblclick',async()=>{
+  const form=document.getElementById('quoteEditForm');
+  const statusField=document.getElementById('statusField');
+  if(!form||!statusField)return;
+  const oldStatus=statusField.value;
+  const targetStatus=btn.dataset.status;
+  statusField.value=targetStatus;
+  syncHidden();
+  document.querySelectorAll('.status-step').forEach(b=>b.disabled=true);
+  try{
+    const r=await fetch(form.action,{
+      method:'POST',
+      body:new FormData(form),
+      headers:{'X-Requested-With':'fetch','Accept':'application/json'},
+      cache:'no-store'
+    });
+    let payload={};
+    try{payload=await r.json();}catch(_e){}
+    if(!r.ok || !payload.ok) throw new Error(payload.message||'Não foi possível salvar a cotação. O status não foi alterado.');
+    document.querySelectorAll('.status-step').forEach(b=>b.classList.toggle('active',b.dataset.status===targetStatus));
+    // O backend só responde ok depois do commit no Neon. Recarrega para ler o estado persistido.
+    location.reload();
+  }catch(e){
+    statusField.value=oldStatus;
+    alert(e.message||'Erro ao salvar a cotação. Nenhum dado foi perdido.');
+    document.querySelectorAll('.status-step').forEach(b=>b.disabled=false);
+  }
+}));
 document.getElementById('clientName')?.addEventListener('person-selected',event=>{
   const person=event.detail?.person;
   if(person) setPersonField('clientName','clientPersonId',person.name||'',person.id||'');

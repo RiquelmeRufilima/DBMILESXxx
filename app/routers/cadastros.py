@@ -4,7 +4,7 @@ import json
 import re
 import unicodedata
 from pathlib import Path
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -1964,13 +1964,20 @@ async def criar_status_cotacao(request: Request, db: Session = Depends(get_db)):
 async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(get_db)):
     user = require_user(request, db)
     form = await request.form()
+    wants_json = request.headers.get("X-Requested-With") == "fetch" or "application/json" in request.headers.get("accept", "")
+
+    def save_error(message: str, status_code: int = 400):
+        if wants_json:
+            db.rollback()
+            return JSONResponse({"ok": False, "message": message}, status_code=status_code)
+        flash(request, message, "error")
+        return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/cadastros/cotacoes", status_code=303)
+        return save_error("Sessão expirada. Recarregue a página e tente novamente.", 400)
     item = _current_item(db, user, group_id)
     if item is None or not _group_allowed(user, item.group):
-        flash(request, "Cotação não encontrada.", "error")
-        return RedirectResponse("/cadastros/cotacoes", status_code=303)
+        return save_error("Cotação não encontrada.", 404)
 
     status = str(form.get("status") or item.status or "aguardando").strip()
     if status in _status_keys(db, user):
@@ -2017,8 +2024,7 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
         allowed_types={"cliente", "passageiro"},
     ) if client_name else None
     if client_name and client_person is None:
-        flash(request, "Selecione um cliente cadastrado na lista. Se ele não existir, faça o cadastro primeiro.", "error")
-        return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+        return save_error("Selecione um cliente cadastrado na lista. Se ele não existir, faça o cadastro primeiro.")
     if client_person is not None:
         data["client_person_id"] = str(client_person.id)
         data["client_name"] = client_person.name
@@ -2038,8 +2044,7 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
             allowed_types={"passageiro", "cliente"},
         )
         if person is None:
-            flash(request, "Há passageiro sem cadastro válido. Selecione cada passageiro na lista antes de salvar.", "error")
-            return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+            return save_error("Há passageiro sem cadastro válido. Selecione cada passageiro na lista antes de salvar.")
         fixed_passengers.append({
             **pax,
             "person_id": str(person.id),
@@ -2054,6 +2059,7 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
         })
     data["passengers"] = fixed_passengers
 
+    supplier_error: list[str] = []
     def normalize_supplier(entry: dict[str, Any], *, label: str, allowed_types: set[str]) -> bool:
         supplier_name = str(entry.get("supplier") or "").strip()
         if not supplier_name:
@@ -2068,7 +2074,7 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
             allowed_types=allowed_types,
         )
         if person is None:
-            flash(request, f"Selecione {label} cadastrado na lista antes de salvar.", "error")
+            supplier_error[:] = [f"Selecione {label} cadastrado na lista antes de salvar."]
             return False
         entry["supplier"] = person.name
         entry["supplier_person_id"] = str(person.id)
@@ -2076,13 +2082,13 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
 
     for cost in data.get("cost_items", []) or []:
         if isinstance(cost, dict) and not normalize_supplier(cost, label="o fornecedor do custo", allowed_types={"fornecedor"}):
-            return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+            return save_error(supplier_error[0] if supplier_error else "Fornecedor inválido.")
 
     commission_data = data.get("commission") if isinstance(data.get("commission"), dict) else {}
     for commission_type in ("receive", "pay"):
         for row in commission_data.get(commission_type, []) or []:
             if isinstance(row, dict) and not normalize_supplier(row, label="o fornecedor ou beneficiário da comissão", allowed_types={"fornecedor", "representante"}):
-                return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+                return save_error(supplier_error[0] if supplier_error else "Fornecedor ou beneficiário inválido.")
 
     services_data = data.get("services") if isinstance(data.get("services"), dict) else {}
     for service_key, rows in services_data.items():
@@ -2092,10 +2098,9 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
             if not isinstance(service, dict):
                 continue
             if not normalize_supplier(service, label="o fornecedor do serviço", allowed_types={"fornecedor"}):
-                return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+                return save_error(supplier_error[0] if supplier_error else "Fornecedor do serviço inválido.")
             if not _iata_value_valid(service.get("origin")) or not _iata_value_valid(service.get("destination")):
-                flash(request, "Há um serviço com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.", "error")
-                return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+                return save_error("Há um serviço com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.")
             service["origin"] = _iata_code(service.get("origin"))
             service["destination"] = _iata_code(service.get("destination"))
 
@@ -2104,15 +2109,13 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
         if not isinstance(fl, dict):
             continue
         if not _iata_value_valid(fl.get("origin")) or not _iata_value_valid(fl.get("destination")):
-            flash(request, "Há um voo com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.", "error")
-            return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+            return save_error("Há um voo com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.")
         fl["origin"] = _iata_code(fl.get("origin"))
         fl["destination"] = _iata_code(fl.get("destination"))
         for stop in fl.get("stops", []) or []:
             if isinstance(stop, dict):
                 if not _iata_value_valid(stop.get("origin")) or not _iata_value_valid(stop.get("destination")):
-                    flash(request, "Há uma parada com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.", "error")
-                    return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+                    return save_error("Há uma parada com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.")
                 stop["origin"] = _iata_code(stop.get("origin"))
                 stop["destination"] = _iata_code(stop.get("destination"))
         if fl.get("departure_date") and not fl.get("date"):
@@ -2121,6 +2124,26 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
             fl["departure_date"] = fl.get("date")
         if not fl.get("arrival_date"):
             fl["arrival_date"] = fl.get("departure_date") or fl.get("date") or ""
+
+        # A duração também é recalculada no backend antes de gravar no Neon.
+        # Assim, mesmo que o JavaScript não rode por algum motivo, o banco recebe o valor correto.
+        dep_date = str(fl.get("departure_date") or fl.get("date") or "").strip()
+        arr_date = str(fl.get("arrival_date") or dep_date).strip()
+        dep_time = str(fl.get("departure_time") or "").strip()[:5]
+        arr_time = str(fl.get("arrival_time") or "").strip()[:5]
+        if dep_date and arr_date and dep_time and arr_time:
+            try:
+                start_dt = datetime.fromisoformat(f"{dep_date}T{dep_time}:00")
+                end_dt = datetime.fromisoformat(f"{arr_date}T{arr_time}:00")
+                if end_dt < start_dt and arr_date == dep_date:
+                    end_dt += timedelta(days=1)
+                    fl["arrival_date"] = end_dt.date().isoformat()
+                total_minutes = int((end_dt - start_dt).total_seconds() // 60)
+                if total_minutes >= 0:
+                    fl["duration"] = f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
+            except ValueError:
+                pass
+
         if not fl.get("checkin_link"):
             fl["checkin_link"] = _checkin_link_for_airline(fl.get("airline"), fl.get("locator"), fl.get("purchase_number"))
 
@@ -2142,6 +2165,9 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
     _set_payload(item, data)
     _sync_flight_registry(db, user, item, data)
     db.commit()
+    # Em Vercel + Neon, só informamos sucesso ao front-end depois do COMMIT concluir.
+    if wants_json:
+        return JSONResponse({"ok": True, "group_id": group_id, "status": item.status})
     flash(request, "Cotação salva. Ela pode continuar em edição até você lançar a venda.", "success")
     if form.get("save_close"):
         return RedirectResponse("/cadastros/cotacoes", status_code=303)
