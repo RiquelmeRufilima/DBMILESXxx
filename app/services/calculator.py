@@ -33,6 +33,66 @@ def _num(values: dict[str, Any], key: str, default: float = 0.0) -> float:
         return float(default)
 
 
+def _milhas_em_milheiros(value: Any) -> float:
+    """Aceita milhas completas ou já em milheiros.
+
+    Exemplos equivalentes:
+      1.421.400 -> 1421.4
+      1421400   -> 1421.4
+      1.421,4   -> 1421.4
+      1421,4    -> 1421.4
+
+    Regra: quando o usuário informa um inteiro grande (10.000 ou mais),
+    tratamos como quantidade absoluta de milhas/pontos e dividimos por 1.000.
+    Valores decimais são considerados já informados em milheiros.
+    """
+    if value is None or value == "":
+        return 0.0
+    if isinstance(value, (int, float)):
+        numeric = float(value)
+        return numeric / 1000.0 if numeric >= 10000 and numeric.is_integer() else numeric
+
+    raw = str(value).strip().replace(" ", "")
+    if not raw:
+        return 0.0
+
+    # Vírgula indica decimal brasileiro: 1421,4 ou 1.421,4.
+    if "," in raw:
+        normalized = raw.replace(".", "").replace(",", ".")
+        try:
+            return float(normalized)
+        except ValueError:
+            return 0.0
+
+    # Mais de um ponto = separadores de milhar: 1.421.400.
+    if raw.count(".") > 1:
+        digits = raw.replace(".", "")
+        try:
+            numeric = float(digits)
+            return numeric / 1000.0
+        except ValueError:
+            return 0.0
+
+    # Um ponto pode ser decimal (1421.4) ou milhar (556.500).
+    if raw.count(".") == 1:
+        left, right = raw.split(".", 1)
+        if left.isdigit() and right.isdigit():
+            if len(right) == 3 and len(left) <= 3:
+                # 556.500 => 556500 milhas => 556.5 milheiros.
+                return float(left + right) / 1000.0
+            try:
+                return float(raw)
+            except ValueError:
+                return 0.0
+
+    # Sem separador: 1421400 => 1421.4; 1421 => 1421.
+    try:
+        numeric = float(raw)
+        return numeric / 1000.0 if numeric >= 10000 and numeric.is_integer() else numeric
+    except ValueError:
+        return 0.0
+
+
 def _legacy_calculation(
     key: str,
     values: dict[str, Any],
@@ -41,7 +101,7 @@ def _legacy_calculation(
     extra_name: str,
     extra_value: float,
 ) -> CalculationResult:
-    milhas = _num(values, "milhas")
+    milhas = _milhas_em_milheiros(values.get("milhas"))
     milheiro = _num(values, "milheiro")
     taxa = _num(values, "taxa")
     bag_fee = _num(values, "bagagem_unitaria")
@@ -170,6 +230,11 @@ def calculate(
             "bagagens": bags,
         }
     )
+
+    # O campo "milhas" trabalha internamente em milheiros. Assim o usuário
+    # pode digitar 1.421.400 ou 1421,4 e ambos viram 1421.4 no cálculo.
+    if "milhas" in values:
+        values["milhas"] = _milhas_em_milheiros(values.get("milhas"))
 
     if airline.engine_type == "legacy" and calculation_type.legacy_key:
         return _legacy_calculation(
