@@ -342,12 +342,12 @@
   border-radius:999px;
 }
 
-</style>
 
 /* V5.12 - opcionais no fim e visual claro premium */
 .optional-bottom-stack{display:grid;gap:10px;margin-top:16px}.optional-bottom-card{border:1px solid var(--border);border-radius:16px;background:var(--panel);overflow:hidden;box-shadow:var(--shadow)}.optional-bottom-card>summary{list-style:none;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px 16px;cursor:pointer}.optional-bottom-card>summary::-webkit-details-marker{display:none}.optional-summary-step{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;font-weight:950}.optional-bottom-card summary strong,.optional-bottom-card summary small{display:block}.optional-bottom-card summary small{color:var(--muted);margin-top:2px;font-size:.72rem}.optional-summary-pill{padding:4px 8px;border-radius:999px;background:rgba(44,151,255,.12);border:1px solid rgba(70,165,255,.18);color:var(--cyan-2);font-size:.66rem;font-weight:900}.optional-bottom-content{padding:0 14px 14px}.optional-bottom-content>.form-section{margin:0;box-shadow:none}.optional-bottom-card .section-title{display:none}.optional-bottom-card[open]>summary{border-bottom:1px solid var(--border)}
 html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-section,html[data-theme="light"] .optional-bottom-card{background:#fff!important;border-color:#d9e7f5!important;box-shadow:0 8px 28px rgba(30,75,120,.07)!important}html[data-theme="light"] .calc-scope-card{background:#fff!important;color:#0c2a52!important;border-color:#d7e5f4!important;box-shadow:0 6px 20px rgba(32,79,130,.06)!important}html[data-theme="light"] .calc-scope-card.active{background:linear-gradient(135deg,#eef8ff,#f7fbff)!important;border-color:#2f8ef8!important;box-shadow:0 0 0 3px rgba(47,142,248,.10)!important}html[data-theme="light"] .scope-copy-soft strong{color:#0c2a52!important}html[data-theme="light"] .scope-copy-soft small{color:#66809c!important}html[data-theme="light"] .operation-profile-panel-visible{background:#fff!important;border-color:#d9e7f5!important}html[data-theme="light"] .operation-main-field>span,html[data-theme="light"] .partner-segment-field>span>b{color:#163a63!important}html[data-theme="light"] .operation-main-field select,html[data-theme="light"] .operation-main-field input,html[data-theme="light"] .partner-segment-field input{background:#fff!important;color:#0c2a52!important;border-color:#cfdff0!important}html[data-theme="light"] .partner-segment-field{background:#f8fbff!important;border-color:#dce9f6!important}
 @media(max-width:620px){.optional-bottom-card>summary{grid-template-columns:auto 1fr;padding:12px}.optional-summary-pill{display:none}.optional-bottom-content{padding:0 8px 8px}}
+</style>
 {% endblock %}
 {% block content %}
 <section class="page-heading inline">
@@ -448,7 +448,16 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
 
   <div class="panel form-panel">
     {% if selected_airline and selected_type %}
-    <div class="selected-airline-head" style="--airline-color: {{ selected_airline.color }}">
+    <div class="calc-workflow-guide" aria-label="Etapas da calculadora">
+      <div class="calc-workflow-step is-active"><b>1</b><span><strong>Companhia e categoria</strong><small>Selecione a regra do cálculo</small></span></div>
+      <div class="calc-workflow-step"><b>2</b><span><strong>Campos do cálculo</strong><small>Milhas, valores e taxas</small></span></div>
+      <div class="calc-workflow-step"><b>3</b><span><strong>Bagagens</strong><small>Quantidade desta opção</small></span></div>
+      <div class="calc-workflow-step"><b>4</b><span><strong>Financeiro</strong><small>Somente quando aplicável</small></span></div>
+      <div class="calc-workflow-step is-optional"><b>5</b><span><strong>Datas</strong><small>Opcional</small></span></div>
+      <div class="calc-workflow-step is-optional"><b>6</b><span><strong>Horários</strong><small>Opcional</small></span></div>
+    </div>
+
+    <div class="selected-airline-head calc-selected-airline" style="--airline-color: {{ selected_airline.color }}">
       <div>{% if selected_airline.logo_path %}<img src="/{{ selected_airline.logo_path }}" alt="{{ selected_airline.name }}">{% else %}<span class="brand-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}</div>
       <div>
         <span class="eyebrow">COMPANHIA • CATEGORIA DE CÁLCULO</span>
@@ -549,28 +558,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
           </div>
         </div>
 
-        {% if partner_airline_options %}
-        <div class="partner-featured">
-          <div class="partner-featured-head">
-            <div>
-              <strong>Companhias</strong>
-              <small>Clique para selecionar rapidamente.</small>
-            </div>
-            <span>{{ partner_airline_options|length }} disponível(is)</span>
-          </div>
-          <div class="partner-featured-list">
-            {% for partner in partner_airline_options[:12] %}
-            <button type="button" class="partner-featured-chip" data-partner-pick="{{ partner.name }}">
-              <span class="partner-name-mark">{{ partner.name[:2]|upper }}</span>
-              <span class="partner-featured-copy">
-                <strong>{{ partner.name }}</strong>
-                <small>{{ partner.market_label }}</small>
-              </span>
-            </button>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
+
 
         <div class="partner-airline-panel partner-airline-panel-always" id="partnerAirlineField">
           <div class="partner-panel-heading professional">
@@ -623,7 +611,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
       <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
 
       <div class="form-section soft segment-scope-panel">
-        <div class="section-title"><span class="step-badge">1</span><div><h3 class="variant-scope-heading">O que você quer calcular agora? <span class="variant-name-pill">{{ selected_variant_name }}</span></h3><p>Escolha a opção principal e, quando necessário, use Skip Normal ou Skip Inverso. Os dois modos Skip ficam disponíveis em Só ida e em Ida e volta, sempre separados no histórico.</p></div></div>
+        <div class="section-title"><span class="step-badge">1</span><div><h3 class="variant-scope-heading">Categoria e tipo de cálculo <span class="variant-name-pill">{{ selected_variant_name }}</span></h3><p>Escolha a categoria, o tipo da opção e o trecho que será calculado. Skip continua como categoria especial com suas regras próprias.</p></div></div>
         <div class="calc-scope-layout" id="calcScopeGrid">
           {% if route_scopes %}
           <section class="scope-category-block">
@@ -693,7 +681,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
         <div class="skip-route-preview" id="skipRoutePreview"></div>
       </div>
 
-      <div class="form-section" data-standard-calculation-section>
+      <div class="form-section calculation-values-section" data-standard-calculation-section>
         <div class="section-title"><span class="step-badge">2</span><div><h3>{{ selected_type.name }}</h3><p>{% if selected_airline.engine_type == 'legacy' %}Regra original preservada e protegida.{% else %}Fórmula: <code>{{ selected_type.formula }}</code>{% endif %}</p></div></div>
         <div class="form-grid cols-2">
         {% set fields_to_render = calculation_fields or selected_type.fields %}
@@ -718,7 +706,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
         </div>
       </div>
 
-      <div class="form-section soft" data-standard-calculation-section>
+      <div class="form-section soft baggage-section" data-standard-calculation-section>
         <div class="section-title"><span class="step-badge">3</span><div><h3>Bagagens desta opção</h3><p>Defina aqui a quantidade de bagagens apenas para a companhia selecionada.</p></div></div>
         <div class="form-grid cols-2">
           <label>Quantidade de bagagens adicionais<input type="number" name="bags_override" value="{{ option_bags or 0 }}" min="0" max="100" step="1"></label>
@@ -741,7 +729,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
         <div class="notice-card muted compact-note skip-financial-note"><strong>Registro simplificado</strong><br>No Skip, a comissão é opcional. O valor líquido é calculado como Valor da opção − Comissão. Datas e horários continuam opcionais.</div>
       </div>
 
-      <div class="form-section soft" id="optionMetadataSection" data-option-metadata-section>
+      <div class="form-section soft option-metadata-section" id="optionMetadataSection" data-option-metadata-section>
         <div class="option-metadata-header"><div class="section-title"><span class="step-badge">5</span><div><h3>Tarifa, classe e identificação</h3><p>Esses dados também ficam disponíveis nas opções Skip e podem ser alterados depois.</p></div></div><span class="skip-metadata-note scope-availability-pill">Disponível no Skip</span></div>
         {% set meta = option_meta or {} %}
         {% set airline_name_l = (selected_airline.name|lower) if selected_airline else '' %}

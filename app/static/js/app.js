@@ -65,3 +65,28 @@
     show(a.dataset.loaderMessage || 'Abrindo página...');
   }, true);
 })();
+
+/* V5.12.10 - alternância rápida claro/escuro */
+(() => {
+  const root = document.documentElement;
+  const button = document.getElementById('themeQuickToggle');
+  if (!button) return;
+
+  const STORAGE_KEY = 'dbmilesx-theme-quick';
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === 'light' || saved === 'dark') root.dataset.theme = saved;
+
+  const sync = () => {
+    const current = root.dataset.theme === 'light' ? 'light' : 'dark';
+    button.setAttribute('aria-pressed', current === 'light' ? 'true' : 'false');
+    button.title = current === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro';
+  };
+
+  button.addEventListener('click', () => {
+    const next = root.dataset.theme === 'light' ? 'dark' : 'light';
+    root.dataset.theme = next;
+    localStorage.setItem(STORAGE_KEY, next);
+    sync();
+  });
+  sync();
+})();

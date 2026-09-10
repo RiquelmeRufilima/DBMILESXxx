@@ -1464,3 +1464,71 @@ html[data-theme="light"] .selected-airline-head{background:linear-gradient(135de
 .form-actions{position:sticky;bottom:12px;z-index:12;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px);border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,0,0,.12)}
 html[data-theme="light"] .form-actions{background:rgba(248,251,255,.94)}
 @media(max-width:1050px){.dbm-top-search{display:none}.wizard-grid{grid-template-columns:1fr}.selector-panel{position:static}.main-content{padding-left:18px;padding-right:18px}}
+
+/* ===== V5.12.10 — calculadora premium + tema rápido ===== */
+.theme-quick-toggle{background:transparent;color:var(--text);border:1px solid var(--border)}
+.theme-quick-toggle .theme-icon-sun,.theme-quick-toggle .theme-icon-moon{width:1.12rem;height:1.12rem}
+html[data-theme="dark"] .theme-quick-toggle .theme-icon-moon{display:none}
+html[data-theme="light"] .theme-quick-toggle .theme-icon-sun{display:none}
+html[data-theme="light"] .sidebar{background:rgba(255,255,255,.96);box-shadow:12px 0 34px rgba(37,77,115,.05)}
+html[data-theme="light"] body{background:linear-gradient(180deg,#f8fbff 0,#f3f8fd 100%)}
+html[data-theme="light"] .main-content{background:transparent}
+html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:#fff;border-color:#d5e2ef;color:#102b4d}
+html[data-theme="light"] .nav-link.active{background:linear-gradient(90deg,#e8f4ff,#f4f9ff);color:#1268d4;border-color:#d0e6fb}
+html[data-theme="light"] .topbar{border-bottom-color:#dbe7f1;box-shadow:0 6px 22px rgba(34,75,116,.045)}
+
+.calc-workflow-guide{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:-4px 0 18px}
+.calc-workflow-step{display:flex;align-items:center;gap:10px;min-width:0;padding:11px 12px;border-radius:14px;border:1px solid var(--border);background:color-mix(in srgb,var(--panel) 92%,transparent)}
+.calc-workflow-step>b{display:grid;place-items:center;width:31px;height:31px;flex:0 0 31px;border-radius:50%;background:var(--panel-2);border:1px solid var(--border);color:var(--muted)}
+.calc-workflow-step span{display:grid;min-width:0}.calc-workflow-step strong{font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calc-workflow-step small{font-size:.62rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calc-workflow-step.is-active{border-color:color-mix(in srgb,var(--blue) 55%,var(--border));background:linear-gradient(135deg,color-mix(in srgb,var(--blue) 12%,var(--panel)),var(--panel))}.calc-workflow-step.is-active>b{background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;border-color:transparent}.calc-workflow-step.is-optional small{color:var(--cyan-2)}
+html[data-theme="light"] .calc-workflow-step{background:#fff;border-color:#dbe7f2;box-shadow:0 5px 18px rgba(31,76,119,.045)}
+html[data-theme="light"] .calc-workflow-step.is-active{background:linear-gradient(135deg,#eef8ff,#fff);border-color:#58a6f8}
+
+.calc-selected-airline{border:1px solid color-mix(in srgb,var(--cyan) 24%,var(--border));border-radius:18px;padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--cyan) 5%,var(--panel)),var(--panel));margin-bottom:12px}
+html[data-theme="light"] .calc-selected-airline{background:#fff;border-color:#dbe8f4;box-shadow:0 7px 22px rgba(32,74,112,.055)}
+
+/* Cada etapa principal vira um card visual independente */
+.calculation-form>.form-section,.calculation-form>.optional-bottom-stack{margin-top:12px}
+.calculation-form>.form-section{padding:18px;border-radius:18px;border:1px solid color-mix(in srgb,var(--cyan) 12%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,var(--cyan) 2.5%,var(--panel)),var(--panel));box-shadow:0 8px 26px rgba(0,0,0,.08)}
+html[data-theme="light"] .calculation-form>.form-section{background:#fff;border-color:#dce8f3;box-shadow:0 8px 25px rgba(31,72,109,.055)}
+.calculation-form .section-title{margin-bottom:14px}.calculation-form .section-title h3{font-size:1rem}.calculation-form .section-title p{font-size:.76rem}
+.calculation-form label{color:var(--text);font-size:.77rem}.calculation-form label small{font-size:.65rem}
+
+/* Não exibir mais a faixa de dezenas de companhias — a pesquisa continua disponível */
+.partner-featured{display:none!important}
+
+/* Opcionais ficam no rodapé e fechados por padrão */
+.optional-bottom-stack{order:90;display:grid;gap:9px;margin-top:16px}
+.optional-bottom-card{border-radius:15px!important;box-shadow:none!important}
+.optional-bottom-card>summary{min-height:58px}
+.optional-bottom-card:not([open]) .optional-bottom-content{display:none}
+html[data-theme="light"] .optional-bottom-card{background:#fff!important;border-color:#dce7f1!important}
+html[data-theme="light"] .optional-bottom-card>summary:hover{background:#f8fbff}
+
+/* Mantém ações sempre depois dos opcionais */
+.calculation-form{display:flex!important;flex-direction:column;gap:0!important}
+.calculation-form>.sticky-form-actions{order:100}
+
+/* área de seleção/calculadora mais parecida com o layout aprovado */
+.segment-scope-panel{order:10}.skip-airport-panel{order:20}.calculation-form>[data-standard-calculation-section]:first-of-type{order:30}
+.skip-financial-panel{order:50}.option-metadata-header{align-items:center}
+.operation-profile-panel{order:5}
+
+@media(max-width:1180px){.calc-workflow-guide{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:760px){
+  .calc-workflow-guide{grid-template-columns:repeat(2,1fr);gap:6px}
+  .calc-workflow-step{padding:9px}.calc-workflow-step small{display:none}
+  .dbm-top-search{display:none!important}
+  .theme-quick-toggle{display:inline-flex}
+}
+@media(max-width:480px){.calc-workflow-guide{grid-template-columns:1fr 1fr}.calc-workflow-step strong{font-size:.68rem}}
+.calculation-form>.operation-profile-panel{order:10}
+.calculation-form>.segment-scope-panel{order:20}
+.calculation-form>.skip-airport-panel{order:25}
+.calculation-form>.calculation-values-section{order:30}
+.calculation-form>.baggage-section{order:40}
+.calculation-form>.skip-financial-panel{order:50}
+.calculation-form>.option-metadata-section{order:60}
+.calculation-form>.optional-bottom-stack{order:70}
+.calculation-form>.sticky-form-actions{order:80}

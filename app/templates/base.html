@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icons/favicon-64.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <link rel="stylesheet" href="/static/css/app.css?v=5.11.00">
+  <link rel="stylesheet" href="/static/css/app.css?v=5.12.10">
   {% block head %}{% endblock %}
 <style>
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
@@ -77,6 +77,8 @@
     <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H4v16h6M14 8l4 4-4 4M8 12h10"/></symbol>
     <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="m12 2 1.6 4.4L18 8l-4.4 1.6L12 14l-1.6-4.4L6 8l4.4-1.6zM19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
     <symbol id="icon-tasks" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M8 10l1.5 1.5L12 9M14 10h2M8 16l1.5 1.5L12 15M14 16h2"/></symbol>
     <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
@@ -145,6 +147,10 @@
     <button class="icon-button mobile-only" id="menuButton" aria-label="Abrir menu"><svg class="ui-icon"><use href="#icon-menu"></use></svg></button>
     <div class="topbar-copy"><small>{% block eyebrow %}DBMILESX WEB V5{% endblock %}</small><strong>{% block page_title %}Sistema de cotações{% endblock %}</strong></div><div class="dbm-top-search"><svg class="ui-icon"><use href="#icon-search"></use></svg><span>Buscar cotações, passageiros, localizadores...</span><kbd>Ctrl + K</kbd></div>
     <div class="topbar-actions">
+      <button type="button" class="top-icon-button theme-quick-toggle" id="themeQuickToggle" aria-label="Alternar modo claro e escuro" title="Alternar modo claro/escuro">
+        <svg class="ui-icon theme-icon-sun"><use href="#icon-sun"></use></svg>
+        <svg class="ui-icon theme-icon-moon"><use href="#icon-moon"></use></svg>
+      </button>
       <a href="/tasks" class="top-icon-button {% if request.url.path.startswith('/tasks') %}active{% endif %}" aria-label="Tarefas e cotações: {{ pending_task_count }} pendente(s)" title="Tarefas e cotações"><svg class="ui-icon"><use href="#icon-tasks"></use></svg>{% if pending_task_count %}<span>{{ pending_task_count }}</span>{% endif %}</a>
       <a href="/notifications" class="top-icon-button" aria-label="Notificações"><svg class="ui-icon"><use href="#icon-bell"></use></svg>{% if unread_count %}<span>{{ unread_count }}</span>{% endif %}</a>
       <a href="/profile" class="user-chip">
@@ -200,7 +206,7 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=5.10.33" defer></script>
+  <script src="/static/js/app.js?v=5.12.10" defer></script>
   <script src="/static/js/password-toggle.js?v=5.10.33" defer></script>
   {% if user %}<script src="/static/js/person-search.js?v=5.10.33" defer></script><script src="/static/js/airport-search.js?v=5.10.40" defer></script>{% endif %}
   {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.10.33" defer></script>{% endif %}
