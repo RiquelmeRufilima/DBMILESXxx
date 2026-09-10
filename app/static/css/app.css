@@ -1624,34 +1624,15 @@ body.pref-dense-tables .data-table th,body.pref-dense-tables .data-table td{padd
 @media(max-width:620px){.settings-tabs a{padding:9px 10px}.settings-tabs a .ui-icon{display:none}.theme-preset-grid{grid-template-columns:1fr}.settings-link-grid{grid-template-columns:1fr}.settings-danger-zone{align-items:stretch;flex-direction:column}.storage-status-grid{grid-template-columns:1fr 1fr}.clean-option-row .history-logo-seal,.quote-option-row .history-logo-seal{width:58px!important;height:50px!important;min-width:58px!important}}
 
 
-/* V5.14 — Histórico alinhado à esquerda + ranking global por preço */
+/* V5.14.1 HOTFIX — histórico alinhado à esquerda sem alterar o backend */
 .clean-option-row{
-  grid-template-columns:22px minmax(300px,720px) minmax(125px,180px)!important;
-  grid-template-areas:
-    "check airline value"
-    "check actions actions"!important;
-  justify-content:start!important;
-  align-items:start!important;
-  column-gap:14px!important;
-  row-gap:10px!important;
+  grid-template-columns:22px minmax(320px,760px) minmax(125px,180px)!important;
+  grid-template-areas:"check airline value" "check actions actions"!important;
+  justify-content:start!important;align-items:start!important;column-gap:14px!important;row-gap:10px!important;
 }
 .clean-option-row>.select-check{grid-area:check;align-self:start;margin-top:8px}
-.clean-option-row>.option-airline{grid-area:airline;justify-self:start!important;align-items:flex-start!important;width:100%;max-width:720px}
+.clean-option-row>.option-airline{grid-area:airline;justify-self:start!important;align-items:flex-start!important;width:100%;max-width:760px}
 .clean-option-row>.option-value{grid-area:value;justify-self:start!important;text-align:left!important;align-self:start}
-.clean-option-row>.option-actions{grid-area:actions;justify-self:start!important;justify-content:flex-start!important;max-width:920px}
+.clean-option-row>.option-actions{grid-area:actions;justify-self:start!important;justify-content:flex-start!important;max-width:960px}
 .clean-option-row .option-airline>div:last-child{text-align:left!important;justify-items:start!important}
-.history-scope-title-premium{padding:10px 12px!important;border-radius:12px;background:color-mix(in srgb,var(--cyan) 7%,var(--panel-2));border:1px solid color-mix(in srgb,var(--cyan) 15%,var(--border))!important}
-.history-scope-title-premium>span{font-size:.86rem!important;letter-spacing:.06em!important;color:var(--text)!important}
-.history-scope-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-.best-scope-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:linear-gradient(135deg,#ffd95a,#f3a712);color:#3a2700;font-size:.62rem;letter-spacing:.04em;box-shadow:0 5px 14px rgba(243,167,18,.18)}
-.best-price-option{border-color:color-mix(in srgb,#f3b71b 45%,var(--border))!important;box-shadow:inset 3px 0 0 #f3b71b,0 10px 28px rgba(0,0,0,.08)!important}
-.best-price-tag{display:inline-flex;margin-bottom:5px;padding:3px 7px;border-radius:999px;background:rgba(51,214,159,.14);border:1px solid rgba(51,214,159,.24);color:var(--green);font-size:.61rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
-html[data-theme="light"] .history-scope-title-premium{background:color-mix(in srgb,var(--cyan) 5%,#fff)!important;border-color:#dce9f3!important}
-html[data-theme="light"] .history-scope-title-premium>span{color:#153858!important}
-html[data-theme="light"] .best-price-option{background:#fffef8!important}
-@media(max-width:900px){
-  .clean-option-row{grid-template-columns:22px minmax(0,1fr)!important;grid-template-areas:"check airline" "check value" "check actions"!important}
-  .clean-option-row>.option-value,.clean-option-row>.option-actions{justify-self:start!important}
-  .history-scope-title-premium{align-items:flex-start;flex-direction:column}
-  .history-scope-meta{justify-content:flex-start}
-}
+@media(max-width:900px){.clean-option-row{grid-template-columns:22px minmax(0,1fr)!important;grid-template-areas:"check airline" "check value" "check actions"!important}.clean-option-row>.option-value,.clean-option-row>.option-actions{justify-self:start!important}}

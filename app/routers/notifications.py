@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -12,35 +12,6 @@ from ..security import validate_csrf_token
 from ..web import context, flash, templates
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
-
-
-@router.get("/state")
-def notifications_state(request: Request, db: Session = Depends(get_db)):
-    """Estado leve para atualizar o sino e tocar som sem recarregar a página."""
-    user = current_user(request, db)
-    if user is None:
-        return JSONResponse({"ok": False}, status_code=401)
-
-    unread_items = list(db.scalars(
-        select(Notification)
-        .where(Notification.user_id == user.id, Notification.read.is_(False))
-        .order_by(desc(Notification.created_at), desc(Notification.id))
-        .limit(200)
-    ).all())
-    unread_items = [
-        item for item in unread_items
-        if str(item.kind or "").lower() != "quote"
-        and not str(item.title or "").strip().lower().startswith("atualização de cotação")
-        and not str(item.title or "").strip().lower().startswith("atualizacao de cotacao")
-    ]
-    latest = unread_items[0] if unread_items else None
-    return {
-        "ok": True,
-        "unread_count": len(unread_items),
-        "latest_unread_id": int(latest.id) if latest else 0,
-        "latest_kind": str(latest.kind or "") if latest else "",
-        "latest_title": str(latest.title or "") if latest else "",
-    }
 
 
 @router.get("")

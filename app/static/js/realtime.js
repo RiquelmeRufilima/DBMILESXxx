@@ -44,9 +44,8 @@
         [0.20, 820, 0.16, 0.05],
       ],
       notification: [
-        [0.00, 660, 0.10, 0.035],
-        [0.09, 880, 0.12, 0.045],
-        [0.19, 1120, 0.18, 0.05],
+        [0.00, 640, 0.12, 0.04],
+        [0.13, 880, 0.16, 0.05],
       ],
     };
     const sequence = sequences[kind];
@@ -86,6 +85,10 @@
     if (type === 'task_event') {
       const actorId = Number(payload?.actor_user_id || 0);
       if (!actorId || actorId !== currentUserId) playNotificationSound('task');
+      return;
+    }
+    if (type.includes('notification') || type === 'alert' || type === 'system_alert') {
+      playNotificationSound('notification');
     }
   }
 
@@ -190,65 +193,6 @@
       return socket?.readyState === WebSocket.OPEN;
     },
   };
-
-
-  // Notificações gerais: consulta leve para avisar novas solicitações/avisos
-  // mesmo quando não chegam pelo websocket de chat/tarefas.
-  let notificationBaselineReady = false;
-  let lastUnreadNotificationId = 0;
-
-  function updateBellCount(count) {
-    const link = document.querySelector('a[href="/notifications"].top-icon-button');
-    if (!link) return;
-    let badge = link.querySelector(':scope > span');
-    if (count > 0) {
-      if (!badge) {
-        badge = document.createElement('span');
-        link.appendChild(badge);
-      }
-      badge.textContent = String(count);
-    } else if (badge) {
-      badge.remove();
-    }
-  }
-
-  async function pollNotificationState() {
-    if (document.hidden) return;
-    try {
-      const response = await fetch('/notifications/state', {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-        credentials: 'same-origin',
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      if (!data?.ok) return;
-      const latestId = Number(data.latest_unread_id || 0);
-      const count = Number(data.unread_count || 0);
-      updateBellCount(count);
-
-      if (!notificationBaselineReady) {
-        lastUnreadNotificationId = latestId;
-        notificationBaselineReady = true;
-        return;
-      }
-
-      if (latestId && latestId > lastUnreadNotificationId) {
-        const kind = String(data.latest_kind || '').toLowerCase();
-        // Chat e tarefa já têm som instantâneo pelo websocket; evita som duplicado.
-        if (kind !== 'chat' && kind !== 'task') playNotificationSound('notification');
-        lastUnreadNotificationId = latestId;
-      } else if (!latestId) {
-        lastUnreadNotificationId = 0;
-      }
-    } catch (_) {}
-  }
-
-  pollNotificationState();
-  const notificationPollTimer = setInterval(pollNotificationState, 15000);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) pollNotificationState();
-  });
 
   connect();
 })();
