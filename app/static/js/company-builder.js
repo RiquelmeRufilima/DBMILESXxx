@@ -9,7 +9,7 @@
   const presets = {
     discount: {label:'Desconto (%)', key:'desconto', field_type:'percent', default_value:'0', min_value:0, max_value:100, step:1},
     interest: {label:'Juros (%)', key:'juros', field_type:'percent', default_value:'0', min_value:0, max_value:1000, step:1},
-    fee: {label:'Taxa adicional', key:'taxa_adicional', field_type:'number', default_value:'0', min_value:0, max_value:'', step:.01}
+    fee: {label:'Taxa adicional', key:'taxa_adicional', field_type:'money', default_value:'0', min_value:0, max_value:'', step:.01}
   };
 
   function fieldRow(data = {}) {
@@ -18,10 +18,19 @@
     row.innerHTML = `
       <label>Nome<input data-field="label" value="${data.label || ''}" placeholder="Ex: Taxa de embarque" required></label>
       <label>Chave<input data-field="key" value="${data.key || ''}" placeholder="taxa" required></label>
-      <label>Tipo<select data-field="field_type"><option value="number">Número</option><option value="integer">Inteiro</option><option value="percent">Percentual</option><option value="text">Texto</option></select></label>
+      <label>Tipo<select data-field="field_type"><option value="miles">Milhas/Pontos</option><option value="money">Valor (R$)</option><option value="number">Número decimal</option><option value="integer">Inteiro</option><option value="percent">Percentual</option><option value="text">Texto</option></select></label>
       <label>Valor padrão<input data-field="default_value" value="${data.default_value ?? '0'}"></label>
       <button type="button" class="field-remove" aria-label="Remover">×</button>`;
-    row.querySelector('[data-field="field_type"]').value = data.field_type || 'number';
+    {
+      let type = data.field_type || 'number';
+      if(type === 'number'){
+        const key = String(data.key || '').toLowerCase();
+        const label = String(data.label || '').toLowerCase();
+        if(/milha|ponto|avios/.test(key + ' ' + label)) type = 'miles';
+        else if(/taxa|valor|preço|preco|custo|dinheiro|milheiro|bagagem|comissão|comissao|tarifa|adicional|imposto/.test(key + ' ' + label)) type = 'money';
+      }
+      row.querySelector('[data-field="field_type"]').value = type;
+    }
     const labelInput = row.querySelector('[data-field="label"]');
     const keyInput = row.querySelector('[data-field="key"]');
     let manuallyEdited = Boolean(data.key);
@@ -53,7 +62,7 @@
   document.querySelectorAll('[data-add-preset]').forEach((button) => button.addEventListener('click', () => fieldRow(presets[button.dataset.addPreset])));
   form.addEventListener('submit', serialize);
 
-  fieldRow({label:'Milhas',key:'milhas',field_type:'number',default_value:'0',min_value:0,max_value:'',step:.001});
-  fieldRow({label:'Valor do milheiro',key:'milheiro',field_type:'number',default_value:'0',min_value:0,max_value:'',step:.01});
-  fieldRow({label:'Taxa',key:'taxa',field_type:'number',default_value:'0',min_value:0,max_value:'',step:.01});
+  fieldRow({label:'Milhas',key:'milhas',field_type:'miles',default_value:'0',min_value:0,max_value:'',step:.001});
+  fieldRow({label:'Valor do milheiro',key:'milheiro',field_type:'money',default_value:'0',min_value:0,max_value:'',step:.01});
+  fieldRow({label:'Taxa',key:'taxa',field_type:'money',default_value:'0',min_value:0,max_value:'',step:.01});
 })();

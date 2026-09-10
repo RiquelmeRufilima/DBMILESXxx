@@ -29,7 +29,7 @@ from ..models import (
 from ..security import validate_csrf_token
 from ..services.travel_data import AIRLINE_OPTIONS, BR_AIRPORTS, checkin_link_for_airline
 from ..services.quote_activity import record_quote_activity, publish_quote_activity
-from ..services.uploads import delete_relative_upload, save_quote_attachment, save_upload_image
+from ..services.uploads import delete_relative_upload, save_quote_attachment
 from ..services.pdf_service import _html_to_pdf, file_to_data_uri
 from ..web import context, flash, templates
 
@@ -335,7 +335,7 @@ def _get_option_group(db: Session, user, quote_id: int) -> tuple[WebQuote | None
     quote = db.scalar(
         select(WebQuote)
         .where(WebQuote.id == quote_id)
-        .options(selectinload(WebQuote.airline), selectinload(WebQuote.calculation_type), selectinload(WebQuote.trip), selectinload(WebQuote.commercial))
+        .options(selectinload(WebQuote.airline), selectinload(WebQuote.calculation_type), selectinload(WebQuote.trip))
     )
     if not _quote_allowed(user, quote):
         return None, None
@@ -477,19 +477,17 @@ def _seed_flights(group: QuoteGroup, quote: WebQuote | None = None) -> list[dict
             flight["notes"] = f"{marker}. {existing_notes}".strip()
         return flights
 
-    def make_flight(*, kind: str, label: str, origin: str, destination: str, departure_date: str = "", departure_time: str = "", arrival_date: str = "", arrival_time: str = "", flexible: bool = False, option_number: int = 1, segment_key: str = "", selected_schedule: bool = True, airline_override: str = "") -> dict[str, Any]:
+    def make_flight(*, kind: str, label: str, origin: str, destination: str, departure_date: str = "", departure_time: str = "", arrival_date: str = "", arrival_time: str = "", flexible: bool = False, option_number: int = 1) -> dict[str, Any]:
         return {
             "kind": kind,
             "label": label,
-            "segment_key": segment_key or kind,
-            "selected_schedule": bool(selected_schedule),
             "origin": origin or "",
             "destination": destination or "",
             "date": departure_date or "",
             "departure_date": departure_date or "",
             "arrival_date": arrival_date or departure_date or "",
             "return_date": str(scope.get("return_date") or (trip.return_date if trip else "") or ""),
-            "airline": str(airline_override or airline_name),
+            "airline": airline_name,
             "checkin_link": "",
             "notification_mode": "notificar_48h",
             "flight_number": "",
@@ -535,9 +533,6 @@ def _seed_flights(group: QuoteGroup, quote: WebQuote | None = None) -> list[dict
                 arrival_time=str(detail.get("arrival_time") or ""),
                 flexible=flexible,
                 option_number=positions[key],
-                segment_key=key,
-                selected_schedule=(positions[key] == 1),
-                airline_override=str(detail.get("airline") or ""),
             ))
         if flights:
             return mark_skip(flights)
@@ -560,8 +555,6 @@ def _seed_flights(group: QuoteGroup, quote: WebQuote | None = None) -> list[dict
                 origin=str(segment.get("origin") or fallback_origin),
                 destination=str(segment.get("destination") or fallback_destination),
                 departure_date=str(segment.get("date") or ""),
-                segment_key=key,
-                selected_schedule=True,
             ))
         if flights:
             return mark_skip(flights)
@@ -570,14 +563,14 @@ def _seed_flights(group: QuoteGroup, quote: WebQuote | None = None) -> list[dict
     departure_date = str(scope.get("departure_date") or (quote.trip.departure_date if quote and quote.trip else "") or (trip.departure_date if trip else "") or "")
     return_date = str(scope.get("return_date") or (quote.trip.return_date if quote and quote.trip else "") or (trip.return_date if trip else "") or "")
     if scope_key == "return":
-        return [make_flight(kind="volta", label="Voo de Volta", origin=fallback_origin, destination=fallback_destination, departure_date=return_date or departure_date, segment_key="return")]
+        return [make_flight(kind="volta", label="Voo de Volta", origin=fallback_origin, destination=fallback_destination, departure_date=return_date or departure_date)]
     if scope_key == "round_trip":
         return [
-            make_flight(kind="ida", label="Voo de Ida", origin=fallback_origin, destination=fallback_destination, departure_date=departure_date, segment_key="outbound"),
-            make_flight(kind="volta", label="Voo de Volta", origin=fallback_destination, destination=fallback_origin, departure_date=return_date, segment_key="return"),
+            make_flight(kind="ida", label="Voo de Ida", origin=fallback_origin, destination=fallback_destination, departure_date=departure_date),
+            make_flight(kind="volta", label="Voo de Volta", origin=fallback_destination, destination=fallback_origin, departure_date=return_date),
         ]
     if fallback_origin or fallback_destination or departure_date or airline_name:
-        return [make_flight(kind="ida", label="Voo de Ida", origin=fallback_origin, destination=fallback_destination, departure_date=departure_date, segment_key="outbound")]
+        return [make_flight(kind="ida", label="Voo de Ida", origin=fallback_origin, destination=fallback_destination, departure_date=departure_date)]
     return []
 
 
@@ -596,23 +589,7 @@ def _seed_payload(group: QuoteGroup, quote: WebQuote | None = None) -> dict[str,
     return_date = str(scope.get("return_date") or (quote.trip.return_date if quote and quote.trip else "") or (trip.return_date if trip else "") or "")
     if str(scope.get("key") or "") == "return" and not departure_date:
         departure_date = return_date
-    # Skip: o cálculo exibe o valor líquido (valor bruto - comissão), mas na
-    # cotação aceita registramos o custo bruto e levamos a comissão para o
-    # campo "Comissão adicional opcional". Assim o financeiro não desconta
-    # duas vezes e o lucro com comissões fica correto.
-    skip_financial = _input_data.get("_skip_financial") if isinstance(_input_data.get("_skip_financial"), dict) else {}
-    is_skip_quote = bool(skip_financial.get("record_only")) or str(scope.get("key") or "") in {"skip_normal", "skip_inverse"}
-    skip_gross_value = max(0.0, float(skip_financial.get("value") or 0)) if is_skip_quote else 0.0
-    skip_commission_value = max(0.0, float(skip_financial.get("commission") or 0)) if is_skip_quote else 0.0
-    calculated_value = float(getattr(quote, "total", 0) or 0)
-    cost_value = skip_gross_value if is_skip_quote and skip_gross_value > 0 else calculated_value
-    commercial = getattr(quote, "commercial", None) if quote is not None else None
-    cash_sale_value = float(getattr(commercial, "sale_value", 0) or calculated_value) if commercial else calculated_value
-    card_installments = max(1, int(getattr(commercial, "card_installments", 1) or 1)) if commercial else 1
-    card_mode = str(getattr(commercial, "card_interest_mode", "cash") or "cash") if commercial else "cash"
-    card_total_value = float(getattr(commercial, "card_total_value", 0) or cash_sale_value) if commercial else cash_sale_value
-    card_installment_value = float(getattr(commercial, "card_installment_value", 0) or (card_total_value / card_installments if card_installments else card_total_value)) if commercial else cash_sale_value
-    card_difference_value = float(getattr(commercial, "card_difference_value", 0) or max(0.0, card_total_value - cash_sale_value)) if commercial else 0.0
+    sale_value = float(getattr(quote, "total", 0) or 0)
     desc = " ".join(x for x in [client_name or title, origin, destination, departure_date] if x).strip() or title
     flights = _seed_flights(group, quote)
     return {
@@ -638,48 +615,30 @@ def _seed_payload(group: QuoteGroup, quote: WebQuote | None = None) -> dict[str,
                 "payment_method": "[Pix]",
                 "installments": 1,
                 "due_date": departure_date,
-                "value": cost_value,
+                "value": sale_value,
                 "paid": False,
             }
-        ] if cost_value else [],
+        ] if sale_value else [],
         "sale_items": [
             {
                 "description": desc,
                 "account": "",
                 "category": "Venda de Passagem",
-                "payment_method": "[Cartão]" if card_mode in {"no_interest", "with_interest"} else "[Pix]",
-                "installments": card_installments if card_mode in {"no_interest", "with_interest"} else 1,
+                "payment_method": "[Pix]",
+                "installments": 1,
                 "due_date": departure_date,
-                "value": cash_sale_value,
+                "value": sale_value,
                 "paid": False,
             }
-        ] if cash_sale_value else [],
-        "commission": {"receive": [], "pay": [], "extra": round(skip_commission_value, 2)},
+        ] if sale_value else [],
+        "commission": {"receive": [], "pay": [], "extra": 0},
         "services": {"hotel": [], "transport": [], "cruise": [], "experiences": [], "insurance": [], "additional": [], "itinerary": ""},
         "terms": "",
         "notes": "",
         "sale": {"date": "", "launched": False, "launched_at": "", "notes": ""},
-        "commercial_offer": {
-            "cost_value": round(cost_value, 2),
-            "cash_sale_value": round(cash_sale_value, 2),
-            "profit_value": round(float(getattr(commercial, "profit_value", 0) or max(0.0, cash_sale_value - cost_value)), 2) if commercial else 0.0,
-            "profit_percent": round(float(getattr(commercial, "profit_percent", 0) or 0), 4) if commercial else 0.0,
-            "card_installments": card_installments,
-            "card_interest_mode": card_mode,
-            "card_total_value": round(card_total_value, 2),
-            "card_installment_value": round(card_installment_value, 2),
-            "card_difference_value": round(card_difference_value, 2),
-            "sent_to_client": bool(getattr(commercial, "sent_to_client_at", None)) if commercial else False,
-        },
         "_source_quote_id": quote.id if quote else None,
         "_selected_variant": variant,
         "_selected_scope": scope,
-        "_skip_financial": {
-            "value": round(skip_gross_value, 2),
-            "commission": round(skip_commission_value, 2),
-            "net_value": round(max(0.0, skip_gross_value - skip_commission_value), 2) if is_skip_quote else 0.0,
-            "record_only": bool(is_skip_quote),
-        },
     }
 
 
@@ -695,8 +654,7 @@ def _ensure_accepted(db: Session, user, group: QuoteGroup, quote: WebQuote | Non
     if quote is not None:
         item.quote_id = quote.id
         if not item.sale_value or previous_quote_id != quote.id:
-            commercial_sale = float(getattr(getattr(quote, "commercial", None), "sale_value", 0) or 0)
-            item.sale_value = commercial_sale or quote.total
+            item.sale_value = quote.total
     if not item.status or item.status == "aceita":
         item.status = "aguardando"
     data = _payload(item)
@@ -712,17 +670,6 @@ def _ensure_accepted(db: Session, user, group: QuoteGroup, quote: WebQuote | Non
         data["_source_quote_id"] = quote.id
         data["_selected_variant"] = seeded.get("_selected_variant", {})
         data["_selected_scope"] = seeded.get("_selected_scope", {})
-        data["commercial_offer"] = seeded.get("commercial_offer", {})
-        # Mantém o vínculo financeiro do Skip ao trocar a opção calculada.
-        seeded_skip = seeded.get("_skip_financial") if isinstance(seeded.get("_skip_financial"), dict) else {}
-        data["_skip_financial"] = seeded_skip
-        if seeded_skip.get("record_only"):
-            data["cost_items"] = seeded.get("cost_items", data.get("cost_items", []))
-            current_commission = data.get("commission") if isinstance(data.get("commission"), dict) else {"receive": [], "pay": [], "extra": 0}
-            current_commission["extra"] = float(seeded_skip.get("commission") or 0)
-            data["commission"] = current_commission
-        data["cost_items"] = seeded.get("cost_items", data.get("cost_items", []))
-        data["sale_items"] = seeded.get("sale_items", data.get("sale_items", []))
         _set_payload(item, data)
     return item, created
 
@@ -774,60 +721,9 @@ def _item_total(data: dict[str, Any], key: str) -> float:
     return total
 
 
-def _sync_sale_total_from_preview(data: dict[str, Any], value: Any) -> float:
-    """Mantém o valor do preview e os itens de venda apontando para o mesmo total."""
-    try:
-        total = max(0.0, round(float(value or 0), 2))
-    except (TypeError, ValueError):
-        total = 0.0
-
-    rows = [row for row in (data.get("sale_items") or []) if isinstance(row, dict)]
-    if not rows:
-        if total > 0:
-            rows = [{
-                "description": "Valor da cotação",
-                "value": total,
-                "account": "",
-                "category": "Passagem aérea",
-                "due_date": "",
-                "payment_method": "",
-                "installments": 1,
-                "paid": False,
-            }]
-        else:
-            rows = []
-    else:
-        old_total = sum(max(0.0, float(row.get("value") or 0)) for row in rows)
-        if old_total > 0:
-            allocated = 0.0
-            for row in rows[:-1]:
-                part = round(total * (max(0.0, float(row.get("value") or 0)) / old_total), 2)
-                row["value"] = part
-                allocated += part
-            rows[-1]["value"] = round(total - allocated, 2)
-        else:
-            for row in rows:
-                row["value"] = 0.0
-            if rows:
-                rows[0]["value"] = total
-    data["sale_items"] = rows
-
-    preview = data.get("preview") if isinstance(data.get("preview"), dict) else {}
-    preview["price"] = total
-    data["preview"] = preview
-
-    commercial = data.get("commercial_offer") if isinstance(data.get("commercial_offer"), dict) else {}
-    if commercial:
-        commercial["cash_sale_value"] = total
-        data["commercial_offer"] = commercial
-    return total
-
-
 def _apply_quote_from_payload(item: AcceptedQuote, data: dict[str, Any]) -> None:
     sale_total = _item_total(data, "sale_items")
-    # O total de venda é canônico: se os itens foram removidos, o valor também zera.
-    if "sale_items" in data:
-        item.sale_value = sale_total
+    item.sale_value = sale_total if sale_total else item.sale_value
     item.channel = data.get("channel") or item.channel
     item.locator = ""
     flights = data.get("flights") or []
@@ -842,17 +738,8 @@ def _apply_quote_from_payload(item: AcceptedQuote, data: dict[str, Any]) -> None
         item.status = "lancada"
 
 
-def _operational_flights(data: dict[str, Any]) -> list[dict[str, Any]]:
-    flights = [item for item in (data.get("flights") or []) if isinstance(item, dict)]
-    # Registros antigos não tinham seleção de horário: nesse caso todos continuam válidos.
-    if not any("selected_schedule" in item for item in flights):
-        return flights
-    chosen = [item for item in flights if bool(item.get("selected_schedule"))]
-    return chosen or flights[:1]
-
-
 def _sync_flight_registry(db: Session, user, item: AcceptedQuote, data: dict[str, Any]) -> None:
-    flights = _operational_flights(data)
+    flights = data.get("flights") or []
     first = None
     for fl in flights:
         if fl.get("departure_date") or fl.get("date") or fl.get("origin") or fl.get("destination") or fl.get("flight_number") or fl.get("locator"):
@@ -959,7 +846,6 @@ def _current_item(db: Session, user, group_id: int) -> AcceptedQuote | None:
             selectinload(AcceptedQuote.group).selectinload(QuoteGroup.assigned_user).selectinload(WebUser.profile),
             selectinload(AcceptedQuote.quote).selectinload(WebQuote.airline),
             selectinload(AcceptedQuote.quote).selectinload(WebQuote.calculation_type),
-            selectinload(AcceptedQuote.quote).selectinload(WebQuote.commercial),
             selectinload(AcceptedQuote.user).selectinload(WebUser.profile),
         )
     )
@@ -1041,7 +927,6 @@ def cotacoes(request: Request, db: Session = Depends(get_db)):
             selectinload(AcceptedQuote.group).selectinload(QuoteGroup.assigned_user).selectinload(WebUser.profile),
             selectinload(AcceptedQuote.quote).selectinload(WebQuote.airline),
             selectinload(AcceptedQuote.quote).selectinload(WebQuote.calculation_type),
-            selectinload(AcceptedQuote.quote).selectinload(WebQuote.commercial),
             selectinload(AcceptedQuote.user).selectinload(WebUser.profile),
         )
         .order_by(desc(AcceptedQuote.updated_at), desc(AcceptedQuote.selected_at))
@@ -2024,12 +1909,6 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
     sale = _safe_json(str(form.get("sale_json") or "{}"), {})
     data["sale"] = sale if isinstance(sale, dict) else {"date": "", "launched": False, "launched_at": "", "notes": ""}
 
-    # Alterações no valor feitas na tela principal aparecem imediatamente no preview.
-    current_sale_total = _item_total(data, "sale_items")
-    preview_data = data.get("preview") if isinstance(data.get("preview"), dict) else {}
-    preview_data["price"] = current_sale_total
-    data["preview"] = preview_data
-
     # Cliente, passageiros e fornecedores precisam existir no cadastro.
     client_name = str(data.get("client_name") or "").strip()
     client_person = _registered_person(
@@ -2144,7 +2023,10 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
             fl["departure_date"] = fl.get("date")
         if not fl.get("arrival_date"):
             fl["arrival_date"] = fl.get("departure_date") or fl.get("date") or ""
-        if not fl.get("checkin_link"):
+        has_checkin_reference = bool(str(fl.get("locator") or "").strip() or str(fl.get("purchase_number") or "").strip())
+        if not has_checkin_reference:
+            fl["checkin_link"] = ""
+        elif not fl.get("checkin_link"):
             fl["checkin_link"] = _checkin_link_for_airline(fl.get("airline"), fl.get("locator"), fl.get("purchase_number"))
 
     # Atualiza resumo principal para busca e histórico.
@@ -2260,22 +2142,9 @@ async def delete_cotacao_anexo(group_id: int, attachment_id: str, request: Reque
     return JSONResponse({"ok": True, "attachments": kept})
 
 
-@router.get("/cotacoes/{group_id}/preview/data")
-def dados_preview_reserva(group_id: int, request: Request, db: Session = Depends(get_db)):
-    """Fonte leve para o preview refletir alterações salvas em outras telas."""
-    user = require_user(request, db)
-    item = _current_item(db, user, group_id)
-    if item is None or not _group_allowed(user, item.group):
-        return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
-    data = dict(_payload(item))
-    sale_rows = data.get("sale_items") if isinstance(data.get("sale_items"), list) else []
-    data["current_sale_value"] = _item_total(data, "sale_items") if sale_rows else float(item.sale_value or 0)
-    return JSONResponse({"ok": True, "data": data})
-
-
 @router.post("/cotacoes/{group_id}/preview/save")
 async def salvar_preview_reserva(group_id: int, request: Request, db: Session = Depends(get_db)):
-    """Salva somente as opções visuais do preview. Dados comerciais/voos vêm da cotação."""
+    """Persiste as edições do editor de preview ao vivo."""
     user = require_user(request, db)
     form = await request.form()
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
@@ -2285,46 +2154,40 @@ async def salvar_preview_reserva(group_id: int, request: Request, db: Session = 
         return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
 
     data = _payload(item)
-    old_preview = data.get("preview") if isinstance(data.get("preview"), dict) else {}
-    incoming = _safe_json(str(form.get("preview_json") or "{}"), {})
-    preview = dict(old_preview)
+    preview = _safe_json(str(form.get("preview_json") or "{}"), {})
+    flights = _safe_json(str(form.get("flights_json") or "[]"), [])
+    if isinstance(preview, dict):
+        data["preview"] = preview
+    if isinstance(flights, list):
+        # Mantém apenas estruturas de voo válidas/tolerantes; os campos ficam editáveis.
+        cleaned = []
+        for fl in flights[:100]:
+            if not isinstance(fl, dict):
+                continue
+            row = dict(fl)
+            for key in ("origin", "destination"):
+                value = str(row.get(key) or "").strip().upper()
+                if value:
+                    row[key] = _iata_code(value)
+            stops = []
+            for stop in row.get("stops", []) or []:
+                if not isinstance(stop, dict):
+                    continue
+                st = dict(stop)
+                for key in ("origin", "destination"):
+                    value = str(st.get(key) or "").strip().upper()
+                    if value:
+                        st[key] = _iata_code(value)
+                stops.append(st)
+            row["stops"] = stops
+            cleaned.append(row)
+        data["flights"] = cleaned
 
-    # Somente preferências de apresentação podem ser alteradas nesta tela.
-    allowed = {
-        "document_title", "show_logo", "show_passengers", "show_terms",
-        "show_notes", "hidden_segments"
-    }
-    if isinstance(incoming, dict):
-        for key in allowed:
-            if key in incoming:
-                preview[key] = incoming[key]
-
-    upload = form.get("club_image")
-    remove_image = str(form.get("remove_club_image") or "") == "1"
-    old_image = str(preview.get("club_image_path") or "")
-    try:
-        if remove_image:
-            delete_relative_upload(old_image)
-            preview["club_image_path"] = ""
-        elif getattr(upload, "filename", None):
-            new_image = await save_upload_image(
-                upload,
-                UPLOAD_DIR / "quotes" / str(group_id) / "preview",
-                max_bytes=8 * 1024 * 1024,
-                filename_prefix=f"club-{group_id}",
-            )
-            if new_image:
-                if old_image and old_image != new_image:
-                    delete_relative_upload(old_image)
-                preview["club_image_path"] = new_image
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
-
-    data["preview"] = preview
+    _apply_quote_from_payload(item, data)
     _set_payload(item, data)
+    _sync_flight_registry(db, user, item, data)
     db.commit()
-    club_image_data = file_to_data_uri(preview.get("club_image_path")) if preview.get("club_image_path") else None
-    return JSONResponse({"ok": True, "message": "Preview salvo.", "club_image_data": club_image_data})
+    return JSONResponse({"ok": True, "message": "Preview salvo."})
 
 
 @router.post("/cotacoes/{group_id}/preview/pdf")
@@ -2359,16 +2222,9 @@ def visualizar_reserva(group_id: int, request: Request, db: Session = Depends(ge
         flash(request, "Cotação não encontrada.", "error")
         return RedirectResponse("/cadastros/cotacoes", status_code=303)
     data = _payload(item)
-    data = dict(data)
-    sale_rows = data.get("sale_items") if isinstance(data.get("sale_items"), list) else []
-    data["current_sale_value"] = _item_total(data, "sale_items") if sale_rows else float(item.sale_value or 0)
-    preview_data = dict(data.get("preview") or {}) if isinstance(data.get("preview"), dict) else {}
-    preview_data["price"] = data["current_sale_value"]
-    data["preview"] = preview_data
     
     company_logo_data = file_to_data_uri(user.company.logo_path) if getattr(user, "company", None) and user.company.logo_path else None
-    club_image_data = file_to_data_uri(preview_data.get("club_image_path")) if preview_data.get("club_image_path") else None
-    return templates.TemplateResponse(request, "cadastros/cotacao_preview.html", context(request, user=user, item=item, group=item.group, quote=item.quote, data=data, airport_map=BR_AIRPORTS, company_logo_data=company_logo_data, club_image_data=club_image_data, airline_logo_map=_airline_logo_map(db, user)))
+    return templates.TemplateResponse(request, "cadastros/cotacao_preview.html", context(request, user=user, item=item, group=item.group, quote=item.quote, data=data, airport_map=BR_AIRPORTS, company_logo_data=company_logo_data, airline_logo_map=_airline_logo_map(db, user)))
 
 
 @router.post("/cotacoes/{group_id}/remove")
@@ -2505,7 +2361,6 @@ def voos(request: Request, db: Session = Depends(get_db)):
             "checkin_status": fl_data.get("checkin_status") or checkin_status or "pendente",
             "checkin_link": fl_data.get("checkin_link") or (getattr(row, "checkin_link", None) if not isinstance(row, dict) else row.get("checkin_link")),
         }
-        quote_code = f"q{int(group.id):04d}"
         flight_items.append({
             "row": row_data,
             "group": group,
@@ -2520,12 +2375,6 @@ def voos(request: Request, db: Session = Depends(get_db)):
             "flight_index": flight_index,
             "client_name": client_name,
             "accepted": accepted,
-            "quote_code": quote_code,
-            "links": {
-                "edit_flight": f"/cadastros/voos/{group.id}/editar?flight_index={int(flight_index or 0)}",
-                "edit_quote": f"/cadastros/cotacoes/{group.id}?origem=voos&codigo={quote_code}",
-                "preview": f"/cadastros/cotacoes/{group.id}/visualizar?origem=voos&codigo={quote_code}",
-            },
         })
 
     for accepted in accepted_rows:
@@ -2534,27 +2383,23 @@ def voos(request: Request, db: Session = Depends(get_db)):
             continue
 
         registry = registry_by_group.get(group.id)
-        all_accepted_flights = _safe_flight_list(_payload(accepted).get("flights"))
-        if any("selected_schedule" in fl for fl in all_accepted_flights):
-            accepted_pairs = [(idx, fl) for idx, fl in enumerate(all_accepted_flights) if bool(fl.get("selected_schedule"))]
-        else:
-            accepted_pairs = list(enumerate(all_accepted_flights))
+        accepted_flights = _safe_flight_list(_payload(accepted).get("flights"))
         registry_data = _safe_json(getattr(registry, "extra_json", "{}"), {}) if registry is not None else {}
         registry_flights = _safe_flight_list(registry_data.get("flights")) if isinstance(registry_data, dict) else []
 
-        # A agenda operacional mostra apenas a opção de horário escolhida de
-        # cada trecho. As alternativas continuam salvas na cotação/PDF.
-        if accepted_pairs:
-            flight_pairs = accepted_pairs
-        else:
-            flight_pairs = list(enumerate(registry_flights))
-        if not flight_pairs:
+        # A cotação aceita precisa possuir voo cadastrado. Se o payload aceito
+        # ainda não tem trechos, aproveita os trechos do registro operacional
+        # da mesma cotação; registros de outras cotações nunca entram aqui.
+        flights = accepted_flights or registry_flights
+        if not flights:
             continue
 
-        for display_idx, (payload_idx, accepted_fl) in enumerate(flight_pairs):
+        for idx, accepted_fl in enumerate(flights):
             fl_data = dict(accepted_fl or {})
-            if display_idx < len(registry_flights):
-                reg_fl = registry_flights[display_idx]
+            # Complementa cada trecho com dados operacionais correspondentes,
+            # sem trocar a rota/datas já salvas na cotação aceita.
+            if idx < len(registry_flights):
+                reg_fl = registry_flights[idx]
                 for key in ("locator", "purchase_number", "flight_number", "checkin_status", "notification_mode", "checkin_link", "notes"):
                     if not fl_data.get(key) and reg_fl.get(key):
                         fl_data[key] = reg_fl.get(key)
@@ -2564,7 +2409,7 @@ def voos(request: Request, db: Session = Depends(get_db)):
                 quote=accepted.quote,
                 trip=group.trip,
                 fl_data=fl_data,
-                flight_index=payload_idx,
+                flight_index=idx,
                 accepted=accepted,
             )
 
@@ -2588,87 +2433,25 @@ def voos(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/voos/{group_id}/editar")
 def editar_voo(group_id: int, request: Request, db: Session = Depends(get_db)):
-    """Edita um trecho do voo mantendo a rota numérica estável.
-
-    qXXXX é somente o código visual da cotação. O vínculo real continua sendo
-    ``group_id`` no banco, evitando as rotas experimentais da V1.5/V1.6.
-    """
     user = require_user(request, db)
-    flight_index = max(0, int(_parse_int(request.query_params.get("flight_index")) or 0))
-
-    accepted = db.scalar(
-        select(AcceptedQuote)
-        .where(AcceptedQuote.group_id == group_id, _accepted_filter(user))
-        .options(
-            selectinload(AcceptedQuote.group).selectinload(QuoteGroup.trip),
-            selectinload(AcceptedQuote.quote).selectinload(WebQuote.airline),
-            selectinload(AcceptedQuote.quote).selectinload(WebQuote.trip),
-        )
-    )
-    if accepted is None or not _group_allowed(user, accepted.group):
-        flash(request, "Cotação aceita não encontrada para este voo.", "error")
-        return RedirectResponse("/cadastros/voos", status_code=303)
-
     item = db.scalar(
         select(FlightRegistry)
         .where(FlightRegistry.group_id == group_id, _flight_filter(user))
-        .options(
-            selectinload(FlightRegistry.group).selectinload(QuoteGroup.trip),
-            selectinload(FlightRegistry.quote).selectinload(WebQuote.airline),
-        )
+        .options(selectinload(FlightRegistry.group).selectinload(QuoteGroup.trip), selectinload(FlightRegistry.quote).selectinload(WebQuote.airline))
     )
-    if item is None:
-        item, _created = _ensure_flight(db, user, accepted.group, accepted.quote)
-        db.flush()
-
-    payload = _payload(accepted)
-    flights = _safe_flight_list(payload.get("flights"))
-    registry_json = _safe_json(getattr(item, "extra_json", "{}"), {})
-    registry_flights = _safe_flight_list(registry_json.get("flights")) if isinstance(registry_json, dict) else []
-    if not flights:
-        flights = registry_flights
-    flight_data = dict(flights[flight_index]) if 0 <= flight_index < len(flights) else {}
-
-    return templates.TemplateResponse(
-        request,
-        "cadastros/voo_form.html",
-        context(
-            request,
-            user=user,
-            item=item,
-            group=accepted.group,
-            quote=accepted.quote,
-            accepted=accepted,
-            quote_code=f"q{group_id:04d}",
-            flight_index=flight_index,
-            flight_data=flight_data,
-        ),
-    )
+    if item is None or not _group_allowed(user, item.group):
+        flash(request, "Voo não encontrado.", "error")
+        return RedirectResponse("/cadastros/voos", status_code=303)
+    return templates.TemplateResponse(request, "cadastros/voo_form.html", context(request, user=user, item=item, group=item.group, quote=item.quote))
 
 
 @router.post("/voos/{group_id}/editar")
 async def salvar_voo(group_id: int, request: Request, db: Session = Depends(get_db)):
-    """Salva o trecho e sincroniza Cotação ↔ Voo sem trocar a arquitetura de rotas."""
     user = require_user(request, db)
     form = await request.form()
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/cadastros/voos", status_code=303)
-
-    flight_index = max(0, int(_parse_int(str(form.get("flight_index") or "0")) or 0))
-    accepted = db.scalar(
-        select(AcceptedQuote)
-        .where(AcceptedQuote.group_id == group_id, _accepted_filter(user))
-        .options(
-            selectinload(AcceptedQuote.group).selectinload(QuoteGroup.trip),
-            selectinload(AcceptedQuote.quote).selectinload(WebQuote.airline),
-            selectinload(AcceptedQuote.quote).selectinload(WebQuote.trip),
-        )
-    )
-    if accepted is None or not _group_allowed(user, accepted.group):
-        flash(request, "Cotação aceita não encontrada para este voo.", "error")
-        return RedirectResponse("/cadastros/voos", status_code=303)
-
     item = db.scalar(
         select(FlightRegistry)
         .where(FlightRegistry.group_id == group_id, _flight_filter(user))
@@ -2677,103 +2460,68 @@ async def salvar_voo(group_id: int, request: Request, db: Session = Depends(get_
             selectinload(FlightRegistry.quote).selectinload(WebQuote.trip),
         )
     )
-    if item is None:
-        item, _created = _ensure_flight(db, user, accepted.group, accepted.quote)
-
-    group = accepted.group
+    if item is None or not _group_allowed(user, item.group):
+        flash(request, "Voo não encontrado.", "error")
+        return RedirectResponse("/cadastros/voos", status_code=303)
+    group = item.group
     trip = group.trip or QuoteGroupTripDetail(group_id=group.id)
     if group.trip is None:
         db.add(trip)
+    old_route = f"{group.origin or '—'} → {group.destination or '—'}"
+    old_departure_date = str(trip.departure_date or "")
+    old_return_date = str(trip.return_date or "")
 
-    payload = _payload(accepted)
-    flights = _safe_flight_list(payload.get("flights"))
-    registry_json = _safe_json(getattr(item, "extra_json", "{}"), {})
-    registry_flights = _safe_flight_list(registry_json.get("flights")) if isinstance(registry_json, dict) else []
-    if not flights and registry_flights:
-        flights = [dict(row) for row in registry_flights]
-    while len(flights) <= flight_index:
-        flights.append({})
-    old_selected = dict(flights[flight_index] or {})
-
-    origin = _iata_code(form.get("origin") or old_selected.get("origin") or group.origin)
-    destination = _iata_code(form.get("destination") or old_selected.get("destination") or group.destination)
+    origin = _iata_code(form.get("origin") or group.origin)
+    destination = _iata_code(form.get("destination") or group.destination)
     if not _iata_value_valid(origin) or not _iata_value_valid(destination) or origin == destination:
         flash(request, "Informe origem e destino com códigos IATA válidos e diferentes.", "error")
-        return RedirectResponse(f"/cadastros/voos/{group_id}/editar?flight_index={flight_index}", status_code=303)
-
-    departure_date = str(form.get("departure_date") or old_selected.get("departure_date") or old_selected.get("date") or "").strip()[:20]
-    arrival_date = str(form.get("arrival_date") or old_selected.get("arrival_date") or departure_date or "").strip()[:20]
-    locator = str(form.get("locator") or old_selected.get("locator") or item.locator or "").strip().upper()
-    flight_number = str(form.get("flight_number") or old_selected.get("flight_number") or item.flight_number or "").strip().upper()
-    airline_name = str(form.get("airline_name") or old_selected.get("airline") or item.airline_name or "").strip()
-    departure_time = str(form.get("departure_time") or old_selected.get("departure_time") or item.departure_time or "").strip()
-    arrival_time = str(form.get("arrival_time") or old_selected.get("arrival_time") or item.arrival_time or "").strip()
-    checkin_status = str(form.get("checkin_status") or old_selected.get("checkin_status") or item.checkin_status or "pendente").strip() or "pendente"
-    notification_mode = str(form.get("notification_mode") or old_selected.get("notification_mode") or item.notification_mode or "").strip()
-    notes = str(form.get("notes") or old_selected.get("notes") or item.notes or "").strip()
-    checkin_link = str(form.get("checkin_link") or old_selected.get("checkin_link") or item.checkin_link or "").strip()
-    if not checkin_link:
-        checkin_link = _checkin_link_for_airline(airline_name, locator, old_selected.get("purchase_number")) or ""
-
-    current = dict(old_selected)
-    current.update({
-        "origin": origin,
-        "destination": destination,
-        "departure_date": departure_date,
-        "date": departure_date,
-        "arrival_date": arrival_date,
-        "locator": locator,
-        "flight_number": flight_number,
-        "airline": airline_name,
-        "departure_time": departure_time,
-        "arrival_time": arrival_time,
-        "checkin_status": checkin_status,
-        "notification_mode": notification_mode,
-        "checkin_link": checkin_link,
-        "notes": notes,
-    })
-    flights[flight_index] = current
-    payload["quote_code"] = f"q{group_id:04d}"
-    payload["flights"] = flights
-    _apply_quote_from_payload(accepted, payload)
-    _set_payload(accepted, payload)
-
-    # O resumo da cotação acompanha o primeiro e o último trecho.
-    first = flights[0] if flights else current
-    last = flights[-1] if flights else current
-    group.origin = _iata_code(first.get("origin") or group.origin) or group.origin
-    group.destination = _iata_code(last.get("destination") or group.destination) or group.destination
+        return RedirectResponse(f"/cadastros/voos/{group_id}/editar", status_code=303)
+    group.origin = origin
+    group.destination = destination
     group.updated_at = datetime.utcnow()
-    trip.departure_date = str(first.get("departure_date") or first.get("date") or trip.departure_date or "").strip() or None
-    trip.return_date = (str(last.get("departure_date") or last.get("date") or "").strip() or None) if len(flights) > 1 else trip.return_date
+    trip.departure_date = str(form.get("departure_date") or "").strip()[:20] or None
+    trip.return_date = str(form.get("return_date") or "").strip()[:20] or None
 
-    if accepted.quote is not None:
-        accepted.quote.origin = group.origin
-        accepted.quote.destination = group.destination
-        if accepted.quote.trip is not None:
-            accepted.quote.trip.departure_date = trip.departure_date
-            accepted.quote.trip.return_date = trip.return_date
+    item.checkin_status = str(form.get("checkin_status") or "pendente").strip() or "pendente"
+    item.notification_mode = str(form.get("notification_mode") or "").strip() or None
+    item.locator = str(form.get("locator") or "").strip().upper() or None
+    item.flight_number = str(form.get("flight_number") or "").strip().upper() or None
+    item.airline_name = str(form.get("airline_name") or "").strip() or None
+    item.departure_time = str(form.get("departure_time") or "").strip() or None
+    item.arrival_time = str(form.get("arrival_time") or "").strip() or None
+    item.checkin_link = (str(form.get("checkin_link") or "").strip() or _checkin_link_for_airline(item.airline_name, item.locator, None) or None) if item.locator else None
+    item.notes = str(form.get("notes") or "").strip() or None
 
-    # O registro operacional recebe a mesma lista de trechos.
-    item.quote_id = accepted.quote_id
-    item.checkin_status = checkin_status
-    item.notification_mode = notification_mode or None
-    item.locator = locator or None
-    item.flight_number = flight_number or None
-    item.airline_name = airline_name or None
-    item.departure_time = departure_time or None
-    item.arrival_time = arrival_time or None
-    item.checkin_link = checkin_link or None
-    item.notes = notes or None
-    item.extra_json = json.dumps({"quote_code": f"q{group_id:04d}", "flights": flights}, ensure_ascii=False)
+    # A opção operacional acompanha a rota e as datas editadas, sem perder os
+    # demais dados calculados.
+    if item.quote is not None:
+        item.quote.origin = origin
+        item.quote.destination = destination
+        if item.quote.trip is not None:
+            item.quote.trip.departure_date = trip.departure_date
+            item.quote.trip.return_date = trip.return_date
+            item.quote.trip.client_person_id = trip.client_person_id
+            item.quote.trip.client_name = trip.client_name
+            item.quote.trip.client_email = trip.client_email
+            item.quote.trip.client_phone = trip.client_phone
 
-    activity_text = f"Voo da cotação q{group_id:04d} atualizado: trecho {flight_index + 1}."
-    _message, event_payload = record_quote_activity(
+    changes = []
+    new_route = f"{origin} → {destination}"
+    if old_route != new_route:
+        changes.append(f"rota alterada de {old_route} para {new_route}")
+    if old_departure_date != str(trip.departure_date or ""):
+        changes.append(f"data de ida alterada para {trip.departure_date or 'não informada'}")
+    if old_return_date != str(trip.return_date or ""):
+        changes.append(f"data de volta alterada para {trip.return_date or 'não informada'}")
+    if item.flight_number:
+        changes.append(f"voo {item.flight_number}")
+    activity_text = f"Voo da cotação {group.quote_name} atualizado" + (": " + "; ".join(changes) if changes else "") + "."
+    _message, payload = record_quote_activity(
         db, user, group, activity_text, event="quote_flight_updated", send_to_chat=False
     )
     db.commit()
-    await publish_quote_activity(user.company_id, event_payload)
-    flash(request, f"Voo q{group_id:04d} salvo. A cotação vinculada foi atualizada também.", "success")
+    await publish_quote_activity(user.company_id, payload)
+    flash(request, "Voo salvo com sucesso. Rota, datas e horários foram atualizados.", "success")
     return RedirectResponse("/cadastros/voos", status_code=303)
 
 

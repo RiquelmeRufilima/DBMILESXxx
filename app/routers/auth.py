@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -10,20 +10,9 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import UserProfile, WebUser
 from ..security import hash_password, validate_csrf_token, validate_password, verify_password
-from ..services.auth_totp import (
-    authenticator_configured,
-    credential_secret,
-    ensure_pending_credential,
-    ensure_totp_schema,
-    get_credential,
-    login_2fa_enabled,
-    provisioning_uri,
-    qr_data_uri,
-    verify_totp,
-)
+from ..services.auth_email import EmailDeliveryError, issue_email_code, send_auth_code, verify_email_code
 from ..services.user_defaults import ensure_user_defaults
 from ..web import context, flash, templates
-
 
 router = APIRouter(tags=["auth"])
 
@@ -37,30 +26,19 @@ def _valid_email(value: str) -> bool:
     return bool("@" in value and "." in value.rsplit("@", 1)[-1])
 
 
-def _pending_user(request: Request, db: Session, key: str) -> WebUser | None:
-    raw = request.session.get(key)
-    try:
-        user_id = int(raw)
-    except (TypeError, ValueError):
-        return None
-    return db.get(WebUser, user_id)
+def _verify_url(email: str) -> str:
+    return f"/verify-email?email={quote(_email(email))}"
 
 
-def _complete_login(request: Request, user: WebUser) -> None:
-    request.session.clear()
-    request.session["user_id"] = int(user.id)
-    request.session["auth_version"] = int(user.auth_version or 1)
+def _reset_url(email: str) -> str:
+    return f"/reset-password?email={quote(_email(email))}"
 
 
 @router.get("/login")
 def login_page(request: Request, db: Session = Depends(get_db)):
     if request.session.get("user_id"):
         return RedirectResponse("/dashboard", status_code=303)
-    return templates.TemplateResponse(
-        request,
-        "auth/login.html",
-        context(request, registration_enabled=True),
-    )
+    return templates.TemplateResponse(request, "auth/login.html", context(request, registration_enabled=True))
 
 
 @router.post("/login")
@@ -82,65 +60,13 @@ def login(
         return RedirectResponse("/login", status_code=303)
 
     if not user.active:
-        flash(request, "Esta conta está desativada. Procure o administrador.", "error")
-        return RedirectResponse("/login", status_code=303)
+        request.session["pending_verify_email"] = email
+        flash(request, "Sua conta ainda precisa confirmar o e-mail. Digite o código recebido ou solicite um novo.", "info")
+        return RedirectResponse(_verify_url(email), status_code=303)
 
-    ensure_totp_schema(db)
-
-    # O Google Authenticator só é solicitado se o próprio usuário ativou o
-    # segundo fator em Configurações > Segurança.
-    if login_2fa_enabled(db, int(user.id)):
-        request.session.clear()
-        request.session["pending_2fa_user_id"] = int(user.id)
-        return RedirectResponse("/login/authenticator", status_code=303)
-
-    _complete_login(request, user)
-    flash(request, f"Bem-vindo, {user.name}!", "success")
-    return RedirectResponse("/dashboard", status_code=303)
-
-
-@router.get("/login/authenticator")
-def login_authenticator_page(request: Request, db: Session = Depends(get_db)):
-    if request.session.get("user_id"):
-        return RedirectResponse("/dashboard", status_code=303)
-
-    user = _pending_user(request, db, "pending_2fa_user_id")
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-
-    return templates.TemplateResponse(
-        request,
-        "auth/login_authenticator.html",
-        context(request, email=user.email),
-    )
-
-
-@router.post("/login/authenticator")
-def login_authenticator(
-    request: Request,
-    code: str = Form(...),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada. Entre novamente.", "error")
-        return RedirectResponse("/login", status_code=303)
-
-    user = _pending_user(request, db, "pending_2fa_user_id")
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-
-    credential = get_credential(db, int(user.id))
-    if credential is None or not credential.enabled:
-        request.session.clear()
-        flash(request, "O Authenticator não está mais ativo nesta conta.", "info")
-        return RedirectResponse("/login", status_code=303)
-
-    if not verify_totp(credential_secret(credential), code):
-        flash(request, "Código incorreto. Use o código atual do Google Authenticator.", "error")
-        return RedirectResponse("/login/authenticator", status_code=303)
-
-    _complete_login(request, user)
+    request.session.clear()
+    request.session["user_id"] = user.id
+    request.session["auth_version"] = int(user.auth_version or 1)
     flash(request, f"Bem-vindo, {user.name}!", "success")
     return RedirectResponse("/dashboard", status_code=303)
 
@@ -182,145 +108,132 @@ def register(
     if password != password_confirm:
         flash(request, "As senhas não coincidem.", "error")
         return RedirectResponse("/register", status_code=303)
-
     valid, message = validate_password(password)
     if not valid:
         flash(request, message, "error")
         return RedirectResponse("/register", status_code=303)
 
-    existing = db.scalar(select(WebUser).where(WebUser.email == email))
-    if existing is not None:
-        flash(request, "Este e-mail já possui uma conta.", "info")
+    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    if user is not None and user.active:
+        flash(request, "Este e-mail já possui uma conta. Entre ou use 'Esqueci minha senha'.", "info")
         return RedirectResponse("/login", status_code=303)
-
-    user = WebUser(
-        email=email,
-        password_hash=hash_password(password),
-        name=name,
-        phone=phone or None,
-        role="membro",
-        active=True,
-        is_owner=False,
-    )
-    db.add(user)
-    db.flush()
-
-    profile = UserProfile(user_id=user.id, job_title=job_title or None)
-    db.add(profile)
-
-    ensure_user_defaults(db, user)
-    db.commit()
-
-    _complete_login(request, user)
-    flash(
-        request,
-        "Conta criada. Você pode ativar o Google Authenticator em Configurações > Segurança.",
-        "success",
-    )
-    return RedirectResponse("/dashboard", status_code=303)
-
-
-# ---------------------------------------------------------------------
-# CONFIGURAÇÃO DO AUTHENTICATOR
-# A ativação agora parte de Configurações > Segurança.
-# ---------------------------------------------------------------------
-
-@router.get("/setup-authenticator")
-def setup_authenticator_page(request: Request, db: Session = Depends(get_db)):
-    user = None
-
-    if request.session.get("user_id"):
-        try:
-            user = db.get(WebUser, int(request.session["user_id"]))
-        except (TypeError, ValueError):
-            user = None
-    else:
-        user = _pending_user(request, db, "pending_totp_user_id")
 
     if user is None:
-        return RedirectResponse("/login", status_code=303)
+        user = WebUser(
+            email=email,
+            password_hash=hash_password(password),
+            name=name,
+            phone=phone or None,
+            role="membro",
+            active=False,
+            is_owner=False,
+        )
+        db.add(user)
+        db.flush()
+    else:
+        user.name = name
+        user.phone = phone or None
+        user.password_hash = hash_password(password)
+        user.active = False
+        db.flush()
 
-    ensure_totp_schema(db)
-    credential = ensure_pending_credential(db, user)
-    db.commit()
+    profile = user.profile
+    if profile is None:
+        profile = UserProfile(user_id=user.id, job_title=job_title or None)
+        db.add(profile)
+    else:
+        profile.job_title = job_title or None
 
-    secret = credential_secret(credential)
-    uri = provisioning_uri(secret=secret, email=user.email)
+    try:
+        code = issue_email_code(db, email=email, purpose="register")
+        db.commit()
+        send_auth_code(to_email=email, code=code, purpose="register", recipient_name=name)
+    except ValueError as exc:
+        db.rollback()
+        flash(request, str(exc), "info")
+        return RedirectResponse(_verify_url(email), status_code=303)
+    except EmailDeliveryError as exc:
+        db.commit()
+        flash(request, f"Conta preparada, mas o código não pôde ser enviado: {exc}", "error")
+        return RedirectResponse(_verify_url(email), status_code=303)
 
-    return templates.TemplateResponse(
-        request,
-        "auth/setup_authenticator.html",
-        context(
-            request,
-            email=user.email,
-            secret=secret,
-            qr_data=qr_data_uri(uri),
-            otpauth_uri=uri,
-            settings_flow=bool(request.session.get("user_id")),
-        ),
-    )
+    request.session["pending_verify_email"] = email
+    flash(request, "Enviamos um código de 6 dígitos para seu e-mail.", "success")
+    return RedirectResponse(_verify_url(email), status_code=303)
 
 
-@router.post("/setup-authenticator")
-def setup_authenticator(
+@router.get("/verify-email")
+def verify_email_page(request: Request, email: str = ""):
+    if request.session.get("user_id"):
+        return RedirectResponse("/dashboard", status_code=303)
+    email = _email(email or request.session.get("pending_verify_email", ""))
+    if not email:
+        return RedirectResponse("/register", status_code=303)
+    return templates.TemplateResponse(request, "auth/verify_email.html", context(request, email=email))
+
+
+@router.post("/verify-email")
+def verify_email(
     request: Request,
+    email: str = Form(...),
     code: str = Form(...),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    email = _email(email)
     if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada. Entre novamente.", "error")
-        return RedirectResponse("/login", status_code=303)
+        flash(request, "Sessão expirada. Tente novamente.", "error")
+        return RedirectResponse(_verify_url(email), status_code=303)
 
-    logged_user = None
-    if request.session.get("user_id"):
-        try:
-            logged_user = db.get(WebUser, int(request.session["user_id"]))
-        except (TypeError, ValueError):
-            logged_user = None
+    ok, message = verify_email_code(db, email=email, purpose="register", code=code)
+    if not ok:
+        db.commit()
+        flash(request, message, "error")
+        return RedirectResponse(_verify_url(email), status_code=303)
 
-    user = logged_user or _pending_user(request, db, "pending_totp_user_id")
+    user = db.scalar(select(WebUser).where(WebUser.email == email))
     if user is None:
-        return RedirectResponse("/login", status_code=303)
+        db.commit()
+        flash(request, "Cadastro não encontrado. Crie a conta novamente.", "error")
+        return RedirectResponse("/register", status_code=303)
 
-    credential = get_credential(db, int(user.id))
-    if credential is None:
-        flash(request, "Configuração não encontrada. Comece novamente.", "error")
-        return RedirectResponse("/settings", status_code=303)
-
-    if not verify_totp(credential_secret(credential), code):
-        flash(request, "Código incorreto. Use o código atual do Google Authenticator.", "error")
-        return RedirectResponse("/setup-authenticator", status_code=303)
-
-    credential.enabled = True
-    credential.login_2fa_enabled = True
-    credential.confirmed_at = datetime.utcnow()
-    credential.updated_at = datetime.utcnow()
+    user.active = True
+    ensure_user_defaults(db, user)
     db.commit()
 
-    request.session.pop("pending_totp_user_id", None)
-    flash(request, "Google Authenticator ativado para o login.", "success")
-
-    if logged_user is not None:
-        return RedirectResponse("/settings", status_code=303)
-
-    _complete_login(request, user)
+    request.session.clear()
+    request.session["user_id"] = user.id
+    request.session["auth_version"] = int(user.auth_version or 1)
+    flash(request, "E-mail confirmado. Sua conta está pronta!", "success")
     return RedirectResponse("/dashboard", status_code=303)
 
 
-# Compatibilidade com URLs antigas.
-@router.get("/verify-email")
-@router.post("/verify-email")
 @router.post("/verify-email/resend")
-def old_verify_email(request: Request):
-    return RedirectResponse("/login", status_code=303)
+def resend_verify_email(
+    request: Request,
+    email: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    email = _email(email)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse(_verify_url(email), status_code=303)
 
+    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    if user is None or user.active:
+        flash(request, "Esta conta já está confirmada ou não existe.", "info")
+        return RedirectResponse("/login", status_code=303)
+    try:
+        code = issue_email_code(db, email=email, purpose="register")
+        db.commit()
+        send_auth_code(to_email=email, code=code, purpose="register", recipient_name=user.name)
+        flash(request, "Novo código enviado.", "success")
+    except (ValueError, EmailDeliveryError) as exc:
+        db.rollback()
+        flash(request, str(exc), "error")
+    return RedirectResponse(_verify_url(email), status_code=303)
 
-# ---------------------------------------------------------------------
-# RECUPERAÇÃO DE SENHA
-# Apenas o código ATUAL do Google Authenticator é aceito.
-# Não existem mais códigos de recuperação nesse fluxo.
-# ---------------------------------------------------------------------
 
 @router.get("/forgot-password")
 def forgot_password_page(request: Request):
@@ -346,90 +259,102 @@ def forgot_password(
         return RedirectResponse("/forgot-password", status_code=303)
 
     user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
-    request.session.clear()
+    if user is not None:
+        try:
+            code = issue_email_code(db, email=email, purpose="reset")
+            db.commit()
+            send_auth_code(to_email=email, code=code, purpose="reset", recipient_name=user.name)
+        except ValueError as exc:
+            db.rollback()
+            flash(request, str(exc), "info")
+            return RedirectResponse(_reset_url(email), status_code=303)
+        except EmailDeliveryError as exc:
+            db.commit()
+            flash(request, f"Não foi possível enviar o código: {exc}", "error")
+            return RedirectResponse("/forgot-password", status_code=303)
 
-    if user is None:
-        flash(request, "Não foi possível iniciar a recuperação.", "info")
-        return RedirectResponse("/login", status_code=303)
-
-    ensure_totp_schema(db)
-    if not authenticator_configured(db, int(user.id)):
-        flash(
-            request,
-            "Esta conta não possui Google Authenticator configurado. "
-            "Solicite ao administrador a redefinição da senha.",
-            "info",
-        )
-        return RedirectResponse("/login", status_code=303)
-
-    request.session["pending_reset_user_id"] = int(user.id)
-    return RedirectResponse("/reset-password", status_code=303)
+    request.session["pending_reset_email"] = email
+    flash(request, "Se este e-mail estiver cadastrado, um código de recuperação foi enviado.", "success")
+    return RedirectResponse(_reset_url(email), status_code=303)
 
 
 @router.get("/reset-password")
-def reset_password_page(request: Request, db: Session = Depends(get_db)):
+def reset_password_page(request: Request, email: str = ""):
     if request.session.get("user_id"):
         return RedirectResponse("/dashboard", status_code=303)
-
-    user = _pending_user(request, db, "pending_reset_user_id")
-    if user is None:
+    email = _email(email or request.session.get("pending_reset_email", ""))
+    if not email:
         return RedirectResponse("/forgot-password", status_code=303)
-
-    return templates.TemplateResponse(
-        request,
-        "auth/reset_password.html",
-        context(request, email=user.email),
-    )
+    return templates.TemplateResponse(request, "auth/reset_password.html", context(request, email=email))
 
 
 @router.post("/reset-password")
 def reset_password(
     request: Request,
+    email: str = Form(...),
     code: str = Form(...),
     password: str = Form(...),
     password_confirm: str = Form(...),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    email = _email(email)
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada. Tente novamente.", "error")
-        return RedirectResponse("/forgot-password", status_code=303)
-
-    user = _pending_user(request, db, "pending_reset_user_id")
-    if user is None:
-        return RedirectResponse("/forgot-password", status_code=303)
-
+        return RedirectResponse(_reset_url(email), status_code=303)
     if password != password_confirm:
         flash(request, "As senhas não coincidem.", "error")
-        return RedirectResponse("/reset-password", status_code=303)
-
+        return RedirectResponse(_reset_url(email), status_code=303)
     valid, message = validate_password(password)
     if not valid:
         flash(request, message, "error")
-        return RedirectResponse("/reset-password", status_code=303)
+        return RedirectResponse(_reset_url(email), status_code=303)
 
-    credential = get_credential(db, int(user.id))
-    if credential is None or not credential.enabled:
-        flash(request, "Google Authenticator não está configurado nesta conta.", "error")
-        return RedirectResponse("/login", status_code=303)
+    ok, message = verify_email_code(db, email=email, purpose="reset", code=code)
+    if not ok:
+        db.commit()
+        flash(request, message, "error")
+        return RedirectResponse(_reset_url(email), status_code=303)
 
-    if not verify_totp(credential_secret(credential), code):
-        flash(request, "Código inválido. Use o código atual do Google Authenticator.", "error")
-        return RedirectResponse("/reset-password", status_code=303)
+    user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
+    if user is None:
+        db.commit()
+        flash(request, "Não foi possível redefinir esta conta.", "error")
+        return RedirectResponse("/forgot-password", status_code=303)
 
     user.password_hash = hash_password(password)
     user.auth_version = int(user.auth_version or 1) + 1
     db.commit()
-
     request.session.clear()
-    flash(request, "Senha alterada com sucesso. Entre com sua nova senha.", "success")
+    flash(request, "Senha alterada com sucesso. Entre com a nova senha.", "success")
     return RedirectResponse("/login", status_code=303)
 
 
 @router.post("/reset-password/resend")
-def old_reset_resend(request: Request):
-    flash(request, "A recuperação usa o código atual do Google Authenticator.", "info")
-    return RedirectResponse("/reset-password", status_code=303)
+def resend_reset_code(
+    request: Request,
+    email: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    email = _email(email)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse(_reset_url(email), status_code=303)
+
+    user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
+    if user is not None:
+        try:
+            code = issue_email_code(db, email=email, purpose="reset")
+            db.commit()
+            send_auth_code(to_email=email, code=code, purpose="reset", recipient_name=user.name)
+            flash(request, "Novo código enviado.", "success")
+        except (ValueError, EmailDeliveryError) as exc:
+            db.rollback()
+            flash(request, str(exc), "error")
+    else:
+        flash(request, "Se este e-mail estiver cadastrado, um novo código foi enviado.", "info")
+    return RedirectResponse(_reset_url(email), status_code=303)
 
 
 @router.post("/logout")

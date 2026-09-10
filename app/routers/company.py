@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -13,9 +12,8 @@ from sqlalchemy.orm import Session, selectinload
 from ..config import CHAT_UPLOAD_DIR, COMPANY_UPLOAD_DIR, MAX_TEAM_USERS
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
-from ..models import ChatMessage, CompanyInvite, WebCompany, WebQuote, WebUser
-from ..security import hash_password, validate_csrf_token, validate_password, verify_password
-from ..services.company_access import ensure_company_access_schema
+from ..models import ChatMessage, WebCompany, WebQuote, WebUser
+from ..security import hash_password, validate_csrf_token, validate_password
 from ..services.notifications import create_notification
 from ..services.realtime import avatar_url, manager
 from ..services.team_accounts import can_create_team_user, remaining_team_slots, team_user_count
@@ -178,8 +176,6 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
 
-    ensure_company_access_schema(db)
-
     if not user.company_id:
         return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
 
@@ -214,18 +210,6 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
     last_messages = list(reversed(last_messages))
     additional_count = team_user_count(db, user.company_id)
     active_count = sum(1 for item in members if item.active)
-    pending_invites = []
-    if _is_company_admin(user):
-        pending_invites = list(
-            db.scalars(
-                select(CompanyInvite)
-                .where(
-                    CompanyInvite.company_id == user.company_id,
-                    CompanyInvite.status == "pending",
-                )
-                .order_by(CompanyInvite.created_at.desc())
-            ).all()
-        )
 
     return templates.TemplateResponse(
         request,
@@ -244,7 +228,6 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
             remaining_slots=remaining_team_slots(db, user.company_id),
             role_options=ROLE_OPTIONS,
             can_manage_members=_is_company_admin(user),
-            pending_invites=pending_invites,
         ),
     )
 
@@ -254,134 +237,14 @@ def create_company(
     request: Request,
     name: str = Form(...),
     cnpj: str = Form(""),
-    join_code: str = Form(...),
     csrf_token: str = Form(...),
     db: Session = Depends(get_db),
 ):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
     if user.company_id:
         return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    name = " ".join(str(name or "").split())[:180]
-    cnpj = str(cnpj or "").strip()[:30]
-    join_code = str(join_code or "").strip()
-
-    if len(name) < 2:
-        flash(request, "Informe o nome da empresa.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if len(join_code) < 6 or len(join_code) > 64:
-        flash(request, "O código de entrada precisa ter entre 6 e 64 caracteres.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    company = WebCompany(
-        name=name,
-        cnpj=cnpj or None,
-        join_code_hash=hash_password(join_code),
-    )
-    db.add(company)
-    db.flush()
-
-    user.company_id = company.id
-    user.role = "admin"
-    user.is_owner = True
-    user.active = True
-    user.auth_version = int(user.auth_version or 1) + 1
-    db.commit()
-
-    request.session["auth_version"] = int(user.auth_version or 1)
-    flash(
-        request,
-        f"Empresa '{name}' criada. Compartilhe o código de entrada apenas com quem deve fazer parte da equipe.",
-        "success",
-    )
-    return RedirectResponse("/company", status_code=303)
-
-
-@router.post("/join")
-def join_company(
-    request: Request,
-    company_name: str = Form(...),
-    join_code: str = Form(...),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-    if user.company_id:
-        flash(request, "Sua conta já pertence a uma empresa.", "info")
-        return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    company_name = " ".join(str(company_name or "").split())[:180]
-    join_code = str(join_code or "").strip()
-
-    if len(company_name) < 2 or not join_code:
-        flash(request, "Informe o nome da empresa e o código de entrada.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    companies = db.scalars(
-        select(WebCompany).where(func.lower(WebCompany.name) == company_name.lower())
-    ).all()
-
-    matched_company = None
-    for company in companies:
-        if company.join_code_hash and verify_password(join_code, company.join_code_hash):
-            matched_company = company
-            break
-
-    if matched_company is None:
-        flash(request, "Nome da empresa ou código de entrada incorreto.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    if not can_create_team_user(db, matched_company.id):
-        flash(request, f"Esta empresa atingiu o limite de {MAX_TEAM_USERS} usuários adicionais.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    user.company_id = matched_company.id
-    user.role = "membro"
-    user.is_owner = False
-    user.active = True
-    user.auth_version = int(user.auth_version or 1) + 1
-
-    # Avisa administradores da empresa sobre o novo acesso.
-    admins = db.scalars(
-        select(WebUser).where(
-            WebUser.company_id == matched_company.id,
-            WebUser.role == "admin",
-            WebUser.active.is_(True),
-            WebUser.id != user.id,
-        )
-    ).all()
-    for admin in admins:
-        create_notification(
-            db,
-            admin.id,
-            "Novo membro entrou na empresa",
-            f"{user.name} entrou em {matched_company.name} usando o código da empresa.",
-            kind="company",
-            link="/company#equipe",
-            commit=False,
-        )
-
-    db.commit()
-    request.session["auth_version"] = int(user.auth_version or 1)
-
-    flash(
-        request,
-        f"Você entrou em '{matched_company.name}' como Consultor.",
-        "success",
-    )
-    return RedirectResponse("/company", status_code=303)
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/company", status_code=303)
@@ -403,299 +266,6 @@ def join_company(
     request.session["auth_version"] = int(user.auth_version or 1)
     flash(request, f"Empresa '{name}' criada. Agora você pode adicionar até {MAX_TEAM_USERS} usuários.", "success")
     return RedirectResponse("/company", status_code=303)
-
-
-@router.post("/access-code")
-def change_company_access_code(
-    request: Request,
-    join_code: str = Form(...),
-    join_code_confirm: str = Form(...),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-    if not _is_company_admin(user):
-        flash(request, "Somente o administrador pode alterar o código de entrada.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    join_code = str(join_code or "").strip()
-    join_code_confirm = str(join_code_confirm or "").strip()
-
-    if len(join_code) < 6 or len(join_code) > 64:
-        flash(request, "O código de entrada precisa ter entre 6 e 64 caracteres.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if join_code != join_code_confirm:
-        flash(request, "Os códigos informados não coincidem.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    company = db.get(WebCompany, user.company_id)
-    if company is None:
-        flash(request, "Empresa não encontrada.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    company.join_code_hash = hash_password(join_code)
-    db.commit()
-    flash(
-        request,
-        "Código de entrada atualizado. Compartilhe o novo código somente com sua equipe.",
-        "success",
-    )
-    return RedirectResponse("/company", status_code=303)
-
-
-@router.post("/invite")
-def invite_user_by_email(
-    request: Request,
-    email: str = Form(...),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-
-    if not _is_company_admin(user):
-        flash(request, "Somente administradores podem enviar convites.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#convites", status_code=303)
-    if not can_create_team_user(db, user.company_id):
-        flash(request, f"O limite de {MAX_TEAM_USERS} usuários adicionais foi atingido.", "error")
-        return RedirectResponse("/company#convites", status_code=303)
-
-    email = str(email or "").strip().lower()[:180]
-    if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
-        flash(request, "Informe um e-mail válido.", "error")
-        return RedirectResponse("/company#convites", status_code=303)
-
-    invited = db.scalar(select(WebUser).where(func.lower(WebUser.email) == email.lower()))
-    if invited is None:
-        flash(
-            request,
-            "Esse e-mail ainda não possui uma conta no DBMILESX. "
-            "Peça para o usuário criar a conta primeiro; depois envie o convite.",
-            "warning",
-        )
-        return RedirectResponse("/company#convites", status_code=303)
-
-    if invited.id == user.id:
-        flash(request, "Você já pertence a esta empresa.", "info")
-        return RedirectResponse("/company#convites", status_code=303)
-    if invited.company_id == user.company_id:
-        flash(request, "Esse usuário já pertence a esta empresa.", "info")
-        return RedirectResponse("/company#convites", status_code=303)
-    if invited.company_id and invited.company_id != user.company_id:
-        flash(request, "Esse usuário já pertence a outra empresa.", "error")
-        return RedirectResponse("/company#convites", status_code=303)
-
-    existing = db.scalar(
-        select(CompanyInvite).where(
-            CompanyInvite.company_id == user.company_id,
-            CompanyInvite.invited_user_id == invited.id,
-            CompanyInvite.status == "pending",
-        )
-    )
-    if existing:
-        flash(request, "Já existe um convite pendente para esse usuário.", "info")
-        return RedirectResponse("/company#convites", status_code=303)
-
-    company_obj = db.get(WebCompany, user.company_id)
-    invite = CompanyInvite(
-        company_id=user.company_id,
-        invited_user_id=invited.id,
-        invited_email=invited.email,
-        invited_by_user_id=user.id,
-        status="pending",
-    )
-    db.add(invite)
-    db.flush()
-
-    create_notification(
-        db,
-        invited.id,
-        f"Convite para entrar em {company_obj.name}",
-        f"{user.name} convidou você para fazer parte de {company_obj.name}.",
-        kind="info",
-        link=f"/company/invitations/{invite.id}",
-        commit=False,
-    )
-    db.commit()
-
-    flash(request, f"Convite enviado para {invited.email}. Ele aparecerá no sininho do usuário.", "success")
-    return RedirectResponse("/company#convites", status_code=303)
-
-
-@router.get("/invitations/{invite_id}")
-def invitation_page(
-    invite_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-
-    invite = db.get(CompanyInvite, invite_id)
-    if invite is None or invite.invited_user_id != user.id:
-        flash(request, "Convite não encontrado.", "error")
-        return RedirectResponse("/notifications", status_code=303)
-
-    company_obj = db.get(WebCompany, invite.company_id)
-    inviter = db.get(WebUser, invite.invited_by_user_id)
-    return templates.TemplateResponse(
-        request,
-        "company/invitation.html",
-        context(
-            request,
-            user=user,
-            invite=invite,
-            company=company_obj,
-            inviter=inviter,
-        ),
-    )
-
-
-@router.post("/invitations/{invite_id}/accept")
-def accept_invitation(
-    invite_id: int,
-    request: Request,
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse(f"/company/invitations/{invite_id}", status_code=303)
-
-    invite = db.get(CompanyInvite, invite_id)
-    if invite is None or invite.invited_user_id != user.id or invite.status != "pending":
-        flash(request, "Este convite não está mais disponível.", "error")
-        return RedirectResponse("/notifications", status_code=303)
-
-    if user.company_id:
-        flash(request, "Sua conta já pertence a uma empresa.", "error")
-        return RedirectResponse(f"/company/invitations/{invite_id}", status_code=303)
-
-    if not can_create_team_user(db, invite.company_id):
-        flash(request, f"A empresa atingiu o limite de {MAX_TEAM_USERS} usuários adicionais.", "error")
-        return RedirectResponse(f"/company/invitations/{invite_id}", status_code=303)
-
-    company_obj = db.get(WebCompany, invite.company_id)
-    user.company_id = invite.company_id
-    user.role = "membro"
-    user.is_owner = False
-    user.active = True
-    user.auth_version = int(user.auth_version or 1) + 1
-
-    invite.status = "accepted"
-    invite.responded_at = datetime.utcnow()
-
-    inviter = db.get(WebUser, invite.invited_by_user_id)
-    if inviter:
-        create_notification(
-            db,
-            inviter.id,
-            "Convite aceito",
-            f"{user.name} aceitou o convite para entrar em {company_obj.name}.",
-            kind="success",
-            link="/company#equipe",
-            commit=False,
-        )
-
-    db.commit()
-    request.session["auth_version"] = int(user.auth_version or 1)
-    flash(request, f"Você entrou em '{company_obj.name}' como Consultor.", "success")
-    return RedirectResponse("/company", status_code=303)
-
-
-@router.post("/invitations/{invite_id}/decline")
-def decline_invitation(
-    invite_id: int,
-    request: Request,
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse(f"/company/invitations/{invite_id}", status_code=303)
-
-    invite = db.get(CompanyInvite, invite_id)
-    if invite is None or invite.invited_user_id != user.id or invite.status != "pending":
-        flash(request, "Este convite não está mais disponível.", "error")
-        return RedirectResponse("/notifications", status_code=303)
-
-    invite.status = "declined"
-    invite.responded_at = datetime.utcnow()
-
-    inviter = db.get(WebUser, invite.invited_by_user_id)
-    company_obj = db.get(WebCompany, invite.company_id)
-    if inviter and company_obj:
-        create_notification(
-            db,
-            inviter.id,
-            "Convite recusado",
-            f"{user.name} recusou o convite para entrar em {company_obj.name}.",
-            kind="info",
-            link="/company#convites",
-            commit=False,
-        )
-
-    db.commit()
-    flash(request, "Convite recusado.", "info")
-    return RedirectResponse("/notifications", status_code=303)
-
-
-@router.post("/invitations/{invite_id}/cancel")
-def cancel_invitation(
-    invite_id: int,
-    request: Request,
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    ensure_company_access_schema(db)
-
-    if not _is_company_admin(user):
-        flash(request, "Somente administradores podem cancelar convites.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#convites", status_code=303)
-
-    invite = db.get(CompanyInvite, invite_id)
-    if (
-        invite is None
-        or invite.company_id != user.company_id
-        or invite.status != "pending"
-    ):
-        flash(request, "Convite pendente não encontrado.", "error")
-        return RedirectResponse("/company#convites", status_code=303)
-
-    invite.status = "cancelled"
-    invite.responded_at = datetime.utcnow()
-    db.commit()
-    flash(request, "Convite cancelado.", "success")
-    return RedirectResponse("/company#convites", status_code=303)
 
 
 @router.post("/branding")

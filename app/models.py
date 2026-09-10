@@ -17,37 +17,9 @@ class WebCompany(Base):
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     email: Mapped[str | None] = mapped_column(String(180), nullable=True)
     logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # Código de entrada da empresa. Nunca é salvo em texto puro.
-    join_code_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     users: Mapped[list["WebUser"]] = orm_relationship(back_populates="company")
-
-
-class CompanyInvite(Base):
-    __tablename__ = "web_company_invites"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(
-        ForeignKey("web_companies.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    invited_user_id: Mapped[int] = mapped_column(
-        ForeignKey("web_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    invited_email: Mapped[str] = mapped_column(String(180), nullable=False, index=True)
-    invited_by_user_id: Mapped[int] = mapped_column(
-        ForeignKey("web_users.id"),
-        nullable=False,
-        index=True,
-    )
-    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-
 
 
 class WebUser(Base):
@@ -112,43 +84,6 @@ class AuthEmailCode(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-
-
-class AuthTotpCredential(Base):
-    __tablename__ = "web_auth_totp_credentials"
-
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("web_users.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
-    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    # Compatibilidade: "enabled" significa que o Authenticator foi vinculado.
-    # O login só exige o segundo fator quando esta opção for ativada pelo usuário
-    # em Configurações > Segurança.
-    login_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
-        nullable=False,
-    )
-
-
-class AuthRecoveryCode(Base):
-    __tablename__ = "web_auth_recovery_codes"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("web_users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    code_hash: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class Airline(Base):

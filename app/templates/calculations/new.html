@@ -417,7 +417,7 @@
   <aside class="panel selector-panel">
     <div class="section-title">
       <span class="step-badge">1</span>
-      <div><h2>Companhia</h2><p>Escolha a regra de cálculo.</p></div>
+      <div><h2>Companhia</h2><p>Escolha a companhia e depois a categoria de cálculo.</p></div>
     </div>
     <a class="create-airline-shortcut" href="/airlines/new">
       <svg class="ui-icon"><use href="#icon-plus-circle"></use></svg>
@@ -446,7 +446,7 @@
     <div class="selected-airline-head" style="--airline-color: {{ selected_airline.color }}">
       <div>{% if selected_airline.logo_path %}<img src="/{{ selected_airline.logo_path }}" alt="{{ selected_airline.name }}">{% else %}<span class="brand-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}</div>
       <div>
-        <span class="eyebrow">COMPANHIA SELECIONADA</span>
+        <span class="eyebrow">COMPANHIA • CATEGORIA DE CÁLCULO</span>
         <h2>{{ selected_airline.name }}</h2>
         <p>{{ selected_type.description or 'Preencha os parâmetros para calcular uma opção dentro desta cotação.' }}</p>
       </div>
@@ -455,6 +455,7 @@
 
     {% set active_types = selected_airline.calculation_types|selectattr('active')|list %}
     {% if active_types|length > 1 %}
+    <div class="category-helper"><strong>Categoria de cálculo</strong><small>Ex.: Milhas/Pontos, Pontos + Dinheiro, Deságio ou Skip.</small></div>
     <div class="type-tabs">
       {% for type in active_types %}
       <a class="type-tab {% if type.id == selected_type.id %}active{% endif %}" href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ selected_airline.id }}&type_id={{ type.id }}&calc=1">{{ type.name }}</a>
@@ -687,24 +688,57 @@
         <div class="skip-route-preview" id="skipRoutePreview"></div>
       </div>
 
+      <div class="form-section" data-standard-calculation-section>
+        <div class="section-title"><span class="step-badge">2</span><div><h3>{{ selected_type.name }}</h3><p>{% if selected_airline.engine_type == 'legacy' %}Regra original preservada e protegida.{% else %}Fórmula: <code>{{ selected_type.formula }}</code>{% endif %}</p></div></div>
+        <div class="form-grid cols-2">
+        {% set fields_to_render = calculation_fields or selected_type.fields %}
+        {% if not fields_to_render %}
+          <div class="notice-card warning span-2"><strong>Campos de cálculo não carregados.</strong><br>Abra Companhias e confira se essa companhia tem pelo menos um tipo de cálculo com campos cadastrados.</div>
+        {% endif %}
+        {% for field in fields_to_render %}
+          {% set saved_value = (field_display_values or {}).get(field.key, field_values.get(field.key, field.default_value or '0')) %}
+          <label>{{ field.label }}
+            {% if field.field_type == 'select' %}
+              <select name="field_{{ field.key }}" {% if field.required %}required{% endif %}>
+                {% for option in field.options_json|from_json %}<option value="{{ option }}" {% if option|string == saved_value|string %}selected{% endif %}>{{ option }}</option>{% endfor %}
+              </select>
+            {% elif field.field_type == 'text' %}
+              <input type="text" name="field_{{ field.key }}" value="{{ saved_value }}" {% if field.required %}required{% endif %}>
+            {% else %}
+              <input type="text" inputmode="decimal" data-field-type="{{ field.field_type }}" data-field-key="{{ field.key }}" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="{% if field.field_type == 'miles' %}Ex.: 1.421.400 ou 1421,4{% else %}0,00{% endif %}" autocomplete="off">
+            {% endif %}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          </label>
+        {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-section soft" data-standard-calculation-section>
+        <div class="section-title"><span class="step-badge">3</span><div><h3>Bagagens desta opção</h3><p>Defina aqui a quantidade de bagagens apenas para a companhia selecionada.</p></div></div>
+        <div class="form-grid cols-2">
+          <label>Quantidade de bagagens adicionais<input type="number" name="bags_override" value="{{ option_bags or 0 }}" min="0" max="100" step="1"></label>
+          <div class="notice-card muted compact-note">Essa quantidade será usada somente nesta opção de cálculo. A base fixa da cotação não será alterada.</div>
+        </div>
+      </div>
+
       <div class="form-section soft skip-financial-panel" id="skipFinancialPanel" hidden>
-        <div class="section-title"><span class="step-badge">4</span><div><h3>Registro financeiro do Skip</h3><p>Informe somente o valor da opção. A comissão é opcional e serve apenas para registro interno.</p></div></div>
+        <div class="section-title"><span class="step-badge">4</span><div><h3>Dados financeiros do Skip</h3><p>Informe somente o valor da opção. A comissão é opcional e serve apenas para registro interno.</p></div></div>
         <div class="form-grid cols-2">
           <label>Valor da opção Skip
-            <input type="number" name="skip_value" id="skipValueInput" value="{{ saved_skip_value or '' }}" min="0.01" step="0.01" placeholder="0,00">
-            <small>Este valor será o total exibido no histórico.</small>
+            <input type="text" inputmode="decimal" data-financial-type="money" name="skip_value" id="skipValueInput" value="{{ saved_skip_value or '' }}" placeholder="0,00" autocomplete="off">
+            <small>Este valor será o total da opção Skip antes da comissão.</small>
           </label>
           <label>Valor da comissão <span class="optional-pill">opcional</span>
-            <input type="number" name="skip_commission" id="skipCommissionInput" value="{{ saved_skip_commission or '' }}" min="0" step="0.01" placeholder="0,00">
-            <small>Somente para registro; não altera o total da opção.</small>
+            <input type="text" inputmode="decimal" data-financial-type="money" name="skip_commission" id="skipCommissionInput" value="{{ saved_skip_commission or '' }}" placeholder="0,00" autocomplete="off">
+            <small>Opcional. Quando informada, será descontada do valor da opção e levada para a cotação aceita.</small>
           </label>
         </div>
-        <div class="notice-card muted compact-note skip-financial-note"><strong>Registro simplificado</strong><br>Nos modos Skip, os campos de milhas, taxas, bagagens e custos adicionais ficam ocultos. Datas e horários continuam opcionais.</div>
+        <div class="notice-card muted compact-note skip-financial-note"><strong>Registro simplificado</strong><br>No Skip, a comissão é opcional. O valor líquido é calculado como Valor da opção − Comissão. Datas e horários continuam opcionais.</div>
       </div>
 
       <input type="hidden" name="option_dates_touched" id="optionDatesTouched" value="0">
       <div class="form-section soft option-date-panel" id="optionDatePanel">
-        <div class="section-title"><span class="step-badge">2</span><div><h3>Datas desta opção <span class="optional-pill">opcional</span></h3><p>Você pode manter as datas da cotação principal, trocar somente nesta opção ou deixar sem data.</p></div></div>
+        <div class="section-title"><span class="step-badge">5</span><div><h3>Datas desta opção <span class="optional-pill">opcional</span></h3><p>Você pode manter as datas da cotação principal, trocar somente nesta opção ou deixar sem data.</p></div></div>
         <div class="form-grid cols-2 option-date-grid">
           <label id="optionDepartureDateLabel">Data de ida desta opção
             <input type="date" name="option_departure_date" id="optionDepartureDate" value="{{ option_departure_date or '' }}">
@@ -724,7 +758,7 @@
         <script type="application/json" id="flightDetailsInitial">{{ (option_flight_details or [])|tojson }}</script>
         <script type="application/json" id="routeScopesData">{{ (route_scopes or [])|tojson }}</script>
         <div class="section-title flight-details-title">
-          <span class="step-badge">3</span>
+          <span class="step-badge">6</span>
           <div>
             <h3>Horários e possibilidades de voo <span class="optional-pill">opcional</span></h3>
             <p>Adicione horários por trecho. Em ida e volta, você pode ter Ida • Opção 1, Ida • Opção 2, Volta • Opção 1, Volta • Opção 2. Em multitrecho, cada Trecho pode ter quantas opções de horário forem necessárias.</p>
@@ -738,39 +772,6 @@
         <div class="flight-details-actions">
           <button type="button" class="secondary-button small-button" id="addFlightDetail"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Adicionar opção de horário</button>
           <button type="button" class="ghost-button small-button" id="clearFlightDetails">Limpar detalhes</button>
-        </div>
-      </div>
-
-      <div class="form-section" data-standard-calculation-section>
-        <div class="section-title"><span class="step-badge">4</span><div><h3>{{ selected_type.name }}</h3><p>{% if selected_airline.engine_type == 'legacy' %}Regra original preservada e protegida.{% else %}Fórmula: <code>{{ selected_type.formula }}</code>{% endif %}</p></div></div>
-        <div class="form-grid cols-2">
-        {% set fields_to_render = calculation_fields or selected_type.fields %}
-        {% if not fields_to_render %}
-          <div class="notice-card warning span-2"><strong>Campos de cálculo não carregados.</strong><br>Abra Companhias e confira se essa companhia tem pelo menos um tipo de cálculo com campos cadastrados.</div>
-        {% endif %}
-        {% for field in fields_to_render %}
-          {% set saved_value = (field_display_values or {}).get(field.key, field_values.get(field.key, field.default_value or '0')) %}
-          <label>{{ field.label }}
-            {% if field.field_type == 'select' %}
-              <select name="field_{{ field.key }}" {% if field.required %}required{% endif %}>
-                {% for option in field.options_json|from_json %}<option value="{{ option }}" {% if option|string == saved_value|string %}selected{% endif %}>{{ option }}</option>{% endfor %}
-              </select>
-            {% elif field.field_type == 'text' %}
-              <input type="text" name="field_{{ field.key }}" value="{{ saved_value }}" {% if field.required %}required{% endif %}>
-            {% else %}
-              <input type="text" inputmode="decimal" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="0,00">
-            {% endif %}
-            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-          </label>
-        {% endfor %}
-        </div>
-      </div>
-
-      <div class="form-section soft" data-standard-calculation-section>
-        <div class="section-title"><span class="step-badge">5</span><div><h3>Bagagens desta opção</h3><p>Defina aqui a quantidade de bagagens apenas para a companhia selecionada.</p></div></div>
-        <div class="form-grid cols-2">
-          <label>Quantidade de bagagens adicionais<input type="number" name="bags_override" value="{{ option_bags or 0 }}" min="0" max="100" step="1"></label>
-          <div class="notice-card muted compact-note">Essa quantidade será usada somente nesta opção de cálculo. A base fixa da cotação não será alterada.</div>
         </div>
       </div>
 
@@ -1381,54 +1382,119 @@ document.addEventListener('person-selected', function(event) {
   protectForm(document.getElementById('quoteBaseForm'));
 })();
 (function(){
-  // Função para campos de Dinheiro (2 casas decimais: 1.223,55)
-  const formatMoney = (val) => {
-    let clean = val.replace(/[^\d,]/g, '');
-    let parts = clean.split(',');
-    if (parts.length > 2) parts = [parts[0], parts.slice(1).join('')];
-    let intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return parts.length > 1 ? intPart + ',' + parts[1] : intPart;
-  };
+  const moneyHints = /taxa|valor|pre[cç]o|custo|dinheiro|milheiro|bagagem|comiss[aã]o|tarifa|adicional|imposto/i;
+  const milesHints = /milha|ponto|avios/i;
 
-  // Campos de Milhas/Pontos aceitam os dois formatos:
-  // 1.421.400 (milhas completas) OU 1421,4 (milheiros).
-  const formatMiles = (val) => {
-    let clean = String(val || '').replace(/[^\d.,]/g, '');
-    if (!clean) return '';
+  function fieldKind(input){
+    const explicit = String(input.dataset.financialType || input.dataset.fieldType || '').toLowerCase();
+    if(explicit === 'money' || explicit === 'miles') return explicit;
+    const key = String(input.dataset.fieldKey || input.name || '');
+    const label = String(input.closest('label')?.textContent || '');
+    const combined = `${key} ${label}`;
+    if(milesHints.test(combined) && !/milheiro/i.test(combined)) return 'miles';
+    if(moneyHints.test(combined)) return 'money';
+    return explicit || 'number';
+  }
 
-    // Se houver vírgula, ela é o separador decimal brasileiro.
-    if (clean.includes(',')) {
-      const comma = clean.lastIndexOf(',');
-      let intPart = clean.slice(0, comma).replace(/[.,]/g, '');
-      let decPart = clean.slice(comma + 1).replace(/\D/g, '').slice(0, 3);
-      intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-      return intPart + (decPart ? ',' + decPart : ',');
+  function parseMoney(raw){
+    let value = String(raw || '').trim().replace(/R\$/gi,'').replace(/\s/g,'');
+    if(!value) return {ok:true, value:0};
+    if(!/^[0-9.,]+$/.test(value)) return {ok:false};
+    let normalized = value;
+    if(value.includes(',') && value.includes('.')){
+      if(value.lastIndexOf(',') > value.lastIndexOf('.')){
+        const decimals = value.split(',').pop();
+        if(decimals.length > 2) return {ok:false};
+        normalized = value.replace(/\./g,'').replace(',','.');
+      } else {
+        const decimals = value.split('.').pop();
+        if(decimals.length > 2) return {ok:false};
+        normalized = value.replace(/,/g,'');
+      }
+    } else if(value.includes(',')){
+      const parts = value.split(',');
+      if(parts.length !== 2 || parts[1].length > 2) return {ok:false};
+      normalized = `${parts[0]}.${parts[1]}`;
+    } else if(value.includes('.')){
+      if(/^\d{1,3}(?:\.\d{3})+$/.test(value)) normalized = value.replace(/\./g,'');
+      else {
+        const parts = value.split('.');
+        if(parts.length !== 2 || parts[1].length > 2) return {ok:false};
+      }
     }
+    const number = Number(normalized);
+    return Number.isFinite(number) && number >= 0 ? {ok:true,value:number} : {ok:false};
+  }
 
-    // Sem vírgula, preserva a ideia de milhas completas com pontos de milhar.
-    const digits = clean.replace(/\D/g, '');
-    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  };
+  function formatBRMoney(number){
+    return Number(number || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
 
-  // Aplica a máscara inteligente baseada no tipo de campo
+  function parseMiles(raw){
+    const value = String(raw || '').trim().replace(/\s/g,'');
+    if(!value) return {ok:true,value:0};
+    if(!/^[0-9.,]+$/.test(value)) return {ok:false};
+    if(value.includes(',')){
+      const parts = value.split(',');
+      if(parts.length !== 2 || !/^\d+$/.test(parts[1])) return {ok:false};
+      const integer = parts[0].replace(/\./g,'');
+      const number = Number(`${integer}.${parts[1]}`);
+      return Number.isFinite(number) ? {ok:true,value:number} : {ok:false};
+    }
+    if(/^\d{1,3}(?:\.\d{3}){2,}$/.test(value)){
+      return {ok:true,value:Number(value.replace(/\./g,''))/1000};
+    }
+    if(value.includes('.')){
+      const parts=value.split('.');
+      if(parts.length===2){
+        if(parts[1].length===3 && parts[0].length<=3) return {ok:true,value:Number(parts.join(''))/1000};
+        const number=Number(value);
+        return Number.isFinite(number)?{ok:true,value:number}:{ok:false};
+      }
+      return {ok:false};
+    }
+    const number=Number(value);
+    if(!Number.isFinite(number)) return {ok:false};
+    return {ok:true,value:value.length>=5?number/1000:number};
+  }
+
+  function formatMiles(number){
+    return Number(number || 0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:3});
+  }
+
   document.querySelectorAll('input[inputmode="decimal"]').forEach(input => {
-    // Identifica se é um campo de milhas/pontos pelo nome ou pelo label ao redor
-    const nameAttr = (input.getAttribute('name') || '').toLowerCase();
-    const labelText = input.closest('label')?.textContent.toLowerCase() || '';
-    const isMilesField = nameAttr.includes('milha') || nameAttr.includes('ponto') || labelText.includes('milha') || labelText.includes('ponto');
+    const kind = fieldKind(input);
+    if(kind !== 'money' && kind !== 'miles') return;
 
-    // Formatação inicial ao carregar
-    if(input.value) {
-      const initialVal = isMilesField ? input.value : input.value.replace('.', ',');
-      input.value = isMilesField ? formatMiles(initialVal) : formatMoney(initialVal);
-    }
+    const validateAndFormat = () => {
+      const parsed = kind === 'money' ? parseMoney(input.value) : parseMiles(input.value);
+      if(!parsed.ok){
+        input.setCustomValidity(kind === 'money'
+          ? 'Informe um valor com no máximo 2 casas decimais. Ex.: 1.341,96'
+          : 'Informe milhas/pontos. Ex.: 1.421.400 ou 1421,4');
+        return;
+      }
+      input.setCustomValidity('');
+      if(input.value.trim()) input.value = kind === 'money' ? formatBRMoney(parsed.value) : formatMiles(parsed.value);
+    };
 
-    // Evento ao digitar
-    input.addEventListener('input', function(e) {
-      let cursorPos = this.selectionStart;
-      this.value = isMilesField ? formatMiles(this.value) : formatMoney(this.value);
-    });
+    input.addEventListener('blur', validateAndFormat);
+    input.addEventListener('input', () => input.setCustomValidity(''));
   });
+
+  const skipValue = document.getElementById('skipValueInput');
+  const skipCommission = document.getElementById('skipCommissionInput');
+  const quoteForm = document.getElementById('quoteForm');
+  quoteForm?.addEventListener('submit', (event) => {
+    if(!skipValue || !skipCommission || skipValue.disabled) return;
+    const gross = parseMoney(skipValue.value);
+    const commission = parseMoney(skipCommission.value);
+    if(gross.ok && commission.ok && commission.value > gross.value){
+      skipCommission.setCustomValidity('A comissão não pode ser maior que o valor da opção Skip.');
+      skipCommission.reportValidity();
+      event.preventDefault();
+    }
+  }, true);
 })();
 </script>
 {% endblock %}

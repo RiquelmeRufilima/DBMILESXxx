@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Cotação {{ data.quote_code or group.id }} | DBMILESX{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/quote-enhancements.css">{% endblock %}
 {% block content %}
 <form class="accepted-editor" method="post" action="/cadastros/cotacoes/{{ group.id }}/salvar" id="quoteEditForm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -104,12 +105,6 @@
           <button class="ghost-button tiny" type="button" disabled>Incluir via localizador</button>
         </div>
       </div>
-      <div id="commercialSeedPanel" class="commercial-seed-panel" hidden>
-        <div class="commercial-seed-kpi"><small>Custo herdado do cálculo</small><strong id="seedCost">R$ 0,00</strong></div>
-        <div class="commercial-seed-kpi"><small>Venda à vista</small><strong id="seedSale">R$ 0,00</strong></div>
-        <div class="commercial-seed-kpi"><small>Lucro / margem</small><strong id="seedProfit">R$ 0,00 • 0%</strong></div>
-        <div class="commercial-seed-kpi"><small>Cartão</small><strong id="seedCard">Não informado</strong></div>
-      </div>
       <div id="flightsList" class="itinerary-flight-stack"></div>
 
       <div class="service-command-grid" aria-label="Serviços opcionais da reserva">
@@ -198,7 +193,22 @@
   </section>
 
   <section class="tab-panel" id="tab-observacoes"><div class="panel"><label>Observações gerais<textarea rows="10" id="freeNotes">{{ data.notes or '' }}</textarea></label></div></section>
-  <section class="tab-panel" id="tab-anexos"><div class="panel empty-state"><h3>Anexos</h3><p>Área preparada para anexar comprovantes, prints, documentos e bilhetes futuramente.</p></div></section>
+  <section class="tab-panel" id="tab-anexos">
+    <div class="panel quote-attachments-panel">
+      <div class="section-title-row">
+        <div><h2>Anexos da cotação</h2><p class="muted">Envie documentos, planilhas, PDFs, textos, imagens, ícones e comprovantes. Até 25 MB por arquivo.</p></div>
+        <button class="secondary-button tiny" type="button" onclick="document.getElementById('quoteAttachmentFiles').click()">+ Selecionar arquivos</button>
+      </div>
+      <div class="quote-drop-zone" id="quoteAttachmentDropZone" tabindex="0">
+        <strong>Arraste arquivos para cá</strong>
+        <span>ou clique para escolher no computador</span>
+        <small>PDF, DOC/DOCX, XLS/XLSX, CSV, TXT, RTF, ODT/ODS, PPT/PPTX, JSON/XML/ZIP, JPG/JPEG, PNG, WEBP, GIF, BMP, ICO e SVG.</small>
+      </div>
+      <input id="quoteAttachmentFiles" type="file" multiple hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.rtf,.odt,.ods,.ppt,.pptx,.json,.xml,.zip,.png,.jpg,.jpeg,.webp,.gif,.bmp,.ico,.svg">
+      <div id="quoteAttachmentProgress" class="attachment-progress" hidden>Enviando arquivos...</div>
+      <div id="quoteAttachmentsList" class="quote-attachments-grid"></div>
+    </div>
+  </section>
   <section class="tab-panel" id="tab-tarifas"><div class="panel empty-state"><h3>Tarifas</h3><p>Área preparada para detalhar tarifas, taxas e regras da venda.</p></div></section>
   <section class="tab-panel" id="tab-fatura"><div class="panel empty-state"><h3>Fatura</h3><p>Controle de fatura será liberado após o lançamento financeiro.</p></div></section>
   <section class="tab-panel" id="tab-comunicacao"><div class="panel empty-state"><h3>Comunicação</h3><p>Área para mensagens, WhatsApp e histórico de contato com o cliente.</p></div></section>
@@ -361,43 +371,22 @@
 <script>
 const initialData = {{ data|tojson|safe }};
 let flights = Array.isArray(initialData.flights) ? initialData.flights : [];
-const commercialOffer = initialData.commercial_offer || {};
 let passengers = Array.isArray(initialData.passengers) ? initialData.passengers : [];
 let costItems = Array.isArray(initialData.cost_items) ? initialData.cost_items : [];
 let saleItems = Array.isArray(initialData.sale_items) ? initialData.sale_items : [];
 let services = initialData.services || {hotel:[],transport:[],cruise:[],experiences:[],insurance:[],additional:[],itinerary:""};
 let commission = initialData.commission || {receive:[],pay:[],extra:0};
 let sale = initialData.sale || {date:"", launched:false, launched_at:"", notes:""};
+let attachments = Array.isArray(initialData.attachments) ? initialData.attachments : [];
 let editFlightIndex = null, editCostIndex = null, editSaleIndex = null, editServiceKey = null, editServiceIndex = null, editCommissionType = null, editCommissionIndex = null;
 let uiRendered = false;
 const serviceLabels={hotel:'Hospedagem',transport:'Transporte',cruise:'Cruzeiro',experiences:'Experiências Turísticas',insurance:'Seguro',additional:'Serviço Adicional'};
 const AIRPORT_MAP = {{ airport_map|tojson|safe }};
 const AIRLINE_OPTIONS = {{ airline_options|tojson|safe }};
+const AIRLINE_LOGO_MAP = {{ airline_logo_map|tojson|safe }};
 const CHECKIN_LINKS = {{ {'aerolineas':'https://www.aerolineas.com.ar/check-in','aeromexico':'https://aeromexico.com/pt-br/check-in','aircanada':'https://www.aircanada.com/ca/en/aco/home/ssci.html','airchina':'https://www.airchina.com/','aireuropa':'https://www.aireuropa.com/br/pt/aea/gestoes/check-in.html','airfrance':'https://wwws.airfrance.com.br/check-in','airnewzealand':'https://www.airnewzealand.com/check-in-online','amaszonas':'https://www.amaszonas.com/','american':'https://www.aa.com/checkin','ana':'https://www.ana.co.jp/en/jp/guide/boarding-procedures/checkin/','arajet':'https://www.arajet.com/','avianca':'https://www.avianca.com/pt/gerencie-sua-reserva/check-in-online/','azul':'https://www.voeazul.com.br/check-in','boa':'https://www.boa.bo/','british':'https://www.britishairways.com/travel/olcilandingpageauthreq/public/en_br','condor':'https://www.condor.com/','copa':'https://www.copaair.com/pt-gs/check-in/','delta':'https://www.delta.com/us/en/check-in-security/overview','elal':'https://www.elal.com/','emirates':'https://www.emirates.com/br/english/manage-booking/online-check-in/','ethiopian':'https://www.ethiopianairlines.com/br/services/online-check-in','gol':'https://b2c.voegol.com.br/check-in','iberia':'https://www.iberia.com/br/check-in-online/','ita':'https://www.ita-airways.com/en_br/fly-ita/check-in.html','jal':'https://www.jal.co.jp/ar/en/inter/boarding/online-checkin/','jetsmart':'https://jetsmart.com/br/pt/check-in','klm':'https://www.klm.com.br/check-in','koreanair':'https://www.koreanair.com/','latam':'https://www.latamairlines.com/br/pt/check-in','lufthansa':'https://www.lufthansa.com/br/pt/check-in-online','qantas':'https://www.qantas.com/','qatar':'https://www.qatarairways.com/pt-br/services-checking-in.html','royalairmaroc':'https://www.royalairmaroc.com/','singapore':'https://www.singaporeair.com/en_UK/br/travel-info/check-in/online-mobile-checkin/','sky':'https://www.skyairline.com/','southafrican':'https://www.flysaa.com/','swiss':'https://www.swiss.com/br/en/fly/check-in/online-check-in','taag':'https://www.taag.com/','tap':'https://www.flytap.com/pt-br/check-in-online','turkish':'https://www.turkishairlines.com/en-int/flights/manage-booking/online-check-in/','united':'https://www.united.com/en/us/checkin','voepass':'https://www.voepass.com.br/'}|tojson|safe }};
 function brMoney(n){n=Number(n||0);return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function parseMoney(v){v=String(v||'').replace('R$','').replace(/\s/g,'').replace(/\./g,'').replace(',','.');const n=parseFloat(v);return isNaN(n)?0:n;}
-function renderCommercialSeed(){
-  const panel=document.getElementById('commercialSeedPanel'); if(!panel)return;
-  const cost=Number(commercialOffer.cost_value||0), saleValue=Number(commercialOffer.cash_sale_value||0), profit=Number(commercialOffer.profit_value||0), percent=Number(commercialOffer.profit_percent||0);
-  if(!cost&&!saleValue&&!profit){panel.hidden=true;return;} panel.hidden=false;
-  document.getElementById('seedCost').textContent=brMoney(cost); document.getElementById('seedSale').textContent=brMoney(saleValue||cost); document.getElementById('seedProfit').textContent=`${brMoney(profit)} • ${percent.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%`;
-  const installments=Number(commercialOffer.card_installments||1), mode=String(commercialOffer.card_interest_mode||'cash'), total=Number(commercialOffer.card_total_value||saleValue||cost), each=Number(commercialOffer.card_installment_value||total/installments||0), diff=Number(commercialOffer.card_difference_value||0);
-  document.getElementById('seedCard').textContent=mode==='cash'?'À vista':`${installments}x de ${brMoney(each)}${mode==='with_interest'?` • +${brMoney(diff)}`:' • sem juros'}`;
-}
-function scheduleGroupKey(f){return String(f.segment_key||f.kind||f.label||'voo').toLowerCase();}
-function normalizeScheduleSelections(){
-  const groups={}; flights.forEach((f,i)=>{const k=scheduleGroupKey(f);(groups[k]??=[]).push(i);});
-  Object.values(groups).forEach(indexes=>{if(!indexes.some(i=>flights[i]?.selected_schedule===true)){const explicit=indexes.some(i=>'selected_schedule' in (flights[i]||{})); if(!explicit||indexes.length){flights[indexes[0]].selected_schedule=true;}}});
-}
-function nextScheduleNumber(index){const base=flights[index]||{}, key=scheduleGroupKey(base); return Math.max(0,...flights.filter(f=>scheduleGroupKey(f)===key).map(f=>Number(f.schedule_option_number||1)))+1;}
-function addScheduleOption(index){
-  const base=flights[index]||{}; const number=nextScheduleNumber(index);
-  const clone={...base,stops:Array.isArray(base.stops)?base.stops.map(s=>({...s})):[],schedule_option_number:number,selected_schedule:false,is_flexible_option:true,flight_number:'',locator:'',purchase_number:'',departure_time:'',arrival_time:'',duration:'',checkin_link:'',notes:''};
-  const baseLabel=String(base.label|| (base.kind==='volta'?'Voo de Volta':'Voo de Ida')).replace(/\s*[—-]\s*opção\s*\d+$/i,''); clone.label=`${baseLabel} — opção ${number}`;
-  flights.splice(index+1,0,clone); renderAll();
-}
-function selectScheduleOption(index){const key=scheduleGroupKey(flights[index]||{});flights.forEach((f,i)=>{if(scheduleGroupKey(f)===key)f.selected_schedule=i===index;});renderAll();}
-
 function formatDateBr(value){
   const text=String(value||'').trim();
   const match=text.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -412,6 +401,45 @@ function formatDateTime(value,timeValue,emptyLabel='—'){
 function val(id){return document.getElementById(id)?.value || '';}
 function setVal(id,v){const el=document.getElementById(id);if(el) el.value=(v??'');}
 function closeDialog(id){document.getElementById(id).close();}
+
+function uiEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+function normalizeAirlineKey(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function airlineLogoFor(value){
+  const key=normalizeAirlineKey(value);
+  const candidates=[
+    key,
+    key.replace(/\blinhas aereas\b/g,'').trim(),
+    key.replace(/\bairlines\b/g,'').trim(),
+    key.split(' ')[0]||''
+  ];
+  for(const candidate of candidates){if(candidate&&AIRLINE_LOGO_MAP[candidate])return AIRLINE_LOGO_MAP[candidate];}
+  return '';
+}
+function airlineInitials(value){
+  const words=String(value||'').trim().split(/\s+/).filter(Boolean);
+  return (words.slice(0,2).map(w=>w[0]).join('')||'✈').toUpperCase();
+}
+function airlineVisual(value, compact=false){
+  const name=String(value||'Companhia não informada').trim()||'Companhia não informada';
+  const logo=airlineLogoFor(name);
+  const mark=logo
+    ? `<span class="airline-visual-logo${compact?' compact':''}"><img src="${logo}" alt="${uiEsc(name)}"></span>`
+    : `<span class="airline-visual-logo airline-visual-fallback${compact?' compact':''}">${uiEsc(airlineInitials(name))}</span>`;
+  return `<span class="airline-visual${compact?' compact':''}">${mark}<span class="airline-visual-name">${uiEsc(name)}</span></span>`;
+}
+function bagIcon(kind){
+  const icons={
+    personal:`<svg class="system-bag-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M8.5 11.5h15l1.6 14H6.9l1.6-14Z"/><path d="M12 12V9.3a4 4 0 0 1 8 0V12"/><path d="M11 17h10"/></svg>`,
+    carry:`<svg class="system-bag-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="8" y="9" width="16" height="17" rx="3"/><path d="M12.5 9V6.8h7V9M12 14v7M20 14v7"/><circle cx="12" cy="27.5" r="1.2" class="fill-dot"/><circle cx="20" cy="27.5" r="1.2" class="fill-dot"/></svg>`,
+    checked:`<svg class="system-bag-icon" viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="8" width="18" height="18" rx="3"/><path d="M12 8V5.7h8V8M11.5 13v8M20.5 13v8"/><path d="M23.5 11.5l2.8 2.8-3.5 3.5-2.8-2.8z"/><circle cx="11.5" cy="27.5" r="1.2" class="fill-dot"/><circle cx="20.5" cy="27.5" r="1.2" class="fill-dot"/></svg>`
+  };
+  return icons[kind]||icons.carry;
+}
+function bagBadge(kind,count,label){
+  return `<span class="flight-bag-badge ${kind}">${bagIcon(kind)}<span class="bag-badge-copy"><b>${Number(count||0)}</b><small>${uiEsc(label)}</small></span></span>`;
+}
 function airlineKey(name){
   const n=String(name||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const aliases={aerolineas:'aerolineas',aeromexico:'aeromexico','air canada':'aircanada','air china':'airchina','air europa':'aireuropa','air france':'airfrance','air new zealand':'airnewzealand',amaszonas:'amaszonas',amazonas:'amaszonas',american:'american',aadvantage:'american',ana:'ana',arajet:'arajet',avianca:'avianca',azul:'azul',voeazul:'azul',boa:'boa',boliviana:'boa',british:'british',condor:'condor',copa:'copa',delta:'delta',elal:'elal','el al':'elal',emirates:'emirates',ethiopian:'ethiopian',gol:'gol',smiles:'gol',iberia:'iberia','ita airways':'ita',ita:'ita',jal:'jal','japan airlines':'jal',jetsmart:'jetsmart',klm:'klm','korean air':'koreanair',korean:'koreanair',latam:'latam',lufthansa:'lufthansa',qantas:'qantas',qatar:'qatar','royal air maroc':'royalairmaroc',singapore:'singapore',sky:'sky','south african':'southafrican',swiss:'swiss',taag:'taag','tap air portugal':'tap',tap:'tap',turkish:'turkish',united:'united',voepass:'voepass'};
@@ -419,18 +447,18 @@ function airlineKey(name){
   return '';
 }
 function checkinLinkForAirline(name, locator='', purchaseNumber=''){
-  const key=airlineKey(name);
-  if(key && CHECKIN_LINKS[key]) return CHECKIN_LINKS[key];
-  const airline=String(name||'').trim();
-  return airline ? `https://www.google.com/search?q=${encodeURIComponent(airline+' check-in')}` : '';
+  if(!String(locator||'').trim() && !String(purchaseNumber||'').trim()) return '';
+  const key=airlineKey(name); return key ? (CHECKIN_LINKS[key]||'') : '';
 }
 function airportCode(text){const m=String(text||'').toUpperCase().match(/\b([A-Z]{3})\b/);return m?m[1]:String(text||'').toUpperCase().slice(0,3);}
 function airportCity(text){const c=airportCode(text);return AIRPORT_MAP[c]||'';}
 function routeBlock(text){const code=String(text||'—').toUpperCase();const city=airportCity(code);return `<strong>${code||'—'}</strong>${city?`<small class="airport-city-name">${city}</small>`:''}`;}
 function updateAirportHints(){['origin','destination'].forEach(k=>{const el=document.getElementById('f_'+k+'_city'); if(el) el.textContent=airportCity(val('f_'+k))||'';});}
 function refreshCheckinLinkField(){
+  const hasRef=String(val('f_locator')||'').trim() || String(val('f_purchase_number')||'').trim();
   const suggested=checkinLinkForAirline(val('f_airline'), val('f_locator'), val('f_purchase_number'));
-  if(!val('f_checkin_link')) setVal('f_checkin_link',suggested);
+  if(!hasRef) setVal('f_checkin_link','');
+  else if(!val('f_checkin_link')) setVal('f_checkin_link',suggested);
 }
 function syncHidden(){
   services.itinerary = val('itineraryText'); sale.date=val('saleDate'); sale.notes=val('saleNotes'); commission.extra=parseMoney(val('commissionExtra'));
@@ -449,10 +477,10 @@ function captureSaleDraft(){
   sale.notes=val('saleNotes');
   commission.extra=parseMoney(val('commissionExtra'));
 }
-function renderAll(){captureSaleDraft();normalizeScheduleSelections();renderCommercialSeed();renderFlights();renderPassengers();renderValues();renderServices();renderSale();syncHidden();uiRendered=true;}
+function renderAll(){captureSaleDraft();renderFlights();renderPassengers();renderValues();renderServices();renderSale();renderAttachments();syncHidden();uiRendered=true;}
 function defaultFlight(kind='ida'){
   const label = kind==='volta'?'Voo de Volta':kind==='interno'?'Voo Interno':'Voo de Ida';
-  return {kind,label,segment_key:kind==='volta'?'return':'outbound',schedule_option_number:1,selected_schedule:true,bags_personal:1,bags_carry:1,bags_checked:0,connections:'Direto',checkin_status:'pendente',class:'Econômica',stops:[]};
+  return {kind,label,bags_personal:1,bags_carry:1,bags_checked:0,connections:'Direto',checkin_status:'pendente',class:'Econômica',stops:[]};
 }
 function openFlightModal(kind='ida', index=null){
   editFlightIndex=index;
@@ -478,7 +506,7 @@ function saveFlightFromModal(){
   const departure_date=val('f_departure_date');
   const arrival_date=val('f_arrival_date') || departure_date;
   const previous = editFlightIndex!==null ? (flights[editFlightIndex] || {}) : {};
-  const f={kind:val('f_kind')||'ida',label:val('f_label')||'Voo',segment_key:previous.segment_key||(val('f_kind')==='volta'?'return':'outbound'),schedule_option_number:Number(previous.schedule_option_number||1),selected_schedule:('selected_schedule' in previous)?Boolean(previous.selected_schedule):true,flight_number:val('f_flight_number').toUpperCase(),airline,date:departure_date,departure_date,arrival_date,origin:val('f_origin'),destination:val('f_destination'),departure_time:val('f_departure_time'),arrival_time:val('f_arrival_time'),duration:val('f_duration'),locator:val('f_locator').toUpperCase(),purchase_number:val('f_purchase_number'),class:val('f_class')||'Econômica',connections:val('f_connections')||'Direto',checkin_status:val('f_checkin_status')||'pendente',checkin_link:(val('f_checkin_link')||checkinLinkForAirline(airline,val('f_locator'),val('f_purchase_number'))),bags_personal:Number(val('f_bags_personal')||0),bags_carry:Number(val('f_bags_carry')||0),bags_checked:Number(val('f_bags_checked')||0),notes:val('f_notes'),stops:Array.isArray(previous.stops)?previous.stops:[]};
+  const f={kind:val('f_kind')||'ida',label:val('f_label')||'Voo',flight_number:val('f_flight_number').toUpperCase(),airline,date:departure_date,departure_date,arrival_date,origin:val('f_origin'),destination:val('f_destination'),departure_time:val('f_departure_time'),arrival_time:val('f_arrival_time'),duration:val('f_duration'),locator:val('f_locator').toUpperCase(),purchase_number:val('f_purchase_number'),class:val('f_class')||'Econômica',connections:val('f_connections')||'Direto',checkin_status:val('f_checkin_status')||'pendente',checkin_link:(val('f_locator')||val('f_purchase_number')) ? (val('f_checkin_link')||checkinLinkForAirline(airline,val('f_locator'),val('f_purchase_number'))) : '',bags_personal:Number(val('f_bags_personal')||0),bags_carry:Number(val('f_bags_carry')||0),bags_checked:Number(val('f_bags_checked')||0),notes:val('f_notes'),stops:Array.isArray(previous.stops)?previous.stops:[]};
   if(editFlightIndex!==null)flights[editFlightIndex]=f;else flights.push(f);
   closeDialog('flightModal');renderAll();
 }
@@ -488,21 +516,23 @@ function renderFlights(){
   const box=document.getElementById('flightsList');
   if(!flights.length){box.innerHTML='<div class="empty-strip pro-empty">Nenhum voo incluído. Use “Incluir voo” para montar o itinerário da reserva.</div>';return;}
   box.innerHTML=flights.map((f,i)=>{
-    const dep=f.departure_date||f.date||''; const arr=f.arrival_date||''; const stops=stopCountForFlight(f);
-    const connectionLabel=stops ? `${Math.max(1,stops-1)} parada${Math.max(1,stops-1)>1?'s':''}` : (f.connections||'Direto');
-    const optionNumber=Number(f.schedule_option_number||1), selected=f.selected_schedule!==false;
-    return `<article class="flight-card-pro ${selected?'schedule-selected':'schedule-unselected'}">
+    const dep=f.departure_date||f.date||''; const arr=f.arrival_date||''; const stops=Array.isArray(f.stops)?f.stops:[];
+    const segmentSource=stops.length?stops:[{label:f.label||'Voo',origin:f.origin,destination:f.destination,airline:f.airline,flight_number:f.flight_number,departure_date:dep,departure_time:f.departure_time,arrival_date:arr,arrival_time:f.arrival_time,duration:f.duration,layover:''}];
+    const segmentRows=segmentSource.map((seg,si)=>`<div class="flight-segment-display"><div class="flight-segment-name"><span>${seg.label||`Trecho ${si+1}`}</span><small>Trecho ${si+1}</small></div><div class="flight-segment-route">${routeBlock(seg.origin)}<em>→</em>${routeBlock(seg.destination)}</div><div class="flight-segment-schedule"><b>${formatDateTime(seg.departure_date,seg.departure_time,'Saída não informada')}</b><span>→</span><b>${formatDateTime(seg.arrival_date,seg.arrival_time,'Chegada não informada')}</b></div><div class="flight-segment-company">${airlineVisual(seg.airline||f.airline,true)}${seg.flight_number?`<small>Voo ${uiEsc(seg.flight_number)}</small>`:''}${seg.duration?`<small>${uiEsc(seg.duration)}</small>`:''}${seg.layover?`<small>Escala ${uiEsc(seg.layover)}</small>`:''}</div></div>`).join('');
+    const connectionLabel=stops.length?`${Math.max(0,stops.length-1)} conexão${Math.max(0,stops.length-1)===1?'':'ões'}`:(f.connections||'Direto');
+    return `<article class="flight-card-pro segmented-flight-card">
       <div class="flight-pro-main">
-        <div class="flight-route-block"><span class="flight-type-pill">${f.label||'Voo'}</span> <span class="schedule-chip ${selected?'selected':''}">${selected?'ESCOLHIDA':'ALTERNATIVA'} • OPÇÃO ${optionNumber}</span><div class="route-line">${routeBlock(f.origin)}<em>→</em>${routeBlock(f.destination)}</div><small>${f.airline||'Companhia não informada'} ${f.flight_number?`• Voo ${f.flight_number}`:''}${f.purchase_number?` • Compra ${f.purchase_number}`:''}</small></div>
+        <div class="flight-route-block"><span class="flight-type-pill">${f.label||'Voo'}</span><div class="route-line">${routeBlock(f.origin)}<em>→</em>${routeBlock(f.destination)}</div><div class="flight-airline-row">${airlineVisual(f.airline,true)}${f.flight_number?`<small>Voo ${uiEsc(f.flight_number)}</small>`:''}${f.purchase_number?`<small>Compra ${uiEsc(f.purchase_number)}</small>`:''}</div></div>
         <div class="flight-info-block"><small>Saída</small><b class="flight-date-time">${formatDateTime(dep,f.departure_time,'Sem data/horário')}</b></div>
         <div class="flight-info-block"><small>Chegada</small><b class="flight-date-time">${formatDateTime(arr,f.arrival_time,'Sem data/horário')}</b></div>
         <div class="flight-info-block"><small>Duração</small><b>${f.duration||'—'}</b><span>${connectionLabel}</span></div>
         <div class="flight-info-block"><small>Localizador</small><b>${f.locator||'—'}</b><span>${flightStatusLabel(f.checkin_status)}</span></div>
       </div>
+      <div class="flight-segment-stack"><div class="segment-stack-title"><strong>Voos por trecho</strong><small>Os nomes dos trechos podem ser alterados em “Detalhar trechos”.</small></div>${segmentRows}</div>
       <div class="flight-pro-footer">
-        <div class="flight-bag-badges"><span>Bolsa ${f.bags_personal||0}</span><span>Mala ${f.bags_carry||0}</span><span>Desp. ${f.bags_checked||0}</span></div>
-        ${f.checkin_link?`<a class="checkin-pro-link" href="${f.checkin_link}" target="_blank">Link para check-in</a>`:'<span class="muted">Informe a companhia para sugerir o check-in</span>'}
-        <div class="button-row schedule-actions"><button type="button" class="secondary-button tiny" onclick="openStopsModal(${i})">Detalhar trechos</button><button type="button" class="ghost-button tiny" onclick="openFlightModal('${f.kind||'ida'}',${i})">Editar</button><button type="button" class="ghost-button tiny" onclick="addScheduleOption(${i})">+ Opção de horário</button>${selected?'':`<button type="button" class="primary-button tiny" onclick="selectScheduleOption(${i})">Usar esta opção</button>`}<button type="button" class="ghost-button danger tiny" onclick="flights.splice(${i},1);renderAll()">Excluir</button></div>
+        <div class="flight-bag-badges">${bagBadge('personal',f.bags_personal,'Bolsa')}${bagBadge('carry',f.bags_carry,'Mala pequena')}${bagBadge('checked',f.bags_checked,'Despachada')}</div>
+        ${(f.checkin_link && (f.locator||f.purchase_number))?`<a class="checkin-pro-link" href="${f.checkin_link}" target="_blank">Link para check-in</a>`:'<span class="muted">Link disponível após localizador/nº da compra</span>'}
+        <div class="button-row"><button type="button" class="secondary-button tiny" onclick="openStopsModal(${i})">Detalhar trechos</button><button type="button" class="ghost-button tiny" onclick="openFlightModal('${f.kind||'ida'}',${i})">Editar voo</button><button type="button" class="ghost-button danger tiny" onclick="if(confirm('Excluir este voo da reserva?')){flights.splice(${i},1);renderAll()}">Excluir</button></div>
       </div>
       ${f.notes?`<p class="flight-note">${f.notes}</p>`:''}
     </article>`}).join('');
@@ -513,20 +543,20 @@ function openStopsModal(index){
   if(!Array.isArray(f.stops)) f.stops=[];
   if(!f.stops.length){
     const wanted=stopCountForFlight(f)||2;
-    for(let n=0;n<wanted;n++) f.stops.push({origin:n===0?(f.origin||''):'',destination:n===wanted-1?(f.destination||''):'',airline:f.airline||'',flight_number:n===0?(f.flight_number||''):'',departure_date:n===0?(f.departure_date||f.date||''):'',departure_time:n===0?(f.departure_time||''):'',arrival_date:n===wanted-1?(f.arrival_date||''):'',arrival_time:n===wanted-1?(f.arrival_time||''):'',duration:'',layover:''});
+    for(let n=0;n<wanted;n++) f.stops.push({label:`Trecho ${n+1}`,origin:n===0?(f.origin||''):'',destination:n===wanted-1?(f.destination||''):'',airline:f.airline||'',flight_number:n===0?(f.flight_number||''):'',departure_date:n===0?(f.departure_date||f.date||''):'',departure_time:n===0?(f.departure_time||''):'',arrival_date:n===wanted-1?(f.arrival_date||''):'',arrival_time:n===wanted-1?(f.arrival_time||''):'',duration:'',layover:''});
   }
   renderStopsEditor(f.stops);
   document.getElementById('stopsModal').showModal();
 }
 function renderStopsEditor(stops){
   const box=document.getElementById('stopsEditor');
-  box.innerHTML=(stops||[]).map((s,i)=>`<div class="stop-edit-row" data-stop-index="${i}"><div class="stop-number">${i+1}º trecho</div><label>Origem<input class="iata-search" data-k="origin" value="${s.origin||''}" placeholder="IATA ou cidade" autocomplete="off"></label><label>Destino<input class="iata-search" data-k="destination" value="${s.destination||''}" placeholder="IATA ou cidade" autocomplete="off"></label><label>Companhia<input data-k="airline" value="${s.airline||''}"></label><label>Nº do voo<input data-k="flight_number" value="${s.flight_number||''}"></label><label>Embarque<input data-k="departure_date" type="date" value="${s.departure_date||''}"></label><label>Hora<input data-k="departure_time" type="time" value="${s.departure_time||''}"></label><label>Chegada<input data-k="arrival_date" type="date" value="${s.arrival_date||''}"></label><label>Hora<input data-k="arrival_time" type="time" value="${s.arrival_time||''}"></label><label>Duração<input data-k="duration" value="${s.duration||''}" placeholder="1h05"></label><label>Parada<input data-k="layover" value="${s.layover||''}" placeholder="1h15"></label><button type="button" class="ghost-button danger tiny" onclick="removeStopRow(${i})">Excluir</button></div>`).join('') || '<div class="empty-strip">Nenhum trecho de parada adicionado.</div>';
+  box.innerHTML=(stops||[]).map((s,i)=>`<div class="stop-edit-row" data-stop-index="${i}"><div class="stop-number">${i+1}º trecho</div><label class="stop-label-field">Nome do trecho<input data-k="label" value="${s.label||`Trecho ${i+1}`}" placeholder="Trecho ${i+1}, Conexão, Voo interno..."></label><label>Origem<input class="iata-search" data-k="origin" value="${s.origin||''}" placeholder="IATA ou cidade" autocomplete="off"></label><label>Destino<input class="iata-search" data-k="destination" value="${s.destination||''}" placeholder="IATA ou cidade" autocomplete="off"></label><label>Companhia<input data-k="airline" value="${s.airline||''}"></label><label>Nº do voo<input data-k="flight_number" value="${s.flight_number||''}"></label><label>Embarque<input data-k="departure_date" type="date" value="${s.departure_date||''}"></label><label>Hora<input data-k="departure_time" type="time" value="${s.departure_time||''}"></label><label>Chegada<input data-k="arrival_date" type="date" value="${s.arrival_date||''}"></label><label>Hora<input data-k="arrival_time" type="time" value="${s.arrival_time||''}"></label><label>Duração<input data-k="duration" value="${s.duration||''}" placeholder="1h05"></label><label>Escala após o trecho<input data-k="layover" value="${s.layover||''}" placeholder="1h15"></label><button type="button" class="ghost-button danger tiny" onclick="removeStopRow(${i})">Excluir</button></div>`).join('') || '<div class="empty-strip">Nenhum trecho de conexão adicionado.</div>';
 }
 function collectStopsFromEditor(){
   return Array.from(document.querySelectorAll('.stop-edit-row')).map(row=>{const obj={}; row.querySelectorAll('[data-k]').forEach(el=>obj[el.dataset.k]=el.value||''); return obj;});
 }
 function addStopRow(){
-  const idx=Number(val('stops_flight_index')); const f=flights[idx]||{}; f.stops=collectStopsFromEditor(); f.stops.push({origin:'',destination:'',airline:f.airline||'',flight_number:'',departure_date:'',departure_time:'',arrival_date:'',arrival_time:'',duration:'',layover:''}); flights[idx]=f; renderStopsEditor(f.stops);
+  const idx=Number(val('stops_flight_index')); const f=flights[idx]||{}; f.stops=collectStopsFromEditor(); f.stops.push({label:`Trecho ${f.stops.length+1}`,origin:'',destination:'',airline:f.airline||'',flight_number:'',departure_date:'',departure_time:'',arrival_date:'',arrival_time:'',duration:'',layover:''}); flights[idx]=f; renderStopsEditor(f.stops);
 }
 function removeStopRow(i){
   const idx=Number(val('stops_flight_index')); const f=flights[idx]||{}; f.stops=collectStopsFromEditor(); f.stops.splice(i,1); flights[idx]=f; renderStopsEditor(f.stops);
@@ -650,6 +680,30 @@ function saveServiceFromModal(){
 }
 function serviceSummary(s){const parts=[]; if(s.origin||s.destination)parts.push(`${s.origin||''}${s.origin||s.destination?' → ':''}${s.destination||''}`); if(s.start_date||s.start_time||s.end_date||s.end_time){const start=formatDateTime(s.start_date,s.start_time,'');const end=formatDateTime(s.end_date,s.end_time,'');parts.push([start,end].filter(Boolean).join(' até '));} if(s.address)parts.push(s.address); if(s.reservation_number)parts.push('Reserva '+s.reservation_number); if(s.value)parts.push(brMoney(s.value)); return parts.filter(Boolean).join(' • ');}
 function renderServices(){['hotel','transport','cruise','experiences','insurance','additional'].forEach(key=>{const box=document.getElementById(key+'List'); if(!box)return; const arr=Array.isArray(services[key])?services[key]:[]; box.innerHTML=arr.map((s,i)=>`<div class="service-row rich"><div><strong>${s.name||serviceLabels[key]||'Serviço'}</strong><small>${serviceSummary(s)||'Sem detalhes adicionais'}</small>${s.description?`<p>${s.description}</p>`:''}</div><div class="button-row"><button type="button" class="ghost-button tiny" onclick="openServiceModal('${key}',${i})">Editar</button><button type="button" class="ghost-button danger tiny" onclick="services['${key}'].splice(${i},1);renderAll()">Excluir</button></div></div>`).join('')||'<div class="empty-strip">Nenhum item incluído.</div>';});}
+
+function formatFileSize(bytes){const n=Number(bytes||0);if(n<1024)return `${n} B`;if(n<1024*1024)return `${(n/1024).toFixed(1)} KB`;return `${(n/1024/1024).toFixed(1)} MB`;}
+function attachmentIcon(a){const ext=String(a.extension||'').toLowerCase();if(['.png','.jpg','.jpeg','.webp','.gif','.bmp','.ico','.svg'].includes(ext))return '🖼️';if(ext==='.pdf')return '📕';if(['.xls','.xlsx','.csv','.ods'].includes(ext))return '📊';if(['.doc','.docx','.odt','.rtf','.txt'].includes(ext))return '📄';return '📎';}
+function renderAttachments(){
+  const box=document.getElementById('quoteAttachmentsList');if(!box)return;
+  box.innerHTML=attachments.map(a=>`<article class="quote-attachment-card"><div class="attachment-type-icon">${attachmentIcon(a)}</div><div class="attachment-meta"><strong title="${String(a.name||'').replace(/"/g,'&quot;')}">${a.name||'Arquivo'}</strong><small>${formatFileSize(a.size)}${a.uploaded_by?` • ${a.uploaded_by}`:''}</small></div><div class="attachment-actions"><a class="ghost-button tiny" href="/${a.path}" target="_blank" rel="noopener">Abrir</a><button class="ghost-button danger tiny" type="button" onclick="deleteQuoteAttachment('${a.id}')">Excluir</button></div></article>`).join('') || '<div class="empty-strip">Nenhum anexo enviado ainda.</div>';
+}
+async function uploadQuoteAttachments(files){
+  const list=Array.from(files||[]);if(!list.length)return;
+  const progress=document.getElementById('quoteAttachmentProgress');if(progress)progress.hidden=false;
+  const fd=new FormData();fd.append('csrf_token','{{ csrf_token }}');list.forEach(file=>fd.append('files',file));
+  try{const r=await fetch('/cadastros/cotacoes/{{ group.id }}/anexos/upload',{method:'POST',body:fd});const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.message||'Não foi possível enviar os arquivos.');attachments=Array.isArray(data.attachments)?data.attachments:attachments;renderAttachments();}
+  catch(error){alert(error.message||'Erro ao enviar anexos.');}
+  finally{if(progress)progress.hidden=true;const input=document.getElementById('quoteAttachmentFiles');if(input)input.value='';}
+}
+async function deleteQuoteAttachment(id){
+  if(!confirm('Excluir este anexo da cotação?'))return;
+  const fd=new FormData();fd.append('csrf_token','{{ csrf_token }}');
+  try{const r=await fetch(`/cadastros/cotacoes/{{ group.id }}/anexos/${encodeURIComponent(id)}/delete`,{method:'POST',body:fd});const data=await r.json();if(!r.ok||!data.ok)throw new Error(data.message||'Não foi possível excluir.');attachments=Array.isArray(data.attachments)?data.attachments:[];renderAttachments();}catch(error){alert(error.message||'Erro ao excluir anexo.');}
+}
+const attachmentInput=document.getElementById('quoteAttachmentFiles');attachmentInput?.addEventListener('change',e=>uploadQuoteAttachments(e.target.files));
+const dropZone=document.getElementById('quoteAttachmentDropZone');
+if(dropZone){dropZone.addEventListener('click',()=>attachmentInput?.click());dropZone.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();attachmentInput?.click();}});['dragenter','dragover'].forEach(ev=>dropZone.addEventListener(ev,e=>{e.preventDefault();dropZone.classList.add('dragging');}));['dragleave','drop'].forEach(ev=>dropZone.addEventListener(ev,e=>{e.preventDefault();dropZone.classList.remove('dragging');}));dropZone.addEventListener('drop',e=>uploadQuoteAttachments(e.dataTransfer.files));}
+
 function openCommissionModal(type,index=null){
   editCommissionType=type; editCommissionIndex=index;
   if(!Array.isArray(commission[type])) commission[type]=[];

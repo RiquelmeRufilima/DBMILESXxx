@@ -23,22 +23,6 @@ router = APIRouter(prefix="/airlines", tags=["airlines"])
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-_LEGACY_EDIT_FORMULAS = {
-    "latam_milhas": "(milhas * milheiro * passageiros) + (taxa * passageiros) + (bagagens * bagagem_unitaria)",
-    "gol_smiles": "(milhas * milheiro) + taxa + (bagagens * bagagem_unitaria)",
-    "gol_desagio": "valor_gol - (valor_gol * desagio / 100) + (bagagens * bagagem_unitaria)",
-    "azul_pontos": "(milhas * milheiro) + taxa + (bagagens * bagagem_unitaria)",
-    "azul_pontos_dinheiro": "(milhas * milheiro) + (valor_dinheiro * (1 - desconto_taxa / 100)) + taxas_impostos + (taxa_resgate_por_pax_trecho * passageiros * numero_trechos) + (bagagens * bagagem_unitaria)",
-    "american_milhas": "(milhas * milheiro) + taxa + (bagagens * bagagem_unitaria)",
-    "azulpelomundo_pontos": "(milhas * milheiro) + taxa + (bagagens * bagagem_unitaria)",
-    "azulpelomundo_pontos_dinheiro": "(milhas * milheiro) + (valor_dinheiro * (1 - desconto_taxa / 100)) + taxas_impostos + (taxa_resgate_por_pax_trecho * passageiros * numero_trechos) + (bagagens * bagagem_unitaria)",
-}
-
-def _editable_formula(calc_type: CalculationType) -> str:
-    return _LEGACY_EDIT_FORMULAS.get(str(calc_type.legacy_key or ""), str(calc_type.formula or ""))
-
-
-
 def slugify(value: str) -> str:
     text = value.strip().lower()
     replacements = {
@@ -59,69 +43,11 @@ def _visibility(user):
 
 
 def _can_manage(user, airline: Airline) -> bool:
-    # As companhias originais também podem ter logo e lógica ajustadas para
-    # futuras melhorias. A exclusão da companhia original continua bloqueada.
     if airline.builtin:
-        return bool(getattr(user, "is_owner", False) or getattr(user, "role", "") in {"admin", "gerente"})
+        return False
     if user.company_id:
         return airline.owner_company_id == user.company_id and user.role in {"admin", "gerente"}
     return airline.owner_user_id == user.id
-
-
-def _market_scope(value: object) -> str:
-    raw = str(value or "").strip().lower()
-    return raw if raw in {"national", "international", "both"} else "both"
-
-
-def _airline_partner_names(airline: Airline | None) -> list[str]:
-    if airline is None:
-        return []
-    try:
-        raw = json.loads(str(getattr(airline, "partner_airlines_json", "[]") or "[]"))
-    except (TypeError, ValueError, json.JSONDecodeError):
-        raw = []
-    if not isinstance(raw, list):
-        return []
-    result: list[str] = []
-    seen: set[str] = set()
-    for item in raw:
-        name = " ".join(str(item or "").split()).strip()[:180]
-        key = name.casefold()
-        if name and key not in seen:
-            seen.add(key)
-            result.append(name)
-    return result[:100]
-
-
-def _clean_partner_names(values: list[object], extra_text: object = "") -> list[str]:
-    raw_items = list(values or [])
-    extra = str(extra_text or "").replace(";", "\n").replace(",", "\n")
-    raw_items.extend(extra.splitlines())
-    result: list[str] = []
-    seen: set[str] = set()
-    for item in raw_items:
-        name = " ".join(str(item or "").split()).strip()[:180]
-        key = name.casefold()
-        if len(name) < 2 or key in seen:
-            continue
-        seen.add(key)
-        result.append(name)
-        if len(result) >= 100:
-            break
-    return result
-
-
-def _available_partner_airlines(db: Session, user, *, exclude_id: int | None = None) -> list[Airline]:
-    items = list(
-        db.scalars(
-            select(Airline)
-            .where(Airline.active.is_(True), _visibility(user))
-            .order_by(Airline.name)
-        ).all()
-    )
-    if exclude_id is not None:
-        items = [item for item in items if item.id != exclude_id]
-    return items
 
 
 async def _save_logo(upload: UploadFile | None, *, prefix: str = "airline") -> str | None:
@@ -163,7 +89,7 @@ def _parse_fields(raw: str) -> list[dict]:
             {
                 "key": key,
                 "label": label,
-                "field_type": field_type if field_type in {"miles", "money", "number", "integer", "percent", "text", "select"} else "number",
+                "field_type": field_type if field_type in {"number", "integer", "percent", "text", "select"} else "number",
                 "default_value": str(item.get("default_value") or "0"),
                 "required": bool(item.get("required")),
                 "min_value": item.get("min_value"),
@@ -219,12 +145,7 @@ def new_airline_page(request: Request, db: Session = Depends(get_db)):
     if user.company_id and user.role not in {"admin", "gerente"}:
         flash(request, "Somente administradores e gerentes podem criar companhias para a empresa.", "error")
         return RedirectResponse("/airlines", status_code=303)
-    partner_airlines = _available_partner_airlines(db, user)
-    return templates.TemplateResponse(
-        request,
-        "airlines/form.html",
-        context(request, user=user, partner_airlines=partner_airlines),
-    )
+    return templates.TemplateResponse(request, "airlines/form.html", context(request, user=user))
 
 
 @router.post("/new")
@@ -246,11 +167,6 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
     formula = str(form.get("formula") or "tarifa - (tarifa * desconto_percentual / 100)").strip()
     apply_mode = str(form.get("apply_mode") or "total")
     color = str(form.get("color") or "#24b7d3")
-    market_scope = _market_scope(form.get("market_scope"))
-    partner_names = _clean_partner_names(
-        list(form.getlist("partner_airlines")),
-        form.get("partner_airlines_extra"),
-    )
     if len(name) < 2:
         flash(request, "O nome da companhia é obrigatório.", "error")
         return RedirectResponse("/airlines/new", status_code=303)
@@ -264,7 +180,7 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
     # Modelo padrão das companhias personalizadas: tarifa menos X% de desconto.
     if not fields:
         fields = [
-            {"key": "tarifa", "label": "Tarifa informada", "field_type": "money", "default_value": "0", "required": True, "min_value": 0, "max_value": None, "step": 0.01, "help_text": "Valor bruto da tarifa antes do desconto.", "options": None, "order_index": 0},
+            {"key": "tarifa", "label": "Tarifa informada", "field_type": "number", "default_value": "0", "required": True, "min_value": 0, "max_value": None, "step": 0.01, "help_text": "Valor bruto da tarifa antes do desconto.", "options": None, "order_index": 0},
             {"key": "desconto_percentual", "label": "Desconto da tarifa (%)", "field_type": "percent", "default_value": "0", "required": False, "min_value": 0, "max_value": 100, "step": 0.01, "help_text": "Percentual retirado diretamente da tarifa informada.", "options": None, "order_index": 1},
         ]
 
@@ -289,8 +205,6 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
         logo_path=logo_path,
         color=color if re.match(r"^#[0-9A-Fa-f]{6}$", color) else "#24b7d3",
         engine_type="formula",
-        market_scope=market_scope,
-        partner_airlines_json=json.dumps(partner_names, ensure_ascii=False),
         active=True,
         builtin=False,
     )
@@ -329,65 +243,9 @@ def manage_airline(airline_id: int, request: Request, db: Session = Depends(get_
     if airline is None:
         flash(request, "Companhia não encontrada.", "error")
         return RedirectResponse("/airlines", status_code=303)
-    partner_airlines = _available_partner_airlines(db, user, exclude_id=airline.id)
-    selected_partner_names = _airline_partner_names(airline)
-    available_partner_tokens = {item.name.casefold() for item in partner_airlines}
-    manual_partner_names = [
-        name for name in selected_partner_names
-        if name.casefold() not in available_partner_tokens
-    ]
-    return templates.TemplateResponse(
-        request,
-        "airlines/manage.html",
-        context(
-            request,
-            user=user,
-            airline=airline,
-            can_manage=_can_manage(user, airline),
-            partner_airlines=partner_airlines,
-            selected_partner_names=selected_partner_names,
-            manual_partner_names=manual_partner_names,
-        ),
+    return templates.TemplateResponse(request, "airlines/manage.html",
+        context(request, user=user, airline=airline, can_manage=_can_manage(user, airline)),
     )
-
-
-@router.post("/{airline_id}/profile")
-async def update_airline_profile(airline_id: int, request: Request, db: Session = Depends(get_db)):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-
-    airline = db.get(Airline, airline_id)
-    if airline is None or not _can_manage(user, airline):
-        flash(request, "Você não pode alterar essa companhia.", "error")
-        return RedirectResponse("/airlines", status_code=303)
-
-    form = await request.form()
-    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
-
-    airline.market_scope = _market_scope(form.get("market_scope"))
-    partner_names = _clean_partner_names(
-        list(form.getlist("partner_airlines")),
-        form.get("partner_airlines_extra"),
-    )
-    # Nunca deixa a própria companhia cadastrada como parceira dela mesma.
-    partner_names = [name for name in partner_names if name.casefold() != str(airline.name or "").casefold()]
-    airline.partner_airlines_json = json.dumps(partner_names, ensure_ascii=False)
-    db.commit()
-
-    scope_label = {
-        "national": "Nacional",
-        "international": "Internacional",
-        "both": "Nacional + internacional",
-    }.get(airline.market_scope, "Nacional + internacional")
-    flash(
-        request,
-        f"Perfil atualizado: {scope_label} • {len(partner_names)} parceria(s) habitual(is).",
-        "success",
-    )
-    return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
 
 @router.post("/{airline_id}/logo")
@@ -541,11 +399,11 @@ def edit_custom_airline_redirect(airline_id: int, request: Request, db: Session 
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
     calc_type = next(
-        (item for item in airline.calculation_types if item.active),
+        (item for item in airline.calculation_types if item.active and not item.legacy_key),
         None,
     )
     if calc_type is None:
-        flash(request, "Essa companhia ainda não possui uma lógica ativa editável.", "error")
+        flash(request, "Essa companhia ainda não possui uma lógica personalizada editável.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
     return RedirectResponse(
@@ -569,8 +427,8 @@ def delete_custom_airline_page(airline_id: int, request: Request, db: Session = 
     if airline is None:
         flash(request, "Companhia não encontrada.", "error")
         return RedirectResponse("/airlines", status_code=303)
-    if not _can_manage(user, airline) or airline.builtin:
-        flash(request, "As companhias originais podem ser editadas, mas não excluídas.", "error")
+    if not _can_manage(user, airline):
+        flash(request, "Você não pode excluir essa companhia.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
     return templates.TemplateResponse(
@@ -596,8 +454,8 @@ def edit_calculation_type_page(airline_id: int, type_id: int, request: Request, 
         return RedirectResponse("/airlines", status_code=303)
 
     calc_type = next((item for item in airline.calculation_types if item.id == type_id and item.active), None)
-    if calc_type is None:
-        flash(request, "Essa lógica não foi encontrada.", "error")
+    if calc_type is None or calc_type.legacy_key:
+        flash(request, "Essa lógica não pode ser editada.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
     initial_fields = [_field_to_payload(field) for field in calc_type.fields]
@@ -610,8 +468,6 @@ def edit_calculation_type_page(airline_id: int, type_id: int, request: Request, 
             airline=airline,
             calc_type=calc_type,
             initial_fields=initial_fields,
-            formula_value=_editable_formula(calc_type),
-            converting_legacy=bool(calc_type.legacy_key),
         ),
     )
 
@@ -632,8 +488,8 @@ async def update_calculation_type(airline_id: int, type_id: int, request: Reques
         return RedirectResponse("/airlines", status_code=303)
 
     calc_type = next((item for item in airline.calculation_types if item.id == type_id and item.active), None)
-    if calc_type is None:
-        flash(request, "Essa lógica não foi encontrada.", "error")
+    if calc_type is None or calc_type.legacy_key:
+        flash(request, "Essa lógica não pode ser editada.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
     form = await request.form()
@@ -657,17 +513,11 @@ async def update_calculation_type(airline_id: int, type_id: int, request: Reques
         return RedirectResponse(f"/airlines/{airline_id}/types/{type_id}/edit", status_code=303)
 
     allowed_variables = {item["key"] for item in fields} | {"passageiros", "bebes", "bagagens"}
-    if airline.slug == "american":
-        allowed_variables.add("bagagem_unitaria")
     valid, message = validate_formula(formula, allowed_variables)
     if not valid:
         flash(request, f"Fórmula inválida: {message}", "error")
         return RedirectResponse(f"/airlines/{airline_id}/types/{type_id}/edit", status_code=303)
 
-    # Ao salvar pela primeira vez uma regra original, ela passa a usar a
-    # fórmula editável mantendo o MESMO id. Assim o histórico não é recalculado.
-    if calc_type.legacy_key:
-        calc_type.legacy_key = None
     calc_type.name = name
     calc_type.description = description
     calc_type.formula = formula
@@ -713,8 +563,8 @@ async def delete_calculation_type(
         flash(request, "Lógica de cálculo não encontrada ou já excluída.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
-    if airline.builtin or calc_type.legacy_key:
-        flash(request, "As lógicas das companhias originais podem ser editadas, mas não excluídas.", "error")
+    if calc_type.legacy_key:
+        flash(request, "As lógicas originais do sistema são protegidas e não podem ser excluídas.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
     form = await request.form()
@@ -776,8 +626,8 @@ async def delete_custom_airline(airline_id: int, request: Request, db: Session =
         .where(Airline.id == airline_id, _visibility(user))
         .options(selectinload(Airline.calculation_types))
     )
-    if airline is None or not _can_manage(user, airline) or airline.builtin:
-        flash(request, "As companhias originais podem ser editadas, mas não excluídas.", "error")
+    if airline is None or not _can_manage(user, airline):
+        flash(request, "Você não pode excluir essa companhia.", "error")
         return RedirectResponse("/airlines", status_code=303)
 
     form = await request.form()

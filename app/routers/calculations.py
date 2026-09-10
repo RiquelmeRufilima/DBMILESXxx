@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import delete, desc, func, inspect, literal, or_, select, union_all
+from sqlalchemy import delete, desc, func, inspect, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db, engine
@@ -49,59 +49,59 @@ _ACTIVITY_TABLE_AVAILABLE: bool | None = None
 # anterior e os campos da companhia ainda não foram criados em web_calculation_fields.
 DEFAULT_FIELD_DEFINITIONS: dict[str, list[dict[str, Any]]] = {
     "latam_milhas": [
-        {"key": "milhas", "label": "Milhas necessárias por passageiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa", "label": "Taxa de embarque por passageiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "140", "min_value": 0, "step": 1},
+        {"key": "milhas", "label": "Milhas necessárias por passageiro", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa", "label": "Taxa de embarque por passageiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "140", "min_value": 0, "step": 1},
     ],
     "gol_smiles": [
-        {"key": "milhas", "label": "Milhas Smiles necessárias", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa", "label": "Taxa de embarque", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "175", "min_value": 0, "step": 1},
+        {"key": "milhas", "label": "Milhas Smiles necessárias", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa", "label": "Taxa de embarque", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
     "gol_desagio": [
-        {"key": "valor_gol", "label": "Valor cheio da passagem", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "valor_gol", "label": "Valor cheio da passagem", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
         {"key": "desagio", "label": "Percentual de deságio", "field_type": "percent", "default_value": "0", "min_value": 0, "max_value": 100, "step": 1},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "175", "min_value": 0, "step": 1},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
     "azul_pontos": [
-        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa", "label": "Taxa de embarque", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "175", "min_value": 0, "step": 1},
+        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa", "label": "Taxa de embarque", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
     "azul_pontos_dinheiro": [
-        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "valor_dinheiro", "label": "Valor em dinheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "valor_dinheiro", "label": "Valor em dinheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
         {"key": "desconto_taxa", "label": "Desconto no valor em dinheiro (%)", "field_type": "percent", "default_value": "10", "min_value": 0, "max_value": 100, "step": 1},
-        {"key": "taxas_impostos", "label": "Taxas e impostos", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa_resgate_por_pax_trecho", "label": "Taxa de resgate por pax/trecho", "field_type": "number", "default_value": "60", "min_value": 0, "step": 1},
+        {"key": "taxas_impostos", "label": "Taxas e impostos", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa_resgate_por_pax_trecho", "label": "Taxa de resgate por pax/trecho", "field_type": "money", "default_value": "60", "min_value": 0, "step": 1},
         {"key": "numero_trechos", "label": "Número de trechos", "field_type": "integer", "default_value": "1", "min_value": 1, "max_value": 20, "step": 1},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "175", "min_value": 0, "step": 1},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
     "american_milhas": [
-        {"key": "milhas", "label": "Milhas AAdvantage necessárias", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa", "label": "Taxa de embarque", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "milhas", "label": "Milhas AAdvantage necessárias", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa", "label": "Taxa de embarque", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
         {"key": "rota_american", "label": "Tipo de rota", "field_type": "select", "default_value": "Brasil ↔ EUA", "options_json": json.dumps(["Brasil ↔ EUA", "EUA / Canadá / Caribe / México", "América do Sul ↔ EUA", "EUA ↔ Panamá / Colômbia / Peru / Equador"], ensure_ascii=False)},
     ],
     "azulpelomundo_pontos": [
-        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa", "label": "Taxa de embarque", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "175", "min_value": 0, "step": 1},
+        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa", "label": "Taxa de embarque", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
     "azulpelomundo_pontos_dinheiro": [
-        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.001},
-        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "valor_dinheiro", "label": "Valor em dinheiro", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
+        {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "valor_dinheiro", "label": "Valor em dinheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
         {"key": "desconto_taxa", "label": "Desconto no valor em dinheiro (%)", "field_type": "percent", "default_value": "10", "min_value": 0, "max_value": 100, "step": 1},
-        {"key": "taxas_impostos", "label": "Taxas e impostos", "field_type": "number", "default_value": "0", "min_value": 0, "step": 0.01},
-        {"key": "taxa_resgate_por_pax_trecho", "label": "Taxa de resgate por pax/trecho", "field_type": "number", "default_value": "60", "min_value": 0, "step": 1},
+        {"key": "taxas_impostos", "label": "Taxas e impostos", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "taxa_resgate_por_pax_trecho", "label": "Taxa de resgate por pax/trecho", "field_type": "money", "default_value": "60", "min_value": 0, "step": 1},
         {"key": "numero_trechos", "label": "Número de trechos", "field_type": "integer", "default_value": "1", "min_value": 1, "max_value": 20, "step": 1},
-        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "number", "default_value": "175", "min_value": 0, "step": 1},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
 }
 
@@ -140,7 +140,7 @@ def _default_field_definitions(calc_type: CalculationType) -> list[dict[str, Any
         {
             "key": key,
             "label": _field_label(key),
-            "field_type": "percent" if key in {"desconto", "juros", "desconto_taxa"} else ("integer" if key in {"numero_trechos"} else "number"),
+            "field_type": ("percent" if key in {"desconto", "juros", "desconto_taxa"} else ("integer" if key in {"numero_trechos"} else ("miles" if key == "milhas" else ("money" if key in {"milheiro", "taxa", "bagagem_unitaria", "valor_gol", "valor_dinheiro", "taxas_impostos", "taxa_resgate_por_pax_trecho"} else "number")))),
             "default_value": "1" if key == "numero_trechos" else "0",
             "min_value": 0,
             "max_value": 100 if key in {"desconto", "juros", "desconto_taxa"} else None,
@@ -1249,7 +1249,7 @@ def _format_saved_calculation_value(value: Any, field: CalculationField | Any) -
         return raw
 
     field_type = str(getattr(field, "field_type", "") or "").strip().lower()
-    if field_type in {"select", "text", "integer", "percent"}:
+    if field_type in {"select", "text", "integer", "percent", "miles"}:
         return raw
 
     key = _normalized_token(getattr(field, "key", ""))
@@ -1355,6 +1355,117 @@ def _parse_amount(value: Any, *, field_name: str = "valor") -> float:
     if parsed < 0:
         raise ValueError(f"{field_name} não pode ser negativo")
     return round(parsed, 2)
+
+
+def _field_semantic_type(field: CalculationField | Any) -> str:
+    """Resolve o tipo financeiro real do campo, inclusive cadastros antigos."""
+    explicit = str(getattr(field, "field_type", "") or "").strip().lower()
+    if explicit in {"miles", "money", "integer", "percent", "text", "select"}:
+        return explicit
+    key = _normalized_token(getattr(field, "key", ""))
+    label = _normalized_token(getattr(field, "label", ""))
+    combined = f"{key} {label}"
+    if any(token in combined for token in ("milha", "ponto", "avios")) and "milheiro" not in combined:
+        return "miles"
+    if any(token in combined for token in (
+        "taxa", "valor", "preco", "custo", "dinheiro", "milheiro",
+        "bagagem", "comissao", "tarifa", "adicional", "imposto"
+    )):
+        return "money"
+    return explicit or "number"
+
+
+def _parse_money_field(value: Any, *, field_name: str = "valor") -> float:
+    """Valor monetário estrito: aceita padrão BR/US e no máximo 2 casas decimais."""
+    raw = str(value or "").strip().replace("R$", "").replace(" ", "")
+    if not raw:
+        return 0.0
+    if raw.startswith("-"):
+        raise ValueError(f"{field_name} não pode ser negativo")
+    if not re.fullmatch(r"[0-9.,]+", raw):
+        raise ValueError(f"{field_name} inválido")
+
+    normalized = raw
+    if "," in raw and "." in raw:
+        # 1.341,96 ou 1,341.96
+        if raw.rfind(",") > raw.rfind("."):
+            decimal = raw.rsplit(",", 1)[1]
+            if len(decimal) > 2:
+                raise ValueError(f"{field_name} deve ter no máximo 2 casas decimais")
+            normalized = raw.replace(".", "").replace(",", ".")
+        else:
+            decimal = raw.rsplit(".", 1)[1]
+            if len(decimal) > 2:
+                raise ValueError(f"{field_name} deve ter no máximo 2 casas decimais")
+            normalized = raw.replace(",", "")
+    elif "," in raw:
+        parts = raw.split(",")
+        if len(parts) != 2 or len(parts[1]) > 2:
+            raise ValueError(f"{field_name} deve ter no máximo 2 casas decimais")
+        normalized = f"{parts[0]}.{parts[1]}"
+    elif "." in raw:
+        # Padrão BR com agrupamento de milhar: 1.341 ou 1.341.900
+        if re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw):
+            normalized = raw.replace(".", "")
+        else:
+            parts = raw.split(".")
+            if len(parts) != 2 or len(parts[1]) > 2:
+                raise ValueError(f"{field_name} deve ter no máximo 2 casas decimais")
+    try:
+        parsed = float(normalized)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} inválido") from exc
+    if parsed < 0:
+        raise ValueError(f"{field_name} não pode ser negativo")
+    return round(parsed, 2)
+
+
+def _parse_miles_field(value: Any, *, field_name: str = "milhas/pontos") -> float:
+    """Normaliza pontos/milhas para milheiros.
+
+    Exemplos equivalentes: 1.421.400, 1421400, 1.421,4 e 1421,4 -> 1421.4.
+    """
+    raw = str(value or "").strip().replace(" ", "")
+    if not raw:
+        return 0.0
+    if raw.startswith("-") or not re.fullmatch(r"[0-9.,]+", raw):
+        raise ValueError(f"{field_name} inválido")
+
+    # Decimal explícito em padrão brasileiro: 1.421,4 / 1421,4
+    if "," in raw:
+        if raw.count(",") != 1:
+            raise ValueError(f"{field_name} inválido")
+        integer, decimal = raw.split(",", 1)
+        if not decimal.isdigit():
+            raise ValueError(f"{field_name} inválido")
+        integer = integer.replace(".", "")
+        try:
+            return round(float(f"{integer}.{decimal}"), 3)
+        except ValueError as exc:
+            raise ValueError(f"{field_name} inválido") from exc
+
+    # Vários pontos em grupos de milhar representam quantidade bruta de pontos.
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3}){2,}", raw):
+        return round(float(raw.replace(".", "")) / 1000.0, 3)
+
+    # Um ponto pode ser decimal em milheiros (1421.4) ou milhar visual (1.421).
+    if raw.count(".") == 1:
+        left, right = raw.split(".", 1)
+        if len(right) <= 3 and len(left) > 3:
+            return round(float(raw), 3)
+        if len(right) == 3 and len(left) <= 3:
+            return round(float(left + right) / 1000.0, 3)
+        return round(float(raw), 3)
+
+    # Inteiro grande é quantidade bruta de pontos; inteiro curto já está em milheiros.
+    digits = raw.replace(".", "")
+    try:
+        numeric = float(digits)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} inválido") from exc
+    if len(digits) >= 5:
+        numeric /= 1000.0
+    return round(numeric, 3)
 
 
 
@@ -1978,39 +2089,16 @@ def _airline_operation_profile(airline_or_name: Airline | str | None) -> dict[st
         "configured_partners": _configured_partner_names(airline),
     }
 
-def _selected_airline_and_type(
-    db: Session,
-    user,
-    airline_id: int | None,
-    type_id: int | None,
-    *,
-    auto_select: bool = True,
-):
-    """Carrega a lista de companhias de forma leve e os campos só da selecionada.
-
-    Antes, a tela trazia todos os tipos + todos os campos das 40+ companhias em
-    cada abertura. Em banco remoto isso aumenta bastante o payload e o tempo de
-    hidratação do ORM. A lista lateral precisa somente dos dados da companhia;
-    relacionamentos completos são carregados apenas para a companhia ativa.
-    """
+def _selected_airline_and_type(db: Session, user, airline_id: int | None, type_id: int | None):
     airlines = list(db.scalars(
         _visible_airlines_query(user)
+        .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
         .order_by(Airline.builtin.desc(), Airline.name)
     ).all())
     airlines.sort(key=_airline_sort_key)
-
-    selected_stub = next((item for item in airlines if item.id == airline_id), None)
-    if selected_stub is None and auto_select and airlines:
-        selected_stub = airlines[0]
-
-    selected_airline = None
-    if selected_stub is not None:
-        selected_airline = db.scalar(
-            select(Airline)
-            .where(Airline.id == selected_stub.id)
-            .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
-            .execution_options(populate_existing=True)
-        ) or selected_stub
+    selected_airline = next((item for item in airlines if item.id == airline_id), None)
+    if selected_airline is None and airlines:
+        selected_airline = airlines[0]
 
     selected_type = None
     if selected_airline:
@@ -2401,15 +2489,10 @@ def _new_calculation_impl(
         if _group_allowed(user, group):
             request.session["active_quote_group_id"] = group.id
             base = _base_from_group(group, variant_key)
-            # A lista completa de opções não é usada nesta tela. Só a buscamos
-            # para reparar cotações antigas cuja rota esteja realmente vazia.
-            # Isso elimina várias consultas e relacionamentos em cada abertura.
-            route_missing = not (_required_iata_code(group.origin) and _required_iata_code(group.destination))
-            if str(variant_key or "primary") in {"", "primary"} and route_missing:
-                options = _load_options(db, user, group.id)
-                if _recover_group_route_from_options(db, user, group, options):
-                    db.commit()
-                    base = _base_from_group(group, variant_key)
+            options = _load_options(db, user, group.id)
+            if str(variant_key or "primary") in {"", "primary"} and _recover_group_route_from_options(db, user, group, options):
+                db.commit()
+                base = _base_from_group(group, variant_key)
         else:
             group = None
             request.session.pop("active_quote_group_id", None)
@@ -2550,12 +2633,7 @@ def _new_calculation_impl(
             variant_key = str(saved_variant.get("key") or variant_key or "primary")
             base = _base_from_group(group, variant_key)
 
-    user_agent = str(request.headers.get("user-agent") or "").lower()
-    mobile_request = any(token in user_agent for token in ("android", "iphone", "ipod", "mobile", "windows phone"))
-    auto_select_airline = not (mobile_request and airline_id is None and edit_id is None and clone_id is None)
-    airlines, selected_airline, selected_type = _selected_airline_and_type(
-        db, user, airline_id, type_id, auto_select=auto_select_airline
-    )
+    airlines, selected_airline, selected_type = _selected_airline_and_type(db, user, airline_id, type_id)
     calculation_fields = _effective_calculation_fields(db, selected_type)
     if selected_type is not None and calculation_fields and not selected_type.fields:
         db.commit()
@@ -2667,8 +2745,6 @@ def _new_calculation_impl(
             operation_profile=_airline_operation_profile(selected_airline),
             partnership_meta=partnership_meta,
             partner_segment_rows=partner_segment_rows,
-            # V2.21: somente o seletor de parceira POR TRECHO volta para a tela.
-            # A lista é montada a partir das companhias já carregadas, sem nova consulta ao banco.
             partner_airline_choices=_partner_airline_choices(airlines, selected_airline),
             partner_airline_options=_partner_airline_options(airlines, selected_airline),
             national_airlines=[item for item in airlines if _is_priority_national_airline(item.name)],
@@ -3403,6 +3479,9 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     if is_skip_record and skip_value <= 0:
         flash(request, "Informe o valor da opção Skip.", "error")
         return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
+    if is_skip_record and skip_commission > skip_value:
+        flash(request, "A comissão não pode ser maior que o valor da opção Skip.", "error")
+        return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
 
     values: dict[str, Any] = {}
     fields = _effective_calculation_fields(db, calc_type)
@@ -3413,7 +3492,20 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
             if field.required and (value is None or str(value).strip() == ""):
                 flash(request, f"Preencha o campo: {field.label}.", "error")
                 return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
-            values[field.key] = str(value or field.default_value or "0")
+            raw_value = str(value or field.default_value or "0").strip()
+            semantic_type = _field_semantic_type(field)
+            try:
+                if semantic_type == "money":
+                    values[field.key] = str(_parse_money_field(raw_value, field_name=field.label))
+                elif semantic_type == "miles":
+                    values[field.key] = str(_parse_miles_field(raw_value, field_name=field.label))
+                elif semantic_type == "integer":
+                    values[field.key] = str(int(float(raw_value.replace(",", "."))))
+                else:
+                    values[field.key] = raw_value
+            except ValueError as exc:
+                flash(request, str(exc), "error")
+                return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
 
     if not is_skip_record and (calc_type.legacy_key == "american_milhas" or (airline.slug == "american" and any(field.key == "rota_american" for field in fields))):
         route_fees = {
@@ -3458,13 +3550,9 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     raw_operation_scope = str(form.get("operation_scope") or operation_profile.get("fixed_market") or "national").strip().lower()
     if raw_operation_scope not in {"national", "international"}:
         raw_operation_scope = str(operation_profile.get("fixed_market") or "national")
-    raw_partner_values = [str(form.get("partner_airline") or "").strip()]
-    raw_partner_values.extend(str(form.get(f"partner_segment_{number}") or "").strip() for number in range(1, 13))
-    allowed_partner_map: dict[str, str] = {}
-    if any(raw_partner_values):
-        visible_partner_airlines = list(db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all())
-        allowed_partners = _partner_airline_choices(visible_partner_airlines, airline)
-        allowed_partner_map = {_normalized_token(name): name for name in allowed_partners}
+    visible_partner_airlines = list(db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all())
+    allowed_partners = _partner_airline_choices(visible_partner_airlines, airline)
+    allowed_partner_map = {_normalized_token(name): name for name in allowed_partners}
 
     def normalized_partner(raw_value: Any) -> str:
         raw_name = " ".join(str(raw_value or "").split()).strip()[:180]
@@ -3506,17 +3594,19 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
 
     try:
         if is_skip_record:
+            skip_net_value = round(max(0.0, skip_value - skip_commission), 2)
             result = CalculationResult(
-                base=skip_value,
+                base=skip_net_value,
                 baggage_total=0.0,
                 extra_total=0.0,
-                total=skip_value,
+                total=skip_net_value,
                 breakdown={
                     "modo": "registro_skip",
                     "valor_registrado": skip_value,
                     "comissao_registrada": skip_commission,
+                    "valor_liquido": skip_net_value,
                     "trecho_voado": selected_scope.get("flown_segment"),
-                    "observacao": "Valor informado manualmente apenas para registro da opção Skip.",
+                    "observacao": "No Skip, a comissão opcional é descontada do valor bruto da opção.",
                 },
             )
         else:
@@ -3754,10 +3844,12 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
 
 @router.get("/history")
 def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(get_db)):
-    """Histórico paginado no PostgreSQL.
+    """Histórico paginado sem esconder cotações recentes.
 
-    Não baixa mais todos os IDs do histórico para ordenar em Python. O banco
-    une grupos + cotações legadas, ordena e devolve somente a página atual.
+    A versão anterior paginava primeiro todos os grupos e somente depois as
+    cotações antigas/sem vínculo. Com muitos grupos, uma cotação criada agora
+    podia cair em uma página distante e parecer que tinha desaparecido. Aqui
+    montamos uma única linha do tempo por data e só depois aplicamos a página.
     """
     user = current_user(request, db)
     if user is None:
@@ -3769,74 +3861,42 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
     except (TypeError, ValueError):
         page = 1
     q = q.strip()
-
-    group_filter = (
-        or_(QuoteGroup.company_id == user.company_id, QuoteGroup.user_id == user.id)
-        if user.company_id
-        else QuoteGroup.user_id == user.id
-    )
+    group_filter = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
     group_conditions = [group_filter]
     if q:
         pattern = f"%{q}%"
-        group_conditions.append(
-            or_(
-                QuoteGroup.quote_name.ilike(pattern),
-                QuoteGroup.origin.ilike(pattern),
-                QuoteGroup.destination.ilike(pattern),
-            )
-        )
+        group_conditions.append(or_(QuoteGroup.quote_name.ilike(pattern), QuoteGroup.origin.ilike(pattern), QuoteGroup.destination.ilike(pattern)))
 
     linked_ids = select(QuoteOptionIndex.quote_id)
-    access_filter = (
-        or_(WebQuote.company_id == user.company_id, WebQuote.user_id == user.id)
-        if user.company_id
-        else WebQuote.user_id == user.id
-    )
+    access_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
     legacy_conditions = [access_filter, WebQuote.id.notin_(linked_ids)]
     if q:
         pattern = f"%{q}%"
-        legacy_conditions.append(
-            or_(
-                WebQuote.quote_name.ilike(pattern),
-                WebQuote.origin.ilike(pattern),
-                WebQuote.destination.ilike(pattern),
-            )
-        )
+        legacy_conditions.append(or_(WebQuote.quote_name.ilike(pattern), WebQuote.origin.ilike(pattern), WebQuote.destination.ilike(pattern)))
 
-    group_timeline = select(
-        QuoteGroup.created_at.label("sort_at"),
-        QuoteGroup.id.label("sort_id"),
-        literal("group").label("kind"),
-        QuoteGroup.id.label("item_id"),
-    ).where(*group_conditions)
-    legacy_timeline = select(
-        WebQuote.created_at.label("sort_at"),
-        WebQuote.id.label("sort_id"),
-        literal("legacy").label("kind"),
-        WebQuote.id.label("item_id"),
-    ).where(*legacy_conditions)
+    # Consulta somente IDs e datas: leve mesmo com histórico grande.
+    group_rows = db.execute(
+        select(QuoteGroup.id, QuoteGroup.created_at).where(*group_conditions)
+    ).all()
+    legacy_rows = db.execute(
+        select(WebQuote.id, WebQuote.created_at).where(*legacy_conditions)
+    ).all()
 
-    timeline_sq = union_all(group_timeline, legacy_timeline).subquery("history_timeline")
-    total_items = int(db.scalar(select(func.count()).select_from(timeline_sq)) or 0)
+    minimum_date = datetime.min
+    timeline: list[tuple[datetime, int, str, int]] = []
+    for row in group_rows:
+        sort_at = row.created_at or minimum_date
+        timeline.append((sort_at, int(row.id or 0), "group", int(row.id)))
+    for row in legacy_rows:
+        sort_at = row.created_at or minimum_date
+        timeline.append((sort_at, int(row.id or 0), "legacy", int(row.id)))
+    timeline.sort(key=lambda item: (item[0], item[1]), reverse=True)
+
+    total_items = len(timeline)
     total_pages = max(1, (total_items + page_size - 1) // page_size)
     page = min(page, total_pages)
     offset = (page - 1) * page_size
-
-    page_rows = db.execute(
-        select(
-            timeline_sq.c.sort_at,
-            timeline_sq.c.sort_id,
-            timeline_sq.c.kind,
-            timeline_sq.c.item_id,
-        )
-        .order_by(timeline_sq.c.sort_at.desc(), timeline_sq.c.sort_id.desc())
-        .offset(offset)
-        .limit(page_size)
-    ).all()
-    page_entries = [
-        (row.sort_at or datetime.min, int(row.sort_id or 0), str(row.kind), int(row.item_id))
-        for row in page_rows
-    ]
+    page_entries = timeline[offset:offset + page_size]
 
     selected_group_ids = [item[3] for item in page_entries if item[2] == "group"]
     selected_legacy_ids = [item[3] for item in page_entries if item[2] == "legacy"]
@@ -3869,9 +3929,13 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
         ).all()
         legacy_by_id = {item.id: item for item in loaded_legacy}
 
+    # Carrega todos os cards de grupo desta página em lote. Isso elimina o
+    # padrão N+1 de consultas que deixava o Histórico lento.
     page_groups = [groups_by_id[gid] for gid in selected_group_ids if gid in groups_by_id]
     group_cards_batch = _history_group_cards_batch(db, user, page_groups)
 
+    # Mantém exatamente a ordem cronológica da página, inclusive ao misturar
+    # grupos e registros antigos que ainda não possuem vínculo.
     history_entries: list[dict[str, Any]] = []
     history_load_errors = 0
     for _sort_at, _sort_id, kind, item_id in page_entries:
@@ -3887,6 +3951,7 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
                 continue
             history_entries.append({"kind": "legacy", "quote": _decorate_quote_scope(quote)})
 
+    # Compatibilidade com templates/integrações anteriores.
     group_cards = [item["card"] for item in history_entries if item["kind"] == "group"]
     legacy_quotes = [item["quote"] for item in history_entries if item["kind"] == "legacy"]
 
@@ -3910,6 +3975,7 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
             has_next=page < total_pages,
         ),
     )
+
 
 
 @router.post("/option/{quote_id}/delete")

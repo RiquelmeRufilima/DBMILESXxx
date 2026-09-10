@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import time
 from datetime import date, datetime
 
 from fastapi import Request
@@ -9,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import object_session
 
-from .models import CompanyTask, Notification
+from .models import CompanyTask
 
 from .config import TEMPLATES_DIR
 from .security import ensure_csrf_token
@@ -104,63 +103,40 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
     flashes = request.session.pop("flashes", [])
     preference = getattr(user, "preference", None) if user else None
     profile = getattr(user, "profile", None) if user else None
+    all_notifications = list(getattr(user, "notifications", []) or []) if user else []
+    # Atualizações automáticas de cotação pertencem ao fluxo visual do chat,
+    # não ao sininho. Também escondemos registros antigos já gravados no banco.
+    notifications = [
+        item for item in all_notifications
+        if str(getattr(item, "kind", "") or "").lower() != "quote"
+        and not str(getattr(item, "title", "") or "").strip().lower().startswith("atualização de cotação")
+        and not str(getattr(item, "title", "") or "").strip().lower().startswith("atualizacao de cotacao")
+    ]
+    unread_count = sum(1 for item in notifications if not item.read)
 
-    unread_count = 0
     pending_task_count = 0
     if user is not None:
-        # Os badges do topo não precisam consultar o Neon a cada clique. Um cache
-        # de poucos segundos na sessão elimina um roundtrip em quase toda troca
-        # de tela sem deixar a interface perceptivelmente desatualizada.
-        cache_key = "nav_counts_v220"
-        cached = request.session.get(cache_key) or {}
-        now = time.time()
-        force_refresh = request.url.path.startswith("/notifications") or request.url.path.startswith("/tasks")
-        if (
-            not force_refresh
-            and isinstance(cached, dict)
-            and int(cached.get("user_id") or 0) == int(user.id)
-            and now - float(cached.get("at") or 0) < 15
-        ):
-            unread_count = int(cached.get("unread") or 0)
-            pending_task_count = int(cached.get("tasks") or 0)
-        else:
-            try:
-                db = object_session(user)
-                if db is not None:
-                    title_lower = func.lower(Notification.title)
-                    unread_sq = (
-                        select(func.count(Notification.id))
-                        .where(
-                            Notification.user_id == user.id,
-                            Notification.read.is_(False),
-                            func.lower(Notification.kind) != "quote",
-                            ~title_lower.like("atualização de cotação%"),
-                            ~title_lower.like("atualizacao de cotacao%"),
+        try:
+            db = object_session(user)
+            if db is not None:
+                task_scope = (
+                    CompanyTask.company_id == user.company_id
+                    if user.company_id
+                    else CompanyTask.created_by_user_id == user.id
+                )
+                pending_task_count = int(
+                    db.scalar(
+                        select(func.count(CompanyTask.id)).where(
+                            task_scope,
+                            CompanyTask.status == "pendente",
                         )
-                        .scalar_subquery()
                     )
-                    task_scope = (
-                        CompanyTask.company_id == user.company_id
-                        if user.company_id
-                        else CompanyTask.created_by_user_id == user.id
-                    )
-                    tasks_sq = (
-                        select(func.count(CompanyTask.id))
-                        .where(task_scope, CompanyTask.status == "pendente")
-                        .scalar_subquery()
-                    )
-                    counts = db.execute(select(unread_sq, tasks_sq)).one()
-                    unread_count = int(counts[0] or 0)
-                    pending_task_count = int(counts[1] or 0)
-                    request.session[cache_key] = {
-                        "user_id": int(user.id),
-                        "unread": unread_count,
-                        "tasks": pending_task_count,
-                        "at": now,
-                    }
-            except Exception:
-                unread_count = 0
-                pending_task_count = 0
+                    or 0
+                )
+        except Exception:
+            # Mantém as demais páginas funcionando mesmo em banco antigo
+            # antes da criação/migração da tabela de tarefas.
+            pending_task_count = 0
 
     preset_key = getattr(preference, "theme_preset", "ocean") if preference else "ocean"
     preset = THEME_PRESETS.get(preset_key, THEME_PRESETS["ocean"])
@@ -187,7 +163,6 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
         "flashes": flashes,
         **kwargs,
     }
-
 # Adicione esta função no seu arquivo web.py
 
 def format_money(value: float, currency: str = "BRL") -> str:
