@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Tela de início | DBMILESX{% endblock %}
+{% block page_title %}Tela de início{% endblock %}
+{% block eyebrow %}PAINEL PRINCIPAL{% endblock %}
+{% block content %}
+<section class="hero-panel dashboard-hero">
+  <div><span class="eyebrow">BEM-VINDO AO DBMILESX</span><h1>Olá, {{ user.name.split(' ')[0] }}.</h1><p>Comece uma cotação, revise o histórico, acompanhe tarefas e fale com sua equipe.</p></div>
+  <div class="action-cluster"><a class="secondary-button" href="/requests/inbox"><svg class="ui-icon"><use href="#icon-inbox"></use></svg> Solicitações</a><a class="primary-button" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Nova cotação</a></div>
+</section>
+
+<section class="home-action-grid">
+  <a class="home-action-card primary-home-action action-new-quote" href="/calculations/new?clean=1"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-calculator"></use></svg></span><div><strong>Nova cotação</strong><small>Abra uma calculadora limpa</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+  <a class="home-action-card action-chat" href="/company/chat"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-chat"></use></svg></span><div><strong>Chat</strong><small>Converse com a equipe</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+  <a class="home-action-card action-tasks" href="/tasks"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-tasks"></use></svg></span><div><strong>Tarefas</strong><small>Acompanhe o que precisa ser feito</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+  <a class="home-action-card action-history" href="/calculations/history"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-clock"></use></svg></span><div><strong>Histórico</strong><small>Detalhes, edição e PDFs</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+  <a class="home-action-card action-link" href="/requests/links"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-link"></use></svg></span><div><strong>Gerar link</strong><small>Formulário para clientes</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+  <a class="home-action-card action-register" href="/cadastros"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-user"></use></svg></span><div><strong>Cadastros</strong><small>Pessoas, passageiros e clientes</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card icon-stat"><svg class="stat-icon"><use href="#icon-calculator"></use></svg><span>Cotações</span><strong>{{ total_quotes }}</strong><small>Histórico disponível</small></article>
+  <article class="stat-card icon-stat"><svg class="stat-icon"><use href="#icon-dollar"></use></svg><span>Volume calculado</span><strong>{{ total_value|money }}</strong><small>Soma das cotações visíveis</small></article>
+  <article class="stat-card icon-stat"><svg class="stat-icon"><use href="#icon-plane"></use></svg><span>Companhias próprias</span><strong>{{ custom_airlines }}</strong><small>Regras personalizadas</small></article>
+  <article class="stat-card accent icon-stat"><svg class="stat-icon"><use href="#icon-bell"></use></svg><span>Notificações</span><strong>{{ unread_count }}</strong><small>Não lidas</small></article>
+</section>
+
+<section class="content-grid two-one">
+  <article class="panel"><div class="panel-heading"><div><span class="eyebrow">ATIVIDADE</span><h2>Cotações recentes</h2></div><a href="/calculations/history">Ver todas</a></div>{% if recent_quotes %}<div class="table-wrap"><table class="data-table"><thead><tr><th>Cotação</th><th>Rota</th><th>Companhia</th><th>Total</th></tr></thead><tbody>{% for quote in recent_quotes %}<tr><td><a href="/calculations/result/{{ quote.id }}"><strong>{{ quote.quote_name }}</strong></a><small>{{ quote.created_at.strftime('%d/%m/%Y %H:%M') }}</small></td><td>{{ quote.origin or '—' }} → {{ quote.destination or '—' }}</td><td>{{ quote.airline.name if quote.airline else 'Importada' }}</td><td><strong>{{ quote.total|money(quote.currency) }}</strong></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state"><svg class="empty-icon"><use href="#icon-sparkles"></use></svg><h3>Nenhuma cotação ainda</h3><p>Faça o primeiro cálculo nesta versão.</p><a class="secondary-button" href="/calculations/new?clean=1">Começar</a></div>{% endif %}</article>
+  <aside class="panel quick-panel"><span class="eyebrow">SEU PAINEL</span><h2>Acessos importantes</h2>{% if user.role in ['admin','gerente'] %}<a class="quick-link" href="/admin"><svg class="quick-icon"><use href="#icon-shield"></use></svg><div><strong>Painel administrativo</strong><small>Equipe e operação</small></div></a>{% else %}<a class="quick-link" href="/member"><svg class="quick-icon"><use href="#icon-briefcase"></use></svg><div><strong>Painel de membro</strong><small>Seu trabalho e equipe</small></div></a>{% endif %}<a class="quick-link" href="/airlines/new"><svg class="quick-icon"><use href="#icon-plane"></use></svg><div><strong>Criar companhia</strong><small>Fórmula e campos próprios</small></div></a><a class="quick-link" href="/cadastros"><svg class="quick-icon"><use href="#icon-user"></use></svg><div><strong>Cadastros</strong><small>Pessoas, passageiros e clientes</small></div></a><a class="quick-link" href="/settings"><svg class="quick-icon"><use href="#icon-palette"></use></svg><div><strong>Personalizar tema</strong><small>Cores e aparência</small></div></a></aside>
+</section>
+
+<section class="panel dashboard-task-panel">
+  <div class="panel-heading">
+    <div><span class="eyebrow">TAREFAS PENDENTES</span><h2>O que precisa ser feito</h2><p>Ao marcar como feita, a tarefa sai desta tela automaticamente.</p></div>
+    <a href="/tasks">Ver todas</a>
+  </div>
+  {% if pending_tasks %}
+  <div class="dashboard-task-list">
+    {% for task in pending_tasks %}
+    <article class="dashboard-task-item priority-{{ task.priority }}">
+      {% if task.photo_path %}<a href="/tasks/{{ task.id }}"><img src="/{{ task.photo_path }}" alt="Foto da tarefa"></a>{% endif %}
+      <div class="dashboard-task-copy">
+        <div><span class="task-priority">{{ task.priority|capitalize }}</span><h3><a href="/tasks/{{ task.id }}">{{ task.title }}</a></h3></div>
+        {% if task.description %}<p>{{ task.description }}</p>{% endif %}
+        <div class="task-meta">
+          <span><svg class="ui-icon"><use href="#icon-clock"></use></svg>{% if task.due_at %}{{ task.due_at.strftime('%d/%m/%Y %H:%M') }}{% else %}Sem prazo{% endif %}</span>
+          {% if task.quote_group_id %}<a href="/calculations/group/{{ task.quote_group_id }}"><svg class="ui-icon"><use href="#icon-calculator"></use></svg>Cotação #{{ task.quote_group_id }}</a>{% endif %}
+        </div>
+      </div>
+      <div class="task-actions dashboard-task-actions">
+        <a class="secondary-button small-button button-edit" href="/tasks/{{ task.id }}">Editar</a>
+        <form method="post" action="/tasks/{{ task.id }}/toggle">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="return_to" value="/dashboard">
+          <button class="secondary-button small-button button-accept" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Feita</button>
+        </form>
+        <form method="post" action="/tasks/{{ task.id }}/delete" onsubmit="return confirm('Excluir esta tarefa definitivamente?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="return_to" value="/dashboard">
+          <button class="secondary-button small-button button-delete" type="submit"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir</button>
+        </form>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state small"><svg class="empty-icon"><use href="#icon-tasks"></use></svg><h3>Nenhuma tarefa pendente</h3><p>As tarefas novas aparecerão aqui.</p></div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><div><span class="eyebrow">CADASTROS PENDENTES</span><h2>Pessoas para completar</h2><p>Cadastros rápidos que ainda precisam de CPF e data de nascimento.</p></div><a href="/persons">Ver pessoas</a></div>
+  {% if pending_persons %}
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Nome</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody>{% for person in pending_persons %}<tr><td><strong>{{ person.name }}</strong></td><td>{{ person.person_type|title }}</td><td><span class="badge" style="background:#f7c65f20;color:#f7c65f;">Pendente</span></td><td><a class="secondary-button small-button" href="/persons/{{ person.id }}">Completar</a></td></tr>{% endfor %}</tbody></table></div>
+  {% else %}
+  <div class="empty-state small"><h3>Nenhum cadastro pendente</h3><p>Quando cadastrar alguém apenas pelo nome, aparecerá aqui.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

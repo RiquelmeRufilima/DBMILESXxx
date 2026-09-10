@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>{% block title %}Controle Local | DBMILESX{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/local-control.css">
+</head>
+<body>
+  <header class="local-topbar">
+    <div class="local-brand"><span>DX</span><div><strong>DBMILESX</strong><small>Controle local de acessos</small></div></div>
+    {% if request.session.get('local_control_authenticated') %}
+    <div class="local-actions"><a href="http://127.0.0.1:8000/dashboard" target="_blank" rel="noopener">Abrir sistema</a><form method="post" action="/controle-local/sair"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Bloquear painel</button></form></div>
+    {% endif %}
+  </header>
+  {% if flashes %}<div class="local-flashes">{% for item in flashes %}<div class="local-flash {{ item.kind }}">{{ item.message }}</div>{% endfor %}</div>{% endif %}
+  <main class="local-main">{% block content %}{% endblock %}</main>
+  <script src="/static/js/password-toggle.js" defer></script>
+</body>
+</html>

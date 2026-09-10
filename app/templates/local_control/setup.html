@@ -1,0 +1,16 @@
+{% extends "local_control/base.html" %}
+{% block title %}Primeiro acesso | Controle local{% endblock %}
+{% block content %}
+<section class="local-auth-card">
+  <span class="local-kicker">PRIMEIRO ACESSO LOCAL</span>
+  <h1>Crie a senha mestre</h1>
+  <p>Esta senha protege a interface reservada ao computador local. Ela não é a senha de nenhum usuário do sistema.</p>
+  <form method="post" action="/controle-local/configurar" class="local-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Senha mestre<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+    <label>Confirmar senha<input type="password" name="password_confirm" required minlength="8" autocomplete="new-password"></label>
+    <small>Use pelo menos 8 caracteres, com letra maiúscula, minúscula e número.</small>
+    <button class="local-primary" type="submit">Proteger e abrir painel</button>
+  </form>
+</section>
+{% endblock %}

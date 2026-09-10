@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Configurações | DBMILESX{% endblock %}
+{% block page_title %}Configurações{% endblock %}
+{% block eyebrow %}PERSONALIZAÇÃO{% endblock %}
+{% block content %}
+<section class="page-heading"><div><span class="eyebrow">CONFIGURAÇÕES</span><h1>Deixe o sistema com a sua cara.</h1><p>Escolha tema, cor principal, fundo, densidade e preferências de notificações.</p></div></section>
+<section class="content-grid two-one settings-layout">
+  <article class="panel">
+    <div class="panel-heading"><div><span class="eyebrow">APARÊNCIA</span><h2>Tema e cores</h2></div><svg class="panel-icon"><use href="#icon-palette"></use></svg></div>
+    <form method="post" action="/settings/appearance" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="setting-block"><h3>Modo</h3><div class="choice-pills"><label><input type="radio" name="theme_mode" value="dark" {% if preference.theme_mode == 'dark' %}checked{% endif %}><span>🌙 Escuro</span></label><label><input type="radio" name="theme_mode" value="light" {% if preference.theme_mode == 'light' %}checked{% endif %}><span>☀️ Claro</span></label><label><input type="radio" name="theme_mode" value="system" {% if preference.theme_mode == 'system' %}checked{% endif %}><span>💻 Sistema</span></label></div></div>
+      <div class="setting-block"><h3>Paleta</h3><div class="theme-preset-grid">{% for key,preset in theme_presets.items() %}<label class="theme-preset" style="--preset-a:{{ preset.primary }};--preset-b:{{ preset.secondary }}"><input type="radio" name="theme_preset" value="{{ key }}" {% if preference.theme_preset == key %}checked{% endif %}><span class="theme-swatch"></span><strong>{{ preset.name }}</strong></label>{% endfor %}</div></div>
+      <div class="form-grid cols-2"><label>Cor principal personalizada<input type="color" name="accent_color" value="{{ preference.accent_color }}"></label><label>Estilo do fundo<select name="background_style"><option value="gradient" {% if preference.background_style == 'gradient' %}selected{% endif %}>Gradiente moderno</option><option value="soft" {% if preference.background_style == 'soft' %}selected{% endif %}>Suave</option><option value="plain" {% if preference.background_style == 'plain' %}selected{% endif %}>Liso</option></select></label></div>
+      <label class="switch-row"><span><strong>Modo compacto</strong><small>Reduz espaçamentos para caber mais informação na tela.</small></span><input type="checkbox" name="compact_mode" {% if preference.compact_mode %}checked{% endif %}></label>
+      <button class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Salvar aparência</button>
+    </form>
+  </article>
+  <aside class="panel">
+    <div class="panel-heading"><div><span class="eyebrow">NOTIFICAÇÕES</span><h2>Preferências</h2></div><svg class="panel-icon"><use href="#icon-bell"></use></svg></div>
+    <form method="post" action="/settings/notifications" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="switch-row"><span><strong>No sistema</strong><small>Alertas de solicitações e eventos importantes.</small></span><input type="checkbox" name="in_app_notifications" {% if preference.in_app_notifications %}checked{% endif %}></label><label class="switch-row"><span><strong>Por e-mail</strong><small>Preparado para futura integração com provedor de e-mail.</small></span><input type="checkbox" name="email_notifications" {% if preference.email_notifications %}checked{% endif %}></label><button class="secondary-button" type="submit">Salvar notificações</button></form>
+    <div class="theme-preview-card"><span class="eyebrow">PRÉVIA</span><div class="preview-accent"></div><h3>DBMILESX</h3><p>Cor atual: <code>{{ preference.accent_color }}</code></p></div>
+  </aside>
+</section>
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Fluxo de cálculo | DBMILESX{% endblock %}
+{% block page_title %}Fluxo de cálculo{% endblock %}
+{% block eyebrow %}CONTROLE DE PRODUTIVIDADE{% endblock %}
+{% block content %}
+<div class="page-shell calc-flow-page">
+  <div class="page-header compact-header quotes-main-head">
+    <div>
+      <p class="eyebrow">Fluxo de cálculo</p>
+      <h1>Controle diário por usuário.</h1>
+      <p class="muted">Veja quantas cotações, cálculos, opções aceitas e lançamentos cada membro da empresa fez no período.</p>
+    </div>
+    <div class="button-row compact-actions">
+      <a class="secondary-button" href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
+      <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Histórico antigo</a>
+      <form method="post" action="/cadastros/cotacoes/nova" class="inline-new-quote-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Nova Cotação</button>
+      </form>
+    </div>
+  </div>
+
+  <nav class="quote-area-tabs" aria-label="Áreas de cotações">
+    <a href="/cadastros/cotacoes"><svg class="ui-icon"><use href="#icon-check"></use></svg> Quadro de controle</a>
+    <a href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
+    <a class="active" href="/cadastros/fluxo-calculo"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Fluxo de cálculo</a>
+    <a href="/cadastros/voos"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Voos</a>
+  </nav>
+
+  <form class="board-filter card smart-filter calc-flow-filter" method="get" action="/cadastros/fluxo-calculo">
+    <label>Busca
+      <input name="q" value="{{ filters.q or '' }}" placeholder="Cliente, rota, usuário, código">
+    </label>
+    <label>Período
+      <span class="date-range"><input type="date" name="from" value="{{ filters.from }}"><b>até</b><input type="date" name="to" value="{{ filters.to }}"></span>
+    </label>
+    <label>Usuário
+      <select name="user_id">
+        <option value="">Todos</option>
+        {% for member in users %}<option value="{{ member.id }}" {% if filters.user_id == member.id|string %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="primary-button" type="submit">Pesquisar</button>
+  </form>
+
+  <section class="calc-flow-summary">
+    <article class="flow-summary-card card-panel accent-blue">
+      <small>Cotações base</small>
+      <strong>{{ totals.bases }}</strong>
+      <span>Cotações principais criadas</span>
+    </article>
+    <article class="flow-summary-card card-panel accent-cyan">
+      <small>Opções calculadas</small>
+      <strong>{{ totals.options + totals.legacy }}</strong>
+      <span>Companhias/opções calculadas</span>
+    </article>
+    <article class="flow-summary-card card-panel accent-green">
+      <small>Enviadas para cotações</small>
+      <strong>{{ totals.accepted }}</strong>
+      <span>Aceitas/manuais no quadro</span>
+    </article>
+    <article class="flow-summary-card card-panel accent-gold">
+      <small>Vendas lançadas</small>
+      <strong>{{ totals.launched }}</strong>
+      <span>Entraram no financeiro</span>
+    </article>
+    <article class="flow-summary-card card-panel accent-purple">
+      <small>Valor movimentado</small>
+      <strong>{{ totals.total_value|money }}</strong>
+      <span>Soma operacional do período</span>
+    </article>
+  </section>
+
+  <section class="flow-user-grid">
+    {% for row in rows %}
+      {% set member = row.user %}
+      <article class="flow-user-card card-panel">
+        <header>
+          <span class="card-user-avatar big" title="{{ member.name if member else 'Usuário' }}">
+            {% if member and member.profile and member.profile.avatar_path %}<img src="/{{ member.profile.avatar_path }}" alt="{{ member.name }}">{% else %}{{ (member.name[:1] if member else '?')|upper }}{% endif %}
+          </span>
+          <div>
+            <h2>{{ member.name if member else 'Usuário' }}</h2>
+            <p>{{ member.email if member and member.email else 'Sem e-mail informado' }}</p>
+          </div>
+          <b>{{ row.total_activity }}</b>
+        </header>
+        <div class="flow-user-metrics">
+          <span><small>Base</small><strong>{{ row.bases }}</strong></span>
+          <span><small>Opções</small><strong>{{ row.options + row.legacy }}</strong></span>
+          <span><small>Aceitas</small><strong>{{ row.accepted }}</strong></span>
+          <span><small>Manuais</small><strong>{{ row.manual }}</strong></span>
+          <span><small>Lançadas</small><strong>{{ row.launched }}</strong></span>
+          <span><small>Valor</small><strong>{{ row.total_value|money }}</strong></span>
+        </div>
+        <footer>
+          <small>Última atividade: {% if row.last_activity %}{{ row.last_activity.strftime('%d/%m/%Y %H:%M') }}{% else %}sem atividade no período{% endif %}</small>
+          <a class="secondary-button small-button" href="/cadastros/cotacoes-feitas?user_id={{ member.id if member else '' }}&from={{ filters.from }}&to={{ filters.to }}">Ver cotações</a>
+        </footer>
+      </article>
+    {% else %}
+      <div class="empty-state card-panel">
+        <svg class="empty-icon"><use href="#icon-calculator"></use></svg>
+        <h3>Nenhuma atividade encontrada.</h3>
+        <p>Altere o período ou limpe os filtros.</p>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="panel calc-flow-daily">
+    <div class="panel-heading">
+      <div>
+        <span class="eyebrow">Resumo por dia</span>
+        <h2>Fluxo diário da empresa</h2>
+      </div>
+    </div>
+    {% if daily_rows %}
+      <div class="table-wrap">
+        <table class="data-table large">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Bases</th>
+              <th>Opções</th>
+              <th>Aceitas</th>
+              <th>Manuais</th>
+              <th>Lançadas</th>
+              <th>Valor</th>
+              <th>Total atividade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in daily_rows %}
+              <tr>
+                <td><strong>{{ day.date|date_br }}</strong></td>
+                <td>{{ day.bases }}</td>
+                <td>{{ day.options + day.legacy }}</td>
+                <td>{{ day.accepted }}</td>
+                <td>{{ day.manual }}</td>
+                <td>{{ day.launched }}</td>
+                <td><strong>{{ day.total_value|money }}</strong></td>
+                <td><span class="badge">{{ day.bases + day.options + day.accepted + day.manual + day.legacy }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"><p>Nenhum registro diário no período.</p></div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

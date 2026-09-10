@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Financeiro | DBMILESX{% endblock %}
+{% block page_title %}Financeiro{% endblock %}
+{% block eyebrow %}GESTÃO DA EMPRESA{% endblock %}
+{% block content %}
+<div class="page-shell finance-page soft-crm-page">
+  <div class="page-header compact-header quotes-main-head soft-header">
+    <div>
+      <p class="eyebrow">Financeiro</p>
+      <h1>Controle das vendas lançadas.</h1>
+      <p class="muted">Aqui entram somente as vendas lançadas. O fluxo de caixa e as formas de pagamento usam esses dados como base, sem misturar com a tela de cálculo.</p>
+    </div>
+    <div class="button-row compact-actions">
+      <a class="secondary-button" href="/cadastros/cotacoes"><svg class="ui-icon"><use href="#icon-check"></use></svg> Quadro</a>
+      <a class="primary-button" href="/cadastros/financeiro/vendas"><svg class="ui-icon"><use href="#icon-dollar"></use></svg> Financeiro</a>
+    </div>
+  </div>
+
+  <nav class="quote-area-tabs finance-tabs" aria-label="Áreas financeiras">
+    <a class="{% if active_tab == 'dashboard' %}active{% endif %}" href="/cadastros/financeiro/dashboard"><svg class="ui-icon"><use href="#icon-chart"></use></svg> Dashboard</a>
+    <a class="{% if active_tab == 'vendas' %}active{% endif %}" href="/cadastros/financeiro/vendas"><svg class="ui-icon"><use href="#icon-dollar"></use></svg> Vendas lançadas</a>
+    <a class="{% if active_tab == 'fluxo' %}active{% endif %}" href="/cadastros/financeiro/fluxo-caixa"><svg class="ui-icon"><use href="#icon-chart"></use></svg> Fluxo de caixa</a>
+    <a class="{% if active_tab == 'pagamentos' %}active{% endif %}" href="/cadastros/financeiro/formas-pagamento"><svg class="ui-icon"><use href="#icon-briefcase"></use></svg> Formas de pagamento</a>
+  </nav>
+
+  <form class="board-filter card smart-filter soft-filter" method="get">
+    <label>Busca
+      <input name="q" value="{{ filters.q or '' }}" placeholder="Cliente, código, consultor">
+    </label>
+    <label>Período
+      <span class="date-range"><input type="date" name="from" value="{{ filters.from }}"><b>até</b><input type="date" name="to" value="{{ filters.to }}"></span>
+    </label>
+    <label>Usuário
+      <select name="user_id">
+        <option value="">Todos</option>
+        {% for member in users %}<option value="{{ member.id }}" {% if filters.user_id == member.id|string %}selected{% endif %}>{{ member.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="primary-button" type="submit">Filtrar</button>
+  </form>
+
+  <section class="finance-summary-grid">
+    <article class="finance-kpi card-panel"><small>Vendas lançadas</small><strong>{{ totals.sales_count }}</strong><span>No período filtrado</span></article>
+    <article class="finance-kpi card-panel accent-green"><small>Receita</small><strong>{{ totals.sale_total|money }}</strong><span>Total vendido</span></article>
+    <article class="finance-kpi card-panel accent-gold"><small>Custo</small><strong>{{ totals.cost_total|money }}</strong><span>Custos cadastrados</span></article>
+    <article class="finance-kpi card-panel accent-blue"><small>Resultado</small><strong>{{ totals.profit_total|money }}</strong><span>Venda - custo + comissão</span></article>
+  </section>
+
+  {% if active_tab == 'dashboard' %}
+    <section class="finance-dashboard-grid">
+      <article class="card-panel finance-dashboard-card cash-overview-card">
+        <div class="panel-heading compact"><div><span class="eyebrow">FLUXO PREVISTO</span><h2>Entradas e saídas</h2></div><strong class="dashboard-balance">{{ totals.cash_balance|money }}</strong></div>
+        <div class="cash-overview-grid">
+          <div><small>Entradas</small><strong class="positive-value">{{ totals.cash_in_total|money }}</strong></div>
+          <div><small>Saídas</small><strong class="negative-value">{{ totals.cash_out_total|money }}</strong></div>
+          <div><small>Ticket médio</small><strong>{{ totals.average_ticket|money }}</strong></div>
+          <div><small>Margem</small><strong>{{ '%.1f'|format(totals.margin_percent) }}%</strong></div>
+        </div>
+      </article>
+
+      <article class="card-panel finance-dashboard-card finance-trend-card">
+        <div class="panel-heading compact"><div><span class="eyebrow">MOVIMENTO DIÁRIO</span><h2>Vendas x custos</h2></div><span class="chart-legend"><i class="sales-dot"></i>Vendas <i class="cost-dot"></i>Custos</span></div>
+        {% if trend_rows %}
+        <div class="finance-bar-chart" role="img" aria-label="Gráfico de vendas e custos por dia">
+          {% for row in trend_rows %}
+          <div class="finance-bar-column" title="{{ row.date|date_br }} • Vendas {{ row.sales|money }} • Custos {{ row.costs|money }}">
+            <div class="finance-bars"><i class="sales-bar" style="height:{{ row.sales_pct }}%"></i><i class="cost-bar" style="height:{{ row.costs_pct }}%"></i></div>
+            <small>{{ row.date.strftime('%d/%m') }}</small>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}<div class="empty-strip">Sem movimentos no período filtrado.</div>{% endif %}
+      </article>
+
+      <article class="card-panel finance-dashboard-card">
+        <div class="panel-heading compact"><div><span class="eyebrow">CLIENTES</span><h2>Maiores vendas</h2></div></div>
+        <div class="finance-ranking-list">
+          {% for row in top_clients %}<div><span><b>{{ loop.index }}</b><strong>{{ row.name }}</strong><small>{{ row.count }} venda(s)</small></span><em>{{ row.sales|money }}</em></div>{% else %}<div class="empty-strip">Nenhum cliente no período.</div>{% endfor %}
+        </div>
+      </article>
+
+      <article class="card-panel finance-dashboard-card">
+        <div class="panel-heading compact"><div><span class="eyebrow">ÚLTIMAS VENDAS</span><h2>Atividade recente</h2></div><a href="/cadastros/financeiro/vendas?from={{ filters.from }}&to={{ filters.to }}">Ver todas</a></div>
+        <div class="finance-recent-list">
+          {% for row in recent_sales %}<a href="/cadastros/cotacoes/{{ row.group.id }}"><span><strong>{{ row.client }}</strong><small>{{ row.date|date_br }} • {{ row.code }}</small></span><b>{{ row.sale_total|money }}</b></a>{% else %}<div class="empty-strip">Nenhuma venda lançada.</div>{% endfor %}
+        </div>
+      </article>
+    </section>
+  {% elif active_tab == 'vendas' %}
+    <section class="finance-list-stack">
+      {% for row in sales %}
+        <article class="finance-sale-card card-panel">
+          <header>
+            <div class="finance-sale-title">
+              <span class="card-user-avatar" title="{{ row.user.name if row.user else 'Usuário' }}">{% if row.user and row.user.profile and row.user.profile.avatar_path %}<img src="/{{ row.user.profile.avatar_path }}" alt="{{ row.user.name }}">{% else %}{{ (row.user.name[:1] if row.user else '?')|upper }}{% endif %}</span>
+              <div>
+                <span class="eyebrow">{{ row.code }}</span>
+                <h2>{{ row.client }}</h2>
+                <p>{{ row.title }} • lançado por {{ row.user.name if row.user else 'Usuário' }}</p>
+              </div>
+            </div>
+            <div class="finance-sale-total"><small>Venda</small><strong>{{ row.sale_total|money }}</strong></div>
+          </header>
+          <div class="finance-sale-metrics">
+            <span><small>Data</small><b>{{ row.date|date_br }}</b></span>
+            <span><small>Custo</small><b>{{ row.cost_total|money }}</b></span>
+            <span><small>Resultado</small><b>{{ row.profit|money }}</b></span>
+            <span><small>Pagamentos</small><b>{{ row.payments|length }}</b></span>
+          </div>
+          <div class="finance-payment-chips">
+            {% for pay in row.payments %}<span>{{ pay.method }}{% if pay.account %} / {{ pay.account }}{% endif %} • {{ pay.installments }}x • {{ pay.amount|money }}</span>{% endfor %}
+          </div>
+          {% if row.group %}<footer><a class="secondary-button small-button" href="/cadastros/cotacoes/{{ row.group.id }}">Abrir venda</a></footer>{% endif %}
+        </article>
+      {% else %}
+        <div class="empty-state card-panel"><svg class="empty-icon"><use href="#icon-dollar"></use></svg><h3>Nenhuma venda lançada.</h3><p>Mova uma cotação para venda cadastrada, salve os valores e clique em “Lançar venda”.</p></div>
+      {% endfor %}
+    </section>
+  {% elif active_tab == 'fluxo' %}
+    <section class="panel soft-table-panel">
+      <div class="panel-heading"><div><span class="eyebrow">Entradas previstas</span><h2>Fluxo de caixa</h2></div></div>
+      <div class="table-wrap">
+        <table class="data-table large">
+          <thead><tr><th>Vencimento</th><th>Tipo</th><th>Cliente</th><th>Código</th><th>Forma</th><th>Parcelas</th><th>Consultor</th><th>Valor</th></tr></thead>
+          <tbody>
+            {% for row in cash_rows %}<tr><td>{{ row.date|date_br }}</td><td><span class="cash-kind {{ row.kind }}">{{ 'Entrada' if row.kind == 'entrada' else 'Saída' }}</span></td><td><strong>{{ row.client }}</strong><small>{{ row.description }}</small></td><td>{{ row.code }}</td><td>{{ row.method }}{% if row.account %} / {{ row.account }}{% endif %}</td><td>{{ row.installments }}x</td><td>{{ row.user.name if row.user else '—' }}</td><td><strong class="{{ 'positive-value' if row.kind == 'entrada' else 'negative-value' }}">{{ row.amount|money }}</strong></td></tr>{% else %}<tr><td colspan="8">Nenhum lançamento no período.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% else %}
+    <section class="payment-method-grid">
+      {% for row in payment_rows %}
+        <article class="payment-method-card card-panel">
+          <div class="payment-logo-soft"><svg class="ui-icon"><use href="#icon-briefcase"></use></svg></div>
+          <div><h2>{{ row.name }}</h2><p>{{ row.count }} lançamento(ões) • parcelas usadas: {{ row.installments_label }}</p></div>
+          <strong>{{ row.total|money }}</strong>
+          <small>Último vencimento: {% if row.last_date %}{{ row.last_date|date_br }}{% else %}—{% endif %}</small>
+        </article>
+      {% else %}
+        <div class="empty-state card-panel"><h3>Nenhuma forma de pagamento encontrada.</h3><p>Cadastre os valores de venda com forma/conta de pagamento.</p></div>
+      {% endfor %}
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

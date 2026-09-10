@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Cotações aceitas | DBMILESX{% endblock %}
+{% block page_title %}Cotações aceitas{% endblock %}
+{% block eyebrow %}CADASTROS{% endblock %}
+
+{% block content %}
+<section class="page-heading inline">
+    <div>
+        <span class="eyebrow">COTAÇÕES ACEITAS</span>
+        <h1>Opções de companhia aceitas.</h1>
+        <p>Esta área mostra somente a opção calculada que você escolheu no histórico ou dentro da cotação principal.</p>
+    </div>
+    <div class="action-cluster">
+        <a class="secondary-button" href="/cadastros">← Cadastros</a>
+        <a class="primary-button" href="/calculations/history">Selecionar no histórico</a>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <div><span class="eyebrow">SELECIONADAS PELO USUÁRIO</span><h2>{{ rows|length }} registro(s)</h2></div>
+        <a href="/calculations/history">Marcar outras opções</a>
+    </div>
+    {% if rows %}
+    <div style="display:grid;gap:12px;">
+        {% for row in rows %}
+        {% set group = row.group %}
+        {% set quote = row.quote %}
+        <article class="history-group-card accepted-option-card">
+            <div class="history-card-head">
+                <div class="history-main-copy">
+                    <span class="eyebrow">COTAÇÃO ACEITA</span>
+                    <h2>{{ group.quote_name }}</h2>
+                    <p>
+                        {{ group.origin or '—' }} → {{ group.destination or '—' }} • {{ group.passengers }} passageiro(s)
+                        {% if group.trip and group.trip.departure_date %} • ida {{ group.trip.departure_date|date_br }}{% endif %}
+                    </p>
+                </div>
+                <div class="history-total-box">
+                    <small>Venda</small>
+                    <strong>{% if row.sale_value %}{{ row.sale_value|money }}{% elif quote %}{{ quote.total|money(quote.currency) }}{% else %}—{% endif %}</strong>
+                </div>
+            </div>
+            <div class="history-meta-grid">
+                <div><small>Cliente</small><strong>{{ group.trip.client_name if group.trip and group.trip.client_name else 'Não informado' }}</strong></div>
+                <div><small>Companhia aceita</small><strong>{{ quote.airline.name if quote and quote.airline else 'Não definida' }}</strong></div>
+                <div><small>Custo calculado</small><strong>{{ quote.total|money(quote.currency) if quote else '—' }}</strong></div>
+                <div><small>Localizador</small><strong>{{ row.locator or 'Pendente' }}</strong></div>
+                <div><small>Status</small><strong>{{ row.status or 'aceita' }}</strong></div>
+                <div><small>Cotação feita por</small><strong>{{ group.user.name if group.user else 'Não identificado' }}</strong></div>
+                <div><small>Aceita por</small><strong>{{ row.user.name if row.user else 'Não identificado' }}</strong></div>
+                <div><small>Marcado em</small><strong>{{ row.selected_at.strftime('%d/%m/%Y %H:%M') }}</strong></div>
+            </div>
+            {% if row.notes %}<p class="muted-note">{{ row.notes }}</p>{% endif %}
+            <div class="history-actions">
+                {% if quote %}<a class="secondary-button small-button" href="/calculations/result/{{ quote.id }}">Abrir opção</a>{% endif %}
+                <a class="primary-button small-button" href="/cadastros/cotacoes-aceitas/{{ group.id }}/editar">Editar venda/localizador</a>
+                <form method="post" action="/cadastros/voos/{{ group.id }}/add">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="ghost-button small-button" type="submit">Também marcar voo</button>
+                </form>
+                <form method="post" action="/cadastros/cotacoes-aceitas/{{ group.id }}/remove" onsubmit="return confirm('Remover esta cotação da lista de aceitas?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="ghost-button small-button danger" type="submit">Remover</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>Nenhuma cotação aceita selecionada</h3>
+        <p>Vá ao histórico ou abra uma cotação principal e clique em <strong>Aceitar esta opção</strong> na companhia escolhida.</p>
+        <a class="primary-button" href="/calculations/history">Selecionar no histórico</a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

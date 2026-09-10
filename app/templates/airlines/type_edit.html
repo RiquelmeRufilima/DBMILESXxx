@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Editar lógica | {{ airline.name }}{% endblock %}
+{% block page_title %}Editar lógica{% endblock %}
+{% block eyebrow %}LÓGICA DA COMPANHIA{% endblock %}
+{% block content %}
+<section class="page-heading inline">
+  <div>
+    <span class="eyebrow">{{ airline.name }}</span>
+    <h1>Edite a lógica de {{ calc_type.name }}.</h1>
+    <p>As cotações antigas não são recalculadas. A nova fórmula vale somente para cálculos novos ou opções recalculadas.</p>
+  </div>
+  <a class="secondary-button" href="/airlines/{{ airline.id }}">Voltar para a companhia</a>
+</section>
+
+{% if converting_legacy %}<div class="notice-card muted" style="margin-bottom:16px;"><strong>Regra original em modo compatível.</strong><br>Você pode editar tudo. Quando clicar em salvar, somente esta regra passa para o motor de fórmula editável; cotações antigas permanecem intactas.</div>{% endif %}
+<form method="post" action="/airlines/{{ airline.id }}/types/{{ calc_type.id }}/edit" class="builder-layout" id="airlineBuilderForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="fields_json" id="fieldsJson">
+
+  <section class="panel builder-main">
+    <div class="form-section no-top">
+      <div class="section-title"><span class="step-badge">1</span><div><h2>Identificação da regra</h2><p>Altere o nome, descrição e forma de aplicar o resultado.</p></div></div>
+      <div class="form-grid cols-2">
+        <label>Nome do cálculo<input name="calculation_name" value="{{ calc_type.name }}" required></label>
+        <label>Como aplicar o resultado
+          <select name="apply_mode">
+            <option value="total" {% if calc_type.apply_mode != 'per_passenger' %}selected{% endif %}>O resultado já é o total</option>
+            <option value="per_passenger" {% if calc_type.apply_mode == 'per_passenger' %}selected{% endif %}>Multiplicar o resultado por passageiro</option>
+          </select>
+        </label>
+      </div>
+      <label>Descrição<textarea name="description" rows="2">{{ calc_type.description or '' }}</textarea></label>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title"><span class="step-badge">2</span><div><h2>Campos da calculadora</h2><p>Você pode trocar a regra inteira pelo modelo “tarifa menos desconto” ou editar os campos atuais.</p></div></div>
+      <div class="field-builder-toolbar">
+        <button class="secondary-button" type="button" data-tariff-discount-model>％ Usar tarifa − desconto %</button>
+        <button class="secondary-button" type="button" data-add-field>＋ Adicionar campo</button>
+        <button class="ghost-button" type="button" data-add-preset="discount">＋ Desconto</button>
+        <button class="ghost-button" type="button" data-add-preset="interest">＋ Juros</button>
+        <button class="ghost-button" type="button" data-add-preset="fee">＋ Taxa</button>
+      </div>
+      <div id="fieldBuilder" class="field-builder"></div>
+      <script id="initialFieldsData" type="application/json">{{ initial_fields|tojson }}</script>
+    </div>
+
+    <div class="form-section">
+      <div class="section-title"><span class="step-badge">3</span><div><h2>Fórmula</h2><p>Para desconto percentual sobre a tarifa use o modelo abaixo.</p></div></div>
+      <label>Fórmula principal<textarea name="formula" id="formulaInput" rows="4" required>{{ formula_value }}</textarea></label>
+      <div class="formula-help"><strong>Modelo:</strong><code>tarifa - (tarifa * desconto_percentual / 100)</code><small>Ex.: tarifa 1000 e desconto 10 = resultado 900.</small></div>
+    </div>
+
+    <div class="form-actions">
+      <a class="secondary-button" href="/airlines/{{ airline.id }}">Cancelar</a>
+      <button class="primary-button large button-save" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Salvar lógica</button>
+    </div>
+  </section>
+
+  <aside class="panel builder-preview">
+    <span class="eyebrow">DESCONTO SOBRE TARIFA</span>
+    <h2>Regra recomendada</h2>
+    <p>O percentual é retirado diretamente da tarifa informada.</p>
+    <div class="info-card"><strong>Fórmula</strong><code>tarifa - (tarifa * desconto_percentual / 100)</code></div>
+    <div class="safe-list"><div><span>✓</span> Tarifa R$ 1.000</div><div><span>✓</span> Desconto 10%</div><div><span>✓</span> Desconto R$ 100</div><div><span>✓</span> Total R$ 900</div></div>
+  </aside>
+</form>
+
+{% if not converting_legacy and not airline.builtin %}
+<section class="panel" style="margin-top:18px;border-color:rgba(239,68,68,.35);">
+  <div class="panel-heading">
+    <div>
+      <span class="eyebrow">ZONA DE EXCLUSÃO</span>
+      <h2>Excluir esta lógica</h2>
+      <p>A regra deixa de aparecer em novos cálculos, mas as cotações antigas e o histórico continuam preservados.</p>
+    </div>
+  </div>
+  <form method="post" action="/airlines/{{ airline.id }}/types/{{ calc_type.id }}/delete"
+        onsubmit="return confirm('Tem certeza que deseja excluir a lógica “{{ calc_type.name|e }}”? O histórico será preservado.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="ghost-button danger" type="submit">
+      <svg class="ui-icon"><use href="#icon-trash"></use></svg>
+      Excluir lógica
+    </button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/js/company-builder.js?v=2" defer></script>{% endblock %}
