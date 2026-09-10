@@ -1767,13 +1767,13 @@ def _scope_bucket_key(label: str | None) -> str:
 
 def _scope_bucket_label(key: str) -> str:
     return {
-        "outbound": "SÓ IDA",
-        "return": "SÓ VOLTA",
-        "round_trip": "IDA E VOLTA",
-        "multi_city": "TRECHOS / MULTITRECHO",
-        "skip_normal": "SKIP NORMAL",
-        "skip_inverse": "SKIP INVERSO",
-    }.get(key, "OUTROS CÁLCULOS")
+        "outbound": "✈ MELHORES OPÇÕES • SÓ IDA",
+        "return": "↩ MELHORES OPÇÕES • SÓ VOLTA",
+        "round_trip": "⇄ MELHORES OPÇÕES • IDA E VOLTA",
+        "multi_city": "🧭 MELHORES OPÇÕES • MULTITRECHO",
+        "skip_normal": "⚡ OPORTUNIDADES • SKIP NORMAL",
+        "skip_inverse": "⚡ OPORTUNIDADES • SKIP INVERSO",
+    }.get(key, "⭐ OUTRAS OPÇÕES")
 
 
 def _quote_total_sort_key(quote: WebQuote) -> tuple[float, int]:
@@ -1790,8 +1790,9 @@ def _quote_total_sort_key(quote: WebQuote) -> tuple[float, int]:
 
 
 def _group_options_by_scope(options: list[WebQuote]) -> list[dict[str, Any]]:
-    order = ["outbound", "return", "round_trip", "multi_city", "skip_normal", "skip_inverse", "other"]
-    grouped: dict[str, list[WebQuote]] = {key: [] for key in order}
+    """Agrupa por categoria, mas coloca no topo a categoria com menor preço global."""
+    canonical_order = ["outbound", "return", "round_trip", "multi_city", "skip_normal", "skip_inverse", "other"]
+    grouped: dict[str, list[WebQuote]] = {key: [] for key in canonical_order}
     for quote in options:
         try:
             bucket = _scope_bucket_key(getattr(quote, "scope_label", ""))
@@ -1800,14 +1801,40 @@ def _group_options_by_scope(options: list[WebQuote]) -> list[dict[str, Any]]:
         if bucket not in grouped:
             bucket = "other"
         grouped[bucket].append(quote)
+
     result: list[dict[str, Any]] = []
-    for key in order:
+    for canonical_position, key in enumerate(canonical_order):
         items = grouped.get(key) or []
-        if items:
-            items = sorted(items, key=_quote_total_sort_key)
-            result.append({"key": key, "label": _scope_bucket_label(key), "items": items})
+        if not items:
+            continue
+        items = sorted(items, key=_quote_total_sort_key)
+        best_total = _quote_total_sort_key(items[0])[0]
+        result.append({
+            "key": key,
+            "label": _scope_bucket_label(key),
+            "items": items,
+            "best_total": best_total,
+            "canonical_position": canonical_position,
+        })
+
+    # O menor preço da cotação sobe para o topo independentemente de ser
+    # ida, volta, ida e volta, multitrecho ou Skip. Em empate, mantém ordem estável.
+    result.sort(key=lambda block: (block.get("best_total", float("inf")), block.get("canonical_position", 999)))
+    for position, block in enumerate(result):
+        block["is_cheapest_scope"] = position == 0
+        block["cheapest_quote_id"] = int(getattr(block["items"][0], "id", 0) or 0) if block.get("items") else 0
+
     if not result and options:
-        result.append({"key": "other", "label": _scope_bucket_label("other"), "items": list(options)})
+        fallback_items = sorted(list(options), key=_quote_total_sort_key)
+        result.append({
+            "key": "other",
+            "label": _scope_bucket_label("other"),
+            "items": fallback_items,
+            "best_total": _quote_total_sort_key(fallback_items[0])[0] if fallback_items else float("inf"),
+            "canonical_position": 999,
+            "is_cheapest_scope": True,
+            "cheapest_quote_id": int(getattr(fallback_items[0], "id", 0) or 0) if fallback_items else 0,
+        })
     return result
 
 

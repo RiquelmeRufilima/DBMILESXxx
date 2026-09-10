@@ -68,6 +68,7 @@ class UserPreference(Base):
     compact_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     in_app_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    settings_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     user: Mapped[WebUser] = orm_relationship(back_populates="preference")

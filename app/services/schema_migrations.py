@@ -145,6 +145,11 @@ def ensure_runtime_schema(engine: Engine) -> None:
         "auth_version": "INTEGER DEFAULT 1 NOT NULL",
     }
     _add_columns(engine, "web_users", user_cols)
+
+    user_preference_cols = {
+        "settings_json": "TEXT DEFAULT '{}' NOT NULL",
+    }
+    _add_columns(engine, "web_user_preferences", user_preference_cols)
     chat_cols = {
         "attachment_path": "VARCHAR(500)",
         "attachment_name": "VARCHAR(255)",

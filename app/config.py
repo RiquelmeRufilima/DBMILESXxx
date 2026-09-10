@@ -204,6 +204,15 @@ RUN_FULL_STARTUP_MAINTENANCE = _env_bool("RUN_FULL_STARTUP_MAINTENANCE", not IS_
 # padrão; ative apenas para testes temporários.
 EPHEMERAL_UPLOADS_ENABLED = _env_bool("EPHEMERAL_UPLOADS_ENABLED", not IS_VERCEL)
 
+# Armazenamento de arquivos. No Vercel, o filesystem é temporário; portanto
+# a produção deve usar um provedor externo. O adapter pode ser ativado depois
+# sem alterar as telas ou os registros do banco.
+FILE_STORAGE_PROVIDER = os.getenv("FILE_STORAGE_PROVIDER", "local").strip().lower() or "local"
+FILE_STORAGE_PUBLIC_URL = os.getenv("FILE_STORAGE_PUBLIC_URL", "").strip().rstrip("/")
+FILE_STORAGE_BUCKET = os.getenv("FILE_STORAGE_BUCKET", "").strip()
+FILE_STORAGE_REGION = os.getenv("FILE_STORAGE_REGION", "").strip()
+FILE_STORAGE_ENDPOINT = os.getenv("FILE_STORAGE_ENDPOINT", "").strip()
+
 # Novas contas são criadas pelo acesso principal; cadastro público fica fechado.
 REGISTRATION_ENABLED = _env_bool("REGISTRATION_ENABLED", False)
 MAX_TEAM_USERS = max(1, int(os.getenv("MAX_TEAM_USERS", "10")))

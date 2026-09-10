@@ -25,12 +25,12 @@ ROLE_LABELS = {
 }
 
 THEME_PRESETS = {
-    "ocean": {"name": "Oceano", "primary": "#26c5e6", "secondary": "#2f7cf6"},
-    "royal": {"name": "Azul Royal", "primary": "#4f8cff", "secondary": "#6d5dfc"},
-    "emerald": {"name": "Esmeralda", "primary": "#28d6a0", "secondary": "#0fb6b0"},
-    "violet": {"name": "Violeta", "primary": "#a56cff", "secondary": "#6f7cff"},
-    "sunset": {"name": "Pôr do Sol", "primary": "#ff9f43", "secondary": "#ff5f7a"},
-    "graphite": {"name": "Grafite", "primary": "#8fa6bc", "secondary": "#5f748b"},
+    "ocean": {"name":"Oceano","primary":"#26c5e6","secondary":"#2f7cf6","deep":"#082238","soft":"#eaf8ff"},
+    "royal": {"name":"Azul Royal","primary":"#4f8cff","secondary":"#6d5dfc","deep":"#101f4a","soft":"#eef2ff"},
+    "emerald": {"name":"Esmeralda","primary":"#28d6a0","secondary":"#0fb6b0","deep":"#07352f","soft":"#e9fbf6"},
+    "violet": {"name":"Violeta","primary":"#a56cff","secondary":"#6f7cff","deep":"#26183f","soft":"#f4efff"},
+    "sunset": {"name":"Pôr do Sol","primary":"#ff9f43","secondary":"#ff5f7a","deep":"#3c2118","soft":"#fff3e9"},
+    "graphite": {"name":"Grafite","primary":"#8fa6bc","secondary":"#5f748b","deep":"#1b2632","soft":"#f1f4f7"},
 }
 
 
@@ -141,6 +141,12 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
     preset_key = getattr(preference, "theme_preset", "ocean") if preference else "ocean"
     preset = THEME_PRESETS.get(preset_key, THEME_PRESETS["ocean"])
     accent = getattr(preference, "accent_color", None) or preset["primary"]
+    try:
+        preference_settings = json.loads(getattr(preference, "settings_json", "{}") or "{}") if preference else {}
+        if not isinstance(preference_settings, dict):
+            preference_settings = {}
+    except Exception:
+        preference_settings = {}
     theme = {
         "mode": getattr(preference, "theme_mode", "dark") if preference else "dark",
         "preset": preset_key,
@@ -148,6 +154,8 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
         "secondary": preset["secondary"],
         "background_style": getattr(preference, "background_style", "gradient") if preference else "gradient",
         "compact_mode": bool(getattr(preference, "compact_mode", False)) if preference else False,
+        "deep": preset.get("deep", "#082238"),
+        "soft": preset.get("soft", "#eaf8ff"),
     }
 
     return {
@@ -157,6 +165,7 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
         "preference": preference,
         "theme": theme,
         "theme_presets": THEME_PRESETS,
+        "preference_settings": preference_settings,
         "unread_count": unread_count,
         "pending_task_count": pending_task_count,
         "csrf_token": ensure_csrf_token(request.session),
