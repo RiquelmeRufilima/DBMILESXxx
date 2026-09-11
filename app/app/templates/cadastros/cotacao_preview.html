@@ -74,7 +74,7 @@ const groupId={{ group.id }};
 const initialData={{ data|tojson|safe }};
 const airportMap={{ airport_map|tojson|safe }};
 const companyLogo={{ company_logo_data|tojson }};
-const airlineLogoMap={{ airline_logo_map|tojson|safe }};
+const airlineLogoMap={{ (airline_logo_map|default({}))|tojson|safe }};
 let flights=Array.isArray(initialData.flights)?JSON.parse(JSON.stringify(initialData.flights)):[];
 let preview={
   document_title:'Passagem Aérea',

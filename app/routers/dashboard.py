@@ -24,35 +24,65 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
 
-    quote_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
-    total_quotes = db.scalar(select(func.count(WebQuote.id)).where(quote_filter)) or 0
-    total_value = db.scalar(select(func.coalesce(func.sum(WebQuote.total), 0)).where(quote_filter)) or 0
-    custom_airlines = db.scalar(
-        select(func.count(Airline.id)).where(
-            Airline.builtin.is_(False),
-            Airline.owner_company_id == user.company_id if user.company_id else Airline.owner_user_id == user.id,
-        )
-    ) or 0
-    recent_quotes = db.scalars(
-        select(WebQuote).where(quote_filter).options(selectinload(WebQuote.airline)).order_by(desc(WebQuote.created_at)).limit(6)
-    ).all()
-    person_filter = Person.company_id == user.company_id if user.company_id else Person.user_id == user.id
-    pending_persons = db.scalars(
-        select(Person).where(person_filter, Person.is_complete.is_(False), Person.active.is_(True)).order_by(desc(Person.created_at)).limit(8)
-    ).all()
-    task_filter = CompanyTask.company_id == user.company_id if user.company_id else CompanyTask.created_by_user_id == user.id
-    pending_tasks = db.scalars(
-        select(CompanyTask)
-        .where(task_filter, CompanyTask.status == "pendente")
-        .order_by(
-            CompanyTask.due_at.is_(None),
-            CompanyTask.due_at.asc(),
-            desc(CompanyTask.created_at),
-        )
-        .limit(6)
-    ).all()
+    # O dashboard é uma tela de resumo. Nenhum card secundário deve impedir
+    # a abertura da página caso uma tabela/coluna opcional ainda não tenha
+    # sido criada no Neon ou em uma base local antiga.
+    total_quotes = 0
+    total_value = 0
+    custom_airlines = 0
+    recent_quotes = []
+    pending_persons = []
+    pending_tasks = []
 
-    return templates.TemplateResponse(request, "dashboard.html",
+    quote_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
+    try:
+        total_quotes = db.scalar(select(func.count(WebQuote.id)).where(quote_filter)) or 0
+        total_value = db.scalar(select(func.coalesce(func.sum(WebQuote.total), 0)).where(quote_filter)) or 0
+        recent_quotes = db.scalars(
+            select(WebQuote)
+            .where(quote_filter)
+            .options(selectinload(WebQuote.airline))
+            .order_by(desc(WebQuote.created_at))
+            .limit(6)
+        ).all()
+    except Exception:
+        db.rollback()
+
+    try:
+        custom_airlines = db.scalar(
+            select(func.count(Airline.id)).where(
+                Airline.builtin.is_(False),
+                Airline.owner_company_id == user.company_id if user.company_id else Airline.owner_user_id == user.id,
+            )
+        ) or 0
+    except Exception:
+        db.rollback()
+
+    try:
+        person_filter = Person.company_id == user.company_id if user.company_id else Person.user_id == user.id
+        pending_persons = db.scalars(
+            select(Person)
+            .where(person_filter, Person.is_complete.is_(False), Person.active.is_(True))
+            .order_by(desc(Person.created_at))
+            .limit(8)
+        ).all()
+    except Exception:
+        db.rollback()
+
+    try:
+        task_filter = CompanyTask.company_id == user.company_id if user.company_id else CompanyTask.created_by_user_id == user.id
+        pending_tasks = db.scalars(
+            select(CompanyTask)
+            .where(task_filter, CompanyTask.status == "pendente")
+            .order_by(CompanyTask.due_at.is_(None), CompanyTask.due_at.asc(), desc(CompanyTask.created_at))
+            .limit(6)
+        ).all()
+    except Exception:
+        db.rollback()
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
         context(
             request,
             user=user,

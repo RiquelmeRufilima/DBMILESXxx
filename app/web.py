@@ -101,9 +101,29 @@ def flash(request: Request, message: str, kind: str = "info") -> None:
 
 def context(request: Request, *, user=None, **kwargs) -> dict:
     flashes = request.session.pop("flashes", [])
-    preference = getattr(user, "preference", None) if user else None
-    profile = getattr(user, "profile", None) if user else None
-    all_notifications = list(getattr(user, "notifications", []) or []) if user else []
+    preference = None
+    profile = None
+    all_notifications = []
+    if user is not None:
+        # Relacionamentos opcionais podem não existir ainda em bancos antigos/Neon
+        # durante um deploy. O layout nunca deve derrubar a aplicação por isso.
+        db = object_session(user)
+        try:
+            preference = getattr(user, "preference", None)
+        except Exception:
+            if db is not None:
+                db.rollback()
+        try:
+            profile = getattr(user, "profile", None)
+        except Exception:
+            if db is not None:
+                db.rollback()
+        try:
+            all_notifications = list(getattr(user, "notifications", []) or [])
+        except Exception:
+            if db is not None:
+                db.rollback()
+            all_notifications = []
     # Atualizações automáticas de cotação pertencem ao fluxo visual do chat,
     # não ao sininho. Também escondemos registros antigos já gravados no banco.
     notifications = [

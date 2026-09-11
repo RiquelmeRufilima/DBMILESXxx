@@ -93,14 +93,20 @@
     </section>
   </section>
 </div>
+<script id="previewInitialData" type="application/json">{{ data|default({})|tojson }}</script>
+<script id="previewAirportMap" type="application/json">{{ airport_map|default({})|tojson }}</script>
+<script id="previewAirlineLogoMap" type="application/json">{{ airline_logo_map|default({})|tojson }}</script>
+<script id="previewMeta" type="application/json">{{ {'csrf_token': csrf_token, 'group_id': group.id, 'club_image': club_image_data|default(None), 'default_title': (data.title or group.quote_name or 'Passagem Aérea')}|tojson }}</script>
 <script>
-const csrfToken={{ csrf_token|tojson }};
-const groupId={{ group.id }};
-let initialData={{ data|tojson|safe }};
-const airportMap={{ airport_map|tojson|safe }};
-const airlineLogoMap={{ (airline_logo_map|default({}))|tojson|safe }};
-const initialClubImage={{ club_image_data|tojson }};
-const defaultTitle={{ (data.title or group.quote_name or 'Passagem Aérea')|tojson }};
+function previewJson(id, fallback){try{const n=document.getElementById(id);return n?JSON.parse(n.textContent||JSON.stringify(fallback)):fallback;}catch(_e){return fallback;}}
+const previewMeta=previewJson('previewMeta',{});
+const csrfToken=previewMeta.csrf_token||'';
+const groupId=previewMeta.group_id||0;
+let initialData=previewJson('previewInitialData',{});
+const airportMap=previewJson('previewAirportMap',{});
+const airlineLogoMap=previewJson('previewAirlineLogoMap',{});
+const initialClubImage=previewMeta.club_image||null;
+const defaultTitle=previewMeta.default_title||'Passagem Aérea';
 let preview={
   document_title: defaultTitle,
   show_logo:true,
