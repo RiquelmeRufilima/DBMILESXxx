@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import UploadFile
 
 from ..config import BASE_DIR, UPLOAD_DIR, IS_VERCEL, EPHEMERAL_UPLOADS_ENABLED
+from .storage import blob_ready, blob_put, blob_get, blob_delete
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 AIRLINE_IMAGE_EXTENSIONS = IMAGE_EXTENSIONS | {".svg"}
@@ -21,10 +22,10 @@ def _hosted_upload_limit(max_bytes: int) -> int:
 
 
 def _ensure_upload_storage_available() -> None:
-    if IS_VERCEL and not EPHEMERAL_UPLOADS_ENABLED:
+    if IS_VERCEL and not blob_ready() and not EPHEMERAL_UPLOADS_ENABLED:
         raise ValueError(
             "Uploads persistentes ainda não estão configurados no Vercel. "
-            "Use Vercel Blob/S3 ou, somente para teste temporário, ative "
+            "Conecte o Vercel Blob ou, somente para teste temporário, ative "
             "EPHEMERAL_UPLOADS_ENABLED=true."
         )
 
@@ -145,12 +146,12 @@ async def save_quote_attachment(
     target_dir: Path,
     *,
     max_bytes: int = 25 * 1024 * 1024,
+    blob_path_prefix: str | None = None,
 ) -> dict[str, object] | None:
-    """Salva um anexo da cotação e devolve metadados seguros.
+    """Salva anexo de cotação no Blob quando disponível; local como fallback.
 
-    O arquivo fica dentro de uploads/quotes/<id>, enquanto o AcceptedQuote guarda
-    somente caminho/nome/tipo/tamanho no JSON já existente. Assim não é preciso
-    alterar a estrutura do banco e instalações antigas continuam compatíveis.
+    O AcceptedQuote continua guardando apenas metadados no JSON existente,
+    portanto esta integração não exige criar tabela nova no Neon.
     """
     filename = str(getattr(upload, "filename", "") or "").strip()
     if upload is None or not filename:
@@ -169,22 +170,74 @@ async def save_quote_attachment(
     if len(content) > max_bytes:
         raise ValueError(f"Cada anexo deve ter no máximo {max_bytes // (1024 * 1024)} MB.")
 
-    target_dir.mkdir(parents=True, exist_ok=True)
     stored_name = f"quote-{secrets.token_hex(16)}{extension}"
+    original_name = Path(filename).name[:255]
+    mime = str(getattr(upload, "content_type", "") or "application/octet-stream")[:120]
+    entry_id = secrets.token_hex(12)
+
+    if blob_ready():
+        prefix = (blob_path_prefix or "quotes").strip().strip("/")
+        pathname = f"{prefix}/{stored_name}"
+        try:
+            result = blob_put(pathname, content, mime)
+        except RuntimeError as exc:
+            raise ValueError(str(exc)) from exc
+        return {
+            "id": entry_id,
+            "path": pathname,
+            "blob_url": str(result.get("url") or result.get("downloadUrl") or ""),
+            "storage": "vercel_blob",
+            "name": original_name,
+            "type": mime,
+            "size": len(content),
+            "extension": extension,
+        }
+
+    target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / stored_name
     target.write_bytes(content)
-
     try:
         relative = target.resolve().relative_to(UPLOAD_DIR.resolve())
     except ValueError as exc:
         target.unlink(missing_ok=True)
         raise ValueError("A pasta escolhida para o anexo não pertence aos uploads do sistema.") from exc
-
     return {
-        "id": secrets.token_hex(12),
+        "id": entry_id,
         "path": f"uploads/{relative.as_posix()}",
-        "name": Path(filename).name[:255],
-        "type": str(getattr(upload, "content_type", "") or "application/octet-stream")[:120],
+        "storage": "local",
+        "name": original_name,
+        "type": mime,
         "size": len(content),
         "extension": extension,
     }
+
+
+def delete_stored_attachment(entry: dict[str, object] | None) -> None:
+    if not isinstance(entry, dict):
+        return
+    if str(entry.get("storage") or "") == "vercel_blob":
+        url = str(entry.get("blob_url") or "")
+        if url:
+            try:
+                blob_delete(url)
+            except Exception:
+                pass
+        return
+    delete_relative_upload(str(entry.get("path") or ""))
+
+
+def read_stored_attachment(entry: dict[str, object]) -> tuple[bytes, str]:
+    if str(entry.get("storage") or "") == "vercel_blob":
+        url = str(entry.get("blob_url") or "")
+        if not url:
+            raise FileNotFoundError("Anexo sem URL do Blob.")
+        return blob_get(url)
+
+    normalized = str(entry.get("path") or "").replace("\\", "/").lstrip("/")
+    candidate = UPLOAD_DIR / normalized[len("uploads/"):] if normalized.startswith("uploads/") else BASE_DIR / normalized
+    path = candidate.resolve()
+    path.relative_to(UPLOAD_DIR.resolve())
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError("Anexo não encontrado.")
+    return path.read_bytes(), str(entry.get("type") or "application/octet-stream")
+

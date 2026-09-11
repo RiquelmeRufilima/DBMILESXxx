@@ -698,7 +698,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
             {% elif field.field_type == 'text' %}
               <input type="text" name="field_{{ field.key }}" value="{{ saved_value }}" {% if field.required %}required{% endif %}>
             {% else %}
-              <input type="text" inputmode="decimal" data-field-type="{{ field.field_type }}" data-field-key="{{ field.key }}" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="{% if field.field_type == 'miles' %}Ex.: 1.421.400 ou 1421,4{% else %}0,00{% endif %}" autocomplete="off">
+              <input type="text" inputmode="decimal" data-field-type="{{ field.field_type }}" data-field-key="{{ field.key }}" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="{% if field.field_type == 'miles' %}Ex.: 1.000 ou 0.500{% else %}0,00{% endif %}" autocomplete="off">
             {% endif %}
             {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
           </label>
@@ -1440,32 +1440,21 @@ document.addEventListener('person-selected', function(event) {
     const value = String(raw || '').trim().replace(/\s/g,'');
     if(!value) return {ok:true,value:0};
     if(!/^[0-9.,]+$/.test(value)) return {ok:false};
-    if(value.includes(',')){
-      const parts = value.split(',');
-      if(parts.length !== 2 || !/^\d+$/.test(parts[1])) return {ok:false};
-      const integer = parts[0].replace(/\./g,'');
-      const number = Number(`${integer}.${parts[1]}`);
-      return Number.isFinite(number) ? {ok:true,value:number} : {ok:false};
+    const parts = value.split(/[.,]/);
+    if(parts.some(part => part === '')) return {ok:false};
+    let normalized = parts[0];
+    if(parts.length > 1){
+      const decimal = parts[parts.length - 1];
+      if(decimal.length > 3) return {ok:false};
+      const integer = parts.slice(0,-1).join('') || '0';
+      normalized = `${integer}.${decimal}`;
     }
-    if(/^\d{1,3}(?:\.\d{3}){2,}$/.test(value)){
-      return {ok:true,value:Number(value.replace(/\./g,''))/1000};
-    }
-    if(value.includes('.')){
-      const parts=value.split('.');
-      if(parts.length===2){
-        if(parts[1].length===3 && parts[0].length<=3) return {ok:true,value:Number(parts.join(''))/1000};
-        const number=Number(value);
-        return Number.isFinite(number)?{ok:true,value:number}:{ok:false};
-      }
-      return {ok:false};
-    }
-    const number=Number(value);
-    if(!Number.isFinite(number)) return {ok:false};
-    return {ok:true,value:value.length>=5?number/1000:number};
+    const number = Number(normalized);
+    return Number.isFinite(number) && number >= 0 ? {ok:true,value:number} : {ok:false};
   }
 
   function formatMiles(number){
-    return Number(number || 0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:3});
+    return Number(number || 0).toFixed(3);
   }
 
   document.querySelectorAll('input[inputmode="decimal"]').forEach(input => {
@@ -1477,7 +1466,7 @@ document.addEventListener('person-selected', function(event) {
       if(!parsed.ok){
         input.setCustomValidity(kind === 'money'
           ? 'Informe um valor com no máximo 2 casas decimais. Ex.: 1.341,96'
-          : 'Informe milhas/pontos. Ex.: 1.421.400 ou 1421,4');
+          : 'Informe milhas/pontos com até 3 casas. Ex.: 1.000 ou 0.500');
         return;
       }
       input.setCustomValidity('');

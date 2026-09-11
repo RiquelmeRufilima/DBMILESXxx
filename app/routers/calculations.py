@@ -1249,7 +1249,12 @@ def _format_saved_calculation_value(value: Any, field: CalculationField | Any) -
         return raw
 
     field_type = str(getattr(field, "field_type", "") or "").strip().lower()
-    if field_type in {"select", "text", "integer", "percent", "miles"}:
+    if field_type == "miles":
+        try:
+            return f"{_parse_miles_field(raw):.3f}"
+        except (TypeError, ValueError):
+            return raw
+    if field_type in {"select", "text", "integer", "percent"}:
         return raw
 
     key = _normalized_token(getattr(field, "key", ""))
@@ -1421,9 +1426,13 @@ def _parse_money_field(value: Any, *, field_name: str = "valor") -> float:
 
 
 def _parse_miles_field(value: Any, *, field_name: str = "milhas/pontos") -> float:
-    """Normaliza pontos/milhas para milheiros.
+    """Normaliza pontos/milhas em milheiros com 3 casas decimais.
 
-    Exemplos equivalentes: 1.421.400, 1421400, 1.421,4 e 1421,4 -> 1421.4.
+    Neste campo ponto e vírgula têm o mesmo significado: separador decimal.
+    Exemplos equivalentes: 1, 1.0, 1,00, 1.000 -> 1.000;
+    0,5, 0.5, 0,500, 0.500 -> 0.500. Quando houver mais de um
+    separador, o último grupo é a parte decimal e os anteriores formam a
+    parte inteira (ex.: 1.421.400 -> 1421.400).
     """
     raw = str(value or "").strip().replace(" ", "")
     if not raw:
@@ -1431,42 +1440,24 @@ def _parse_miles_field(value: Any, *, field_name: str = "milhas/pontos") -> floa
     if raw.startswith("-") or not re.fullmatch(r"[0-9.,]+", raw):
         raise ValueError(f"{field_name} inválido")
 
-    # Decimal explícito em padrão brasileiro: 1.421,4 / 1421,4
-    if "," in raw:
-        if raw.count(",") != 1:
-            raise ValueError(f"{field_name} inválido")
-        integer, decimal = raw.split(",", 1)
-        if not decimal.isdigit():
-            raise ValueError(f"{field_name} inválido")
-        integer = integer.replace(".", "")
-        try:
-            return round(float(f"{integer}.{decimal}"), 3)
-        except ValueError as exc:
-            raise ValueError(f"{field_name} inválido") from exc
-
-    # Vários pontos em grupos de milhar representam quantidade bruta de pontos.
-    if re.fullmatch(r"\d{1,3}(?:\.\d{3}){2,}", raw):
-        return round(float(raw.replace(".", "")) / 1000.0, 3)
-
-    # Um ponto pode ser decimal em milheiros (1421.4) ou milhar visual (1.421).
-    if raw.count(".") == 1:
-        left, right = raw.split(".", 1)
-        if len(right) <= 3 and len(left) > 3:
-            return round(float(raw), 3)
-        if len(right) == 3 and len(left) <= 3:
-            return round(float(left + right) / 1000.0, 3)
-        return round(float(raw), 3)
-
-    # Inteiro grande é quantidade bruta de pontos; inteiro curto já está em milheiros.
-    digits = raw.replace(".", "")
+    parts = re.split(r"[.,]", raw)
+    if any(part == "" for part in parts):
+        raise ValueError(f"{field_name} inválido")
+    if len(parts) == 1:
+        normalized = parts[0]
+    else:
+        decimal = parts[-1]
+        if len(decimal) > 3:
+            raise ValueError(f"{field_name} deve ter no máximo 3 casas decimais")
+        integer = "".join(parts[:-1]) or "0"
+        normalized = f"{integer}.{decimal}"
     try:
-        numeric = float(digits)
-    except ValueError as exc:
+        parsed = float(normalized)
+    except (TypeError, ValueError) as exc:
         raise ValueError(f"{field_name} inválido") from exc
-    if len(digits) >= 5:
-        numeric /= 1000.0
-    return round(numeric, 3)
-
+    if parsed < 0:
+        raise ValueError(f"{field_name} não pode ser negativo")
+    return round(parsed, 3)
 
 
 
@@ -1767,12 +1758,12 @@ def _scope_bucket_key(label: str | None) -> str:
 
 def _scope_bucket_label(key: str) -> str:
     return {
-        "outbound": "✈ MELHORES OPÇÕES • SÓ IDA",
-        "return": "↩ MELHORES OPÇÕES • SÓ VOLTA",
-        "round_trip": "⇄ MELHORES OPÇÕES • IDA E VOLTA",
-        "multi_city": "🧭 MELHORES OPÇÕES • MULTITRECHO",
-        "skip_normal": "⚡ OPORTUNIDADES • SKIP NORMAL",
-        "skip_inverse": "⚡ OPORTUNIDADES • SKIP INVERSO",
+        "outbound": "✈ SÓ IDA • MELHORES PREÇOS",
+        "return": "↩ SÓ VOLTA • MELHORES PREÇOS",
+        "round_trip": "⇄ IDA E VOLTA • MELHORES PREÇOS",
+        "multi_city": "🧭 MULTITRECHO • MELHORES PREÇOS",
+        "skip_normal": "⚡ SKIP • OPORTUNIDADES",
+        "skip_inverse": "⚡ SKIP INVERSO • OPORTUNIDADES",
     }.get(key, "⭐ OUTRAS OPÇÕES")
 
 
@@ -1790,24 +1781,44 @@ def _quote_total_sort_key(quote: WebQuote) -> tuple[float, int]:
 
 
 def _group_options_by_scope(options: list[WebQuote]) -> list[dict[str, Any]]:
-    order = ["outbound", "return", "round_trip", "multi_city", "skip_normal", "skip_inverse", "other"]
-    grouped: dict[str, list[WebQuote]] = {key: [] for key in order}
+    """Agrupa por tipo, mas ordena os blocos pelo menor preço real.
+
+    Assim, independentemente de ser Só ida, Só volta, Ida e volta ou Skip,
+    o bloco que contém a opção mais barata aparece primeiro.
+    """
+    keys = ["outbound", "return", "round_trip", "multi_city", "skip_normal", "skip_inverse", "other"]
+    grouped: dict[str, list[WebQuote]] = {key: [] for key in keys}
     for quote in options:
         try:
             bucket = _scope_bucket_key(getattr(quote, "scope_label", ""))
         except Exception:
             bucket = "other"
-        if bucket not in grouped:
-            bucket = "other"
-        grouped[bucket].append(quote)
+        grouped[bucket if bucket in grouped else "other"].append(quote)
+
     result: list[dict[str, Any]] = []
-    for key in order:
+    for key in keys:
         items = grouped.get(key) or []
-        if items:
-            items = sorted(items, key=_quote_total_sort_key)
-            result.append({"key": key, "label": _scope_bucket_label(key), "items": items})
+        if not items:
+            continue
+        items = sorted(items, key=_quote_total_sort_key)
+        min_total = _quote_total_sort_key(items[0])[0]
+        result.append({
+            "key": key,
+            "label": _scope_bucket_label(key),
+            "items": items,
+            "min_total": min_total,
+            "is_cheapest_scope": False,
+        })
+
     if not result and options:
-        result.append({"key": "other", "label": _scope_bucket_label("other"), "items": list(options)})
+        items = sorted(list(options), key=_quote_total_sort_key)
+        result.append({"key": "other", "label": _scope_bucket_label("other"), "items": items,
+                       "min_total": _quote_total_sort_key(items[0])[0], "is_cheapest_scope": True})
+        return result
+
+    result.sort(key=lambda block: (block.get("min_total", float("inf")), keys.index(block["key"]) if block["key"] in keys else 99))
+    if result:
+        result[0]["is_cheapest_scope"] = True
     return result
 
 

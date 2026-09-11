@@ -198,7 +198,19 @@
   </section>
 
   <section class="tab-panel" id="tab-observacoes"><div class="panel"><label>Observações gerais<textarea rows="10" id="freeNotes">{{ data.notes or '' }}</textarea></label></div></section>
-  <section class="tab-panel" id="tab-anexos"><div class="panel empty-state"><h3>Anexos</h3><p>Área preparada para anexar comprovantes, prints, documentos e bilhetes futuramente.</p></div></section>
+  <section class="tab-panel" id="tab-anexos">
+    <div class="panel quote-section-panel quote-attachments-panel">
+      <div class="section-title-row">
+        <div><h2>Anexos e fotos</h2><p class="muted">Fotos, comprovantes, bilhetes, PDFs e documentos ficam salvos no armazenamento privado da cotação.</p></div>
+        <label class="primary-button tiny attachment-upload-button">
+          + Adicionar fotos ou arquivos
+          <input id="quoteAttachmentInput" type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.rtf,.odt,.ods,.ppt,.pptx,.json,.xml,.zip,.gif,.bmp,.ico,.svg" hidden>
+        </label>
+      </div>
+      <div id="quoteAttachmentStatus" class="attachment-status" hidden></div>
+      <div id="quoteAttachmentGrid" class="quote-attachment-grid"></div>
+    </div>
+  </section>
   <section class="tab-panel" id="tab-tarifas"><div class="panel empty-state"><h3>Tarifas</h3><p>Área preparada para detalhar tarifas, taxas e regras da venda.</p></div></section>
   <section class="tab-panel" id="tab-fatura"><div class="panel empty-state"><h3>Fatura</h3><p>Controle de fatura será liberado após o lançamento financeiro.</p></div></section>
   <section class="tab-panel" id="tab-comunicacao"><div class="panel empty-state"><h3>Comunicação</h3><p>Área para mensagens, WhatsApp e histórico de contato com o cliente.</p></div></section>
@@ -377,6 +389,7 @@ let saleItems = Array.isArray(initialData.sale_items) ? initialData.sale_items :
 let services = initialData.services || {hotel:[],transport:[],cruise:[],experiences:[],insurance:[],additional:[],itinerary:""};
 let commission = initialData.commission || {receive:[],pay:[],extra:0};
 let sale = initialData.sale || {date:"", launched:false, launched_at:"", notes:""};
+let attachments = Array.isArray(initialData.attachments) ? initialData.attachments : [];
 let editFlightIndex = null, editCostIndex = null, editSaleIndex = null, editServiceKey = null, editServiceIndex = null, editCommissionType = null, editCommissionIndex = null;
 let uiRendered = false;
 const serviceLabels={hotel:'Hospedagem',transport:'Transporte',cruise:'Cruzeiro',experiences:'Experiências Turísticas',insurance:'Seguro',additional:'Serviço Adicional'};
@@ -384,6 +397,7 @@ const AIRPORT_MAP = readJsonData('airportMapData', {});
 const AIRLINE_OPTIONS = readJsonData('airlineOptionsData', []);
 const CHECKIN_LINKS = {"aerolineas":"https://www.aerolineas.com.ar/check-in","aeromexico":"https://aeromexico.com/pt-br/check-in","aircanada":"https://www.aircanada.com/ca/en/aco/home/ssci.html","airchina":"https://www.airchina.com/","aireuropa":"https://www.aireuropa.com/br/pt/aea/gestoes/check-in.html","airfrance":"https://wwws.airfrance.com.br/check-in","airnewzealand":"https://www.airnewzealand.com/check-in-online","amaszonas":"https://www.amaszonas.com/","american":"https://www.aa.com/checkin","ana":"https://www.ana.co.jp/en/jp/guide/boarding-procedures/checkin/","arajet":"https://www.arajet.com/","avianca":"https://www.avianca.com/pt/gerencie-sua-reserva/check-in-online/","azul":"https://www.voeazul.com.br/check-in","boa":"https://www.boa.bo/","british":"https://www.britishairways.com/travel/olcilandingpageauthreq/public/en_br","condor":"https://www.condor.com/","copa":"https://www.copaair.com/pt-gs/check-in/","delta":"https://www.delta.com/us/en/check-in-security/overview","elal":"https://www.elal.com/","emirates":"https://www.emirates.com/br/english/manage-booking/online-check-in/","ethiopian":"https://www.ethiopianairlines.com/br/services/online-check-in","gol":"https://b2c.voegol.com.br/check-in","iberia":"https://www.iberia.com/br/check-in-online/","ita":"https://www.ita-airways.com/en_br/fly-ita/check-in.html","jal":"https://www.jal.co.jp/ar/en/inter/boarding/online-checkin/","jetsmart":"https://jetsmart.com/br/pt/check-in","klm":"https://www.klm.com.br/check-in","koreanair":"https://www.koreanair.com/","latam":"https://www.latamairlines.com/br/pt/check-in","lufthansa":"https://www.lufthansa.com/br/pt/check-in-online","qantas":"https://www.qantas.com/","qatar":"https://www.qatarairways.com/pt-br/services-checking-in.html","royalairmaroc":"https://www.royalairmaroc.com/","singapore":"https://www.singaporeair.com/en_UK/br/travel-info/check-in/online-mobile-checkin/","sky":"https://www.skyairline.com/","southafrican":"https://www.flysaa.com/","swiss":"https://www.swiss.com/br/en/fly/check-in/online-check-in","taag":"https://www.taag.com/","tap":"https://www.flytap.com/pt-br/check-in-online","turkish":"https://www.turkishairlines.com/en-int/flights/manage-booking/online-check-in/","united":"https://www.united.com/en/us/checkin","voepass":"https://www.voepass.com.br/"};
 function brMoney(n){n=Number(n||0);return 'R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function escapeHtml(value){return String(value??'').replace(/[&<>\"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));}
 function parseMoney(v){v=String(v||'').replace('R$','').replace(/\s/g,'').replace(/\./g,'').replace(',','.');const n=parseFloat(v);return isNaN(n)?0:n;}
 function renderCommercialSeed(){
   const panel=document.getElementById('commercialSeedPanel'); if(!panel)return;
@@ -458,7 +472,7 @@ function captureSaleDraft(){
   sale.notes=val('saleNotes');
   commission.extra=parseMoney(val('commissionExtra'));
 }
-function renderAll(){captureSaleDraft();normalizeScheduleSelections();renderCommercialSeed();renderFlights();renderPassengers();renderValues();renderServices();renderSale();syncHidden();uiRendered=true;}
+function renderAll(){captureSaleDraft();normalizeScheduleSelections();renderCommercialSeed();renderFlights();renderPassengers();renderValues();renderServices();renderSale();renderAttachments();syncHidden();uiRendered=true;}
 function defaultFlight(kind='ida'){
   const label = kind==='volta'?'Voo de Volta':kind==='interno'?'Voo Interno':'Voo de Ida';
   return {kind,label,segment_key:kind==='volta'?'return':'outbound',schedule_option_number:1,selected_schedule:true,bags_personal:1,bags_carry:1,bags_checked:0,connections:'Direto',checkin_status:'pendente',class:'Econômica',stops:[]};
@@ -704,6 +718,51 @@ async function saveAndLaunchSale(event){
     document.getElementById('launchForm').submit();
   }catch(error){alert(error.message||'Erro ao lançar venda.'); if(button){button.disabled=false;button.textContent='Lançar venda';}}
 }
+
+function attachmentIsImage(item){
+  const type=String(item?.type||'').toLowerCase();
+  const ext=String(item?.extension||'').toLowerCase();
+  return type.startsWith('image/') || ['.png','.jpg','.jpeg','.webp','.gif','.bmp','.svg','.ico'].includes(ext);
+}
+function attachmentBytes(size){
+  const n=Number(size||0); if(n<1024)return `${n} B`; if(n<1048576)return `${(n/1024).toFixed(1)} KB`; return `${(n/1048576).toFixed(1)} MB`;
+}
+function renderAttachments(){
+  const grid=document.getElementById('quoteAttachmentGrid'); if(!grid)return;
+  if(!attachments.length){grid.innerHTML='<div class="attachment-empty">Nenhum anexo ainda. Você pode adicionar fotos direto do celular ou arquivos do computador.</div>';return;}
+  const groupId=(location.pathname.match(/\/cadastros\/cotacoes\/(\d+)/)||[])[1]||'';
+  grid.innerHTML=attachments.map(item=>{
+    const id=String(item.id||''); const url=`/cadastros/cotacoes/${groupId}/anexos/${encodeURIComponent(id)}/arquivo`;
+    const preview=attachmentIsImage(item)?`<a class="attachment-preview image" href="${url}" target="_blank"><img src="${url}" alt="${escapeHtml(item.name||'Foto')}"></a>`:`<a class="attachment-preview file" href="${url}" target="_blank">📎</a>`;
+    return `<article class="quote-attachment-card">${preview}<div class="attachment-copy"><strong>${escapeHtml(item.name||'Arquivo')}</strong><small>${attachmentBytes(item.size)}${item.uploaded_by?' • '+escapeHtml(item.uploaded_by):''}</small></div><div class="attachment-actions"><a class="ghost-button tiny" href="${url}" target="_blank">Abrir</a><button type="button" class="ghost-button danger tiny" onclick="deleteQuoteAttachment('${id}')">Excluir</button></div></article>`;
+  }).join('');
+}
+async function uploadQuoteAttachments(files){
+  const selected=Array.from(files||[]); if(!selected.length)return;
+  const input=document.getElementById('quoteAttachmentInput'); const status=document.getElementById('quoteAttachmentStatus');
+  const groupId=(location.pathname.match(/\/cadastros\/cotacoes\/(\d+)/)||[])[1]||'';
+  const csrf=document.querySelector('#quoteEditForm input[name="csrf_token"]')?.value||'';
+  const fd=new FormData(); fd.append('csrf_token',csrf); selected.forEach(file=>fd.append('files',file));
+  if(status){status.hidden=false;status.textContent=`Enviando ${selected.length} arquivo(s)...`;status.classList.remove('error');}
+  if(input)input.disabled=true;
+  try{
+    const res=await fetch(`/cadastros/cotacoes/${groupId}/anexos/upload`,{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}});
+    const payload=await res.json().catch(()=>({})); if(!res.ok||!payload.ok)throw new Error(payload.message||'Não foi possível enviar os anexos.');
+    attachments=Array.isArray(payload.attachments)?payload.attachments:attachments; renderAttachments();
+    if(status){status.textContent='Upload concluído.';setTimeout(()=>status.hidden=true,2200);}
+  }catch(err){if(status){status.textContent=err.message||'Erro no upload.';status.classList.add('error');}else alert(err.message||'Erro no upload.');}
+  finally{if(input){input.disabled=false;input.value='';}}
+}
+async function deleteQuoteAttachment(id){
+  if(!confirm('Excluir este anexo?'))return;
+  const groupId=(location.pathname.match(/\/cadastros\/cotacoes\/(\d+)/)||[])[1]||'';
+  const csrf=document.querySelector('#quoteEditForm input[name="csrf_token"]')?.value||'';
+  const fd=new FormData();fd.append('csrf_token',csrf);
+  const res=await fetch(`/cadastros/cotacoes/${groupId}/anexos/${encodeURIComponent(id)}/delete`,{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}});
+  const payload=await res.json().catch(()=>({})); if(!res.ok||!payload.ok){alert(payload.message||'Não foi possível excluir.');return;}
+  attachments=Array.isArray(payload.attachments)?payload.attachments:attachments.filter(x=>String(x.id)!==String(id));renderAttachments();
+}
+
 document.querySelectorAll('.quote-tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.quote-tabs button').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.dataset.tab)?.classList.add('active');}));
 document.querySelectorAll('.status-step').forEach(btn=>btn.addEventListener('dblclick',async()=>{document.getElementById('statusField').value=btn.dataset.status;document.querySelectorAll('.status-step').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const fd=new FormData();const csrf=document.querySelector('input[name=\"csrf_token\"]')?.value||'';const groupId=(location.pathname.match(/\/cadastros\/cotacoes\/(\d+)/)||[])[1]||'';fd.append('csrf_token',csrf);fd.append('status',btn.dataset.status);try{const r=await fetch(`/cadastros/cotacoes/${groupId}/status`,{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}});if(btn.dataset.status==='venda_cadastrada'||btn.dataset.status==='aprovado'||btn.dataset.status==='lancada') location.reload();}catch(e){console.warn(e);}}));
 document.getElementById('clientName')?.addEventListener('person-selected',event=>{
@@ -717,6 +776,7 @@ document.getElementById('passengerNameFree')?.addEventListener('person-selected'
 document.getElementById('saleDate')?.addEventListener('change',()=>{sale.date=val('saleDate');syncHidden();});
 document.getElementById('saleNotes')?.addEventListener('input',()=>{sale.notes=val('saleNotes');syncHidden();});
 document.getElementById('commissionExtra')?.addEventListener('input',()=>{commission.extra=parseMoney(val('commissionExtra'));renderValues();syncHidden();});
+document.getElementById('quoteAttachmentInput')?.addEventListener('change',event=>uploadQuoteAttachments(event.target.files));
 document.getElementById('quoteEditForm').addEventListener('submit',syncHidden);
 document.getElementById('launchForm')?.addEventListener('submit',syncHidden);
 renderAll();

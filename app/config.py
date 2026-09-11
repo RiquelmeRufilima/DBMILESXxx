@@ -14,6 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 IS_VERCEL = bool(os.getenv("VERCEL"))
 if load_dotenv:
     load_dotenv(BASE_DIR / ".env")
+    # Codespaces/Vercel CLI grava as variáveis de desenvolvimento em .env.local.
+    load_dotenv(BASE_DIR / ".env.local", override=False)
 
 APP_DIR = BASE_DIR / "app"
 BUNDLED_DATA_DIR = BASE_DIR / "data"

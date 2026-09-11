@@ -29,7 +29,7 @@ from ..models import (
 from ..security import validate_csrf_token
 from ..services.travel_data import AIRLINE_OPTIONS, BR_AIRPORTS, checkin_link_for_airline
 from ..services.quote_activity import record_quote_activity, publish_quote_activity
-from ..services.uploads import delete_relative_upload, save_quote_attachment, save_upload_image
+from ..services.uploads import delete_relative_upload, delete_stored_attachment, read_stored_attachment, save_quote_attachment, save_upload_image
 from ..services.pdf_service import _html_to_pdf, file_to_data_uri
 from ..web import context, flash, templates
 
@@ -1086,14 +1086,21 @@ def cotacoes(request: Request, db: Session = Depends(get_db)):
     group_rows = db.scalars(
         select(QuoteGroup)
         .where(_group_filter(user))
-        .options(selectinload(QuoteGroup.trip), selectinload(QuoteGroup.user).selectinload(WebUser.profile), selectinload(QuoteGroup.assigned_user).selectinload(WebUser.profile))
+        .options(
+            selectinload(QuoteGroup.trip),
+            selectinload(QuoteGroup.user).selectinload(WebUser.profile),
+            selectinload(QuoteGroup.assigned_user).selectinload(WebUser.profile),
+            selectinload(QuoteGroup.option_links).selectinload(QuoteOptionIndex.quote).selectinload(WebQuote.airline),
+            selectinload(QuoteGroup.option_links).selectinload(QuoteOptionIndex.quote).selectinload(WebQuote.calculation_type),
+            selectinload(QuoteGroup.option_links).selectinload(QuoteOptionIndex.quote).selectinload(WebQuote.commercial),
+        )
         .order_by(desc(QuoteGroup.updated_at), desc(QuoteGroup.created_at))
         .limit(800)
     ).all()
     for group in group_rows:
         if group.id in accepted_group_ids:
             continue
-        options = _group_options_for_history(db, user, group)
+        options = [link.quote for link in (group.option_links or []) if getattr(link, "quote", None) is not None and _quote_allowed(user, link.quote)]
         client = (group.trip.client_name if group.trip else "") or group.quote_name or "Não informado"
         title = group.quote_name or "Cotação de cálculo"
         code = f"calc{group.id:04d}"
@@ -2219,7 +2226,11 @@ async def upload_cotacao_anexos(group_id: int, request: Request, db: Session = D
     attachments = data.get("attachments") if isinstance(data.get("attachments"), list) else []
     try:
         for upload in uploads:
-            saved = await save_quote_attachment(upload, UPLOAD_DIR / "quotes" / str(group_id))
+            saved = await save_quote_attachment(
+                upload,
+                UPLOAD_DIR / "quotes" / str(group_id),
+                blob_path_prefix=f"companies/{user.company_id or 0}/quotes/{group_id}/attachments",
+            )
             if saved:
                 saved["uploaded_at"] = datetime.utcnow().isoformat()
                 saved["uploaded_by"] = user.name
@@ -2253,11 +2264,38 @@ async def delete_cotacao_anexo(group_id: int, attachment_id: str, request: Reque
         else:
             kept.append(entry)
     if removed:
-        delete_relative_upload(str(removed.get("path") or ""))
+        delete_stored_attachment(removed)
     data["attachments"] = kept
     _set_payload(item, data)
     db.commit()
     return JSONResponse({"ok": True, "attachments": kept})
+
+
+@router.get("/cotacoes/{group_id}/anexos/{attachment_id}/arquivo")
+def arquivo_cotacao_anexo(group_id: int, attachment_id: str, request: Request, db: Session = Depends(get_db)):
+    """Entrega anexo privado apenas para usuário autorizado na cotação."""
+    user = require_user(request, db)
+    item = _current_item(db, user, group_id)
+    if item is None or not _group_allowed(user, item.group):
+        return Response("Cotação não encontrada.", status_code=404)
+    data = _payload(item)
+    attachments = data.get("attachments") if isinstance(data.get("attachments"), list) else []
+    entry = next((x for x in attachments if isinstance(x, dict) and str(x.get("id") or "") == str(attachment_id)), None)
+    if not entry:
+        return Response("Anexo não encontrado.", status_code=404)
+    try:
+        body, mime = read_stored_attachment(entry)
+    except (FileNotFoundError, ValueError, RuntimeError):
+        return Response("Arquivo indisponível.", status_code=404)
+    name = str(entry.get("name") or "arquivo").replace('"', "")
+    return Response(
+        content=body,
+        media_type=mime or str(entry.get("type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'inline; filename="{name}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
 
 
 @router.get("/cotacoes/{group_id}/preview/data")

@@ -1,0 +1,32 @@
+DBMILESX V5.15
+
+1. HISTÓRICO
+- Categorias ordenadas pelo menor preço geral, independentemente de Só ida, Só volta, Ida e volta ou Skip.
+- Bloco mais barato recebe destaque "MENOR PREÇO GERAL".
+- Títulos de categoria mais chamativos.
+- Logos em tamanho médio padronizado.
+- Conteúdo e ações alinhados à esquerda.
+- Checkbox para juntar opções menor e discreto.
+
+2. CAMPOS DE MILHAS/PONTOS
+- Sempre exibidos com 3 casas decimais e ponto: 1.000 / 0.500.
+- Ponto e vírgula têm o mesmo significado de separador decimal.
+- Exemplos: 1 = 1.0 = 1,00 = 1,000 = 1.000; 0,5 = 0.5 = 0,500 = 0.500.
+- Dinheiro continua separado e formatado no padrão brasileiro: 1.000,00.
+
+3. COTAÇÕES - DESEMPENHO
+- Removido N+1 principal no carregamento das opções das cotações.
+- QuoteGroup carrega links/opções/companhia/tipo/comercial em lotes via selectinload.
+
+4. ANEXOS / VERCEL BLOB
+- Upload de fotos, PDFs e documentos na aba Anexos da cotação.
+- Arquivos enviados ao Vercel Blob privado quando BLOB_STORE_ID + credencial estão presentes.
+- Organização automática: companies/{company_id}/quotes/{group_id}/attachments/...
+- Download/visualização passa por rota autenticada do DBMILESX.
+- Exclusão remove também o Blob.
+- Metadados permanecem no JSON da cotação já existente; não exige nova tabela no Neon.
+- Localhost sem Blob continua usando uploads locais como fallback.
+
+IMPORTANTE
+- O Blob deve continuar conectado ao projeto Vercel em Production, Preview e Development.
+- Não exponha BLOB_READ_WRITE_TOKEN no navegador.
