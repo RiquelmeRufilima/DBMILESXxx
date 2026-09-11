@@ -12,15 +12,120 @@
   </aside>
   <article class="panel">
     <div class="panel-heading"><div><span class="eyebrow">DADOS PESSOAIS</span><h2>Editar perfil</h2></div></div>
-    <form method="post" action="/profile" enctype="multipart/form-data" class="form-stack">
+    <form id="profileForm" method="post" action="/profile" enctype="multipart/form-data" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <div class="form-grid cols-2"><label>Nome<input name="name" value="{{ user.name }}" required></label><label>E-mail<input value="{{ user.email }}" disabled><small>O e-mail de login não é alterado aqui.</small></label></div>
       <div class="form-grid cols-2"><label>Telefone<input name="phone" value="{{ user.phone or '' }}" placeholder="(85) 99999-9999"></label><label>Cargo / função<input name="job_title" value="{{ profile.job_title or '' }}" placeholder="Ex.: Emissor, CEO, Atendimento"></label></div>
       <label>Sobre você<textarea name="bio" rows="4" placeholder="Opcional">{{ profile.bio or '' }}</textarea></label>
-      <label>Foto de perfil<input type="file" name="avatar" accept="image/png,image/jpeg,image/webp"><small>PNG, JPG ou WEBP até 4 MB.</small></label>
-      <div class="form-actions"><button class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Salvar perfil</button></div>
+      <label>Foto de perfil
+        <input id="avatarInput" type="file" name="avatar" accept="image/png,image/jpeg,image/webp">
+        <small id="avatarHelp">PNG, JPG ou WEBP. Fotos grandes serão reduzidas automaticamente antes do envio.</small>
+      </label>
+      <div id="avatarStatus" style="display:none;font-size:.9rem;opacity:.85"></div>
+      <div class="form-actions"><button id="saveProfileButton" class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Salvar perfil</button></div>
     </form>
     {% if profile and profile.avatar_path %}<form method="post" action="/profile/remove-avatar" class="top-gap"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger" type="submit">Remover foto atual</button></form>{% endif %}
   </article>
 </section>
+
+<script>
+(() => {
+  const input = document.getElementById('avatarInput');
+  const form = document.getElementById('profileForm');
+  const status = document.getElementById('avatarStatus');
+  const button = document.getElementById('saveProfileButton');
+  if (!input || !form) return;
+
+  const MAX_DIMENSION = 1200;
+  const TARGET_BYTES = 1500 * 1024; // ~1,5 MB: fica bem abaixo do limite da Function da Vercel.
+
+  function showStatus(message, isError = false) {
+    if (!status) return;
+    status.style.display = 'block';
+    status.textContent = message;
+    status.style.color = isError ? '#ff6b6b' : '';
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Não foi possível abrir a imagem selecionada.'));
+      };
+      img.src = url;
+    });
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Não foi possível comprimir a foto.')), type, quality);
+    });
+  }
+
+  async function compressAvatar(file) {
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type || '')) {
+      throw new Error('Use uma imagem JPG, PNG ou WEBP.');
+    }
+
+    const img = await loadImage(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight));
+    const width = Math.max(1, Math.round(img.naturalWidth * scale));
+    const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) throw new Error('Seu navegador não conseguiu processar a imagem.');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(img, 0, 0, width, height);
+
+    let quality = 0.88;
+    let blob = await canvasToBlob(canvas, 'image/jpeg', quality);
+    while (blob.size > TARGET_BYTES && quality > 0.48) {
+      quality -= 0.08;
+      blob = await canvasToBlob(canvas, 'image/jpeg', quality);
+    }
+
+    if (blob.size > TARGET_BYTES) {
+      throw new Error('A foto continua muito grande mesmo após a otimização. Escolha outra imagem.');
+    }
+
+    const baseName = (file.name || 'avatar').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 80) || 'avatar';
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+  }
+
+  input.addEventListener('change', async () => {
+    const original = input.files && input.files[0];
+    if (!original) return;
+
+    button && (button.disabled = true);
+    showStatus('Otimizando foto para envio...');
+
+    try {
+      const compressed = await compressAvatar(original);
+      const transfer = new DataTransfer();
+      transfer.items.add(compressed);
+      input.files = transfer.files;
+
+      const beforeMb = (original.size / 1024 / 1024).toFixed(1);
+      const afterKb = Math.max(1, Math.round(compressed.size / 1024));
+      showStatus(`Foto pronta: ${beforeMb} MB → ${afterKb} KB.`);
+    } catch (error) {
+      input.value = '';
+      showStatus(error?.message || 'Não foi possível preparar a foto.', true);
+    } finally {
+      button && (button.disabled = false);
+    }
+  });
+})();
+</script>
 {% endblock %}
