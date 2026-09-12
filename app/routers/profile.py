@@ -8,7 +8,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
@@ -20,7 +20,7 @@ from ..dependencies import current_user
 from ..models import WebUser
 from ..security import validate_csrf_token
 from ..services.realtime import manager, profile_event
-from ..services.storage import blob_delete, blob_ready
+from ..services.storage import blob_delete, blob_get, blob_ready
 from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
@@ -153,25 +153,22 @@ async def serve_private_avatar(
     if not _valid_blob_avatar_url(blob_url, target.id):
         return Response(status_code=404)
 
-    pathname = unquote(urlparse(blob_url).path or "").lstrip("/")
-    if not pathname:
+    # O upload continua indo direto do navegador para o Blob, então não há 413.
+    # Para EXIBIR o avatar (arquivo já otimizado, normalmente < 2 MB), o FastAPI
+    # lê o Blob privado autenticado e entrega a imagem ao navegador. Assim não
+    # dependemos de uma segunda Function Node para o GET.
+    try:
+        data, content_type = blob_get(blob_url)
+    except Exception:
         return Response(status_code=404)
 
-    # Não transfere os bytes da imagem pela Function Python.
-    # Gera uma autorização curta e deixa o endpoint Node emitir um GET assinado
-    # diretamente para o Vercel Blob privado.
-    payload = {
-        "v": 1,
-        "op": "get",
-        "uid": int(target.id),
-        "pathname": pathname,
-        "exp": int(time.time()) + _AVATAR_INTENT_TTL,
-    }
-    intent = _sign_avatar_intent(payload)
-    return RedirectResponse(
-        url=f"/api/avatar-presign?mode=get&intent={quote(intent, safe='')}",
-        status_code=307,
-        headers={"Cache-Control": "private, max-age=240"},
+    return Response(
+        content=data,
+        media_type=content_type or "image/webp",
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
