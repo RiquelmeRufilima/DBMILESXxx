@@ -215,10 +215,10 @@ def google_callback(
         db.add(user)
         db.flush()
 
-        if user.profile is None:
-            db.add(UserProfile(user_id=user.id))
+        # Cria perfil/preferências uma única vez. Não adicione UserProfile
+        # manualmente aqui: ensure_user_defaults() já faz isso e, no Neon,
+        # duplicar o mesmo user_id causa violação de chave primária no callback.
         ensure_user_defaults(db, user)
-        db.commit()
         db.refresh(user)
         created_with_google = True
 
