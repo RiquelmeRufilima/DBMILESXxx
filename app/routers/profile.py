@@ -20,7 +20,7 @@ from ..dependencies import current_user
 from ..models import WebUser
 from ..security import validate_csrf_token
 from ..services.realtime import manager, profile_event
-from ..services.storage import blob_delete, blob_get, blob_ready
+from ..services.storage import blob_delete, blob_ready
 from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
@@ -119,7 +119,6 @@ async def avatar_upload_intent(request: Request, db: Session = Depends(get_db)):
     pathname = f"users/{user.id}/avatars/{int(time.time())}-{uuid.uuid4().hex[:12]}{ext}"
     payload = {
         "v": 1,
-        "op": "put",
         "uid": int(user.id),
         "pathname": pathname,
         "ct": content_type,
@@ -153,23 +152,24 @@ async def serve_private_avatar(
     if not _valid_blob_avatar_url(blob_url, target.id):
         return Response(status_code=404)
 
-    # O upload continua indo direto do navegador para o Blob, então não há 413.
-    # Para EXIBIR o avatar (arquivo já otimizado, normalmente < 2 MB), o FastAPI
-    # lê o Blob privado autenticado e entrega a imagem ao navegador. Assim não
-    # dependemos de uma segunda Function Node para o GET.
-    try:
-        data, content_type = blob_get(blob_url)
-    except Exception:
-        return Response(status_code=404)
-
-    return Response(
-        content=data,
-        media_type=content_type or "image/webp",
-        headers={
-            "Cache-Control": "private, max-age=300",
-            "X-Content-Type-Options": "nosniff",
-        },
+    # Não faz proxy dos bytes pelo FastAPI. Depois de validar sessão/empresa,
+    # cria uma autorização curta para a Function Node gerar um GET assinado.
+    parsed = urlparse(blob_url)
+    pathname = unquote(parsed.path or "").lstrip("/")
+    payload = {
+        "v": 1,
+        "op": "get",
+        "uid": int(target.id),
+        "pathname": pathname,
+        "exp": int(time.time()) + 5 * 60,
+    }
+    intent = _sign_avatar_intent(payload)
+    return RedirectResponse(
+        url=f"/api/avatar-presign?intent={intent}",
+        status_code=307,
+        headers={"Cache-Control": "private, no-store"},
     )
+
 
 
 @router.post("/profile")
