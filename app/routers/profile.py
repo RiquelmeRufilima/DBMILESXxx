@@ -8,7 +8,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
@@ -20,7 +20,7 @@ from ..dependencies import current_user
 from ..models import WebUser
 from ..security import validate_csrf_token
 from ..services.realtime import manager, profile_event
-from ..services.storage import blob_delete, blob_get, blob_ready
+from ..services.storage import blob_delete, blob_ready
 from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
@@ -119,6 +119,7 @@ async def avatar_upload_intent(request: Request, db: Session = Depends(get_db)):
     pathname = f"users/{user.id}/avatars/{int(time.time())}-{uuid.uuid4().hex[:12]}{ext}"
     payload = {
         "v": 1,
+        "op": "put",
         "uid": int(user.id),
         "pathname": pathname,
         "ct": content_type,
@@ -152,18 +153,25 @@ async def serve_private_avatar(
     if not _valid_blob_avatar_url(blob_url, target.id):
         return Response(status_code=404)
 
-    try:
-        data, content_type = blob_get(blob_url)
-    except Exception:
+    pathname = unquote(urlparse(blob_url).path or "").lstrip("/")
+    if not pathname:
         return Response(status_code=404)
 
-    return Response(
-        content=data,
-        media_type=content_type or "image/webp",
-        headers={
-            "Cache-Control": "private, max-age=300",
-            "X-Content-Type-Options": "nosniff",
-        },
+    # Não transfere os bytes da imagem pela Function Python.
+    # Gera uma autorização curta e deixa o endpoint Node emitir um GET assinado
+    # diretamente para o Vercel Blob privado.
+    payload = {
+        "v": 1,
+        "op": "get",
+        "uid": int(target.id),
+        "pathname": pathname,
+        "exp": int(time.time()) + _AVATAR_INTENT_TTL,
+    }
+    intent = _sign_avatar_intent(payload)
+    return RedirectResponse(
+        url=f"/api/avatar-presign?mode=get&intent={quote(intent, safe='')}",
+        status_code=307,
+        headers={"Cache-Control": "private, max-age=240"},
     )
 
 
