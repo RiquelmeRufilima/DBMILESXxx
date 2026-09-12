@@ -12,3 +12,7 @@ data/exports/*
 !data/exports/.gitkeep
 uploads/*
 !uploads/.gitkeep
+
+.env.local
+.env.production
+.vercel/
