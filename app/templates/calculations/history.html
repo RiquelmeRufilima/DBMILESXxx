@@ -667,7 +667,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
       </div>
       <div class="profit-card-note">O <strong>valor de venda à vista</strong> é custo + lucro. O campo <strong>Juros / diferença</strong> é somado ao valor à vista para formar o total no cartão. Você pode editar tanto o total quanto a diferença; o outro campo é recalculado automaticamente.</div>
       <div class="profit-checks"><label><input type="checkbox" name="apply_all" value="1" id="profitApplyAll"> Aplicar a mesma margem percentual proporcionalmente a todos os voos/opções desta cotação.</label><label><input type="checkbox" name="sent_to_client" value="1" id="profitSent" checked> Marcar como cotação enviada ao cliente para a futura base de dashboard de lucros.</label></div>
-      <div class="profit-dialog-actions"><button type="button" class="ghost-button danger" data-confirm-ignore="1" id="profitRemove" hidden>Remover lucro</button><button type="button" class="ghost-button" data-confirm-ignore="1" id="profitCancel">Cancelar</button><button type="submit" class="primary-button" data-confirm-ignore="1">Salvar condição comercial</button></div>
+      <div class="profit-dialog-actions"><button type="button" class="ghost-button danger" data-confirm-ignore="1" id="profitRemove" hidden>Remover lucro</button><button type="button" class="ghost-button" data-confirm-ignore="1" id="profitCancel">Cancelar</button><button type="button" class="primary-button" data-confirm-ignore="1" id="profitSave">Salvar condição comercial</button></div>
     </div>
   </form>
 </dialog>
@@ -1041,15 +1041,14 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     return payload;
   }
 
-  form?.addEventListener('submit', async (event) => {
-    if (directSubmit) return;
-    event.preventDefault();
+  const saveButton = document.getElementById('profitSave');
+
+  saveButton?.addEventListener('click', async () => {
     actionInput.value = 'save';
 
-    // Normaliza somente no momento de salvar; durante a digitação os campos
-    // permanecem livres, sem o cursor "brigando" com a máscara.
+    // Salva por AJAX sem disparar submit nativo.
+    // Assim o loader global nunca é aberto e o histórico continua visível.
     const finance = syncCard(cardValueSource.value || 'auto', true);
-    if (dialog.open) dialog.close();
 
     const ok = window.dbmDialogConfirm
       ? await window.dbmDialogConfirm({
@@ -1069,11 +1068,15 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
         })
       : window.confirm('Salvar condição comercial?');
 
-    if (!ok) { dialog.showModal(); return; }
+    if (!ok) return;
 
-    const submitButton = form.querySelector('button[type="submit"]');
-    if(submitButton) { submitButton.disabled = true; submitButton.textContent = 'Salvando...'; }
+    // Fecha imediatamente para a sensação de salvamento instantâneo.
+    if (dialog.open) dialog.close();
     window.dbmHideLoader?.();
+
+    saveButton.disabled = true;
+    const originalText = saveButton.textContent;
+    saveButton.textContent = 'Salvando...';
 
     try {
       const data = new FormData(form);
@@ -1082,14 +1085,40 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
       data.set('card_installments', String(finance.times));
       data.set('card_value_source', cardValueSource.value || 'total');
 
-      const payload = await postCommercialForm(data);
-      showToast(payload.message || 'Condição comercial salva.');
+      // Evita requisição presa indefinidamente.
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      try {
+        const response = await fetch(form.action, {
+          method:'POST',
+          body:data,
+          credentials:'same-origin',
+          headers:{
+            'X-Requested-With':'XMLHttpRequest',
+            'Accept':'application/json'
+          },
+          signal:controller.signal
+        });
+        let payload = null;
+        try { payload = await response.json(); } catch (_) {}
+        if(!response.ok || !payload?.ok) throw new Error(payload?.message || 'Não foi possível salvar a condição comercial.');
+        (payload.items || []).forEach(applyCommercialItem);
+        showToast(payload.message || 'Condição comercial salva.');
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch (error) {
-      showToast(error?.message || 'Não foi possível salvar.', true);
+      window.dbmHideLoader?.();
+      if (error?.name === 'AbortError') {
+        showToast('O salvamento demorou mais que o esperado. Tente novamente.', true);
+      } else {
+        showToast(error?.message || 'Não foi possível salvar.', true);
+      }
       dialog.showModal();
     } finally {
       window.dbmHideLoader?.();
-      if(submitButton) { submitButton.disabled = false; submitButton.textContent = 'Salvar condição comercial'; }
+      saveButton.disabled = false;
+      saveButton.textContent = originalText || 'Salvar condição comercial';
     }
   });
 
