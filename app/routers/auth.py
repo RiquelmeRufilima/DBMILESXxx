@@ -9,7 +9,7 @@ from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -188,11 +188,14 @@ def google_callback(
 
     # Regra de segurança do DBMILESX: o Google autentica, mas não cria usuários.
     # A conta precisa existir previamente em web_users.
-    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    # Compare de forma tolerante a maiúsculas/minúsculas e espaços antigos no banco.
+    user = db.scalar(
+        select(WebUser).where(func.lower(func.trim(WebUser.email)) == email)
+    )
     if user is None:
         flash(
             request,
-            "Este e-mail do Google ainda não possui acesso ao DBMILESX. Solicite um convite à sua empresa.",
+            f"O Google autenticou o e-mail {email}, mas ele ainda não está vinculado a uma conta do DBMILESX. Entre com o mesmo Google cadastrado no sistema ou peça ao administrador para ajustar o e-mail da conta.",
             "error",
         )
         return RedirectResponse("/login", status_code=303)
