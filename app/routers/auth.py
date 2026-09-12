@@ -507,8 +507,8 @@ def resend_verify_email(
 
 @router.get("/forgot-password")
 def forgot_password_page(request: Request):
-    if request.session.get("user_id"):
-        return RedirectResponse("/dashboard", status_code=303)
+    # A mesma tela de recuperação também é usada por usuários já logados
+    # que clicam em Configurações > Segurança > Alterar senha.
     return templates.TemplateResponse(request, "auth/forgot_password.html", context(request))
 
 
@@ -550,8 +550,8 @@ def forgot_password(
 
 @router.get("/reset-password")
 def reset_password_page(request: Request, email: str = ""):
-    if request.session.get("user_id"):
-        return RedirectResponse("/dashboard", status_code=303)
+    # Não redireciona usuários autenticados: troca de senha iniciada pelas
+    # Configurações deve seguir o mesmo fluxo de código por e-mail.
     email = _email(email or request.session.get("pending_reset_email", ""))
     if not email:
         return RedirectResponse("/forgot-password", status_code=303)

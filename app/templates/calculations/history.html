@@ -627,7 +627,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 </div>
 
 <dialog id="profitDialog" class="profit-dialog">
-  <form method="post" id="profitForm">
+  <form method="post" id="profitForm" data-no-loader="1">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
     <input type="hidden" name="profit_source" id="profitSource" value="value">
@@ -1073,6 +1073,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 
     const submitButton = form.querySelector('button[type="submit"]');
     if(submitButton) { submitButton.disabled = true; submitButton.textContent = 'Salvando...'; }
+    window.dbmHideLoader?.();
 
     try {
       const data = new FormData(form);
@@ -1087,7 +1088,8 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
       showToast(error?.message || 'Não foi possível salvar.', true);
       dialog.showModal();
     } finally {
-      if(submitButton) { submitButton.disabled = false; submitButton.textContent = 'Salvar condição'; }
+      window.dbmHideLoader?.();
+      if(submitButton) { submitButton.disabled = false; submitButton.textContent = 'Salvar condição comercial'; }
     }
   });
 
