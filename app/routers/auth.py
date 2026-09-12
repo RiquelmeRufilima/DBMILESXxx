@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from urllib.parse import quote
+import json
+import os
+import secrets
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode
+from urllib.request import Request as UrlRequest, urlopen
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -34,11 +39,173 @@ def _reset_url(email: str) -> str:
     return f"/reset-password?email={quote(_email(email))}"
 
 
+def _google_client_id() -> str:
+    return os.getenv("GOOGLE_CLIENT_ID", "").strip()
+
+
+def _google_client_secret() -> str:
+    return os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+
+
+def _google_enabled() -> bool:
+    return bool(_google_client_id() and _google_client_secret())
+
+
+def _google_redirect_uri(request: Request) -> str:
+    """Monta exatamente o callback usado pelo Google em produção/local.
+
+    O cabeçalho X-Forwarded-Proto é respeitado para que a Vercel gere https://.
+    Se GOOGLE_REDIRECT_URI existir, ele tem prioridade.
+    """
+    explicit = os.getenv("GOOGLE_REDIRECT_URI", "").strip()
+    if explicit:
+        return explicit
+
+    proto = str(request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+    host = str(request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc).split(",")[0].strip()
+    if not host:
+        return str(request.url_for("google_callback"))
+    return f"{proto}://{host}/auth/google/callback"
+
+
+def _google_json_request(url: str, *, data: bytes | None = None, headers: dict | None = None) -> dict:
+    req = UrlRequest(url, data=data, headers=headers or {}, method="POST" if data is not None else "GET")
+    try:
+        with urlopen(req, timeout=15) as response:
+            payload = response.read().decode("utf-8")
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        raise RuntimeError(f"Google respondeu com erro HTTP {exc.code}: {detail[:300]}") from exc
+    except URLError as exc:
+        raise RuntimeError("Não foi possível conectar ao Google para concluir o login.") from exc
+    try:
+        parsed = json.loads(payload)
+    except Exception as exc:
+        raise RuntimeError("O Google retornou uma resposta inválida.") from exc
+    if not isinstance(parsed, dict):
+        raise RuntimeError("O Google retornou uma resposta inválida.")
+    return parsed
+
+
+def _google_exchange_code(code: str, redirect_uri: str) -> dict:
+    body = urlencode({
+        "code": code,
+        "client_id": _google_client_id(),
+        "client_secret": _google_client_secret(),
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }).encode("utf-8")
+    return _google_json_request(
+        "https://oauth2.googleapis.com/token",
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+    )
+
+
+def _google_verify_id_token(id_token: str) -> dict:
+    if not id_token:
+        raise RuntimeError("O Google não retornou uma identidade válida.")
+    info = _google_json_request(
+        "https://oauth2.googleapis.com/tokeninfo?" + urlencode({"id_token": id_token})
+    )
+    if str(info.get("aud") or "") != _google_client_id():
+        raise RuntimeError("A credencial do Google não pertence a este DBMILESX.")
+    issuer = str(info.get("iss") or "")
+    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise RuntimeError("Emissor da credencial do Google inválido.")
+    if str(info.get("email_verified") or "").lower() not in {"true", "1"}:
+        raise RuntimeError("O Google não confirmou este endereço de e-mail.")
+    return info
+
+
 @router.get("/login")
 def login_page(request: Request, db: Session = Depends(get_db)):
     if request.session.get("user_id"):
         return RedirectResponse("/dashboard", status_code=303)
-    return templates.TemplateResponse(request, "auth/login.html", context(request, registration_enabled=True))
+    return templates.TemplateResponse(request, "auth/login.html", context(request, registration_enabled=True, google_login_enabled=_google_enabled()))
+
+
+@router.get("/auth/google", name="google_login")
+def google_login(request: Request):
+    if request.session.get("user_id"):
+        return RedirectResponse("/dashboard", status_code=303)
+    if not _google_enabled():
+        flash(request, "O login com Google ainda não está configurado.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    state = secrets.token_urlsafe(32)
+    request.session["google_oauth_state"] = state
+    redirect_uri = _google_redirect_uri(request)
+    request.session["google_oauth_redirect_uri"] = redirect_uri
+
+    params = {
+        "client_id": _google_client_id(),
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "prompt": "select_account",
+        "include_granted_scopes": "true",
+    }
+    return RedirectResponse(
+        "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params),
+        status_code=302,
+    )
+
+
+@router.get("/auth/google/callback", name="google_callback")
+def google_callback(
+    request: Request,
+    code: str = "",
+    state: str = "",
+    error: str = "",
+    db: Session = Depends(get_db),
+):
+    expected_state = str(request.session.pop("google_oauth_state", "") or "")
+    redirect_uri = str(request.session.pop("google_oauth_redirect_uri", "") or _google_redirect_uri(request))
+
+    if error:
+        flash(request, "Login com Google cancelado ou não autorizado.", "info")
+        return RedirectResponse("/login", status_code=303)
+    if not expected_state or not state or not secrets.compare_digest(expected_state, state):
+        flash(request, "Não foi possível validar a sessão do Google. Tente novamente.", "error")
+        return RedirectResponse("/login", status_code=303)
+    if not code:
+        flash(request, "O Google não retornou o código de autenticação.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    try:
+        token_data = _google_exchange_code(code, redirect_uri)
+        google_user = _google_verify_id_token(str(token_data.get("id_token") or ""))
+    except RuntimeError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse("/login", status_code=303)
+
+    email = _email(str(google_user.get("email") or ""))
+    if not email:
+        flash(request, "Não foi possível obter seu e-mail do Google.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    # Regra de segurança do DBMILESX: o Google autentica, mas não cria usuários.
+    # A conta precisa existir previamente em web_users.
+    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    if user is None:
+        flash(
+            request,
+            "Este e-mail do Google ainda não possui acesso ao DBMILESX. Solicite um convite à sua empresa.",
+            "error",
+        )
+        return RedirectResponse("/login", status_code=303)
+    if not user.active:
+        flash(request, "Sua conta DBMILESX está desativada. Fale com o administrador da empresa.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    request.session.clear()
+    request.session["user_id"] = user.id
+    request.session["auth_version"] = int(user.auth_version or 1)
+    request.session["auth_provider"] = "google"
+    flash(request, f"Bem-vindo, {user.name}! Login realizado com Google.", "success")
+    return RedirectResponse("/dashboard", status_code=303)
 
 
 @router.post("/login")
@@ -355,6 +522,16 @@ def resend_reset_code(
     else:
         flash(request, "Se este e-mail estiver cadastrado, um novo código foi enviado.", "info")
     return RedirectResponse(_reset_url(email), status_code=303)
+
+
+@router.get("/privacy")
+def privacy_page(request: Request):
+    return templates.TemplateResponse(request, "legal/privacy.html", context(request))
+
+
+@router.get("/terms")
+def terms_page(request: Request):
+    return templates.TemplateResponse(request, "legal/terms.html", context(request))
 
 
 @router.post("/logout")
