@@ -8,7 +8,15 @@
     <div class="company-brand-avatar">{% if company.logo_path %}<img src="/{{ company.logo_path }}" alt="{{ company.name }}">{% else %}<svg class="empty-icon"><use href="#icon-building"></use></svg>{% endif %}</div>
     <div><span class="eyebrow">OPERAÇÃO COMPARTILHADA</span><h1>{{ company.name }}</h1><p>Todos os membros usam a mesma empresa, compartilham o histórico e ficam identificados nas cotações que criarem.</p></div>
   </div>
-  <a class="primary-button" href="/company/chat"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Abrir chat da equipe</a>
+  <div class="form-actions">
+    <a class="primary-button" href="/company/chat"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Abrir chat da equipe</a>
+    {% if not user.is_owner %}
+    <form method="post" action="/company/leave" onsubmit="return confirm('Sair de {{ company.name }}? Sua conta DBMILESX continuará ativa e você poderá criar ou entrar em outra empresa depois.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="ghost-button danger" type="submit" data-confirm-ignore="1">Sair da empresa</button>
+    </form>
+    {% endif %}
+  </div>
 </section>
 
 <section class="stats-grid">
@@ -101,7 +109,7 @@
             <small class="muted">Ao salvar, todos os acessos antigos desse usuário serão encerrados.</small>
             <button class="ghost-button small-button" type="submit">Salvar nova senha</button>
           </form>
-          <form method="post" action="/company/members/{{ member.id }}/remove" onsubmit="return confirm('Remover {{ member.name }} da empresa? O login será bloqueado, mas as cotações antigas continuarão identificadas.')">
+          <form method="post" action="/company/members/{{ member.id }}/remove" onsubmit="return confirm('Remover {{ member.name }} da empresa? A conta DBMILESX continuará ativa e as cotações antigas continuarão identificadas.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="ghost-button small-button danger" type="submit">Remover da empresa</button>
           </form>

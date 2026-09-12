@@ -686,7 +686,10 @@ async def remove_member(
         return RedirectResponse("/company#equipe", status_code=303)
 
     member.company_id = None
-    member.active = False
+    # Remover da empresa NÃO desativa a conta DBMILESX.
+    # O usuário continua podendo entrar normalmente como conta pessoal
+    # e pode criar/entrar em outra empresa depois.
+    member.active = True
     member.is_owner = False
     member.role = "membro"
     member.auth_version = int(member.auth_version or 1) + 1
@@ -697,6 +700,37 @@ async def remove_member(
 
 
 # Compatibilidade com o formulário antigo de vincular uma conta já existente.
+@router.post("/leave")
+def leave_company(
+    request: Request,
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if not user.company_id:
+        return RedirectResponse("/company", status_code=303)
+    if user.is_owner:
+        flash(request, "O acesso principal não pode sair da empresa. Transfira a administração antes de sair.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    company = db.get(WebCompany, user.company_id)
+    company_name = company.name if company else "empresa"
+    user.company_id = None
+    user.is_owner = False
+    user.role = "membro"
+    # Sair da empresa não bloqueia nem desativa a conta pessoal.
+    user.active = True
+    db.commit()
+    ensure_user_defaults(db, user)
+    flash(request, f"Você saiu de '{company_name}'. Sua conta DBMILESX continua ativa.", "success")
+    return RedirectResponse("/company", status_code=303)
+
+
 @router.post("/members/add")
 def add_member(
     request: Request,
