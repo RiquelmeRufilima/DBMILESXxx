@@ -186,19 +186,42 @@ def google_callback(
         flash(request, "Não foi possível obter seu e-mail do Google.", "error")
         return RedirectResponse("/login", status_code=303)
 
-    # Regra de segurança do DBMILESX: o Google autentica, mas não cria usuários.
-    # A conta precisa existir previamente em web_users.
-    # Compare de forma tolerante a maiúsculas/minúsculas e espaços antigos no banco.
+    # O Google já confirmou a identidade/e-mail. Se o usuário ainda não existir,
+    # criamos uma conta pessoal do DBMILESX sem empresa vinculada. Depois ele
+    # pode criar uma empresa ou aceitar um convite normalmente.
     user = db.scalar(
         select(WebUser).where(func.lower(func.trim(WebUser.email)) == email)
     )
+    created_with_google = False
     if user is None:
-        flash(
-            request,
-            f"O Google autenticou o e-mail {email}, mas ele ainda não está vinculado a uma conta do DBMILESX. Entre com o mesmo Google cadastrado no sistema ou peça ao administrador para ajustar o e-mail da conta.",
-            "error",
+        google_name = str(google_user.get("name") or "").strip()[:180]
+        if not google_name:
+            google_name = email.split("@", 1)[0].replace(".", " ").replace("_", " ").strip().title() or "Usuário Google"
+
+        # A conta criada pelo Google ainda não tem senha local. Usamos um marcador
+        # não reconhecido por verify_password(), portanto ele NÃO permite login
+        # tradicional até que o próprio usuário crie a senha na tela seguinte.
+        pending_password_marker = "google_pending$" + secrets.token_urlsafe(32)
+        user = WebUser(
+            company_id=None,
+            email=email,
+            password_hash=pending_password_marker,
+            name=google_name,
+            phone=None,
+            role="membro",
+            active=True,
+            is_owner=False,
         )
-        return RedirectResponse("/login", status_code=303)
+        db.add(user)
+        db.flush()
+
+        if user.profile is None:
+            db.add(UserProfile(user_id=user.id))
+        ensure_user_defaults(db, user)
+        db.commit()
+        db.refresh(user)
+        created_with_google = True
+
     if not user.active:
         flash(request, "Sua conta DBMILESX está desativada. Fale com o administrador da empresa.", "error")
         return RedirectResponse("/login", status_code=303)
@@ -207,7 +230,84 @@ def google_callback(
     request.session["user_id"] = user.id
     request.session["auth_version"] = int(user.auth_version or 1)
     request.session["auth_provider"] = "google"
+
+    # Conta Google recém-criada (ou que ainda não concluiu o primeiro acesso):
+    # força a criação da senha local antes de liberar o restante do sistema.
+    if str(user.password_hash or "").startswith("google_pending$"):
+        request.session["google_password_setup_required"] = True
+        if created_with_google:
+            flash(request, f"Bem-vindo, {user.name}! Agora crie uma senha para também poder entrar por e-mail e senha.", "success")
+        else:
+            flash(request, "Conclua seu primeiro acesso criando uma senha.", "info")
+        return RedirectResponse("/auth/google/create-password", status_code=303)
+
     flash(request, f"Bem-vindo, {user.name}! Login realizado com Google.", "success")
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@router.get("/auth/google/create-password")
+def google_create_password_page(request: Request, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
+    user = db.get(WebUser, int(user_id))
+    if user is None or not user.active:
+        request.session.clear()
+        return RedirectResponse("/login", status_code=303)
+
+    if not str(user.password_hash or "").startswith("google_pending$"):
+        request.session.pop("google_password_setup_required", None)
+        return RedirectResponse("/dashboard", status_code=303)
+
+    return templates.TemplateResponse(
+        request,
+        "auth/google_create_password.html",
+        context(request, user=user),
+    )
+
+
+@router.post("/auth/google/create-password")
+def google_create_password(
+    request: Request,
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada. Tente novamente.", "error")
+        return RedirectResponse("/auth/google/create-password", status_code=303)
+
+    user = db.get(WebUser, int(user_id))
+    if user is None or not user.active:
+        request.session.clear()
+        return RedirectResponse("/login", status_code=303)
+
+    if not str(user.password_hash or "").startswith("google_pending$"):
+        request.session.pop("google_password_setup_required", None)
+        return RedirectResponse("/dashboard", status_code=303)
+
+    if password != password_confirm:
+        flash(request, "As senhas não coincidem.", "error")
+        return RedirectResponse("/auth/google/create-password", status_code=303)
+
+    valid, message = validate_password(password)
+    if not valid:
+        flash(request, message, "error")
+        return RedirectResponse("/auth/google/create-password", status_code=303)
+
+    user.password_hash = hash_password(password)
+    user.auth_version = int(user.auth_version or 1) + 1
+    db.commit()
+
+    request.session["auth_version"] = int(user.auth_version or 1)
+    request.session.pop("google_password_setup_required", None)
+    flash(request, "Senha criada com sucesso. Sua conta está pronta!", "success")
     return RedirectResponse("/dashboard", status_code=303)
 
 
