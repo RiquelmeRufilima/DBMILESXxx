@@ -19,6 +19,31 @@
 </section>
 
 {% if can_manage_members %}
+<section class="panel" id="codigo-entrada">
+  <div class="panel-heading">
+    <div><span class="eyebrow">ENTRADA POR CÓDIGO</span><h2>Código para entrar na empresa</h2><p>Gere um código temporário para um usuário já cadastrado no DBMILESX entrar em {{ company.name }}. O código expira exatamente 5 minutos após ser gerado.</p></div>
+    <span class="team-limit-seal">{{ remaining_slots }} vagas</span>
+  </div>
+  {% if remaining_slots > 0 %}
+  <div class="form-grid cols-2">
+    <div>
+      <label>Nome da empresa<input value="{{ company.name }}" readonly></label>
+    </div>
+    <div>
+      <label>Código temporário<input id="companyInviteCode" value="Clique em gerar código" readonly></label>
+      <small id="companyInviteCountdown" class="muted">Ainda não gerado.</small>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="primary-button" type="button" id="generateCompanyInviteCode" data-confirm-ignore="1">Gerar código de 5 minutos</button>
+    <button class="secondary-button" type="button" id="copyCompanyInviteCode" data-confirm-ignore="1" disabled>Copiar código</button>
+  </div>
+  <p id="companyInviteError" class="muted" hidden></p>
+  {% else %}
+  <div class="empty-state small"><h3>Sem vagas disponíveis</h3><p>Remova ou desative um acesso antigo antes de permitir a entrada de outro membro.</p></div>
+  {% endif %}
+</section>
+
 <section class="panel team-create-panel" id="adicionar-membro">
   <div class="panel-heading">
     <div><span class="eyebrow">ADICIONAR MEMBRO</span><h2>Criar um novo usuário da empresa</h2><p>O administrador define o e-mail, a senha inicial e o nível de acesso. É possível manter até {{ max_team_users }} usuários adicionais.</p></div>
@@ -114,4 +139,69 @@
     <a class="primary-button full top-gap" href="/company/chat">Entrar no chat</a>
   </aside>
 </section>
+<script>
+(() => {
+  const generateButton = document.getElementById('generateCompanyInviteCode');
+  const copyButton = document.getElementById('copyCompanyInviteCode');
+  const codeInput = document.getElementById('companyInviteCode');
+  const countdown = document.getElementById('companyInviteCountdown');
+  const errorBox = document.getElementById('companyInviteError');
+  if (!generateButton || !codeInput) return;
+
+  let timer = null;
+  const setError = (message) => {
+    if (!errorBox) return;
+    errorBox.textContent = message || '';
+    errorBox.hidden = !message;
+  };
+  const startCountdown = (expiresAt) => {
+    if (timer) clearInterval(timer);
+    const tick = () => {
+      const seconds = Math.max(0, Number(expiresAt || 0) - Math.floor(Date.now() / 1000));
+      const minutes = Math.floor(seconds / 60);
+      const rest = String(seconds % 60).padStart(2, '0');
+      if (countdown) countdown.textContent = seconds > 0 ? `Expira em ${minutes}:${rest}` : 'Código expirado. Gere um novo código.';
+      if (seconds <= 0) {
+        clearInterval(timer);
+        timer = null;
+        if (copyButton) copyButton.disabled = true;
+      }
+    };
+    tick();
+    timer = setInterval(tick, 1000);
+  };
+
+  generateButton.addEventListener('click', async () => {
+    generateButton.disabled = true;
+    setError('');
+    try {
+      const response = await fetch('/company/invite-code', {headers: {'Accept': 'application/json'}, cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível gerar o código.');
+      codeInput.value = data.code;
+      if (copyButton) copyButton.disabled = false;
+      startCountdown(data.expires_at);
+    } catch (error) {
+      setError(error && error.message ? error.message : 'Não foi possível gerar o código.');
+    } finally {
+      generateButton.disabled = false;
+    }
+  });
+
+  if (copyButton) {
+    copyButton.addEventListener('click', async () => {
+      if (!codeInput.value || codeInput.value.includes('Clique')) return;
+      try {
+        await navigator.clipboard.writeText(codeInput.value);
+        const old = copyButton.textContent;
+        copyButton.textContent = 'Copiado';
+        setTimeout(() => { copyButton.textContent = old; }, 1200);
+      } catch (_) {
+        codeInput.select();
+        document.execCommand('copy');
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}

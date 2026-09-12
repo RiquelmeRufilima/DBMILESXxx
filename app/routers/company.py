@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
@@ -9,7 +12,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from ..config import CHAT_UPLOAD_DIR, COMPANY_UPLOAD_DIR, MAX_TEAM_USERS
+from ..config import CHAT_UPLOAD_DIR, COMPANY_UPLOAD_DIR, MAX_TEAM_USERS, SECRET_KEY
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
 from ..models import ChatMessage, WebCompany, WebQuote, WebUser
@@ -41,6 +44,62 @@ ROLE_OPTIONS = (
     },
 )
 ROLE_VALUES = {item["value"] for item in ROLE_OPTIONS}
+
+
+_INVITE_TTL_SECONDS = 5 * 60
+_INVITE_SIG_LENGTH = 10
+_BASE36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def _base36_encode(value: int) -> str:
+    value = max(0, int(value))
+    if value == 0:
+        return "0"
+    out = []
+    while value:
+        value, remainder = divmod(value, 36)
+        out.append(_BASE36[remainder])
+    return "".join(reversed(out))
+
+
+def _base36_decode(value: str) -> int:
+    return int(str(value or "").strip().upper(), 36)
+
+
+def _invite_signature(company_id: int, expires_at: int) -> str:
+    payload = f"company-invite:{int(company_id)}:{int(expires_at)}".encode("utf-8")
+    digest = hmac.new(str(SECRET_KEY).encode("utf-8"), payload, hashlib.sha256).hexdigest().upper()
+    return digest[:_INVITE_SIG_LENGTH]
+
+
+def _make_company_invite_code(company_id: int) -> tuple[str, int]:
+    expires_at = int(time.time()) + _INVITE_TTL_SECONDS
+    raw = f"{_base36_encode(company_id)}-{_base36_encode(expires_at)}-{_invite_signature(company_id, expires_at)}"
+    return raw, expires_at
+
+
+def _validate_company_invite_code(company_id: int, code: str) -> tuple[bool, str]:
+    cleaned = str(code or "").strip().upper().replace(" ", "")
+    parts = cleaned.split("-")
+    if len(parts) != 3:
+        return False, "Código inválido."
+    try:
+        code_company_id = _base36_decode(parts[0])
+        expires_at = _base36_decode(parts[1])
+    except (TypeError, ValueError):
+        return False, "Código inválido."
+    if code_company_id != int(company_id):
+        return False, "Código inválido para esta empresa."
+    if int(time.time()) > expires_at:
+        return False, "Este código expirou. Peça à empresa para gerar um novo código."
+    expected = _invite_signature(company_id, expires_at)
+    if not hmac.compare_digest(parts[2], expected):
+        return False, "Código inválido."
+    return True, ""
+
+
+def _normalized_company_name(value: str | None) -> str:
+    return " ".join(str(value or "").split()).strip()
 
 
 def _normalize_role(value: str | None) -> str:
@@ -177,7 +236,7 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=303)
 
     if not user.company_id:
-        return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
+        return templates.TemplateResponse(request, "company/index.html", context(request, user=user))
 
     company = db.get(WebCompany, user.company_id)
     if company is None:
@@ -232,6 +291,98 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/create")
+def create_company_page(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.company_id:
+        return RedirectResponse("/company", status_code=303)
+    return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
+
+
+@router.get("/join")
+def join_company_page(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.company_id:
+        return RedirectResponse("/company", status_code=303)
+    return templates.TemplateResponse(request, "company/join.html", context(request, user=user))
+
+
+@router.post("/join")
+def join_company(
+    request: Request,
+    company_name: str = Form(...),
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.company_id:
+        return RedirectResponse("/company", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company/join", status_code=303)
+
+    company_name = _normalized_company_name(company_name)
+    if len(company_name) < 2:
+        flash(request, "Informe o nome da empresa.", "error")
+        return RedirectResponse("/company/join", status_code=303)
+
+    company = db.scalar(
+        select(WebCompany).where(func.lower(func.trim(WebCompany.name)) == company_name.lower())
+    )
+    if company is None:
+        flash(request, "Empresa não encontrada. Confira o nome informado.", "error")
+        return RedirectResponse("/company/join", status_code=303)
+
+    valid, message = _validate_company_invite_code(company.id, code)
+    if not valid:
+        flash(request, message, "error")
+        return RedirectResponse("/company/join", status_code=303)
+
+    if not can_create_team_user(db, company.id):
+        flash(request, f"A empresa atingiu o limite de {MAX_TEAM_USERS} usuários adicionais.", "error")
+        return RedirectResponse("/company/join", status_code=303)
+
+    user.company_id = company.id
+    user.role = "membro"
+    user.is_owner = False
+    user.active = True
+    user.auth_version = int(user.auth_version or 1) + 1
+    db.commit()
+    request.session["auth_version"] = int(user.auth_version or 1)
+    ensure_user_defaults(db, user)
+    flash(request, f"Você entrou na empresa '{company.name}'.", "success")
+    return RedirectResponse("/company", status_code=303)
+
+
+@router.get("/invite-code")
+def company_invite_code(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "error": "Faça login novamente."}, status_code=401)
+    if not _is_company_admin(user):
+        return JSONResponse({"ok": False, "error": "Somente o administrador pode gerar códigos."}, status_code=403)
+    company = db.get(WebCompany, user.company_id)
+    if company is None:
+        return JSONResponse({"ok": False, "error": "Empresa não encontrada."}, status_code=404)
+    if not can_create_team_user(db, company.id):
+        return JSONResponse({"ok": False, "error": "Não há vagas disponíveis para novos membros."}, status_code=409)
+    code, expires_at = _make_company_invite_code(company.id)
+    return JSONResponse({
+        "ok": True,
+        "company_name": company.name,
+        "code": code,
+        "expires_at": expires_at,
+        "expires_in": _INVITE_TTL_SECONDS,
+    })
+
+
 @router.post("/create")
 def create_company(
     request: Request,
@@ -249,10 +400,17 @@ def create_company(
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/company", status_code=303)
 
-    name = name.strip()
+    name = _normalized_company_name(name)
     if len(name) < 2:
         flash(request, "Informe o nome da empresa.", "error")
-        return RedirectResponse("/company", status_code=303)
+        return RedirectResponse("/company/create", status_code=303)
+
+    existing_company = db.scalar(
+        select(WebCompany.id).where(func.lower(func.trim(WebCompany.name)) == name.lower())
+    )
+    if existing_company:
+        flash(request, "Nome de empresa já existente. Escolha outro nome.", "error")
+        return RedirectResponse("/company/create", status_code=303)
 
     company = WebCompany(name=name, cnpj=cnpj.strip() or None)
     db.add(company)

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Empresa | DBMILESX{% endblock %}
+{% block page_title %}Empresa{% endblock %}
+{% block eyebrow %}EQUIPE E OPERAÇÃO{% endblock %}
+{% block content %}
+<section class="centered-panel-wrap">
+  <article class="panel create-company-panel" style="max-width:760px">
+    <span class="brand-mark jumbo">▦</span>
+    <span class="eyebrow">EMPRESA E EQUIPE</span>
+    <h1>Como você quer começar?</h1>
+    <p>Crie uma nova empresa para montar sua equipe ou entre em uma empresa que já existe usando o código temporário gerado pelo administrador.</p>
+    <div class="form-grid cols-2" style="margin-top:28px">
+      <a class="primary-button large full" href="/company/create">CRIAR EMPRESA</a>
+      <a class="secondary-button large full" href="/company/join">ENTRAR EM EMPRESA</a>
+    </div>
+  </article>
+</section>
+{% endblock %}

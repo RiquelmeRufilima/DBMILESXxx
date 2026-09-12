@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Entrar em empresa | DBMILESX{% endblock %}
+{% block page_title %}Entrar em empresa{% endblock %}
+{% block eyebrow %}EQUIPE E OPERAÇÃO{% endblock %}
+{% block content %}
+<section class="centered-panel-wrap">
+  <article class="panel create-company-panel">
+    <div style="margin-bottom:18px"><a class="ghost-button" href="/company">← Voltar</a></div>
+    <span class="brand-mark jumbo">⇢</span>
+    <span class="eyebrow">ENTRAR EM EMPRESA</span>
+    <h1>Entre em uma empresa existente.</h1>
+    <p>Peça ao administrador o nome exato da empresa e um código de entrada. Cada código dura somente 5 minutos.</p>
+    <form method="post" action="/company/join" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Nome da empresa existente<input name="company_name" required placeholder="Ex: ISI VIAGENS" autocomplete="organization"></label>
+      <label>Código da empresa<input name="code" required placeholder="Ex: 1-TCJ2K4-A1B2C3D4" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false"></label>
+      <button class="primary-button large full" type="submit">Entrar na empresa</button>
+    </form>
+  </article>
+</section>
+{% endblock %}
