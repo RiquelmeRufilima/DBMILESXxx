@@ -72,7 +72,11 @@ def _valid_blob_avatar_url(blob_url: str, user_id: int) -> bool:
         return False
     if parsed.scheme != "https" or not parsed.hostname:
         return False
-    if not parsed.hostname.endswith(".private.blob.vercel-storage.com"):
+    host = parsed.hostname.lower()
+    if not (
+        host.endswith(".private.blob.vercel-storage.com")
+        or host.endswith(".blob.vercel-storage.com")
+    ):
         return False
     pathname = unquote(parsed.path or "")
     return pathname.startswith(f"/users/{int(user_id)}/avatars/")
@@ -119,6 +123,7 @@ async def avatar_upload_intent(request: Request, db: Session = Depends(get_db)):
     pathname = f"users/{user.id}/avatars/{int(time.time())}-{uuid.uuid4().hex[:12]}{ext}"
     payload = {
         "v": 1,
+        "op": "put",
         "uid": int(user.id),
         "pathname": pathname,
         "ct": content_type,

@@ -6,7 +6,10 @@
 <section class="page-heading inline"><div><span class="eyebrow">PERFIL</span><h1>Seu espaço dentro do DBMILESX.</h1><p>Atualize foto, nome, contato e cargo exibidos para sua equipe.</p></div><a class="secondary-button" href="/settings"><svg class="ui-icon"><use href="#icon-settings"></use></svg> Configurações</a></section>
 <section class="profile-layout">
   <aside class="panel profile-card">
-    {% if profile and profile.avatar_path %}<img class="profile-avatar" src="/{{ profile.avatar_path }}?v={{ profile.updated_at.timestamp()|int if profile.updated_at else 0 }}" alt="{{ user.name }}">{% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
+    {% if profile and profile.avatar_path %}
+    <img class="profile-avatar" src="/{{ profile.avatar_path }}?v={{ profile.updated_at.timestamp()|int if profile.updated_at else 0 }}" alt="{{ user.name }}" onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+    <div class="profile-avatar fallback" hidden>{{ user.name[:1]|upper }}</div>
+    {% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
     <h2>{{ user.name }}</h2><p>{{ profile.job_title or user.role|title }}</p><span class="badge custom">{{ user.role|title }}</span>
     <div class="profile-meta"><div><svg class="ui-icon"><use href="#icon-building"></use></svg><span>{{ user.company.name if user.company else 'Conta individual' }}</span></div><div><svg class="ui-icon"><use href="#icon-user"></use></svg><span>{{ user.email }}</span></div></div>
   </aside>
@@ -86,7 +89,11 @@
       })
     });
     const intentData = await intentResponse.json().catch(() => ({}));
-    if (!intentResponse.ok) throw new Error(intentData.error || 'Não foi possível autorizar o upload.');
+    if (!intentResponse.ok) {
+      const err = new Error(intentData.error || 'Não foi possível autorizar o upload.');
+      err.status = intentResponse.status;
+      throw err;
+    }
 
     const signResponse = await fetch('/api/avatar-presign', {
       method: 'POST',
@@ -124,6 +131,16 @@
       showStatus('Foto enviada. Salvando perfil...');
       form.submit();
     } catch (error) {
+      // Em localhost/ambiente sem Blob, volta automaticamente para o upload multipart tradicional.
+      if (error?.status === 503) {
+        uploading = false;
+        submit.disabled = false;
+        blobField.value = '';
+        input.disabled = false;
+        showStatus('Armazenamento Blob indisponível. Salvando a foto pelo armazenamento local...');
+        form.submit();
+        return;
+      }
       uploading = false;
       submit.disabled = false;
       showStatus(error?.message || 'Não foi possível enviar a foto.');
