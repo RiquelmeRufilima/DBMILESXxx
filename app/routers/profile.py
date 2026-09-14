@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
@@ -178,7 +178,7 @@ async def serve_private_avatar(
 
 
 @router.post("/profile")
-async def update_profile(request: Request, db: Session = Depends(get_db)):
+async def update_profile(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
@@ -238,15 +238,14 @@ async def update_profile(request: Request, db: Session = Depends(get_db)):
     db.refresh(user)
     db.refresh(user.profile)
 
+    # Limpeza do avatar anterior acontece depois da resposta. Isso evita deixar
+    # o usuário preso em "Salvando informações..." caso o Blob demore.
     if old_path and old_path != avatar_path:
         old_blob_url = _blob_url_from_avatar_path(old_path)
         if old_blob_url:
-            try:
-                blob_delete(old_blob_url)
-            except Exception:
-                pass
+            background_tasks.add_task(blob_delete, old_blob_url)
         else:
-            delete_relative_upload(old_path)
+            background_tasks.add_task(delete_relative_upload, old_path)
 
     if user.company_id:
         await manager.broadcast(user.company_id, profile_event(user))
@@ -256,7 +255,7 @@ async def update_profile(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/profile/remove-avatar")
-async def remove_avatar(request: Request, db: Session = Depends(get_db)):
+async def remove_avatar(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
@@ -275,12 +274,9 @@ async def remove_avatar(request: Request, db: Session = Depends(get_db)):
 
     old_blob_url = _blob_url_from_avatar_path(old_path)
     if old_blob_url:
-        try:
-            blob_delete(old_blob_url)
-        except Exception:
-            pass
+        background_tasks.add_task(blob_delete, old_blob_url)
     else:
-        delete_relative_upload(old_path)
+        background_tasks.add_task(delete_relative_upload, old_path)
 
     if user.company_id:
         await manager.broadcast(user.company_id, profile_event(user))

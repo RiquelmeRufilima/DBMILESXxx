@@ -15,7 +15,7 @@
   </aside>
   <article class="panel">
     <div class="panel-heading"><div><span class="eyebrow">DADOS PESSOAIS</span><h2>Editar perfil</h2></div></div>
-    <form id="profileForm" method="post" action="/profile" enctype="multipart/form-data" class="form-stack">
+    <form id="profileForm" method="post" action="/profile" enctype="multipart/form-data" class="form-stack" data-no-loader="1">
       <input type="hidden" name="csrf_token" id="profileCsrf" value="{{ csrf_token }}">
       <input type="hidden" name="avatar_blob_url" id="avatarBlobUrl" value="">
       <div class="form-grid cols-2"><label>Nome<input name="name" value="{{ user.name }}" required></label><label>E-mail<input value="{{ user.email }}" disabled><small>O e-mail de login não é alterado aqui.</small></label></div>
@@ -44,10 +44,19 @@
 
   let uploading = false;
 
-  function showStatus(message) {
+  function showStatus(message, isError = false) {
+    window.dbmHideLoader?.();
     if (!status) return;
     status.style.display = 'block';
+    status.style.opacity = '1';
+    status.style.color = isError ? '#ff6b7a' : '';
     status.textContent = message;
+  }
+
+  function withTimeout(ms = 30000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return { signal: controller.signal, done: () => clearTimeout(timer) };
   }
 
   async function optimizeAvatar(original) {
@@ -55,7 +64,7 @@
     if (original.size > 20 * 1024 * 1024) throw new Error('A imagem original deve ter no máximo 20 MB.');
 
     const bitmap = await createImageBitmap(original);
-    const maxSide = 1200;
+    const maxSide = 1000;
     const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -66,18 +75,32 @@
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close?.();
 
-    let quality = 0.86;
+    let quality = 0.84;
     let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality));
-    while (blob && blob.size > 2 * 1024 * 1024 && quality > 0.55) {
-      quality -= 0.08;
+    while (blob && blob.size > 1024 * 1024 && quality > 0.55) {
+      quality -= 0.07;
       blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality));
     }
     if (!blob) throw new Error('Não foi possível preparar a imagem.');
-    return new File([blob], 'avatar.webp', { type: 'image/webp' });
+    return new File([blob], `avatar-${Date.now()}.webp`, { type: 'image/webp' });
+  }
+
+  async function fetchJson(url, options, timeoutMs = 30000) {
+    const t = withTimeout(timeoutMs);
+    try {
+      const response = await fetch(url, { ...options, signal: t.signal });
+      const data = await response.json().catch(() => ({}));
+      return { response, data };
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('O armazenamento demorou demais para responder. Tente novamente.');
+      throw error;
+    } finally {
+      t.done();
+    }
   }
 
   async function uploadDirect(file) {
-    const intentResponse = await fetch('/profile/avatar-upload-intent', {
+    const { response: intentResponse, data: intentData } = await fetchJson('/profile/avatar-upload-intent', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -87,63 +110,89 @@
         content_type: file.type,
         size: file.size
       })
-    });
-    const intentData = await intentResponse.json().catch(() => ({}));
+    }, 20000);
+
     if (!intentResponse.ok) {
       const err = new Error(intentData.error || 'Não foi possível autorizar o upload.');
       err.status = intentResponse.status;
       throw err;
     }
 
-    const signResponse = await fetch('/api/avatar-presign', {
+    const { response: signResponse, data: signed } = await fetchJson('/api/avatar-presign', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({ intent: intentData.intent })
-    });
-    const signed = await signResponse.json().catch(() => ({}));
-    if (!signResponse.ok || !signed.presignedUrl) throw new Error(signed.error || 'Não foi possível preparar o Vercel Blob.');
+    }, 20000);
 
-    const putResponse = await fetch(signed.presignedUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type },
-      body: file
-    });
-    if (!putResponse.ok) throw new Error('Falha ao enviar a foto para o armazenamento.');
+    if (!signResponse.ok || !signed.presignedUrl) {
+      throw new Error(signed.error || 'Não foi possível preparar o Vercel Blob.');
+    }
+
+    const t = withTimeout(45000);
+    let putResponse;
+    try {
+      putResponse = await fetch(signed.presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+        signal: t.signal
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') throw new Error('O envio da foto demorou demais. Tente novamente.');
+      throw error;
+    } finally {
+      t.done();
+    }
+
+    if (!putResponse.ok) {
+      const detail = await putResponse.text().catch(() => '');
+      throw new Error(`Falha ao enviar a foto para o Blob (${putResponse.status})${detail ? ': ' + detail.slice(0, 180) : ''}.`);
+    }
 
     return signed.presignedUrl.split('?')[0];
   }
 
+  input.addEventListener('change', () => {
+    blobField.value = '';
+    if (input.files?.[0]) showStatus('Foto selecionada. Clique em Salvar perfil.');
+  });
+
   form.addEventListener('submit', async (event) => {
+    window.dbmHideLoader?.();
     const selected = input.files && input.files[0];
-    if (!selected || uploading || blobField.value) return;
+
+    // Sem nova foto, salva os demais dados normalmente e sem o loader global.
+    if (!selected || blobField.value) return;
+    if (uploading) {
+      event.preventDefault();
+      return;
+    }
 
     event.preventDefault();
     uploading = true;
     submit.disabled = true;
-    showStatus('Otimizando foto...');
+    showStatus('Preparando sua foto...');
 
     try {
       const optimized = await optimizeAvatar(selected);
-      showStatus('Enviando foto diretamente para o armazenamento...');
+      showStatus('Enviando foto para o armazenamento...');
       const blobUrl = await uploadDirect(optimized);
+
       blobField.value = blobUrl;
-      input.disabled = true; // impede que o arquivo entre no POST do FastAPI e cause 413
-      showStatus('Foto enviada. Salvando perfil...');
-      form.submit();
-    } catch (error) {
-      // Em localhost/ambiente sem Blob, volta automaticamente para o upload multipart tradicional.
-      if (error?.status === 503) {
-        uploading = false;
-        submit.disabled = false;
-        blobField.value = '';
-        input.disabled = false;
-        showStatus('Armazenamento Blob indisponível. Salvando a foto pelo armazenamento local...');
-        form.submit();
-        return;
-      }
+      input.disabled = true; // a imagem não passa pelo payload da Function Python
+      showStatus('Foto enviada. Atualizando o perfil...');
+
       uploading = false;
       submit.disabled = false;
-      showStatus(error?.message || 'Não foi possível enviar a foto.');
+      form.requestSubmit();
+    } catch (error) {
+      uploading = false;
+      submit.disabled = false;
+      input.disabled = false;
+      blobField.value = '';
+      window.dbmHideLoader?.();
+      showStatus(error?.message || 'Não foi possível enviar a foto.', true);
     }
   });
 })();
