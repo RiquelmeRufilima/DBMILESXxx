@@ -20,7 +20,7 @@ from ..dependencies import current_user
 from ..models import WebUser
 from ..security import validate_csrf_token
 from ..services.realtime import manager, profile_event
-from ..services.storage import blob_delete, blob_ready
+from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
 from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
@@ -133,6 +133,50 @@ async def avatar_upload_intent(request: Request, db: Session = Depends(get_db)):
     return JSONResponse({"intent": _sign_avatar_intent(payload)})
 
 
+@router.post("/profile/avatar-upload-direct")
+async def avatar_upload_direct(request: Request, db: Session = Depends(get_db)):
+    """Recebe somente a imagem já otimizada (< 1 MB) e grava no Blob privado.
+
+    O navegador reduz a foto antes do envio, então esta requisição fica bem abaixo
+    do limite de payload da Vercel Function e não precisa de uma Function Node extra.
+    """
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"error": "Sessão expirada."}, status_code=401)
+    if not blob_ready():
+        return JSONResponse({"error": "Vercel Blob não está conectado a este deployment."}, status_code=503)
+
+    csrf_token = str(request.headers.get("x-csrf-token") or "")
+    if not validate_csrf_token(request.session, csrf_token):
+        return JSONResponse({"error": "Sessão expirada. Atualize a página e tente novamente."}, status_code=403)
+
+    content_type = str(request.headers.get("content-type") or "").split(";", 1)[0].lower().strip()
+    if content_type not in _ALLOWED_AVATAR_TYPES:
+        return JSONResponse({"error": "Use uma imagem JPG, PNG ou WEBP."}, status_code=400)
+
+    content = await request.body()
+    if not content:
+        return JSONResponse({"error": "A imagem enviada está vazia."}, status_code=400)
+    # O front limita a ~850 KB; deixamos uma pequena margem aqui.
+    if len(content) > 1200 * 1024:
+        return JSONResponse({"error": "A foto otimizada ficou muito grande. Escolha outra imagem."}, status_code=413)
+
+    ext = _ALLOWED_AVATAR_TYPES[content_type]
+    pathname = f"users/{user.id}/avatars/{int(time.time())}-{uuid.uuid4().hex[:12]}{ext}"
+    try:
+        result = blob_put(pathname, content, content_type)
+    except Exception as exc:
+        return JSONResponse({"error": f"Falha ao gravar no Vercel Blob: {exc}"}, status_code=502)
+
+    blob_url = str(result.get("url") or result.get("downloadUrl") or "").strip()
+    if not blob_url:
+        return JSONResponse({"error": "O Vercel Blob não devolveu a URL da foto."}, status_code=502)
+    if not _valid_blob_avatar_url(blob_url, user.id):
+        return JSONResponse({"error": "O Vercel Blob devolveu uma URL inesperada."}, status_code=502)
+
+    return JSONResponse({"url": blob_url, "pathname": pathname})
+
+
 @router.get("/profile/avatar-file/{avatar_user_id}/{blob_ref}")
 async def serve_private_avatar(
     avatar_user_id: int,
@@ -157,22 +201,16 @@ async def serve_private_avatar(
     if not _valid_blob_avatar_url(blob_url, target.id):
         return Response(status_code=404)
 
-    # Não faz proxy dos bytes pelo FastAPI. Depois de validar sessão/empresa,
-    # cria uma autorização curta para a Function Node gerar um GET assinado.
-    parsed = urlparse(blob_url)
-    pathname = unquote(parsed.path or "").lstrip("/")
-    payload = {
-        "v": 1,
-        "op": "get",
-        "uid": int(target.id),
-        "pathname": pathname,
-        "exp": int(time.time()) + 5 * 60,
-    }
-    intent = _sign_avatar_intent(payload)
-    return RedirectResponse(
-        url=f"/api/avatar-presign?intent={intent}",
-        status_code=307,
-        headers={"Cache-Control": "private, no-store"},
+    # Avatar é pequeno e privado: fazemos o proxy autenticado pelo FastAPI.
+    # Assim a exibição não depende de Function Node/presign separado.
+    try:
+        content, content_type = blob_get(blob_url)
+    except Exception:
+        return Response(status_code=404)
+    return Response(
+        content=content,
+        media_type=content_type or "image/webp",
+        headers={"Cache-Control": "private, max-age=300"},
     )
 
 
