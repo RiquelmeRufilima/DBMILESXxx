@@ -1639,3 +1639,297 @@ body.pref-dense-tables .data-table th,body.pref-dense-tables .data-table td{padd
 
 /* V5.15 — anexos privados das cotações */
 .quote-attachments-panel{display:grid;gap:14px}.attachment-upload-button{cursor:pointer;white-space:nowrap}.attachment-status{padding:10px 12px;border-radius:11px;background:rgba(20,166,121,.11);border:1px solid rgba(20,166,121,.25);color:#81efc8;font-size:.78rem;font-weight:800}.attachment-status.error{background:rgba(218,67,85,.10);border-color:rgba(218,67,85,.27);color:#ffadb7}.quote-attachment-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}.attachment-empty{grid-column:1/-1;padding:28px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted)}.quote-attachment-card{display:grid;grid-template-columns:72px minmax(0,1fr);gap:11px;padding:11px;border:1px solid var(--border);border-radius:14px;background:var(--card);align-items:center}.attachment-preview{width:72px;height:62px;border-radius:11px;border:1px solid var(--border);display:grid;place-items:center;overflow:hidden;background:var(--input-bg,#071525);text-decoration:none}.attachment-preview.image img{width:100%;height:100%;object-fit:cover}.attachment-preview.file{font-size:1.45rem}.attachment-copy{display:grid;gap:4px;min-width:0}.attachment-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.attachment-copy small{color:var(--muted);font-size:.68rem}.attachment-actions{grid-column:1/-1;display:flex;gap:7px;justify-content:flex-start}@media(max-width:620px){.quote-attachment-grid{grid-template-columns:1fr}.attachment-upload-button{width:100%;justify-content:center}}
+
+/* =====================================================================
+   DBMILESX V5.16 — HISTÓRICO RESPONSIVO + CONTRASTE AUTOMÁTICO DE TEMA
+   - Rótulos/textos FIXOS seguem o tema claro/escuro.
+   - Valores DINÂMICOS (preços, lucro, companhia etc.) mantêm suas cores.
+   - Melhora leitura e organização em celular/tablet.
+   ===================================================================== */
+:root,
+html[data-theme="dark"]{
+  --history-fixed-text:#e8f3fc;
+  --history-fixed-muted:#9fb7ca;
+  --history-fixed-title:#f7fbff;
+  --history-card-surface:color-mix(in srgb,var(--panel) 94%,#0b2033 6%);
+  --history-card-soft:color-mix(in srgb,var(--panel-2) 93%,#17344f 7%);
+  --history-card-border:color-mix(in srgb,var(--border) 82%,#5dbfe7 18%);
+  --history-label-bg:color-mix(in srgb,var(--panel-2) 90%,#2b6487 10%);
+}
+html[data-theme="light"]{
+  --history-fixed-text:#17324b;
+  --history-fixed-muted:#526b80;
+  --history-fixed-title:#0b2740;
+  --history-card-surface:#ffffff;
+  --history-card-soft:#f5f9fc;
+  --history-card-border:#d6e4ef;
+  --history-label-bg:#edf4f8;
+}
+
+/* Texto fixo: acompanha o tema. Valores fortes/dinâmicos mantêm a cor original. */
+.history-main-copy h2,
+.history-main-copy p,
+.history-main-copy .quote-author-line,
+.subquote-history-title h3,
+.subquote-history-route,
+.subquote-history-route strong,
+.history-scope-title>span,
+.history-scope-title>small,
+.history-result-count,
+.history-order-note,
+.history-order-note strong,
+.history-meta-grid small,
+.professional-option-details small,
+.history-segment-route,
+.history-segment-schedule,
+.quote-change-log summary,
+.quote-change-item small,
+.option-select-copy>strong{
+  color:var(--history-fixed-text)!important;
+}
+.history-result-count,
+.history-order-note,
+.history-meta-grid small,
+.professional-option-details small,
+.quote-change-item small,
+.history-scope-title>small{
+  color:var(--history-fixed-muted)!important;
+}
+
+/* Custo/Venda: o texto "Custo" e "Venda à vista" é fixo; o valor continua dinâmico. */
+.profit-cost-line,
+.profit-sale-line{
+  color:var(--history-fixed-muted)!important;
+}
+/* Mantém cores dos valores dinâmicos */
+.profit-cost-line strong{color:var(--history-fixed-title)!important}
+.profit-sale-line strong{color:#30b979!important}
+html[data-theme="dark"] .profit-sale-line strong{color:#78f0bd!important}
+
+/* Cards mais limpos e com contraste consistente */
+.history-group-card,
+.subquote-history-block,
+.compact-history-option,
+.history-toolbar{
+  border-color:var(--history-card-border)!important;
+}
+.history-group-card{
+  background:var(--history-card-surface)!important;
+  box-shadow:0 12px 28px rgba(10,31,49,.08)!important;
+}
+html[data-theme="dark"] .history-group-card{
+  box-shadow:0 16px 34px rgba(0,0,0,.18)!important;
+}
+.compact-history-option{
+  background:var(--history-card-surface)!important;
+  border-radius:16px!important;
+}
+.history-meta-grid>div,
+.professional-option-details>div,
+.history-segment-row{
+  background:var(--history-card-soft)!important;
+  border-color:var(--history-card-border)!important;
+}
+
+/* Cabeçalho de cada grupo/rota */
+.history-scope-title{
+  background:linear-gradient(90deg,color-mix(in srgb,var(--cyan) 10%,var(--history-card-soft)),transparent)!important;
+  border-bottom-color:var(--history-card-border)!important;
+}
+html[data-theme="light"] .history-scope-title{
+  background:linear-gradient(90deg,#eaf6fc,transparent)!important;
+}
+.scope-best-badge{
+  color:#157347!important;
+  background:#e9f8ef!important;
+  border-color:#b8e7c9!important;
+}
+html[data-theme="dark"] .scope-best-badge{
+  color:#8ff1b1!important;
+  background:rgba(34,197,94,.13)!important;
+  border-color:rgba(34,197,94,.32)!important;
+}
+
+/* Chips fixos usam contraste de tema. Chips especiais preservam identidade. */
+.history-chip:not(.skip-chip):not(.skip-commission-chip):not(.combined-chip):not(.flexibility-chip):not(.route-chip-flown):not(.route-chip-unflown){
+  color:var(--history-fixed-text)!important;
+  background:var(--history-label-bg)!important;
+  border-color:var(--history-card-border)!important;
+}
+html[data-theme="dark"] .history-chip:not(.skip-chip):not(.skip-commission-chip):not(.combined-chip):not(.flexibility-chip):not(.route-chip-flown):not(.route-chip-unflown){
+  background:rgba(255,255,255,.055)!important;
+}
+
+/* Logo padronizada, sem achatar. */
+.history-logo-seal{
+  background:#fff!important;
+  border:1px solid var(--history-card-border)!important;
+}
+.history-logo-image{
+  width:58px!important;
+  height:42px!important;
+  max-width:58px!important;
+  max-height:42px!important;
+  object-fit:contain!important;
+  padding:3px!important;
+  background:#fff!important;
+  border-radius:8px!important;
+}
+
+/* Tablet */
+@media(max-width:980px){
+  .history-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .professional-option-details{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .compact-history-option,
+  .compact-history-option:not(:has(.combine-option-toggle)){
+    grid-template-columns:28px 66px minmax(0,1fr)!important;
+  }
+  .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{grid-column:2!important}
+  .compact-history-option:not(:has(.combine-option-toggle))>.option-select-copy{grid-column:3!important}
+  .compact-history-option:not(:has(.combine-option-toggle))>.option-select-actions{grid-column:3!important}
+  .option-select-actions{max-width:none!important}
+}
+
+/* Mobile */
+@media(max-width:760px){
+  .quote-history-stack{gap:14px!important}
+  .history-group-card{padding:12px!important;border-radius:16px!important;overflow:hidden!important}
+  .history-card-head{
+    grid-template-columns:auto minmax(0,1fr)!important;
+    gap:10px!important;
+    align-items:start!important;
+  }
+  .history-card-head .history-total-box{
+    grid-column:1/-1!important;
+    width:100%!important;
+    text-align:left!important;
+  }
+  .history-main-copy h2{font-size:1rem!important;line-height:1.2!important}
+  .history-main-copy p{font-size:.75rem!important;line-height:1.45!important}
+  .quote-author-line{font-size:.68rem!important;line-height:1.45!important}
+
+  .history-meta-grid{grid-template-columns:1fr 1fr!important;gap:7px!important}
+  .history-meta-grid>div{padding:9px!important;border-radius:11px!important}
+
+  .subquote-history-block{
+    padding:12px!important;
+    margin:12px 0!important;
+    border-radius:15px!important;
+  }
+  .subquote-history-head{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:10px!important;
+  }
+  .subquote-history-actions{
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:1fr 1fr!important;
+    gap:7px!important;
+  }
+  .subquote-history-actions>*{width:100%!important;justify-content:center!important}
+  .history-scope-title{
+    align-items:flex-start!important;
+    flex-wrap:wrap!important;
+    padding:8px 9px!important;
+  }
+  .history-scope-title>span{font-size:.72rem!important}
+  .history-scope-title>small{width:100%!important;margin-left:0!important;font-size:.65rem!important}
+
+  /* Opção: checkbox e logo no topo; conteúdo ocupa largura total. */
+  .compact-history-option,
+  .compact-history-option:not(:has(.combine-option-toggle)){
+    display:grid!important;
+    grid-template-columns:28px 58px minmax(0,1fr)!important;
+    grid-template-rows:auto auto auto!important;
+    column-gap:9px!important;
+    row-gap:9px!important;
+    padding:11px!important;
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  .compact-history-option>.combine-option-toggle{
+    grid-column:1!important;grid-row:1!important;
+  }
+  .compact-history-option>.history-logo-seal,
+  .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{
+    grid-column:2!important;grid-row:1!important;
+    width:54px!important;height:44px!important;min-width:54px!important;
+  }
+  .compact-history-option>.option-select-copy,
+  .compact-history-option:not(:has(.combine-option-toggle))>.option-select-copy{
+    grid-column:3!important;grid-row:1 / span 2!important;
+    min-width:0!important;width:100%!important;
+  }
+  .compact-history-option>.option-select-actions,
+  .compact-history-option:not(:has(.combine-option-toggle))>.option-select-actions{
+    grid-column:1/-1!important;grid-row:3!important;
+    width:100%!important;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:6px!important;
+    margin:0!important;
+  }
+  .option-select-actions>a,
+  .option-select-actions>button,
+  .option-select-actions>form,
+  .option-select-actions>form>button{
+    width:100%!important;
+    min-width:0!important;
+    justify-content:center!important;
+    text-align:center!important;
+  }
+  .history-logo-image{width:48px!important;height:36px!important;max-width:48px!important;max-height:36px!important}
+  .profit-price-stack{margin-left:0!important;min-width:0!important;width:100%!important;gap:4px!important}
+  .profit-cost-line{font-size:.76rem!important}
+  .profit-cost-line strong{font-size:1.12rem!important}
+  .profit-sale-line{font-size:.72rem!important}
+  .profit-sale-line strong{font-size:.98rem!important}
+  .profit-payment-card{
+    grid-template-columns:auto minmax(0,1fr)!important;
+    max-width:100%!important;width:100%!important;
+  }
+  .profit-payment-total{grid-column:2!important;text-align:left!important}
+  .history-chip-row{gap:4px!important}
+  .history-chip{font-size:.61rem!important;padding:4px 6px!important}
+  .professional-option-details{grid-template-columns:1fr 1fr!important;gap:6px!important}
+  .professional-option-details>div{padding:8px!important}
+  .history-segment-row{grid-template-columns:1fr!important;padding:9px!important}
+  .history-segment-schedule{justify-content:flex-start!important}
+
+  .history-actions{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    width:100%!important;
+    gap:7px!important;
+    justify-content:stretch!important;
+  }
+  .history-actions>*{width:100%!important;min-width:0!important;margin:0!important}
+  .history-actions form button,
+  .history-actions>a,
+  .history-actions>button{width:100%!important;justify-content:center!important;text-align:center!important}
+  .compact-toolbar{display:grid!important;grid-template-columns:1fr!important;align-items:stretch!important}
+  .compact-toolbar>*{width:100%!important}
+  .search-bar{display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;gap:8px!important}
+  .search-bar button{grid-column:1/-1!important;width:100%!important}
+}
+
+@media(max-width:480px){
+  .history-meta-grid,
+  .professional-option-details{grid-template-columns:1fr!important}
+  .subquote-history-actions,
+  .option-select-actions,
+  .history-actions{grid-template-columns:1fr!important}
+  .compact-history-option,
+  .compact-history-option:not(:has(.combine-option-toggle)){
+    grid-template-columns:26px 50px minmax(0,1fr)!important;
+    padding:9px!important;
+  }
+  .compact-history-option>.history-logo-seal,
+  .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{
+    width:48px!important;height:40px!important;min-width:48px!important;
+  }
+  .history-logo-image{width:42px!important;height:32px!important;max-width:42px!important;max-height:32px!important}
+}
