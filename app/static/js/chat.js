@@ -1,187 +1,388 @@
 (() => {
-  'use strict';
+  "use strict";
 
-  const shell = document.querySelector('.chat-shell');
-  const list = document.getElementById('chatMessages');
-  const form = document.getElementById('chatForm');
-  const input = document.getElementById('chatInput');
-  const status = document.getElementById('chatStatus');
-  const errorBox = document.getElementById('chatSendError');
+  const shell = document.querySelector(".chat-shell");
+  const list = document.getElementById("chatMessages");
+  const form = document.getElementById("chatForm");
+  const input = document.getElementById("chatInput");
+  const status = document.getElementById("chatStatus");
+  const submitButton = form?.querySelector('button[type="submit"]');
+
   if (!shell || !list || !form || !input) return;
 
-  // Blindagem: o loader global nunca deve aparecer no chat.
-  form.dataset.noLoader = '1';
-  form.querySelectorAll('button, input[type="submit"]').forEach(el => el.dataset.noLoader = '1');
-  window.dbmHideLoader?.();
-
   const userId = Number(shell.dataset.userId || 0);
-  const seen = new Set();
-  let newestId = 0;
-  let sending = false;
-  let pollBusy = false;
+  const POLL_MS = 750;
+  const SOUND_URL = "/static/sounds/chat-notification.mp3";
 
-  function parseDate(value) {
-    const date = value ? new Date(value) : new Date();
-    return Number.isNaN(date.getTime()) ? new Date() : date;
-  }
+  const notificationSound = new Audio(SOUND_URL);
+  notificationSound.preload = "auto";
+  notificationSound.volume = 1.0;
 
-  function formatDate(value) {
-    return parseDate(value).toLocaleString('pt-BR', {
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-    });
-  }
+  let audioUnlocked = false;
+  let initialized = false;
+  let polling = false;
+  let lastActivityAt = Date.now();
 
-  function playIncomingSound() {
-    try {
-      if (typeof window.dbmPlaySound === 'function') {
-        window.dbmPlaySound('chat');
-        return;
+  const knownIds = new Set(
+    Array.from(list.querySelectorAll("[data-message-id]"))
+      .map((el) => String(el.dataset.messageId || ""))
+      .filter(Boolean)
+  );
+
+  function soundsEnabled() {
+    const disabledValues = ["false", "0", "off", "disabled"];
+    const keys = [
+      "dbmilesx_sounds_enabled",
+      "dbmilesxSoundsEnabled",
+      "systemSoundsEnabled",
+      "soundsEnabled"
+    ];
+
+    for (const key of keys) {
+      const value = localStorage.getItem(key);
+      if (value !== null && disabledValues.includes(String(value).toLowerCase())) {
+        return false;
       }
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.setValueAtTime(740, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(980, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(); osc.stop(ctx.currentTime + 0.2);
-    } catch (_) {}
-  }
-
-  function addMessage(item, {incomingSound = false} = {}) {
-    const id = Number(item?.id || 0);
-    if (id && seen.has(id)) return false;
-    if (id) {
-      seen.add(id);
-      newestId = Math.max(newestId, id);
     }
-
-    const article = document.createElement('article');
-    article.className = `chat-message ${Number(item.user_id) === userId ? 'mine' : ''}`;
-    if (id) article.dataset.messageId = String(id);
-
-    const bubble = document.createElement('div');
-    bubble.className = 'chat-bubble';
-    const strong = document.createElement('strong');
-    strong.textContent = item.user_name || 'Usuário';
-    const p = document.createElement('p');
-    p.textContent = item.message || '';
-    const small = document.createElement('small');
-    small.textContent = formatDate(item.created_at);
-    bubble.append(strong, p, small);
-    article.appendChild(bubble);
-    list.appendChild(article);
-    list.scrollTop = list.scrollHeight;
-
-    if (incomingSound && Number(item.user_id) !== userId) playIncomingSound();
     return true;
   }
 
-  // Normaliza as mensagens renderizadas pelo servidor e registra IDs existentes.
-  list.querySelectorAll('[data-message-id]').forEach(node => {
-    const id = Number(node.dataset.messageId || 0);
-    if (id) { seen.add(id); newestId = Math.max(newestId, id); }
-    const time = node.querySelector('small[data-created-at]');
-    if (time) time.textContent = formatDate(time.dataset.createdAt);
-  });
-  list.scrollTop = list.scrollHeight;
-
-  async function syncMessages() {
-    if (pollBusy || document.hidden) return;
-    pollBusy = true;
+  async function unlockAudio() {
+    if (audioUnlocked) return;
     try {
-      const response = await fetch('/company/messages', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      let received = false;
-      for (const item of (data.messages || [])) {
-        if (Number(item.id || 0) > newestId && Number(item.user_id) !== userId) {
-          if (addMessage(item, {incomingSound: true})) received = true;
-        } else {
-          addMessage(item);
-        }
-      }
-      if (status) status.textContent = received ? 'Nova mensagem recebida' : 'Sincronização ativa';
+      const previousVolume = notificationSound.volume;
+      notificationSound.volume = 0;
+      await notificationSound.play();
+      notificationSound.pause();
+      notificationSound.currentTime = 0;
+      notificationSound.volume = previousVolume;
+      audioUnlocked = true;
     } catch (_) {
-      if (status) status.textContent = 'Reconectando...';
-    } finally {
-      pollBusy = false;
+      // O navegador permitirá depois de outra interação do usuário.
     }
   }
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation?.();
-    window.dbmHideLoader?.();
-    if (sending) return;
+  ["pointerdown", "touchstart", "keydown"].forEach((eventName) => {
+    document.addEventListener(eventName, unlockAudio, { once: true, passive: true });
+  });
 
-    const text = input.value.trim();
-    if (!text) return;
+  async function playNotification() {
+    if (!soundsEnabled()) return;
+    try {
+      notificationSound.pause();
+      notificationSound.currentTime = 0;
+      notificationSound.volume = 1.0;
+      await notificationSound.play();
+    } catch (error) {
+      console.debug("DBMILESX: áudio aguardando interação do usuário.", error);
+    }
+  }
 
-    sending = true;
-    const original = text;
-    input.value = '';
-    input.focus();
-    if (errorBox) errorBox.hidden = true;
+  function setStatus(text, ok = true) {
+    if (!status) return;
+    status.textContent = text;
+    status.classList.toggle("sync-ok", ok);
+    status.classList.toggle("online", ok);
+  }
 
-    // Otimista: aparece imediatamente, sem esperar a Vercel.
-    const temp = {
-      id: 0,
+  function formatDate(value) {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function scrollToBottom(behavior = "auto") {
+    list.scrollTo({ top: list.scrollHeight, behavior });
+  }
+
+  function makeMessageElement(item, options = {}) {
+    const article = document.createElement("article");
+    const mine = Number(item.user_id) === userId;
+
+    article.className = `chat-message ${mine ? "mine" : ""}`;
+    article.dataset.messageId = String(item.id);
+    if (options.optimistic) article.dataset.optimistic = "1";
+
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble";
+
+    const strong = document.createElement("strong");
+    strong.textContent = item.user_name || (mine ? "Você" : "Usuário");
+
+    const p = document.createElement("p");
+    p.textContent = item.message || "";
+
+    const small = document.createElement("small");
+    small.textContent = formatDate(item.created_at);
+
+    bubble.append(strong, p, small);
+    article.appendChild(bubble);
+    return article;
+  }
+
+  function findOptimisticMatch(item) {
+    if (Number(item.user_id) !== userId) return null;
+    const candidates = list.querySelectorAll(
+      '.chat-message.mine[data-optimistic="1"]'
+    );
+    for (const candidate of candidates) {
+      const text = candidate.querySelector(".chat-bubble p")?.textContent || "";
+      if (text === String(item.message || "")) return candidate;
+    }
+    return null;
+  }
+
+  function addMessage(item, options = {}) {
+    if (!item || item.id === undefined || item.id === null) return false;
+
+    const id = String(item.id);
+    if (knownIds.has(id) || list.querySelector(`[data-message-id="${CSS.escape(id)}"]`)) {
+      return false;
+    }
+
+    const optimisticMatch = findOptimisticMatch(item);
+    if (optimisticMatch) {
+      optimisticMatch.dataset.messageId = id;
+      delete optimisticMatch.dataset.optimistic;
+      knownIds.add(id);
+      return true;
+    }
+
+    const article = makeMessageElement(item, options);
+    list.appendChild(article);
+    knownIds.add(id);
+    scrollToBottom(options.optimistic ? "smooth" : "auto");
+    return true;
+  }
+
+  function addOptimisticMessage(message) {
+    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const item = {
+      id: tempId,
       user_id: userId,
-      user_name: 'Você',
-      message: original,
+      user_name: shell.dataset.userName || "Você",
+      message,
       created_at: new Date().toISOString()
     };
-    const tempNode = document.createElement('article');
-    tempNode.className = 'chat-message mine chat-message-pending';
-    const bubble = document.createElement('div');
-    bubble.className = 'chat-bubble';
-    bubble.innerHTML = '<strong>Você</strong>';
-    const p = document.createElement('p'); p.textContent = original;
-    const small = document.createElement('small'); small.textContent = 'Enviando...';
-    bubble.append(p, small); tempNode.appendChild(bubble); list.appendChild(tempNode);
-    list.scrollTop = list.scrollHeight;
+    const article = makeMessageElement(item, { optimistic: true });
+    list.appendChild(article);
+    knownIds.add(tempId);
+    scrollToBottom("smooth");
+    return article;
+  }
+
+  function removeOptimisticFromKnown(article) {
+    if (!article) return;
+    const id = article.dataset.messageId;
+    if (id) knownIds.delete(String(id));
+  }
+
+  async function parseResponse(response) {
+    const type = response.headers.get("content-type") || "";
+    if (!type.includes("application/json")) return null;
+    try {
+      return await response.json();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function sendUsingJson(message) {
+    const response = await fetch("/company/messages/send", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: JSON.stringify({ message })
+    });
+    return response;
+  }
+
+  async function sendUsingForm(message) {
+    const data = new FormData();
+    data.append("message", message);
+
+    const csrfInput = form.querySelector('input[name="csrf_token"]');
+    if (csrfInput?.value) data.append("csrf_token", csrfInput.value);
+
+    return fetch("/company/messages/send", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      body: data
+    });
+  }
+
+  async function sendMessage(message) {
+    let response = await sendUsingJson(message);
+
+    // Compatibilidade caso o backend esteja esperando FormData.
+    if ([400, 415, 422].includes(response.status)) {
+      response = await sendUsingForm(message);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Falha ao enviar mensagem (${response.status})`);
+    }
+
+    return parseResponse(response);
+  }
+
+  async function pollMessages() {
+    if (polling || document.hidden) return;
+    polling = true;
 
     try {
-      const fd = new FormData(form);
-      fd.set('message', original);
-      const response = await fetch('/company/messages/send', {
-        method: 'POST', body: fd, credentials: 'same-origin',
-        headers: { 'Accept': 'application/json' }
+      const response = await fetch(`/company/messages?_=${Date.now()}`, {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: {
+          "Accept": "application/json",
+          "X-Requested-With": "XMLHttpRequest"
+        }
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.ok) throw new Error(data.error || 'Falha ao enviar a mensagem.');
-      tempNode.remove();
-      addMessage(data.message);
-      if (status) status.textContent = 'Enviado';
-    } catch (err) {
-      tempNode.classList.add('chat-message-error');
-      small.textContent = 'Falha no envio';
-      input.value = original;
-      if (errorBox) {
-        errorBox.textContent = err?.message || 'Não foi possível enviar a mensagem.';
-        errorBox.hidden = false;
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const payload = await response.json();
+      const messages = Array.isArray(payload) ? payload : (payload.messages || []);
+
+      let receivedFromAnotherUser = false;
+      let anyAdded = false;
+
+      for (const item of messages) {
+        const id = String(item.id);
+        const alreadyKnown = knownIds.has(id);
+        const added = addMessage(item);
+
+        if (added) anyAdded = true;
+        if (
+          initialized &&
+          !alreadyKnown &&
+          Number(item.user_id) !== userId
+        ) {
+          receivedFromAnotherUser = true;
+        }
       }
+
+      if (receivedFromAnotherUser) {
+        await playNotification();
+
+        if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+          const latest = [...messages].reverse().find((m) => Number(m.user_id) !== userId);
+          if (latest) {
+            new Notification(latest.user_name || "Nova mensagem", {
+              body: String(latest.message || "").slice(0, 160)
+            });
+          }
+        }
+      }
+
+      initialized = true;
+      setStatus("Sincronização ativa", true);
+
+      if (anyAdded) scrollToBottom("smooth");
+    } catch (error) {
+      setStatus("Reconectando...", false);
+      console.debug("DBMILESX chat sync:", error);
     } finally {
-      sending = false;
-      window.dbmHideLoader?.();
+      polling = false;
+    }
+  }
+
+  // Impede qualquer handler global de submit de mostrar loader antes do chat.
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+
+    const message = input.value.trim();
+    if (!message) return;
+
+    await unlockAudio();
+
+    input.value = "";
+    input.focus();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const optimistic = addOptimisticMessage(message);
+
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+      const payload = await sendMessage(message);
+      const serverItem =
+        payload?.message && typeof payload.message === "object"
+          ? payload.message
+          : payload?.id
+            ? payload
+            : null;
+
+      if (serverItem?.id) {
+        removeOptimisticFromKnown(optimistic);
+        optimistic.remove();
+        addMessage(serverItem);
+      }
+
+      lastActivityAt = Date.now();
+      setStatus("Sincronização ativa", true);
+
+      // Busca confirmação imediatamente, sem esperar o próximo ciclo.
+      setTimeout(pollMessages, 40);
+    } catch (error) {
+      optimistic.classList.add("chat-message-error");
+      const small = optimistic.querySelector("small");
+      if (small) small.textContent = "Não enviada — toque e tente novamente";
+      input.value = message;
+      setStatus("Falha ao enviar", false);
+      console.error("DBMILESX chat send:", error);
+    } finally {
+      if (submitButton) submitButton.disabled = false;
     }
   }, true);
 
-  // Vercel Serverless: usa HTTP curto em vez de WebSocket persistente.
-  syncMessages();
-  const timer = setInterval(syncMessages, 700);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) syncMessages();
+  // Enter envia; Shift+Enter quebra linha.
+  input.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !event.isComposing
+    ) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
   });
-  window.addEventListener('beforeunload', () => clearInterval(timer));
+
+  // Auto ajuste simples do textarea.
+  input.addEventListener("input", () => {
+    input.style.height = "48px";
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      unlockAudio();
+      pollMessages();
+    }
+  });
+
+  window.addEventListener("focus", pollMessages);
+
+  scrollToBottom();
+  pollMessages();
+  setInterval(pollMessages, POLL_MS);
+
+  // Libera notificações do navegador apenas se o usuário já tiver concedido.
+  // Não solicita permissão automaticamente.
 })();

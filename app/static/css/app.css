@@ -2080,258 +2080,131 @@ html:not([data-theme="light"]) .eyebrow{
   }
 }
 
-/* ============================================================
-   V5.17 - CONTRASTE GLOBAL DE TEXTOS FIXOS POR TEMA
-   Regra do sistema inteiro:
-   - tema claro  -> textos fixos escuros
-   - tema escuro -> textos fixos claros
-   - cores semanticas/dinamicas (status, lucro, botoes, valores)
-     continuam com suas cores proprias.
-   ============================================================ */
-
-:root{
-  --fixed-heading:#f7fbff;
-  --fixed-text:#e4eef8;
-  --fixed-muted:#9fb4c8;
-  --fixed-soft:#bdd0e1;
-  --fixed-border:rgba(145,190,220,.16);
-}
-html[data-theme="light"]{
-  --fixed-heading:#08284a;
-  --fixed-text:#173953;
-  --fixed-muted:#526b84;
-  --fixed-soft:#657b91;
-  --fixed-border:#d7e3ee;
-}
-
-/* TITULOS E CABECALHOS FIXOS */
-html[data-theme="light"] :where(
-  .page-heading h1,.page-heading h2,
-  .page-header h1,.page-header h2,
-  .panel-heading h1,.panel-heading h2,.panel-heading h3,
-  .section-title h1,.section-title h2,.section-title h3,
-  .topbar-copy strong,
-  .empty-state h1,.empty-state h2,.empty-state h3,
-  .stat-card strong,
-  .quick-link strong,
-  .detail-section h1,.detail-section h2,.detail-section h3,
-  .settings-main-card h1,.settings-main-card h2,.settings-main-card h3,
-  .history-main-copy h1,.history-main-copy h2,.history-main-copy h3,
-  .subquote-history-title h1,.subquote-history-title h2,.subquote-history-title h3,
-  .finance-sale-title h1,.finance-sale-title h2,.finance-sale-title h3,
-  .payment-method-card h1,.payment-method-card h2,.payment-method-card h3
-){color:var(--fixed-heading)!important}
-
-html:not([data-theme="light"]) :where(
-  .page-heading h1,.page-heading h2,
-  .page-header h1,.page-header h2,
-  .panel-heading h1,.panel-heading h2,.panel-heading h3,
-  .section-title h1,.section-title h2,.section-title h3,
-  .topbar-copy strong,
-  .empty-state h1,.empty-state h2,.empty-state h3,
-  .stat-card strong,
-  .quick-link strong,
-  .detail-section h1,.detail-section h2,.detail-section h3,
-  .settings-main-card h1,.settings-main-card h2,.settings-main-card h3,
-  .history-main-copy h1,.history-main-copy h2,.history-main-copy h3,
-  .subquote-history-title h1,.subquote-history-title h2,.subquote-history-title h3,
-  .finance-sale-title h1,.finance-sale-title h2,.finance-sale-title h3,
-  .payment-method-card h1,.payment-method-card h2,.payment-method-card h3
-){color:var(--fixed-heading)!important}
-
-/* EYEBROWS / NOMES DE SECAO FIXOS - inclusive os que antes ficavam verdes/ciano */
-html[data-theme="light"] :where(
-  .eyebrow,.section-eyebrow,.section-kicker,.page-eyebrow,.panel-eyebrow,
-  .topbar-copy small,.history-scope-title>span,.subquote-kind-badge,
-  .finance-kpi small,.finance-sale-total small,.finance-sale-metrics small,
-  .data-table th,.history-meta-grid small,.quote-base-summary small,.option-value small
-){color:var(--fixed-text)!important}
-
-html:not([data-theme="light"]) :where(
-  .eyebrow,.section-eyebrow,.section-kicker,.page-eyebrow,.panel-eyebrow,
-  .topbar-copy small,.history-scope-title>span,.subquote-kind-badge,
-  .finance-kpi small,.finance-sale-total small,.finance-sale-metrics small,
-  .data-table th,.history-meta-grid small,.quote-base-summary small,.option-value small
-){color:var(--fixed-text)!important}
-
-/* DESCRICOES, LABELS E TEXTOS AUXILIARES FIXOS */
-html[data-theme="light"] :where(
-  .page-heading p,.page-header p,.panel-heading p,.section-title p,
-  .muted,.hint,.form-stack label,.form-section label,
-  .form-stack label small,.form-section label small,
-  .empty-state p,.stat-card span,.stat-card small,
-  .quick-link small,.user-chip small,.notice-card p,
-  .public-link-card p,.link-card-footer,.request-main p,.request-main small,
-  .detail-info-grid span,.segment-summary-list small,.long-note,
-  .history-result-count,.history-order-note,.quote-author-line,
-  .subquote-history-route,.history-scope-title>small,.history-option-note,
-  .fixed-quote-copy small,.quote-flow-steps small,
-  .finance-kpi span,.finance-sale-title p,.payment-method-card p,.payment-method-card small,
-  .settings-help,.setting-description,.setting-row small,.settings-action-card small,
-  .profile-help,.profile-card small
-){color:var(--fixed-muted)!important}
-
-html:not([data-theme="light"]) :where(
-  .page-heading p,.page-header p,.panel-heading p,.section-title p,
-  .muted,.hint,.form-stack label,.form-section label,
-  .form-stack label small,.form-section label small,
-  .empty-state p,.stat-card span,.stat-card small,
-  .quick-link small,.user-chip small,.notice-card p,
-  .public-link-card p,.link-card-footer,.request-main p,.request-main small,
-  .detail-info-grid span,.segment-summary-list small,.long-note,
-  .history-result-count,.history-order-note,.quote-author-line,
-  .subquote-history-route,.history-scope-title>small,.history-option-note,
-  .fixed-quote-copy small,.quote-flow-steps small,
-  .finance-kpi span,.finance-sale-title p,.payment-method-card p,.payment-method-card small,
-  .settings-help,.setting-description,.setting-row small,.settings-action-card small,
-  .profile-help,.profile-card small
-){color:var(--fixed-muted)!important}
-
-/* TABELAS: cabecalho e texto neutro seguem o tema */
-html[data-theme="light"] :where(.data-table,.person-directory-table,.table-wrap){color:var(--fixed-heading)}
-html:not([data-theme="light"]) :where(.data-table,.person-directory-table,.table-wrap){color:var(--fixed-heading)}
-html[data-theme="light"] :where(.data-table th,.person-directory-table th){color:var(--fixed-text)!important}
-html:not([data-theme="light"]) :where(.data-table th,.person-directory-table th){color:var(--fixed-text)!important}
-
-/* BLOCOS DE CALCULO / HISTORICO QUE TINHAM CORES CLARAS FIXAS */
-html[data-theme="light"] :where(
-  .calc-scope-card,.scope-copy-soft strong,.history-logo-seal>span,
-  .variant-tab,.scope-category-heading strong,.history-segment-schedule>span,
-  .airport-search-item,.chat-file-preview,.chat-system-pill,
-  .quote-base-title p strong,.fixed-lock-icon,.draft-status-pill
-){color:var(--fixed-heading)!important}
-
-html:not([data-theme="light"]) :where(
-  .calc-scope-card,.scope-copy-soft strong,.history-logo-seal>span,
-  .variant-tab,.scope-category-heading strong,.history-segment-schedule>span,
-  .airport-search-item,.chat-file-preview,.chat-system-pill,
-  .quote-base-title p strong,.fixed-lock-icon,.draft-status-pill
-){color:var(--fixed-text)!important}
-
-html[data-theme="light"] :where(
-  .scope-copy-soft small,.variant-tab small,.scope-category-heading small,
-  .airport-search-empty,.airport-search-loading
-){color:var(--fixed-muted)!important}
-html:not([data-theme="light"]) :where(
-  .scope-copy-soft small,.variant-tab small,.scope-category-heading small,
-  .airport-search-empty,.airport-search-loading
-){color:var(--fixed-muted)!important}
-
-/* FORMULARIOS: texto digitado e placeholders permanecem legiveis */
-html[data-theme="light"] :where(input,select,textarea){color:#102b4d}
-html[data-theme="light"] :where(input,textarea)::placeholder{color:#73879b;opacity:1}
-html:not([data-theme="light"]) :where(input,select,textarea){color:#edf7ff}
-html:not([data-theme="light"]) :where(input,textarea)::placeholder{color:#8299ae;opacity:1}
-
-/* ============================================================
-   NAO SOBRESCREVER CORES SEMANTICAS / DINAMICAS
-   Estes itens continuam com as cores especificas do sistema.
-   ============================================================ */
-:where(
-  .primary-button,.secondary-button,.ghost-button,.success-button,
-  .button-open,.button-edit,.button-fare,.button-duplicate,.button-accept,.button-flight,.button-delete,
-  .status-badge,.status-chip,.status-recebida,.status-em_analise,.status-cotada,.status-concluida,.status-cancelada,
-  .profit-margin-chip,.profit-sent-chip,.profit-sale-line,.profit-cost-line,
-  .scope-best-badge,.fare-chip,.scope-chip,.route-chip,.route-chip-flown,.route-chip-unflown,
-  .operation-chip,.skip-commission-chip,.new-badge,.public-link-status,
-  .dynamic-value,.history-dynamic-value,.user-editable-value,
-  .success-notice,.inline-error,.danger,.warning,.success,.error
-){
-  /* intencionalmente sem regra global de color */
-}
-
-/* Utilitarios para novas telas: aplique quando quiser marcar texto fixo explicitamente */
-.theme-fixed-title{color:var(--fixed-heading)!important}
-.theme-fixed-text{color:var(--fixed-text)!important}
-.theme-fixed-muted{color:var(--fixed-muted)!important}
-
 
 /* =========================================================
-   DBMILESX V5.17 — MOBILE + SONS / LAYOUT GLOBAL
+   DBMILESX — CHAT V5.21
+   Barra de envio compacta + responsividade mobile
    ========================================================= */
-.sound-setting-row{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:color-mix(in srgb,var(--panel-2) 94%,transparent)}
 
-/* Celular: a busca superior NÃO ocupa a tela. A busca continua disponível nas páginas próprias. */
-@media (max-width: 920px){
-  .dbm-top-search,
-  .topbar .dbm-top-search,
-  .topbar-search,
-  .global-top-search{
-    display:none!important;
-  }
-
-  :root{--mobile-nav-h:78px}
-  body{overflow-x:hidden!important;max-width:100vw!important}
-  .topbar{
-    left:0!important;right:0!important;width:100%!important;
-    min-height:68px!important;height:auto!important;
-    padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px!important;
-    display:grid!important;grid-template-columns:auto minmax(0,1fr) auto!important;
-    align-items:center!important;gap:10px!important;
-  }
-  .topbar-copy{min-width:0!important;overflow:hidden!important}
-  .topbar-copy small{display:none!important}
-  .topbar-copy strong{display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;font-size:1rem!important}
-  .topbar-actions{display:flex!important;align-items:center!important;gap:6px!important;min-width:0!important}
-  .top-icon-button,.icon-button{width:40px!important;height:40px!important;min-width:40px!important;border-radius:12px!important;padding:0!important}
-  .user-chip{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;min-width:40px!important}
-  .user-chip>span:not(.avatar){display:none!important}
-  .user-chip .avatar{width:40px!important;height:40px!important;min-width:40px!important;border-radius:12px!important}
-
-  .main-content{
-    margin-left:0!important;
-    width:100%!important;max-width:100%!important;
-    padding:calc(68px + env(safe-area-inset-top,0px) + 18px) 14px calc(var(--mobile-nav-h) + env(safe-area-inset-bottom,0px) + 30px)!important;
-    overflow-x:hidden!important;
-  }
-
-  /* Barra inferior sempre UMA linha com cinco itens. */
-  .mobile-nav{
-    position:fixed!important;z-index:2600!important;
-    left:10px!important;right:10px!important;bottom:calc(8px + env(safe-area-inset-bottom,0px))!important;
-    width:auto!important;max-width:none!important;min-height:70px!important;
-    display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;
-    grid-template-rows:1fr!important;gap:2px!important;
-    align-items:stretch!important;
-    padding:7px!important;border-radius:22px!important;
-    overflow:hidden!important;
-  }
-  .mobile-nav>a{
-    min-width:0!important;width:100%!important;height:56px!important;
-    padding:6px 2px!important;margin:0!important;
-    display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;
-    border-radius:15px!important;white-space:nowrap!important;overflow:hidden!important;
-  }
-  .mobile-nav>a .ui-icon{width:21px!important;height:21px!important;flex:0 0 21px!important}
-  .mobile-nav>a small{font-size:.66rem!important;line-height:1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;max-width:100%!important}
-
-  .dashboard-hero{padding:24px 20px!important;border-radius:24px!important}
-  .dashboard-hero h1{font-size:clamp(1.9rem,9vw,2.65rem)!important;line-height:1.02!important}
-  .dashboard-hero p{font-size:1rem!important;line-height:1.55!important}
-  .dashboard-hero .action-cluster{display:grid!important;grid-template-columns:1fr 1fr!important;width:100%!important;gap:10px!important}
-  .dashboard-hero .action-cluster>a,.dashboard-hero .action-cluster>button{width:100%!important;min-width:0!important;justify-content:center!important;padding:12px 10px!important}
-  .home-action-grid{grid-template-columns:1fr!important;gap:12px!important}
-  .home-action-card{min-height:92px!important;padding:14px!important;border-radius:20px!important}
-  .home-action-card>div{min-width:0!important}
-  .home-action-card strong{font-size:1rem!important}
-  .home-action-card small{font-size:.82rem!important;line-height:1.25!important}
-
-  /* Evita qualquer painel/tabela/formulário estourando a largura do iPhone/Android. */
-  .panel,.card-panel,.form-section,.hero-panel,.page-heading,.settings-tabs,.table-wrap,.data-table-wrap,
-  .history-group-card,.mini-option-card,.search-bar,.form-grid,.stats-grid,.home-action-grid{
-    max-width:100%!important;min-width:0!important;box-sizing:border-box!important;
-  }
-  input,select,textarea{max-width:100%!important;min-width:0!important}
-  .table-wrap,.data-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}
+.chat-compose{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 50px !important;
+  gap:10px !important;
+  align-items:end !important;
+  padding:10px 12px !important;
+  border-top:1px solid var(--border) !important;
 }
 
-@media (max-width: 520px){
-  .topbar{gap:7px!important;padding-left:9px!important;padding-right:9px!important}
-  .top-icon-button,.icon-button{width:37px!important;height:37px!important;min-width:37px!important}
-  .user-chip,.user-chip .avatar{width:37px!important;height:37px!important;min-width:37px!important}
-  .topbar-copy strong{font-size:.93rem!important}
-  .dashboard-hero .action-cluster{grid-template-columns:1fr!important}
-  .main-content{padding-left:10px!important;padding-right:10px!important}
-  .mobile-nav{left:7px!important;right:7px!important;bottom:calc(6px + env(safe-area-inset-bottom,0px))!important}
-  .mobile-nav>a small{font-size:.61rem!important}
+/* Se existir botão de anexo, mantém 3 colunas sem estourar a largura */
+.chat-compose:has(.chat-file-button){
+  grid-template-columns:42px minmax(0,1fr) 50px !important;
+}
+
+.chat-compose textarea,
+.chat-compose #chatInput{
+  width:100% !important;
+  min-width:0 !important;
+  min-height:48px !important;
+  height:48px;
+  max-height:120px !important;
+  resize:none !important;
+  overflow-y:auto;
+  border-radius:18px !important;
+  padding:12px 14px !important;
+  line-height:1.35 !important;
+  box-sizing:border-box !important;
+}
+
+.chat-compose button[type="submit"]{
+  width:50px !important;
+  min-width:50px !important;
+  max-width:50px !important;
+  height:50px !important;
+  min-height:50px !important;
+  padding:0 !important;
+  border-radius:50% !important;
+  display:grid !important;
+  place-items:center !important;
+  overflow:hidden !important;
+  font-size:0 !important;
+  line-height:1 !important;
+  align-self:end !important;
+}
+
+/* Ícone de enviar no lugar do botão comprido "Enviar" */
+.chat-compose button[type="submit"]::after{
+  content:"➤";
+  display:block;
+  font-size:21px;
+  line-height:1;
+  transform:translateX(1px);
+}
+
+.chat-compose button[type="submit"]:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+}
+
+.chat-status{
+  min-height:18px;
+}
+
+.chat-status.sync-ok,
+.chat-status.online{
+  color:#58dba8 !important;
+}
+
+/* Evita que a área do chat ultrapasse a tela */
+.chat-shell,
+.chat-messages,
+.chat-compose{
+  min-width:0;
+  max-width:100%;
+}
+
+@media (max-width:700px){
+  .chat-shell{
+    height:calc(100dvh - var(--topbar, 72px) - 16px) !important;
+    min-height:0 !important;
+    border-radius:16px !important;
+  }
+
+  .chat-messages{
+    padding:12px !important;
+    gap:8px !important;
+  }
+
+  .chat-bubble{
+    max-width:88% !important;
+  }
+
+  .chat-compose{
+    grid-template-columns:minmax(0,1fr) 48px !important;
+    gap:8px !important;
+    padding:8px !important;
+    padding-bottom:max(8px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .chat-compose:has(.chat-file-button){
+    grid-template-columns:40px minmax(0,1fr) 48px !important;
+  }
+
+  .chat-compose textarea,
+  .chat-compose #chatInput{
+    min-height:48px !important;
+    height:48px;
+    border-radius:22px !important;
+  }
+
+  .chat-compose button[type="submit"]{
+    width:48px !important;
+    min-width:48px !important;
+    max-width:48px !important;
+    height:48px !important;
+    min-height:48px !important;
+  }
+
+  .chat-compose button[type="submit"]::after{
+    font-size:20px;
+  }
 }
