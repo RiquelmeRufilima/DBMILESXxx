@@ -1933,3 +1933,314 @@ html[data-theme="dark"] .history-chip:not(.skip-chip):not(.skip-commission-chip)
   }
   .history-logo-image{width:42px!important;height:32px!important;max-width:42px!important;max-height:32px!important}
 }
+
+/* =========================================================
+   DBMILESX V5.16.1 — CONTRASTE GLOBAL DE TEXTOS FIXOS
+   Textos estruturais acompanham o tema.
+   Valores, chips de status e botoes mantem suas cores proprias.
+   ========================================================= */
+:root{
+  --fixed-text:#f3f8ff;
+  --fixed-muted:#a9bfd3;
+  --fixed-heading:#ffffff;
+  --fixed-border:rgba(132,168,202,.20);
+}
+html[data-theme="light"]{
+  --fixed-text:#123252;
+  --fixed-muted:#526f8d;
+  --fixed-heading:#082b52;
+  --fixed-border:#d8e5f1;
+}
+
+/* Rotulos fixos / textos de estrutura */
+.eyebrow,
+.topbar-copy small,
+.panel-heading .eyebrow,
+.page-heading .eyebrow,
+.section-title .eyebrow,
+.history-scope-title>span,
+.subquote-kind-badge:not(.status-badge),
+.data-table th,
+.person-main-preview small,
+.person-detail-grid small,
+.storage-status-grid small,
+.form-stack label,
+.form-section label{
+  color:var(--fixed-text)!important;
+}
+
+/* Titulos estruturais */
+.page-heading h1,
+.panel-heading h2,
+.panel-heading h3,
+.section-title h2,
+.section-title h3,
+.empty-state h3,
+.history-main-copy h2,
+.subquote-history-title h3,
+.data-table td strong,
+.person-main-preview strong,
+.person-detail-grid strong{
+  color:var(--fixed-heading)!important;
+}
+
+/* Descricoes e textos auxiliares fixos */
+.page-heading p,
+.panel-heading p,
+.section-title p,
+.empty-state p,
+.history-scope-title>small,
+.quote-author-line,
+.history-result-count,
+.history-order-note,
+.person-directory-search>.ui-icon,
+.data-table td small,
+.hint,
+.form-stack label small,
+.form-section label small{
+  color:var(--fixed-muted)!important;
+}
+
+/* Tabela Pessoas / Cadastros: melhora contraste sem mexer nos status/botoes */
+.person-directory-table td{
+  color:var(--fixed-heading);
+}
+.person-directory-table th{
+  color:var(--fixed-text)!important;
+}
+.person-directory-table tbody tr{
+  color:var(--fixed-heading);
+}
+
+/* Tema claro: paineis e cabecalhos nunca ficam esbranquiçados demais */
+html[data-theme="light"] .data-table th{
+  background:#f3f7fc!important;
+  border-color:var(--fixed-border)!important;
+}
+html[data-theme="light"] .data-table td{
+  border-color:var(--fixed-border)!important;
+}
+html[data-theme="light"] .panel-heading .eyebrow,
+html[data-theme="light"] .page-heading .eyebrow,
+html[data-theme="light"] .eyebrow{
+  color:#173f66!important;
+}
+
+/* Tema escuro: os mesmos textos ficam claros */
+html:not([data-theme="light"]) .panel-heading .eyebrow,
+html:not([data-theme="light"]) .page-heading .eyebrow,
+html:not([data-theme="light"]) .eyebrow{
+  color:#d8ebfa!important;
+}
+
+/* Mantem cores semanticas/dinamicas intactas */
+.badge,
+.status-badge,
+.status-chip,
+.profit-margin-chip,
+.profit-sent-chip,
+.scope-best-badge,
+.history-chip,
+.primary-button,
+.secondary-button,
+.ghost-button,
+.person-row-actions button,
+.person-row-actions a,
+.person-row-actions .secondary-button,
+.person-row-actions .ghost-button,
+.dynamic-value,
+.history-dynamic-value,
+.user-editable-value{
+  /* intencionalmente sem override de color */
+}
+
+/* Mobile da tabela de pessoas: cards rolaveis sem cortar texto */
+@media(max-width:760px){
+  .person-directory-search{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+  }
+  .person-directory-search button,
+  .person-directory-search .secondary-button,
+  .person-directory-search .primary-button{
+    width:100%!important;
+  }
+  .pending-person-panel,
+  .person-directory-panel,
+  .panel{
+    min-width:0;
+  }
+  .person-directory-table{
+    min-width:880px!important;
+  }
+  .table-wrap{
+    overflow-x:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+}
+
+/* ============================================================
+   V5.17 - CONTRASTE GLOBAL DE TEXTOS FIXOS POR TEMA
+   Regra do sistema inteiro:
+   - tema claro  -> textos fixos escuros
+   - tema escuro -> textos fixos claros
+   - cores semanticas/dinamicas (status, lucro, botoes, valores)
+     continuam com suas cores proprias.
+   ============================================================ */
+
+:root{
+  --fixed-heading:#f7fbff;
+  --fixed-text:#e4eef8;
+  --fixed-muted:#9fb4c8;
+  --fixed-soft:#bdd0e1;
+  --fixed-border:rgba(145,190,220,.16);
+}
+html[data-theme="light"]{
+  --fixed-heading:#08284a;
+  --fixed-text:#173953;
+  --fixed-muted:#526b84;
+  --fixed-soft:#657b91;
+  --fixed-border:#d7e3ee;
+}
+
+/* TITULOS E CABECALHOS FIXOS */
+html[data-theme="light"] :where(
+  .page-heading h1,.page-heading h2,
+  .page-header h1,.page-header h2,
+  .panel-heading h1,.panel-heading h2,.panel-heading h3,
+  .section-title h1,.section-title h2,.section-title h3,
+  .topbar-copy strong,
+  .empty-state h1,.empty-state h2,.empty-state h3,
+  .stat-card strong,
+  .quick-link strong,
+  .detail-section h1,.detail-section h2,.detail-section h3,
+  .settings-main-card h1,.settings-main-card h2,.settings-main-card h3,
+  .history-main-copy h1,.history-main-copy h2,.history-main-copy h3,
+  .subquote-history-title h1,.subquote-history-title h2,.subquote-history-title h3,
+  .finance-sale-title h1,.finance-sale-title h2,.finance-sale-title h3,
+  .payment-method-card h1,.payment-method-card h2,.payment-method-card h3
+){color:var(--fixed-heading)!important}
+
+html:not([data-theme="light"]) :where(
+  .page-heading h1,.page-heading h2,
+  .page-header h1,.page-header h2,
+  .panel-heading h1,.panel-heading h2,.panel-heading h3,
+  .section-title h1,.section-title h2,.section-title h3,
+  .topbar-copy strong,
+  .empty-state h1,.empty-state h2,.empty-state h3,
+  .stat-card strong,
+  .quick-link strong,
+  .detail-section h1,.detail-section h2,.detail-section h3,
+  .settings-main-card h1,.settings-main-card h2,.settings-main-card h3,
+  .history-main-copy h1,.history-main-copy h2,.history-main-copy h3,
+  .subquote-history-title h1,.subquote-history-title h2,.subquote-history-title h3,
+  .finance-sale-title h1,.finance-sale-title h2,.finance-sale-title h3,
+  .payment-method-card h1,.payment-method-card h2,.payment-method-card h3
+){color:var(--fixed-heading)!important}
+
+/* EYEBROWS / NOMES DE SECAO FIXOS - inclusive os que antes ficavam verdes/ciano */
+html[data-theme="light"] :where(
+  .eyebrow,.section-eyebrow,.section-kicker,.page-eyebrow,.panel-eyebrow,
+  .topbar-copy small,.history-scope-title>span,.subquote-kind-badge,
+  .finance-kpi small,.finance-sale-total small,.finance-sale-metrics small,
+  .data-table th,.history-meta-grid small,.quote-base-summary small,.option-value small
+){color:var(--fixed-text)!important}
+
+html:not([data-theme="light"]) :where(
+  .eyebrow,.section-eyebrow,.section-kicker,.page-eyebrow,.panel-eyebrow,
+  .topbar-copy small,.history-scope-title>span,.subquote-kind-badge,
+  .finance-kpi small,.finance-sale-total small,.finance-sale-metrics small,
+  .data-table th,.history-meta-grid small,.quote-base-summary small,.option-value small
+){color:var(--fixed-text)!important}
+
+/* DESCRICOES, LABELS E TEXTOS AUXILIARES FIXOS */
+html[data-theme="light"] :where(
+  .page-heading p,.page-header p,.panel-heading p,.section-title p,
+  .muted,.hint,.form-stack label,.form-section label,
+  .form-stack label small,.form-section label small,
+  .empty-state p,.stat-card span,.stat-card small,
+  .quick-link small,.user-chip small,.notice-card p,
+  .public-link-card p,.link-card-footer,.request-main p,.request-main small,
+  .detail-info-grid span,.segment-summary-list small,.long-note,
+  .history-result-count,.history-order-note,.quote-author-line,
+  .subquote-history-route,.history-scope-title>small,.history-option-note,
+  .fixed-quote-copy small,.quote-flow-steps small,
+  .finance-kpi span,.finance-sale-title p,.payment-method-card p,.payment-method-card small,
+  .settings-help,.setting-description,.setting-row small,.settings-action-card small,
+  .profile-help,.profile-card small
+){color:var(--fixed-muted)!important}
+
+html:not([data-theme="light"]) :where(
+  .page-heading p,.page-header p,.panel-heading p,.section-title p,
+  .muted,.hint,.form-stack label,.form-section label,
+  .form-stack label small,.form-section label small,
+  .empty-state p,.stat-card span,.stat-card small,
+  .quick-link small,.user-chip small,.notice-card p,
+  .public-link-card p,.link-card-footer,.request-main p,.request-main small,
+  .detail-info-grid span,.segment-summary-list small,.long-note,
+  .history-result-count,.history-order-note,.quote-author-line,
+  .subquote-history-route,.history-scope-title>small,.history-option-note,
+  .fixed-quote-copy small,.quote-flow-steps small,
+  .finance-kpi span,.finance-sale-title p,.payment-method-card p,.payment-method-card small,
+  .settings-help,.setting-description,.setting-row small,.settings-action-card small,
+  .profile-help,.profile-card small
+){color:var(--fixed-muted)!important}
+
+/* TABELAS: cabecalho e texto neutro seguem o tema */
+html[data-theme="light"] :where(.data-table,.person-directory-table,.table-wrap){color:var(--fixed-heading)}
+html:not([data-theme="light"]) :where(.data-table,.person-directory-table,.table-wrap){color:var(--fixed-heading)}
+html[data-theme="light"] :where(.data-table th,.person-directory-table th){color:var(--fixed-text)!important}
+html:not([data-theme="light"]) :where(.data-table th,.person-directory-table th){color:var(--fixed-text)!important}
+
+/* BLOCOS DE CALCULO / HISTORICO QUE TINHAM CORES CLARAS FIXAS */
+html[data-theme="light"] :where(
+  .calc-scope-card,.scope-copy-soft strong,.history-logo-seal>span,
+  .variant-tab,.scope-category-heading strong,.history-segment-schedule>span,
+  .airport-search-item,.chat-file-preview,.chat-system-pill,
+  .quote-base-title p strong,.fixed-lock-icon,.draft-status-pill
+){color:var(--fixed-heading)!important}
+
+html:not([data-theme="light"]) :where(
+  .calc-scope-card,.scope-copy-soft strong,.history-logo-seal>span,
+  .variant-tab,.scope-category-heading strong,.history-segment-schedule>span,
+  .airport-search-item,.chat-file-preview,.chat-system-pill,
+  .quote-base-title p strong,.fixed-lock-icon,.draft-status-pill
+){color:var(--fixed-text)!important}
+
+html[data-theme="light"] :where(
+  .scope-copy-soft small,.variant-tab small,.scope-category-heading small,
+  .airport-search-empty,.airport-search-loading
+){color:var(--fixed-muted)!important}
+html:not([data-theme="light"]) :where(
+  .scope-copy-soft small,.variant-tab small,.scope-category-heading small,
+  .airport-search-empty,.airport-search-loading
+){color:var(--fixed-muted)!important}
+
+/* FORMULARIOS: texto digitado e placeholders permanecem legiveis */
+html[data-theme="light"] :where(input,select,textarea){color:#102b4d}
+html[data-theme="light"] :where(input,textarea)::placeholder{color:#73879b;opacity:1}
+html:not([data-theme="light"]) :where(input,select,textarea){color:#edf7ff}
+html:not([data-theme="light"]) :where(input,textarea)::placeholder{color:#8299ae;opacity:1}
+
+/* ============================================================
+   NAO SOBRESCREVER CORES SEMANTICAS / DINAMICAS
+   Estes itens continuam com as cores especificas do sistema.
+   ============================================================ */
+:where(
+  .primary-button,.secondary-button,.ghost-button,.success-button,
+  .button-open,.button-edit,.button-fare,.button-duplicate,.button-accept,.button-flight,.button-delete,
+  .status-badge,.status-chip,.status-recebida,.status-em_analise,.status-cotada,.status-concluida,.status-cancelada,
+  .profit-margin-chip,.profit-sent-chip,.profit-sale-line,.profit-cost-line,
+  .scope-best-badge,.fare-chip,.scope-chip,.route-chip,.route-chip-flown,.route-chip-unflown,
+  .operation-chip,.skip-commission-chip,.new-badge,.public-link-status,
+  .dynamic-value,.history-dynamic-value,.user-editable-value,
+  .success-notice,.inline-error,.danger,.warning,.success,.error
+){
+  /* intencionalmente sem regra global de color */
+}
+
+/* Utilitarios para novas telas: aplique quando quiser marcar texto fixo explicitamente */
+.theme-fixed-title{color:var(--fixed-heading)!important}
+.theme-fixed-text{color:var(--fixed-text)!important}
+.theme-fixed-muted{color:var(--fixed-muted)!important}
