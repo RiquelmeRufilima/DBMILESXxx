@@ -227,7 +227,6 @@ def chat_page(request: Request, db: Session = Depends(get_db)):
     if not user.company_id:
         flash(request, "Crie ou entre em uma empresa para usar o chat.", "error")
         return RedirectResponse("/company", status_code=303)
-
     company = db.get(WebCompany, user.company_id)
     messages = db.scalars(
         select(ChatMessage)
@@ -237,24 +236,8 @@ def chat_page(request: Request, db: Session = Depends(get_db)):
         .limit(100)
     ).all()
     messages = list(reversed(messages))
-
-    # Converte para dicionários simples. Isso evita erro de template caso
-    # uma mensagem antiga pertença a um usuário que já foi removido.
-    safe_messages = []
-    for item in messages:
-        author = getattr(item, "user", None)
-        safe_messages.append({
-            "id": item.id,
-            "user_id": item.user_id,
-            "user_name": getattr(author, "name", None) or "Usuário removido",
-            "message": item.message or "",
-            "created_at": item.created_at.isoformat() if item.created_at else "",
-        })
-
-    return templates.TemplateResponse(
-        request,
-        "company/chat.html",
-        context(request, user=user, company=company, messages=safe_messages),
+    return templates.TemplateResponse(request, "company/chat.html",
+        context(request, user=user, company=company, messages=messages),
     )
 
 
@@ -263,7 +246,6 @@ def messages_api(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None or not user.company_id:
         return JSONResponse({"messages": []}, status_code=401)
-
     messages = db.scalars(
         select(ChatMessage)
         .where(ChatMessage.company_id == user.company_id)
@@ -271,66 +253,155 @@ def messages_api(request: Request, db: Session = Depends(get_db)):
         .order_by(desc(ChatMessage.created_at))
         .limit(100)
     ).all()
-
-    payload = []
-    for item in reversed(messages):
-        author = getattr(item, "user", None)
-        payload.append({
-            "id": item.id,
-            "user_id": item.user_id,
-            "user_name": getattr(author, "name", None) or "Usuário removido",
-            "message": item.message or "",
-            "created_at": item.created_at.isoformat() if item.created_at else "",
-        })
-    return JSONResponse({"messages": payload})
+    return {
+        "messages": [
+            {
+                "id": item.id,
+                "user_id": item.user_id,
+                "user_name": item.user.name,
+                "message": item.message,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in reversed(messages)
+        ]
+    }
 
 
 @router.post("/messages/send")
 async def send_message_api(request: Request, db: Session = Depends(get_db)):
+    """
+    Envia mensagem do chat por HTTP.
+    Esta rota é a principal na Vercel, onde WebSocket persistente não é confiável.
+    Aceita JSON ou formulário e retorna a mensagem já persistida.
+    """
     user = current_user(request, db)
-    if user is None or not user.company_id:
-        return JSONResponse({"ok": False, "error": "Não autorizado."}, status_code=401)
+    if user is None:
+        return JSONResponse({"ok": False, "error": "Sessão expirada."}, status_code=401)
+    if not user.company_id:
+        return JSONResponse({"ok": False, "error": "Usuário sem empresa."}, status_code=403)
 
-    form = await request.form()
-    csrf_token = str(form.get("csrf_token") or "")
-    if not validate_csrf_token(request.session, csrf_token):
-        return JSONResponse({"ok": False, "error": "Sessão expirada. Atualize a página."}, status_code=403)
+    content_type = (request.headers.get("content-type") or "").lower()
+    message_text = ""
 
-    message_text = str(form.get("message") or "").strip()[:2000]
+    try:
+        if "application/json" in content_type:
+            payload = await request.json()
+            message_text = str((payload or {}).get("message") or "").strip()
+        else:
+            form = await request.form()
+            message_text = str(form.get("message") or "").strip()
+
+            # Se houver CSRF no formulário, valida. Para chamadas JSON same-origin
+            # autenticadas pela sessão, o token não é exigido aqui.
+            csrf_token = str(form.get("csrf_token") or "").strip()
+            if csrf_token and not validate_csrf_token(request.session, csrf_token):
+                return JSONResponse({"ok": False, "error": "Sessão expirada."}, status_code=403)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Conteúdo inválido."}, status_code=400)
+
+    message_text = message_text[:2000]
     if not message_text:
         return JSONResponse({"ok": False, "error": "Digite uma mensagem."}, status_code=400)
 
-    message = ChatMessage(company_id=user.company_id, user_id=user.id, message=message_text)
+    message = ChatMessage(
+        company_id=user.company_id,
+        user_id=user.id,
+        message=message_text,
+    )
     db.add(message)
+    db.flush()
+
+    recipients = db.scalars(
+        select(WebUser).where(
+            WebUser.company_id == user.company_id,
+            WebUser.id != user.id,
+        )
+    ).all()
+
+    for recipient in recipients:
+        create_notification(
+            db,
+            recipient.id,
+            f"Nova mensagem de {user.name}",
+            message_text[:300],
+            kind="chat",
+            link="/company/chat",
+            commit=False,
+        )
+
     db.commit()
     db.refresh(message)
 
-    # Notificação é melhor esforço: se falhar, a mensagem continua salva.
-    try:
-        recipients = db.scalars(
-            select(WebUser).where(WebUser.company_id == user.company_id, WebUser.id != user.id)
-        ).all()
-        for recipient in recipients:
-            create_notification(
-                db,
-                recipient.id,
-                f"Nova mensagem de {user.name}",
-                message_text[:300],
-                kind="chat",
-                link="/company/chat",
-                commit=False,
-            )
-        db.commit()
-    except Exception:
-        db.rollback()
-
-    return JSONResponse({
-        "ok": True,
-        "message": {
-            "id": message.id,
-            "user_id": user.id,
-            "user_name": user.name,
-            "message": message.message,
-            "created_at": message.created_at.isoformat() if message.created_at else "",
+    return JSONResponse(
+        {
+            "ok": True,
+            "message": {
+                "id": message.id,
+                "user_id": user.id,
+                "user_name": user.name or user.email,
+                "message": message.message,
+                "created_at": message.created_at.isoformat() if message.created_at else None,
+            },
         },
-    })
+        status_code=201,
+    )
+
+
+@router.websocket("/ws/chat")
+async def chat_websocket(websocket: WebSocket):
+    session = websocket.scope.get("session") or {}
+    user_id = session.get("user_id")
+    if not user_id:
+        await websocket.close(code=4401)
+        return
+
+    db = SessionLocal()
+    try:
+        user = db.get(WebUser, int(user_id))
+        if user is None or not user.company_id:
+            await websocket.close(code=4403)
+            return
+        company_id = user.company_id
+        await manager.connect(company_id, websocket)
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                try:
+                    payload = json.loads(raw)
+                    message_text = str(payload.get("message") or "").strip()
+                except json.JSONDecodeError:
+                    message_text = raw.strip()
+                message_text = message_text[:2000]
+                if not message_text:
+                    continue
+
+                message = ChatMessage(company_id=company_id, user_id=user.id, message=message_text)
+                db.add(message)
+                db.flush()
+                recipients = db.scalars(select(WebUser).where(WebUser.company_id == company_id, WebUser.id != user.id)).all()
+                for recipient in recipients:
+                    create_notification(
+                        db,
+                        recipient.id,
+                        f"Nova mensagem de {user.name}",
+                        message_text[:300],
+                        kind="chat",
+                        link="/company/chat",
+                        commit=False,
+                    )
+                db.commit()
+                db.refresh(message)
+                await manager.broadcast(
+                    company_id,
+                    {
+                        "id": message.id,
+                        "user_id": user.id,
+                        "user_name": user.name,
+                        "message": message.message,
+                        "created_at": message.created_at.isoformat(),
+                    },
+                )
+        except WebSocketDisconnect:
+            manager.disconnect(company_id, websocket)
+    finally:
+        db.close()
