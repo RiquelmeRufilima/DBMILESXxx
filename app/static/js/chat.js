@@ -3,282 +3,198 @@
   const list = document.getElementById('chatMessages');
   const form = document.getElementById('chatForm');
   const input = document.getElementById('chatInput');
-  const attachmentInput = document.getElementById('chatAttachment');
-  const filePreview = document.getElementById('chatFilePreview');
   const status = document.getElementById('chatStatus');
-  if (!shell || !list || !form || !input || !status) return;
+  if (!shell || !list || !form || !input) return;
 
   const userId = Number(shell.dataset.userId || 0);
-  const csrfToken = shell.dataset.csrfToken || '';
-  let connected = Boolean(window.DBMILESXRealtime?.isConnected?.());
+  let socket = null;
+  let reconnectTimer = null;
+  let pollTimer = null;
+  let lastKnownId = 0;
   let sending = false;
-  let pendingFile = null;
-  list.scrollTop = list.scrollHeight;
 
-  const formatSize = (bytes) => bytes > 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  // O chat nunca deve ativar o loader global.
+  form.dataset.noLoader = '1';
 
-  function currentFile() {
-    return pendingFile || attachmentInput?.files?.[0] || null;
+  function playChatSound() {
+    try { window.DBMILESXSound?.play?.('chat'); } catch (_) {}
   }
 
-  function avatarNode(item) {
-    const avatar = item.avatar_url ? document.createElement('img') : document.createElement('span');
-    avatar.className = `chat-avatar${item.avatar_url ? ' avatar-image' : ''}`;
-    if (item.avatar_url) {
-      avatar.src = item.avatar_url;
-      avatar.alt = item.user_name || 'Usuário';
-    } else {
-      avatar.textContent = (item.user_name || '?').trim().charAt(0).toUpperCase() || '?';
-    }
-    avatar.dataset.userAvatarId = String(item.user_id);
-    avatar.dataset.userName = item.user_name || '';
-    return avatar;
+  function formatDate(value) {
+    const date = new Date(value || Date.now());
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+    });
   }
 
-  function attachmentNode(item) {
-    if (!item.attachment_url) return null;
-    const isImage = String(item.attachment_type || '').startsWith('image/');
-    const link = document.createElement('a');
-    link.className = `chat-attachment ${isImage ? 'chat-image-attachment' : 'chat-pdf-attachment'}`;
-    link.href = item.attachment_url;
-    link.target = '_blank';
-    link.rel = 'noopener';
-    if (isImage) {
-      const img = document.createElement('img');
-      img.src = item.attachment_url;
-      img.alt = item.attachment_name || 'Imagem do chat';
-      link.appendChild(img);
-    } else {
-      const icon = document.createElement('span');
-      icon.className = 'chat-file-icon';
-      icon.textContent = 'PDF';
-      link.appendChild(icon);
-    }
-    const label = document.createElement('span');
-    label.textContent = `${item.attachment_name || 'Abrir anexo'}${item.attachment_size ? ` • ${formatSize(item.attachment_size)}` : ''}`;
-    link.appendChild(label);
-    return link;
+  function makeClientId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
-  function addSystemMessage(item) {
+  function createMessageNode(item, { pending = false } = {}) {
     const article = document.createElement('article');
-    article.className = 'chat-message system-activity';
-    article.dataset.messageId = item.id;
-    article.dataset.messageKind = 'system';
-    const pill = document.createElement('div');
-    pill.className = 'chat-system-pill';
-    const icon = document.createElement('span');
-    icon.className = 'chat-system-icon';
-    icon.textContent = '↻';
-    const copy = document.createElement('span');
-    copy.textContent = item.message || 'Cotação atualizada.';
-    const small = document.createElement('small');
-    const date = new Date(item.created_at);
-    small.textContent = Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-    pill.append(icon, copy, small);
-    article.appendChild(pill);
-    return article;
-  }
-
-  function addMessage(item) {
-    if (!item?.id || list.querySelector(`[data-message-id="${item.id}"]`)) return;
-    const isSystem = Boolean(item.is_system_activity) || String(item.attachment_type || '').startsWith('system/');
-    if (isSystem) {
-      list.appendChild(addSystemMessage(item));
-      list.scrollTop = list.scrollHeight;
-      return;
-    }
-
-    const mine = Number(item.user_id) === userId;
-    const article = document.createElement('article');
-    article.className = `chat-message ${mine ? 'mine' : 'theirs'}`;
-    article.dataset.messageId = item.id;
-    article.dataset.messageKind = 'user';
-    article.appendChild(avatarNode(item));
+    article.className = `chat-message ${Number(item.user_id) === userId ? 'mine' : ''}`;
+    if (item.id) article.dataset.messageId = String(item.id);
+    if (item.client_id) article.dataset.clientId = String(item.client_id);
+    if (pending) article.dataset.pending = '1';
 
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble';
     const strong = document.createElement('strong');
-    strong.textContent = mine ? 'Você' : (item.user_name || 'Usuário');
-    strong.dataset.userNameId = String(item.user_id);
-    bubble.appendChild(strong);
-    if (item.message) {
-      const p = document.createElement('p');
-      p.textContent = item.message;
-      bubble.appendChild(p);
-    }
-    const attachment = attachmentNode(item);
-    if (attachment) bubble.appendChild(attachment);
+    strong.textContent = item.user_name || 'Você';
+    const p = document.createElement('p');
+    p.textContent = item.message || '';
     const small = document.createElement('small');
-    const date = new Date(item.created_at);
-    small.textContent = Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
-    bubble.appendChild(small);
+    small.textContent = pending ? 'Enviando…' : formatDate(item.created_at);
+
+    bubble.append(strong, p, small);
     article.appendChild(bubble);
-    list.appendChild(article);
-    list.scrollTop = list.scrollHeight;
+    return article;
   }
 
-  async function syncMessages() {
+  function reconcilePending(item) {
+    if (!item?.client_id) return false;
+    const pending = list.querySelector(`[data-client-id="${CSS.escape(String(item.client_id))}"]`);
+    if (!pending) return false;
+    pending.dataset.messageId = String(item.id || '');
+    delete pending.dataset.pending;
+    const small = pending.querySelector('small');
+    if (small) small.textContent = formatDate(item.created_at);
+    return true;
+  }
+
+  function addMessage(item, { playSound = true } = {}) {
+    if (!item) return;
+    const id = Number(item.id || 0);
+    if (id && list.querySelector(`[data-message-id="${id}"]`)) {
+      lastKnownId = Math.max(lastKnownId, id);
+      return;
+    }
+    if (reconcilePending(item)) {
+      if (id) lastKnownId = Math.max(lastKnownId, id);
+      return;
+    }
+
+    const article = createMessageNode(item);
+    list.appendChild(article);
+    if (id) lastKnownId = Math.max(lastKnownId, id);
+    list.scrollTop = list.scrollHeight;
+
+    if (playSound && Number(item.user_id || 0) !== userId) playChatSound();
+  }
+
+  // Descobre o último ID renderizado pelo servidor.
+  list.querySelectorAll('[data-message-id]').forEach((el) => {
+    lastKnownId = Math.max(lastKnownId, Number(el.dataset.messageId || 0));
+  });
+  list.scrollTop = list.scrollHeight;
+
+  async function pollMessages() {
     try {
-      const response = await fetch('/company/messages', { headers:{Accept:'application/json'}, cache:'no-store' });
+      const response = await fetch('/company/messages', {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      });
       if (!response.ok) return;
-      const payload = await response.json();
-      (payload.messages || []).forEach(addMessage);
+      const data = await response.json();
+      const messages = Array.isArray(data?.messages) ? data.messages : [];
+      messages.forEach((item) => {
+        const id = Number(item.id || 0);
+        if (id > lastKnownId) addMessage(item, { playSound: true });
+      });
     } catch (_) {}
   }
 
-  async function sendJson(message) {
-    const response = await fetch('/company/messages/send', {
-      method:'POST',
-      headers:{'Content-Type':'application/json',Accept:'application/json','X-CSRF-Token':csrfToken},
-      body:JSON.stringify({message,csrf_token:csrfToken})
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.ok) throw new Error(payload.message || 'Não foi possível enviar.');
-    if (payload.message) addMessage(payload.message);
+  function startPolling() {
+    clearInterval(pollTimer);
+    // Fallback entre instâncias/servidores: mantém outro computador sincronizado.
+    pollTimer = setInterval(pollMessages, 900);
   }
 
-  async function sendAttachment(message, file) {
-    const data = new FormData();
-    data.append('csrf_token', csrfToken);
-    data.append('message', message);
-    data.append('attachment', file);
-    const response = await fetch('/company/messages/upload', {
-      method:'POST',
-      headers:{Accept:'application/json','X-CSRF-Token':csrfToken},
-      body:data
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.ok) throw new Error(payload.message || 'Não foi possível enviar o arquivo.');
-    if (payload.message) addMessage(payload.message);
-  }
+  const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
 
-  function renderStatus(text='') {
-    status.textContent = text || (connected ? 'Conectado em tempo real' : 'Modo de segurança ativo — sincronização automática');
-    status.classList.toggle('online', connected);
-  }
-
-  function clearFile() {
-    pendingFile = null;
-    if (attachmentInput) attachmentInput.value = '';
-    renderFilePreview();
-  }
-
-  function renderFilePreview() {
-    const file = currentFile();
-    if (!filePreview) return;
-    if (!file) {
-      filePreview.hidden = true;
-      filePreview.replaceChildren();
-      return;
-    }
-    filePreview.hidden = false;
-    filePreview.replaceChildren();
-    if (String(file.type || '').startsWith('image/')) {
-      const img = document.createElement('img');
-      img.className = 'chat-paste-preview-image';
-      img.alt = file.name || 'Imagem colada';
-      const url = URL.createObjectURL(file);
-      img.src = url;
-      img.addEventListener('load', () => URL.revokeObjectURL(url), { once:true });
-      filePreview.appendChild(img);
-    }
-    const label = document.createElement('span');
-    label.textContent = `${file.name} • ${formatSize(file.size)}`;
-    filePreview.appendChild(label);
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.textContent = 'Remover';
-    remove.addEventListener('click', clearFile);
-    filePreview.appendChild(remove);
-  }
-
-  function usePastedImage(blob) {
-    const subtype = String(blob.type || 'image/png').split('/')[1] || 'png';
-    const extension = subtype === 'jpeg' ? 'jpg' : subtype;
-    pendingFile = new File([blob], `imagem-colada-${Date.now()}.${extension}`, { type: blob.type || 'image/png' });
-    if (attachmentInput && typeof DataTransfer !== 'undefined') {
-      try {
-        const transfer = new DataTransfer();
-        transfer.items.add(pendingFile);
-        attachmentInput.files = transfer.files;
-      } catch (_) {}
-    }
-    renderFilePreview();
-    renderStatus('Imagem colada. Escreva uma legenda opcional e clique em Enviar.');
-  }
-
-  function handlePaste(event) {
-    const items = Array.from(event.clipboardData?.items || []);
-    const imageItem = items.find(item => String(item.type || '').startsWith('image/'));
-    if (!imageItem) return;
-    const blob = imageItem.getAsFile();
-    if (!blob) return;
-    event.preventDefault();
-    usePastedImage(blob);
-  }
-
-  window.addEventListener('dbmilesx:realtime', event => {
-    const payload = event.detail || {};
-    if (payload.type === 'chat_message') addMessage(payload);
-  });
-  window.addEventListener('dbmilesx:realtime-status', event => {
-    connected = Boolean(event.detail?.connected);
-    renderStatus();
-    syncMessages();
-  });
-
-  attachmentInput?.addEventListener('change', () => {
-    pendingFile = attachmentInput.files?.[0] || null;
-    renderFilePreview();
-  });
-  input.addEventListener('paste', handlePaste);
-  shell.addEventListener('paste', event => {
-    if (event.target !== input) handlePaste(event);
-  });
-
-  form.addEventListener('submit', async event => {
-    event.preventDefault();
-    const message = input.value.trim();
-    const file = currentFile();
-    if ((!message && !file) || sending) return;
-    if (file && file.size > 12 * 1024 * 1024) {
-      renderStatus('O arquivo deve ter no máximo 12 MB.');
-      return;
-    }
-    sending = true;
-    const button = form.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
-    renderStatus('Enviando...');
+  function connect() {
+    clearTimeout(reconnectTimer);
     try {
-      if (file) await sendAttachment(message, file);
-      else {
-        const realtimeSent = window.DBMILESXRealtime?.send?.({type:'chat_message',message}, false) === true;
-        if (!realtimeSent) await sendJson(message);
-      }
-      input.value = '';
-      clearFile();
-      input.focus();
-      setTimeout(syncMessages, 200);
-      renderStatus();
-    } catch (error) {
-      renderStatus(error?.message || 'Falha ao enviar.');
+      socket = new WebSocket(`${protocol}://${location.host}/company/ws/chat`);
+    } catch (_) {
+      if (status) status.textContent = 'Sincronizando…';
+      reconnectTimer = setTimeout(connect, 1500);
+      return;
+    }
+
+    socket.addEventListener('open', () => {
+      if (status) status.textContent = 'Conectado em tempo real';
+      pollMessages();
+    });
+
+    socket.addEventListener('message', (event) => {
+      try {
+        const item = JSON.parse(event.data);
+        addMessage(item, { playSound: true });
+      } catch (_) {}
+    });
+
+    socket.addEventListener('close', () => {
+      if (status) status.textContent = 'Sincronizando…';
+      reconnectTimer = setTimeout(connect, 1200);
+    });
+
+    socket.addEventListener('error', () => {
+      try { socket?.close(); } catch (_) {}
+    });
+  }
+
+  function optimisticMessage(message, clientId) {
+    const item = {
+      id: 0,
+      client_id: clientId,
+      user_id: userId,
+      user_name: shell.dataset.userName || 'Você',
+      message,
+      created_at: new Date().toISOString(),
+    };
+    const node = createMessageNode(item, { pending: true });
+    list.appendChild(node);
+    list.scrollTop = list.scrollHeight;
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    window.dbmHideLoader?.();
+
+    const message = input.value.trim();
+    if (!message || sending) return;
+
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      if (status) status.textContent = 'Reconectando… tente novamente em um instante';
+      connect();
+      return;
+    }
+
+    sending = true;
+    const clientId = makeClientId();
+    optimisticMessage(message, clientId);
+    input.value = '';
+    input.focus();
+
+    try {
+      socket.send(JSON.stringify({ message, client_id: clientId }));
+    } catch (_) {
+      const pending = list.querySelector(`[data-client-id="${CSS.escape(clientId)}"]`);
+      pending?.remove();
+      input.value = message;
+      if (status) status.textContent = 'Falha ao enviar. Tente novamente.';
     } finally {
       sending = false;
-      if (button) button.disabled = false;
     }
-  });
+  }, true);
 
-  input.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      form.requestSubmit();
-    }
+  connect();
+  startPolling();
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) pollMessages();
   });
-
-  setInterval(syncMessages, 4000);
-  renderStatus();
-  syncMessages();
 })();

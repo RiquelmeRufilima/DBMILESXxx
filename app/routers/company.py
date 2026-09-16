@@ -1,232 +1,48 @@
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
-import time
-from typing import Any
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import desc, func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from ..config import CHAT_UPLOAD_DIR, COMPANY_UPLOAD_DIR, MAX_TEAM_USERS, SECRET_KEY
+from ..config import COMPANY_UPLOAD_DIR
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
 from ..models import ChatMessage, WebCompany, WebQuote, WebUser
-from ..security import hash_password, validate_csrf_token, validate_password
+from ..security import validate_csrf_token
 from ..services.notifications import create_notification
-from ..services.realtime import avatar_url, manager
-from ..services.team_accounts import can_create_team_user, remaining_team_slots, team_user_count
-from ..services.uploads import delete_relative_upload, save_chat_attachment, save_upload_image
-from ..services.user_defaults import ensure_user_defaults
+from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
 router = APIRouter(prefix="/company", tags=["company"])
 
-ROLE_OPTIONS = (
-    {
-        "value": "membro",
-        "label": "Consultor",
-        "description": "Cotações, histórico, clientes, voos e chat da equipe.",
-    },
-    {
-        "value": "gerente",
-        "label": "Gerente",
-        "description": "Tudo do consultor, além do financeiro e gestão operacional.",
-    },
-    {
-        "value": "admin",
-        "label": "Administrador",
-        "description": "Acesso completo, inclusive empresa, usuários, níveis e senhas.",
-    },
-)
-ROLE_VALUES = {item["value"] for item in ROLE_OPTIONS}
+
+class ChatConnectionManager:
+    def __init__(self) -> None:
+        self.connections: dict[int, set[WebSocket]] = defaultdict(set)
+
+    async def connect(self, company_id: int, websocket: WebSocket) -> None:
+        await websocket.accept()
+        self.connections[company_id].add(websocket)
+
+    def disconnect(self, company_id: int, websocket: WebSocket) -> None:
+        self.connections[company_id].discard(websocket)
+
+    async def broadcast(self, company_id: int, payload: dict) -> None:
+        dead: list[WebSocket] = []
+        for connection in list(self.connections.get(company_id, set())):
+            try:
+                await connection.send_json(payload)
+            except Exception:
+                dead.append(connection)
+        for connection in dead:
+            self.disconnect(company_id, connection)
 
 
-_INVITE_TTL_SECONDS = 5 * 60
-_INVITE_SIG_LENGTH = 10
-_BASE36 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-
-def _base36_encode(value: int) -> str:
-    value = max(0, int(value))
-    if value == 0:
-        return "0"
-    out = []
-    while value:
-        value, remainder = divmod(value, 36)
-        out.append(_BASE36[remainder])
-    return "".join(reversed(out))
-
-
-def _base36_decode(value: str) -> int:
-    return int(str(value or "").strip().upper(), 36)
-
-
-def _invite_signature(company_id: int, expires_at: int) -> str:
-    payload = f"company-invite:{int(company_id)}:{int(expires_at)}".encode("utf-8")
-    digest = hmac.new(str(SECRET_KEY).encode("utf-8"), payload, hashlib.sha256).hexdigest().upper()
-    return digest[:_INVITE_SIG_LENGTH]
-
-
-def _make_company_invite_code(company_id: int) -> tuple[str, int]:
-    expires_at = int(time.time()) + _INVITE_TTL_SECONDS
-    raw = f"{_base36_encode(company_id)}-{_base36_encode(expires_at)}-{_invite_signature(company_id, expires_at)}"
-    return raw, expires_at
-
-
-def _validate_company_invite_code(company_id: int, code: str) -> tuple[bool, str]:
-    cleaned = str(code or "").strip().upper().replace(" ", "")
-    parts = cleaned.split("-")
-    if len(parts) != 3:
-        return False, "Código inválido."
-    try:
-        code_company_id = _base36_decode(parts[0])
-        expires_at = _base36_decode(parts[1])
-    except (TypeError, ValueError):
-        return False, "Código inválido."
-    if code_company_id != int(company_id):
-        return False, "Código inválido para esta empresa."
-    if int(time.time()) > expires_at:
-        return False, "Este código expirou. Peça à empresa para gerar um novo código."
-    expected = _invite_signature(company_id, expires_at)
-    if not hmac.compare_digest(parts[2], expected):
-        return False, "Código inválido."
-    return True, ""
-
-
-def _normalized_company_name(value: str | None) -> str:
-    return " ".join(str(value or "").split()).strip()
-
-
-def _normalize_role(value: str | None) -> str:
-    role = str(value or "membro").strip().lower()
-    return role if role in ROLE_VALUES else "membro"
-
-
-def _is_company_admin(user: WebUser | None) -> bool:
-    return bool(user and user.company_id and user.role == "admin")
-
-
-def _member_for_company(db: Session, user: WebUser, member_id: int) -> WebUser | None:
-    return db.scalar(
-        select(WebUser)
-        .where(WebUser.id == member_id, WebUser.company_id == user.company_id)
-        .options(selectinload(WebUser.profile))
-    )
-
-
-def _legacy_activity_event(message: ChatMessage) -> str:
-    """Reconhece avisos automáticos salvos por versões antigas."""
-    attachment_type = str(getattr(message, "attachment_type", None) or "")
-    if attachment_type.startswith("system/"):
-        return attachment_type.split("/", 1)[1]
-    text = " ".join(str(getattr(message, "message", "") or "").split()).lower()
-    if text.startswith("cálculo de ") or text.startswith("calculo de "):
-        return "hidden"
-    if "cliente da cotação" in text or "cliente da cotacao" in text:
-        return "hidden"
-    if " movida de " in text or " atualizada por " in text:
-        return "hidden"
-    if text.startswith("responsável da cotação") or text.startswith("responsavel da cotacao"):
-        return "quote_assigned"
-    if text.startswith("cotação ") or text.startswith("cotacao "):
-        if " criada por " in text:
-            return "quote_created"
-        if "transferida para cotações aceitas" in text or "transferida para cotacoes aceitas" in text:
-            return "quote_transferred_accepted"
-        if "transferida para voos" in text:
-            return "quote_transferred_flight"
-        if "transferida para " in text:
-            return "quote_assigned"
-    return ""
-
-
-def _visible_chat_messages(messages: list[ChatMessage], limit: int = 100) -> list[ChatMessage]:
-    visible: list[ChatMessage] = []
-    for message in messages:
-        event = _legacy_activity_event(message)
-        if event == "hidden":
-            continue
-        if event and not str(getattr(message, "attachment_type", None) or "").startswith("system/"):
-            # Marca apenas em memória para a interface antiga ganhar o mesmo
-            # visual centralizado dos avisos atuais.
-            message.attachment_type = f"system/{event}"
-        visible.append(message)
-    return visible[-limit:]
-
-
-def _chat_payload(message: ChatMessage, user: WebUser) -> dict[str, Any]:
-    attachment_type = getattr(message, "attachment_type", None) or ""
-    legacy_event = _legacy_activity_event(message)
-    if not attachment_type and legacy_event and legacy_event != "hidden":
-        attachment_type = f"system/{legacy_event}"
-    is_system = attachment_type.startswith("system/")
-    return {
-        "type": "chat_message",
-        "id": message.id,
-        "user_id": user.id,
-        "user_name": user.name,
-        "avatar_url": avatar_url(user),
-        "message": message.message,
-        "attachment_url": f"/{message.attachment_path}" if getattr(message, "attachment_path", None) else "",
-        "attachment_name": getattr(message, "attachment_name", None) or "",
-        "attachment_type": attachment_type,
-        "attachment_size": int(getattr(message, "attachment_size", 0) or 0),
-        "created_at": message.created_at.isoformat(),
-        "is_system_activity": is_system,
-        "activity_event": attachment_type.split("/", 1)[1] if is_system and "/" in attachment_type else "",
-    }
-
-
-def _save_chat_message(
-    db: Session,
-    user: WebUser,
-    message_text: str,
-    attachment: dict[str, object] | None = None,
-) -> tuple[ChatMessage, dict[str, Any]]:
-    text = str(message_text or "").strip()[:2000]
-    if not text and not attachment:
-        raise ValueError("Escreva uma mensagem ou selecione uma foto/PDF.")
-    if not user.company_id:
-        raise ValueError("O usuário não pertence a uma empresa.")
-
-    message = ChatMessage(
-        company_id=user.company_id,
-        user_id=user.id,
-        message=text,
-        attachment_path=str((attachment or {}).get("path") or "") or None,
-        attachment_name=str((attachment or {}).get("name") or "") or None,
-        attachment_type=str((attachment or {}).get("type") or "") or None,
-        attachment_size=int((attachment or {}).get("size") or 0) or None,
-    )
-    db.add(message)
-    db.flush()
-
-    recipients = db.scalars(
-        select(WebUser).where(
-            WebUser.company_id == user.company_id,
-            WebUser.id != user.id,
-            WebUser.active.is_(True),
-        )
-    ).all()
-    for recipient in recipients:
-        create_notification(
-            db,
-            recipient.id,
-            f"Nova mensagem de {user.name}",
-            (text or f"Arquivo enviado: {message.attachment_name or 'anexo'}")[:300],
-            kind="chat",
-            link="/company/chat",
-            commit=False,
-        )
-
-    db.commit()
-    db.refresh(message)
-    return message, _chat_payload(message, user)
+manager = ChatConnectionManager()
 
 
 @router.get("")
@@ -236,25 +52,10 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=303)
 
     if not user.company_id:
-        return templates.TemplateResponse(request, "company/index.html", context(request, user=user))
+        return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
 
     company = db.get(WebCompany, user.company_id)
-    if company is None:
-        # Repara referência antiga/quebrada sem derrubar a tela Empresa.
-        user.company_id = None
-        user.is_owner = False
-        if user.role == "admin":
-            user.role = "membro"
-        db.commit()
-        flash(request, "A empresa vinculada a este acesso não existe mais. Crie uma nova empresa.", "warning")
-        return RedirectResponse("/company", status_code=303)
-
-    members = db.scalars(
-        select(WebUser)
-        .where(WebUser.company_id == user.company_id)
-        .options(selectinload(WebUser.profile))
-        .order_by(WebUser.is_owner.desc(), WebUser.active.desc(), WebUser.name)
-    ).all()
+    members = db.scalars(select(WebUser).where(WebUser.company_id == user.company_id).order_by(WebUser.name)).all()
     total_quotes = db.scalar(select(func.count(WebQuote.id)).where(WebQuote.company_id == user.company_id)) or 0
     total_value = db.scalar(
         select(func.coalesce(func.sum(WebQuote.total), 0)).where(WebQuote.company_id == user.company_id)
@@ -262,17 +63,13 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
     last_messages = db.scalars(
         select(ChatMessage)
         .where(ChatMessage.company_id == user.company_id)
-        .options(selectinload(ChatMessage.user).selectinload(WebUser.profile))
+        .options(selectinload(ChatMessage.user))
         .order_by(desc(ChatMessage.created_at))
         .limit(6)
     ).all()
     last_messages = list(reversed(last_messages))
-    additional_count = team_user_count(db, user.company_id)
-    active_count = sum(1 for item in members if item.active)
 
-    return templates.TemplateResponse(
-        request,
-        "company/dashboard.html",
+    return templates.TemplateResponse(request, "company/dashboard.html",
         context(
             request,
             user=user,
@@ -281,106 +78,8 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
             total_quotes=total_quotes,
             total_value=total_value,
             last_messages=last_messages,
-            team_count=additional_count,
-            active_count=active_count,
-            max_team_users=MAX_TEAM_USERS,
-            remaining_slots=remaining_team_slots(db, user.company_id),
-            role_options=ROLE_OPTIONS,
-            can_manage_members=_is_company_admin(user),
         ),
     )
-
-
-@router.get("/create")
-def create_company_page(request: Request, db: Session = Depends(get_db)):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if user.company_id:
-        return RedirectResponse("/company", status_code=303)
-    return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
-
-
-@router.get("/join")
-def join_company_page(request: Request, db: Session = Depends(get_db)):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if user.company_id:
-        return RedirectResponse("/company", status_code=303)
-    return templates.TemplateResponse(request, "company/join.html", context(request, user=user))
-
-
-@router.post("/join")
-def join_company(
-    request: Request,
-    company_name: str = Form(...),
-    code: str = Form(...),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if user.company_id:
-        return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company/join", status_code=303)
-
-    company_name = _normalized_company_name(company_name)
-    if len(company_name) < 2:
-        flash(request, "Informe o nome da empresa.", "error")
-        return RedirectResponse("/company/join", status_code=303)
-
-    company = db.scalar(
-        select(WebCompany).where(func.lower(func.trim(WebCompany.name)) == company_name.lower())
-    )
-    if company is None:
-        flash(request, "Empresa não encontrada. Confira o nome informado.", "error")
-        return RedirectResponse("/company/join", status_code=303)
-
-    valid, message = _validate_company_invite_code(company.id, code)
-    if not valid:
-        flash(request, message, "error")
-        return RedirectResponse("/company/join", status_code=303)
-
-    if not can_create_team_user(db, company.id):
-        flash(request, f"A empresa atingiu o limite de {MAX_TEAM_USERS} usuários adicionais.", "error")
-        return RedirectResponse("/company/join", status_code=303)
-
-    user.company_id = company.id
-    user.role = "membro"
-    user.is_owner = False
-    user.active = True
-    user.auth_version = int(user.auth_version or 1) + 1
-    db.commit()
-    request.session["auth_version"] = int(user.auth_version or 1)
-    ensure_user_defaults(db, user)
-    flash(request, f"Você entrou na empresa '{company.name}'.", "success")
-    return RedirectResponse("/company", status_code=303)
-
-
-@router.get("/invite-code")
-def company_invite_code(request: Request, db: Session = Depends(get_db)):
-    user = current_user(request, db)
-    if user is None:
-        return JSONResponse({"ok": False, "error": "Faça login novamente."}, status_code=401)
-    if not _is_company_admin(user):
-        return JSONResponse({"ok": False, "error": "Somente o administrador pode gerar códigos."}, status_code=403)
-    company = db.get(WebCompany, user.company_id)
-    if company is None:
-        return JSONResponse({"ok": False, "error": "Empresa não encontrada."}, status_code=404)
-    if not can_create_team_user(db, company.id):
-        return JSONResponse({"ok": False, "error": "Não há vagas disponíveis para novos membros."}, status_code=409)
-    code, expires_at = _make_company_invite_code(company.id)
-    return JSONResponse({
-        "ok": True,
-        "company_name": company.name,
-        "code": code,
-        "expires_at": expires_at,
-        "expires_in": _INVITE_TTL_SECONDS,
-    })
 
 
 @router.post("/create")
@@ -400,29 +99,18 @@ def create_company(
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/company", status_code=303)
 
-    name = _normalized_company_name(name)
+    name = name.strip()
     if len(name) < 2:
         flash(request, "Informe o nome da empresa.", "error")
-        return RedirectResponse("/company/create", status_code=303)
-
-    existing_company = db.scalar(
-        select(WebCompany.id).where(func.lower(func.trim(WebCompany.name)) == name.lower())
-    )
-    if existing_company:
-        flash(request, "Nome de empresa já existente. Escolha outro nome.", "error")
-        return RedirectResponse("/company/create", status_code=303)
+        return RedirectResponse("/company", status_code=303)
 
     company = WebCompany(name=name, cnpj=cnpj.strip() or None)
     db.add(company)
     db.flush()
     user.company_id = company.id
     user.role = "admin"
-    user.is_owner = True
-    user.active = True
-    user.auth_version = int(user.auth_version or 1) + 1
     db.commit()
-    request.session["auth_version"] = int(user.auth_version or 1)
-    flash(request, f"Empresa '{name}' criada. Agora você pode adicionar até {MAX_TEAM_USERS} usuários.", "success")
+    flash(request, f"Empresa '{name}' criada.", "success")
     return RedirectResponse("/company", status_code=303)
 
 
@@ -431,7 +119,7 @@ async def update_company_branding(request: Request, db: Session = Depends(get_db
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
+    if not user.company_id or user.role != "admin":
         flash(request, "Somente o administrador da empresa pode alterar a identidade visual.", "error")
         return RedirectResponse("/company", status_code=303)
 
@@ -470,7 +158,7 @@ async def update_company_branding(request: Request, db: Session = Depends(get_db
     db.commit()
     if old_path:
         delete_relative_upload(old_path)
-    flash(request, "Dados e logo da empresa salvos.", "success")
+    flash(request, "Dados e logo da empresa salvos. A logo será usada nos PDFs por padrão.", "success")
     return RedirectResponse("/company", status_code=303)
 
 
@@ -479,7 +167,7 @@ async def remove_company_logo(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
+    if not user.company_id or user.role != "admin":
         flash(request, "Somente o administrador da empresa pode remover a logo.", "error")
         return RedirectResponse("/company", status_code=303)
 
@@ -498,239 +186,6 @@ async def remove_company_logo(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse("/company", status_code=303)
 
 
-@router.post("/members/create")
-def create_member(
-    request: Request,
-    name: str = Form(...),
-    email: str = Form(...),
-    password: str = Form(...),
-    role: str = Form("membro"),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
-        flash(request, "Somente o administrador pode adicionar membros.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if not can_create_team_user(db, user.company_id):
-        flash(request, f"O limite de {MAX_TEAM_USERS} usuários adicionais foi atingido.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    name = name.strip()[:180]
-    email = email.strip().lower()[:180]
-    role = _normalize_role(role)
-    if len(name) < 2:
-        flash(request, "Informe o nome do usuário.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if "@" not in email or "." not in email:
-        flash(request, "Informe um e-mail válido.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    valid, message = validate_password(password)
-    if not valid:
-        flash(request, message, "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    existing = db.scalar(select(WebUser).where(WebUser.email == email))
-    if existing and existing.company_id == user.company_id:
-        flash(request, "Esse e-mail já pertence a um membro desta empresa.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if existing and existing.company_id and existing.company_id != user.company_id:
-        flash(request, "Esse e-mail já pertence a outra empresa.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    try:
-        if existing:
-            member = existing
-            member.company_id = user.company_id
-            member.name = name
-            member.password_hash = hash_password(password)
-            member.role = role
-            member.active = True
-            member.is_owner = False
-            member.auth_version = int(member.auth_version or 1) + 1
-        else:
-            member = WebUser(
-                company_id=user.company_id,
-                email=email,
-                password_hash=hash_password(password),
-                name=name,
-                role=role,
-                active=True,
-                is_owner=False,
-                auth_version=1,
-            )
-            db.add(member)
-        db.commit()
-        db.refresh(member)
-        ensure_user_defaults(db, member)
-    except IntegrityError:
-        db.rollback()
-        flash(request, "Não foi possível criar o acesso porque o e-mail já está em uso.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    flash(
-        request,
-        f"Acesso de {member.name} criado como {next(item['label'] for item in ROLE_OPTIONS if item['value'] == role)}. Restam {remaining_team_slots(db, user.company_id)} vaga(s).",
-        "success",
-    )
-    return RedirectResponse("/company#equipe", status_code=303)
-
-
-@router.post("/members/{member_id}/update")
-async def update_member(
-    member_id: int,
-    request: Request,
-    role: str = Form("membro"),
-    active: str | None = Form(None),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
-        flash(request, "Somente o administrador pode alterar membros.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    member = _member_for_company(db, user, member_id)
-    if member is None:
-        flash(request, "Membro não encontrado.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if member.is_owner:
-        flash(request, "O acesso principal não pode ser alterado por esta tela.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if member.id == user.id:
-        flash(request, "Você não pode alterar o próprio nível por esta tela.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    member.role = _normalize_role(role)
-    member.active = active == "1"
-    member.auth_version = int(member.auth_version or 1) + 1
-    db.commit()
-    await manager.disconnect_user(member.id)
-    flash(request, f"Permissões de {member.name} atualizadas.", "success")
-    return RedirectResponse("/company#equipe", status_code=303)
-
-
-@router.post("/members/{member_id}/reset-password")
-async def reset_member_password(
-    member_id: int,
-    request: Request,
-    password: str = Form(...),
-    password_confirm: str = Form(...),
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
-        flash(request, "Somente o administrador pode redefinir senhas.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    member = _member_for_company(db, user, member_id)
-    if member is None or member.is_owner:
-        flash(request, "Membro não encontrado ou protegido.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if password != password_confirm:
-        flash(request, "As novas senhas não coincidem.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    valid, message = validate_password(password)
-    if not valid:
-        flash(request, message, "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    member.password_hash = hash_password(password)
-    member.auth_version = int(member.auth_version or 1) + 1
-    member.active = True
-    db.commit()
-    await manager.disconnect_user(member.id)
-    flash(request, f"Senha de {member.name} redefinida. As sessões antigas foram encerradas.", "success")
-    return RedirectResponse("/company#equipe", status_code=303)
-
-
-@router.post("/members/{member_id}/remove")
-async def remove_member(
-    member_id: int,
-    request: Request,
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
-        flash(request, "Somente o administrador pode remover membros.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    member = _member_for_company(db, user, member_id)
-    if member is None:
-        flash(request, "Membro não encontrado.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if member.is_owner or member.id == user.id:
-        flash(request, "O acesso principal não pode ser removido.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-
-    member.company_id = None
-    # Remover da empresa NÃO desativa a conta DBMILESX.
-    # O usuário continua podendo entrar normalmente como conta pessoal
-    # e pode criar/entrar em outra empresa depois.
-    member.active = True
-    member.is_owner = False
-    member.role = "membro"
-    member.auth_version = int(member.auth_version or 1) + 1
-    db.commit()
-    await manager.disconnect_user(member.id)
-    flash(request, f"{member.name} foi removido da equipe. As cotações antigas continuam identificadas com o nome dele.", "success")
-    return RedirectResponse("/company#equipe", status_code=303)
-
-
-# Compatibilidade com o formulário antigo de vincular uma conta já existente.
-@router.post("/leave")
-def leave_company(
-    request: Request,
-    csrf_token: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    user = current_user(request, db)
-    if user is None:
-        return RedirectResponse("/login", status_code=303)
-    if not validate_csrf_token(request.session, csrf_token):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company", status_code=303)
-    if not user.company_id:
-        return RedirectResponse("/company", status_code=303)
-    if user.is_owner:
-        flash(request, "O acesso principal não pode sair da empresa. Transfira a administração antes de sair.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    company = db.get(WebCompany, user.company_id)
-    company_name = company.name if company else "empresa"
-    user.company_id = None
-    user.is_owner = False
-    user.role = "membro"
-    # Sair da empresa não bloqueia nem desativa a conta pessoal.
-    user.active = True
-    db.commit()
-    ensure_user_defaults(db, user)
-    flash(request, f"Você saiu de '{company_name}'. Sua conta DBMILESX continua ativa.", "success")
-    return RedirectResponse("/company", status_code=303)
-
-
 @router.post("/members/add")
 def add_member(
     request: Request,
@@ -742,33 +197,26 @@ def add_member(
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if not _is_company_admin(user):
+    if not user.company_id or user.role not in {"admin", "gerente"}:
         flash(request, "Você não tem permissão para gerenciar membros.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
+        return RedirectResponse("/company", status_code=303)
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
-    if not can_create_team_user(db, user.company_id):
-        flash(request, f"O limite de {MAX_TEAM_USERS} usuários adicionais foi atingido.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
+        return RedirectResponse("/company", status_code=303)
 
     member = db.scalar(select(WebUser).where(WebUser.email == email.strip().lower()))
     if member is None:
-        flash(request, "Esse e-mail ainda não possui conta. Use 'Adicionar membro' para criar o acesso.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
+        flash(request, "Esse e-mail ainda não possui conta. Peça para a pessoa se cadastrar primeiro.", "error")
+        return RedirectResponse("/company", status_code=303)
     if member.company_id and member.company_id != user.company_id:
         flash(request, "Esse usuário já pertence a outra empresa.", "error")
-        return RedirectResponse("/company#equipe", status_code=303)
+        return RedirectResponse("/company", status_code=303)
 
     member.company_id = user.company_id
-    member.is_owner = False
-    member.role = _normalize_role(role)
-    member.active = True
-    member.auth_version = int(member.auth_version or 1) + 1
+    member.role = role if role in {"membro", "gerente", "admin"} else "membro"
     db.commit()
-    ensure_user_defaults(db, member)
     flash(request, f"{member.name} foi adicionado à equipe.", "success")
-    return RedirectResponse("/company#equipe", status_code=303)
+    return RedirectResponse("/company", status_code=303)
 
 
 @router.get("/chat")
@@ -780,21 +228,16 @@ def chat_page(request: Request, db: Session = Depends(get_db)):
         flash(request, "Crie ou entre em uma empresa para usar o chat.", "error")
         return RedirectResponse("/company", status_code=303)
     company = db.get(WebCompany, user.company_id)
-    if company is None:
-        flash(request, "Empresa não encontrada.", "error")
-        return RedirectResponse("/company", status_code=303)
-    messages = list(reversed(db.scalars(
+    messages = db.scalars(
         select(ChatMessage)
         .where(ChatMessage.company_id == user.company_id)
-        .options(selectinload(ChatMessage.user).selectinload(WebUser.profile))
+        .options(selectinload(ChatMessage.user))
         .order_by(desc(ChatMessage.created_at))
-        .limit(300)
-    ).all()))
-    messages = _visible_chat_messages(messages, 100)
-    return templates.TemplateResponse(
-        request,
-        "company/chat.html",
-        context(request, user=user, company=company, messages=messages, avatar_url=avatar_url),
+        .limit(100)
+    ).all()
+    messages = list(reversed(messages))
+    return templates.TemplateResponse(request, "company/chat.html",
+        context(request, user=user, company=company, messages=messages),
     )
 
 
@@ -803,72 +246,29 @@ def messages_api(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None or not user.company_id:
         return JSONResponse({"messages": []}, status_code=401)
-    messages = list(reversed(db.scalars(
+    messages = db.scalars(
         select(ChatMessage)
         .where(ChatMessage.company_id == user.company_id)
-        .options(selectinload(ChatMessage.user).selectinload(WebUser.profile))
+        .options(selectinload(ChatMessage.user))
         .order_by(desc(ChatMessage.created_at))
-        .limit(300)
-    ).all()))
-    messages = _visible_chat_messages(messages, 100)
-    return {"messages": [_chat_payload(item, item.user) for item in messages]}
-
-
-@router.post("/messages/send")
-async def send_message_http(request: Request, db: Session = Depends(get_db)):
-    """Fallback seguro do chat quando o WebSocket estiver reconectando.
-
-    Isso mantém o chat funcional em rede local e em hospedagens onde a conexão
-    em tempo real oscilar por alguns segundos.
-    """
-    user = current_user(request, db)
-    if user is None or not user.company_id:
-        return JSONResponse({"ok": False, "message": "Login ou empresa necessários."}, status_code=401)
-
-    try:
-        data = await request.json()
-    except Exception:
-        form = await request.form()
-        data = dict(form)
-
-    received_csrf = request.headers.get("x-csrf-token") or str(data.get("csrf_token") or "")
-    if not validate_csrf_token(request.session, received_csrf):
-        return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
-
-    try:
-        _message, payload = _save_chat_message(db, user, str(data.get("message") or ""))
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
-
-    await manager.broadcast(user.company_id, payload)
-    return {"ok": True, "message": payload}
-
-
-@router.post("/messages/upload")
-async def upload_chat_message(request: Request, db: Session = Depends(get_db)):
-    user = current_user(request, db)
-    if user is None or not user.company_id:
-        return JSONResponse({"ok": False, "message": "Login ou empresa necessários."}, status_code=401)
-    form = await request.form()
-    received_csrf = request.headers.get("x-csrf-token") or str(form.get("csrf_token") or "")
-    if not validate_csrf_token(request.session, received_csrf):
-        return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
-    upload = form.get("attachment")
-    try:
-        attachment = await save_chat_attachment(
-            upload if isinstance(upload, UploadFile) or getattr(upload, "filename", None) else None,
-            CHAT_UPLOAD_DIR / str(user.company_id),
-        )
-        _message, payload = _save_chat_message(db, user, str(form.get("message") or ""), attachment)
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
-    await manager.broadcast(user.company_id, payload)
-    return {"ok": True, "message": payload}
+        .limit(100)
+    ).all()
+    return {
+        "messages": [
+            {
+                "id": item.id,
+                "user_id": item.user_id,
+                "user_name": item.user.name,
+                "message": item.message,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in reversed(messages)
+        ]
+    }
 
 
 @router.websocket("/ws/chat")
-@router.websocket("/ws/realtime")
-async def realtime_websocket(websocket: WebSocket):
+async def chat_websocket(websocket: WebSocket):
     session = websocket.scope.get("session") or {}
     user_id = session.get("user_id")
     if not user_id:
@@ -876,59 +276,55 @@ async def realtime_websocket(websocket: WebSocket):
         return
 
     db = SessionLocal()
-    company_id: int | None = None
-    connected = False
     try:
-        user = db.scalar(
-            select(WebUser)
-            .where(WebUser.id == int(user_id))
-            .options(selectinload(WebUser.profile))
-        )
-        session_version = session.get("auth_version")
-        if (
-            user is None
-            or not user.active
-            or not user.company_id
-            or (session_version is not None and int(session_version) != int(user.auth_version or 1))
-        ):
+        user = db.get(WebUser, int(user_id))
+        if user is None or not user.company_id:
             await websocket.close(code=4403)
             return
         company_id = user.company_id
-        await manager.connect(company_id, user.id, websocket)
-        connected = True
-        await websocket.send_json({"type": "connection_ready", "user_id": user.id})
+        await manager.connect(company_id, websocket)
+        try:
+            while True:
+                raw = await websocket.receive_text()
+                client_id = ""
+                try:
+                    payload = json.loads(raw)
+                    message_text = str(payload.get("message") or "").strip()
+                    client_id = str(payload.get("client_id") or "").strip()[:120]
+                except json.JSONDecodeError:
+                    message_text = raw.strip()
+                message_text = message_text[:2000]
+                if not message_text:
+                    continue
 
-        while True:
-            raw = await websocket.receive_text()
-            db.refresh(user)
-            if (
-                not user.active
-                or user.company_id != company_id
-                or (session_version is not None and int(session_version) != int(user.auth_version or 1))
-            ):
-                await websocket.close(code=4403)
-                break
-            try:
-                payload = json.loads(raw)
-                event_type = str(payload.get("type") or "chat_message")
-            except json.JSONDecodeError:
-                payload = {"message": raw}
-                event_type = "chat_message"
-
-            if event_type == "ping":
-                await websocket.send_json({"type": "pong"})
-                continue
-            if event_type != "chat_message":
-                continue
-
-            try:
-                _message, event = _save_chat_message(db, user, str(payload.get("message") or ""))
-            except ValueError:
-                continue
-            await manager.broadcast(company_id, event)
-    except WebSocketDisconnect:
-        pass
-    finally:
-        if connected and company_id is not None:
+                message = ChatMessage(company_id=company_id, user_id=user.id, message=message_text)
+                db.add(message)
+                db.flush()
+                recipients = db.scalars(select(WebUser).where(WebUser.company_id == company_id, WebUser.id != user.id)).all()
+                for recipient in recipients:
+                    create_notification(
+                        db,
+                        recipient.id,
+                        f"Nova mensagem de {user.name}",
+                        message_text[:300],
+                        kind="chat",
+                        link="/company/chat",
+                        commit=False,
+                    )
+                db.commit()
+                db.refresh(message)
+                await manager.broadcast(
+                    company_id,
+                    {
+                        "id": message.id,
+                        "user_id": user.id,
+                        "user_name": user.name,
+                        "message": message.message,
+                        "created_at": message.created_at.isoformat(),
+                        "client_id": client_id,
+                    },
+                )
+        except WebSocketDisconnect:
             manager.disconnect(company_id, websocket)
+    finally:
         db.close()

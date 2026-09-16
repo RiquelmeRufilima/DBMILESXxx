@@ -205,10 +205,10 @@
   </div>
 
 
-    <script src="/static/js/app.js?v=5.17.0" defer></script>
+    <script src="/static/js/app.js?v=5.18.0" defer></script>
   <script src="/static/js/password-toggle.js?v=5.10.41" defer></script>
   {% if user %}<script src="/static/js/person-search.js?v=5.10.41" defer></script><script src="/static/js/airport-search.js?v=5.10.41" defer></script>{% endif %}
-  {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.17.0" defer></script>{% endif %}
+  {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.18.0" defer></script>{% endif %}
   <script>
   (() => {
     const overlay = document.getElementById('dbmConfirmOverlay');
@@ -368,6 +368,8 @@
     document.addEventListener('submit', (event) => {
       const form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
+      // Chat é em tempo real: nunca deve bloquear a tela com loader.
+      if (form.id === 'chatForm' || form.closest?.('.chat-shell')) return;
       if (form.dataset.noLoader === '1') return;
       showLoader(form.dataset.loaderMessage || 'Carregando...');
     }, true);
