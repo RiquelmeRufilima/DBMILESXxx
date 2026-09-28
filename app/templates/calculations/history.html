@@ -1049,28 +1049,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     // Salva por AJAX sem disparar submit nativo.
     // Assim o loader global nunca é aberto e o histórico continua visível.
     const finance = syncCard(cardValueSource.value || 'auto', true);
-
-    const ok = window.dbmDialogConfirm
-      ? await window.dbmDialogConfirm({
-          tone:'save',
-          title:'Salvar condição comercial',
-          message:'Salvar lucro e condição de pagamento desta opção?',
-          accept:'Salvar', cancel:'Voltar', icon:'💾',
-          tips:[
-            `Venda à vista: ${money(finance.sale)}`,
-            finance.times <= 1 && finance.difference <= 0
-              ? 'Pagamento à vista'
-              : `${finance.times}x de ${money(finance.total / finance.times)} • total ${money(finance.total)}`,
-            finance.difference > 0
-              ? `Juros: ${money(finance.difference)} (${dec(finance.differencePercent)}%)`
-              : 'Sem juros'
-          ]
-        })
-      : window.confirm('Salvar condição comercial?');
-
-    if (!ok) return;
-
-    // Fecha imediatamente para a sensação de salvamento instantâneo.
+// Fecha imediatamente para a sensação de salvamento instantâneo.
     if (dialog.open) dialog.close();
     window.dbmHideLoader?.();
 
