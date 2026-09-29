@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icons/favicon-64.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <link rel="stylesheet" href="/static/css/app.css?v=5.10.42">
+  <link rel="stylesheet" href="/static/css/app.css?v=5.25.0">
   {% block head %}{% endblock %}
 <style>
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
@@ -141,11 +141,16 @@
       </form>
     </div>
   </aside>
+  <button class="sidebar-backdrop mobile-only" id="sidebarBackdrop" type="button" aria-label="Fechar menu"></button>
 
   <header class="topbar">
     <button class="icon-button mobile-only" id="menuButton" aria-label="Abrir menu"><svg class="ui-icon"><use href="#icon-menu"></use></svg></button>
     <div class="topbar-copy"><small>{% block eyebrow %}DBMILESX WEB V5{% endblock %}</small><strong>{% block page_title %}Sistema de cotações{% endblock %}</strong></div>
     <div class="topbar-actions">
+      <button class="top-icon-button theme-toggle-button" id="themeQuickToggle" type="button" aria-label="Alternar tema" title="Alternar tema claro/escuro">
+        <svg class="ui-icon theme-sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="ui-icon theme-moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
       <a href="/tasks" class="top-icon-button {% if request.url.path.startswith('/tasks') %}active{% endif %}" aria-label="Tarefas e cotações: {{ pending_task_count }} pendente(s)" title="Tarefas e cotações"><svg class="ui-icon"><use href="#icon-tasks"></use></svg>{% if pending_task_count %}<span>{{ pending_task_count }}</span>{% endif %}</a>
       <a href="/notifications" class="top-icon-button" aria-label="Notificações"><svg class="ui-icon"><use href="#icon-bell"></use></svg>{% if unread_count %}<span>{{ unread_count }}</span>{% endif %}</a>
       <a href="/profile" class="user-chip">
@@ -218,10 +223,10 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=5.10.42" defer></script>
+  <script src="/static/js/app.js?v=5.25.0" defer></script>
   <script src="/static/js/password-toggle.js?v=5.10.41" defer></script>
   {% if user %}<script src="/static/js/person-search.js?v=5.10.41" defer></script><script src="/static/js/airport-search.js?v=5.10.41" defer></script>{% endif %}
-  {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.10.43" defer></script>{% endif %}
+  {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.10.41" defer></script>{% endif %}
   <script>
   (() => {
     const overlay = document.getElementById('dbmConfirmOverlay');
