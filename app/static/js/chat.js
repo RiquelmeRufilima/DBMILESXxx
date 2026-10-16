@@ -1,306 +1,252 @@
 (() => {
-  "use strict";
-
-  const shell = document.querySelector(".chat-shell");
-  const list = document.getElementById("chatMessages");
-  const form = document.getElementById("chatForm");
-  const input = document.getElementById("chatInput");
-  const status = document.getElementById("chatStatus");
-  const submitButton = form?.querySelector('button[type="submit"]');
-
+  const shell = document.getElementById('dbmMessenger');
+  const list = document.getElementById('dbmChatMessages');
+  const form = document.getElementById('dbmChatForm');
+  const input = document.getElementById('dbmChatInput');
+  const status = document.getElementById('dbmChatStatus');
+  const title = document.getElementById('dbmChatTitle');
+  const subtitle = document.getElementById('dbmChatSubtitle');
+  const headerAvatar = document.getElementById('dbmHeaderAvatar');
+  const search = document.getElementById('dbmChatSearch');
+  const back = document.getElementById('dbmChatBack');
   if (!shell || !list || !form || !input) return;
 
-  const userId = Number(shell.dataset.userId || 0);
-  const userName = shell.dataset.userName || "Você";
-  const POLL_MS = 750;
-  const SOUND_URL = "/static/sounds/chat-notification.mp3";
+  const currentUserId = Number(shell.dataset.userId || 0);
+  const companyName = shell.dataset.companyName || 'Empresa';
+  const csrfToken = shell.dataset.csrf || '';
+  let mode = shell.dataset.selectedContact ? 'private' : 'group';
+  let contactId = shell.dataset.selectedContact || '';
+  let groupSocket = null;
+  let privatePollTimer = null;
+  let sidebarPollTimer = null;
+  let lastPrivateIncomingId = 0;
+  let audioContext = null;
 
-  const notificationSound = new Audio(SOUND_URL);
-  notificationSound.preload = "auto";
-  notificationSound.volume = 1.0;
-
-  let initialized = false;
-  let polling = false;
-  let sending = false;
-
-  const knownIds = new Set(
-    Array.from(list.querySelectorAll("[data-message-id]"))
-      .map(el => String(el.dataset.messageId || ""))
-      .filter(Boolean)
-  );
-
-  function soundsEnabled() {
-    const disabledValues = ["false", "0", "off", "disabled"];
-    const keys = [
-      "dbmilesx_sounds_enabled",
-      "dbmilesxSoundsEnabled",
-      "systemSoundsEnabled",
-      "soundsEnabled"
-    ];
-    for (const key of keys) {
-      const value = localStorage.getItem(key);
-      if (value !== null && disabledValues.includes(String(value).toLowerCase())) return false;
-    }
-    return true;
+  function unlockAudio(){
+    try{
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audioContext ||= new Ctx();
+      if (audioContext.state === 'suspended') audioContext.resume().catch(()=>{});
+    }catch(_){}
   }
+  ['pointerdown','keydown','touchstart'].forEach(evt => window.addEventListener(evt, unlockAudio, {once:true, passive:true}));
 
-  async function unlockAudio() {
-    try {
-      notificationSound.muted = true;
-      await notificationSound.play();
-      notificationSound.pause();
-      notificationSound.currentTime = 0;
-      notificationSound.muted = false;
-    } catch (_) {}
-  }
-
-  ["pointerdown", "touchstart", "keydown"].forEach(name => {
-    document.addEventListener(name, unlockAudio, { once: true, passive: true });
-  });
-
-  async function playNotification() {
-    if (!soundsEnabled()) return;
-    try {
-      notificationSound.pause();
-      notificationSound.currentTime = 0;
-      notificationSound.muted = false;
-      notificationSound.volume = 1.0;
-      await notificationSound.play();
-    } catch (error) {
-      console.debug("DBMILESX: som bloqueado até interação do usuário.", error);
-    }
-  }
-
-  function setStatus(text, ok = true) {
-    if (!status) return;
-    status.textContent = text;
-    status.classList.toggle("online", ok);
-    status.classList.toggle("sync-ok", ok);
-  }
-
-  function formatDate(value) {
-    const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
+  function sound(){
+    unlockAudio();
+    if (!audioContext || audioContext.state !== 'running') return;
+    const start = audioContext.currentTime + .01;
+    [[0,760,.12,.045],[.10,1020,.16,.052]].forEach(([off,freq,dur,vol]) => {
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type='sine'; osc.frequency.value=freq;
+      gain.gain.setValueAtTime(.0001,start+off);
+      gain.gain.exponentialRampToValueAtTime(vol,start+off+.018);
+      gain.gain.exponentialRampToValueAtTime(.0001,start+off+dur);
+      osc.connect(gain); gain.connect(audioContext.destination);
+      osc.start(start+off); osc.stop(start+off+dur+.02);
     });
   }
 
-  function scrollBottom(behavior = "auto") {
-    list.scrollTo({ top: list.scrollHeight, behavior });
+  function esc(value){
+    return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  }
+  function when(iso){
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  }
+  function scrollBottom(){ list.scrollTop = list.scrollHeight; }
+
+  function messageHtml(item, prefix){
+    const senderId = Number(item.user_id ?? item.sender_id ?? 0);
+    const mine = senderId === currentUserId;
+    return `<article class="dbm-message ${mine?'mine':''}" data-message-id="${prefix}-${Number(item.id)}">
+      <div class="dbm-message-bubble">
+        <strong>${esc(item.user_name || (mine ? 'Você':'Usuário'))}</strong>
+        <p>${esc(item.message)}</p>
+        <small>${esc(when(item.created_at))}</small>
+      </div>
+    </article>`;
   }
 
-  function buildMessage(item, optimistic = false) {
-    const article = document.createElement("article");
-    const mine = Number(item.user_id) === userId;
-
-    article.className = `chat-message ${mine ? "mine" : ""}`;
-    article.dataset.messageId = String(item.id);
-    if (optimistic) article.dataset.optimistic = "1";
-
-    const bubble = document.createElement("div");
-    bubble.className = "chat-bubble";
-
-    const strong = document.createElement("strong");
-    strong.textContent = item.user_name || (mine ? "Você" : "Usuário");
-
-    const p = document.createElement("p");
-    p.textContent = item.message || "";
-
-    const small = document.createElement("small");
-    small.textContent = optimistic ? "Enviando..." : formatDate(item.created_at);
-
-    bubble.append(strong, p, small);
-    article.appendChild(bubble);
-    return article;
+  function addMessage(item, prefix='g'){
+    const key = `${prefix}-${Number(item.id)}`;
+    if (!item?.id || list.querySelector(`[data-message-id="${key}"]`)) return;
+    list.insertAdjacentHTML('beforeend', messageHtml(item,prefix));
+    scrollBottom();
   }
 
-  function addServerMessage(item) {
-    if (!item || item.id === undefined || item.id === null) return false;
-    const id = String(item.id);
-    if (knownIds.has(id) || list.querySelector(`[data-message-id="${CSS.escape(id)}"]`)) return false;
-
-    // Confirma uma bolha otimista do próprio usuário com mesmo texto.
-    if (Number(item.user_id) === userId) {
-      const optimistic = [...list.querySelectorAll('.chat-message.mine[data-optimistic="1"]')]
-        .find(el => (el.querySelector(".chat-bubble p")?.textContent || "") === String(item.message || ""));
-      if (optimistic) {
-        knownIds.delete(String(optimistic.dataset.messageId || ""));
-        optimistic.dataset.messageId = id;
-        delete optimistic.dataset.optimistic;
-        const small = optimistic.querySelector("small");
-        if (small) small.textContent = formatDate(item.created_at);
-        knownIds.add(id);
-        return true;
-      }
+  function setMessages(items, prefix){
+    list.innerHTML = (items || []).map(item => messageHtml(item,prefix)).join('');
+    if (!items?.length) {
+      list.innerHTML = `<div class="dbm-chat-empty"><strong>Nenhuma mensagem ainda</strong><span>Envie a primeira mensagem desta conversa.</span></div>`;
     }
-
-    const article = buildMessage(item, false);
-    list.appendChild(article);
-    knownIds.add(id);
-    return true;
+    scrollBottom();
   }
 
-  function addOptimistic(message) {
-    const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const item = {
-      id: tempId,
-      user_id: userId,
-      user_name: userName,
-      message,
-      created_at: new Date().toISOString()
-    };
-    const article = buildMessage(item, true);
-    list.appendChild(article);
-    knownIds.add(tempId);
-    scrollBottom("smooth");
-    return article;
-  }
-
-  function markFailed(article, message) {
-    article.classList.add("chat-message-error");
-    article.dataset.failed = "1";
-    const small = article.querySelector("small");
-    if (small) small.textContent = "Não enviada — toque para tentar novamente";
-    article.addEventListener("click", () => {
-      if (sending) return;
-      article.remove();
-      knownIds.delete(String(article.dataset.messageId || ""));
-      input.value = message;
-      input.focus();
-    }, { once: true });
-  }
-
-  async function sendToServer(message) {
-    const response = await fetch("/company/messages/send", {
-      method: "POST",
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "X-Requested-With": "XMLHttpRequest"
-      },
-      body: JSON.stringify({ message })
+  function setActiveTarget(kind, id=''){
+    document.querySelectorAll('[data-chat-target]').forEach(el => {
+      el.classList.toggle('active', el.dataset.chatTarget === kind && (kind !== 'private' || el.dataset.contactId === id));
     });
-
-    let payload = null;
-    try { payload = await response.json(); } catch (_) {}
-
-    if (!response.ok) {
-      throw new Error(payload?.error || `Falha no envio (${response.status})`);
-    }
-    return payload;
   }
 
-  async function pollMessages() {
-    if (polling || document.hidden) return;
-    polling = true;
-
-    try {
-      const response = await fetch(`/company/messages?_=${Date.now()}`, {
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          "Accept": "application/json",
-          "X-Requested-With": "XMLHttpRequest"
-        }
-      });
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const payload = await response.json();
-      const messages = Array.isArray(payload) ? payload : (payload.messages || []);
-
-      let receivedOther = false;
-      let addedAny = false;
-
-      for (const item of messages) {
-        const id = String(item.id);
-        const wasKnown = knownIds.has(id);
-        const added = addServerMessage(item);
-        if (added) addedAny = true;
-        if (initialized && !wasKnown && Number(item.user_id) !== userId) {
-          receivedOther = true;
-        }
-      }
-
-      initialized = true;
-      setStatus("Sincronização ativa", true);
-
-      if (receivedOther) await playNotification();
-      if (addedAny) scrollBottom("smooth");
-    } catch (error) {
-      setStatus("Reconectando...", false);
-      console.debug("DBMILESX chat poll:", error);
-    } finally {
-      polling = false;
-    }
-  }
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-
-    if (sending) return;
-
-    const message = input.value.trim();
-    if (!message) return;
-
-    sending = true;
-    if (submitButton) submitButton.disabled = true;
-
-    await unlockAudio();
-
-    input.value = "";
-    input.style.height = "48px";
+  async function openGroup(){
+    mode='group'; contactId=''; form.dataset.mode='group';
+    title.textContent=companyName;
+    subtitle.textContent='Grupo da empresa';
+    headerAvatar.textContent=(companyName.trim().charAt(0)||'E').toUpperCase();
+    setActiveTarget('group');
+    history.replaceState({},'', '/company/chat');
+    try{
+      const res=await fetch('/company/messages',{cache:'no-store'});
+      const data=await res.json();
+      setMessages(data.messages || [],'g');
+    }catch(_){}
+    shell.classList.add('mobile-conversation-open');
     input.focus();
+  }
 
-    const optimistic = addOptimistic(message);
+  async function openPrivate(id){
+    if (!id) return;
+    mode='private'; contactId=id; form.dataset.mode='private';
+    setActiveTarget('private',id);
+    status.textContent='Atualizando...';
+    try{
+      const res=await fetch(`/company/chat/private/${encodeURIComponent(id)}`,{cache:'no-store'});
+      const data=await res.json();
+      if (!data.ok) throw new Error(data.message || 'Contato indisponível');
+      title.textContent=data.contact.name;
+      subtitle.textContent=`${data.contact.contact_id} • Chat privado`;
+      headerAvatar.textContent=(data.contact.name.trim().charAt(0)||'?').toUpperCase();
+      setMessages(data.messages || [],'p');
+      const incoming=(data.messages||[]).filter(x=>Number(x.sender_id)!==currentUserId);
+      lastPrivateIncomingId = incoming.length ? Number(incoming[incoming.length-1].id) : 0;
+      history.replaceState({},'',`/company/chat?contact=${encodeURIComponent(id)}`);
+      status.textContent='Chat privado';
+      shell.classList.add('mobile-conversation-open');
+      input.focus();
+    }catch(err){
+      status.textContent='Contato indisponível';
+    }
+  }
 
-    try {
-      const payload = await sendToServer(message);
-      const serverMessage = payload?.message;
+  async function pollPrivate(){
+    if (mode!=='private' || !contactId) return;
+    try{
+      const res=await fetch(`/company/chat/private/${encodeURIComponent(contactId)}`,{cache:'no-store'});
+      const data=await res.json();
+      if (!data.ok) return;
+      const incoming=(data.messages||[]).filter(x=>Number(x.sender_id)!==currentUserId);
+      const newest = incoming.length ? Number(incoming[incoming.length-1].id) : 0;
+      if (newest && lastPrivateIncomingId && newest > lastPrivateIncomingId) sound();
+      lastPrivateIncomingId = Math.max(lastPrivateIncomingId,newest);
+      (data.messages||[]).forEach(item=>addMessage(item,'p'));
+    }catch(_){}
+  }
 
-      if (serverMessage?.id) {
-        // Confirma a bolha existente, sem duplicar.
-        addServerMessage(serverMessage);
+  async function refreshSidebar(){
+    try{
+      const res=await fetch('/company/chat/sidebar',{cache:'no-store'});
+      const data=await res.json();
+      if (!data.ok) return;
+      const holder=document.getElementById('dbmConversationList');
+      if (!holder) return;
+      holder.innerHTML=(data.conversations||[]).map(item=>`
+        <button class="dbm-chat-item ${mode==='private'&&contactId===item.contact_id?'active':''}" type="button" data-chat-target="private" data-contact-id="${esc(item.contact_id)}" data-search="${esc(item.name+' '+item.contact_id)}">
+          <span class="dbm-chat-avatar">${esc((item.name||'?').charAt(0).toUpperCase())}</span>
+          <span class="dbm-chat-item-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message||'')}</small></span>
+          <span class="dbm-chat-meta">${item.last_at ? esc(when(item.last_at).split(' ').pop()) : ''}${item.unread ? `<b class="dbm-chat-badge">${Number(item.unread)}</b>`:''}</span>
+        </button>`).join('');
+    }catch(_){}
+  }
+
+  function connectGroup(){
+    const protocol=location.protocol==='https:'?'wss':'ws';
+    groupSocket=new WebSocket(`${protocol}://${location.host}/company/ws/chat`);
+    groupSocket.addEventListener('open',()=>{ if(mode==='group') status.textContent='Conectado em tempo real'; });
+    groupSocket.addEventListener('message',(event)=>{
+      try{
+        const item=JSON.parse(event.data);
+        if(mode==='group'){
+          const isOther=Number(item.user_id)!==currentUserId;
+          addMessage(item,'g');
+          if(isOther && document.hidden) sound();
+        }else if(Number(item.user_id)!==currentUserId){
+          refreshSidebar();
+        }
+      }catch(_){}
+    });
+    groupSocket.addEventListener('close',()=>{ if(mode==='group') status.textContent='Reconectando...'; setTimeout(connectGroup,1800); });
+    groupSocket.addEventListener('error',()=>{ try{groupSocket.close()}catch(_){} });
+  }
+
+  form.addEventListener('submit', async (event)=>{
+    event.preventDefault();
+    const message=input.value.trim();
+    if(!message) return;
+
+    if(mode==='group'){
+      if(!groupSocket || groupSocket.readyState!==WebSocket.OPEN){ status.textContent='Reconectando...'; return; }
+      groupSocket.send(JSON.stringify({message}));
+      input.value=''; input.focus(); return;
+    }
+
+    if(mode==='private' && contactId){
+      const tempId=`temp-${Date.now()}`;
+      const optimistic={id:tempId,user_id:currentUserId,user_name:'Você',message,created_at:new Date().toISOString()};
+      list.insertAdjacentHTML('beforeend', `<article class="dbm-message mine" data-message-id="${tempId}"><div class="dbm-message-bubble"><strong>Você</strong><p>${esc(message)}</p><small>enviando...</small></div></article>`);
+      scrollBottom(); input.value=''; input.focus();
+      try{
+        const res=await fetch(`/company/chat/private/${encodeURIComponent(contactId)}`,{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({message,csrf_token:csrfToken}),
+        });
+        const data=await res.json();
+        document.querySelector(`[data-message-id="${tempId}"]`)?.remove();
+        if(!data.ok) throw new Error(data.message||'Falha ao enviar');
+        addMessage(data.message,'p');
+        refreshSidebar();
+      }catch(err){
+        const temp=document.querySelector(`[data-message-id="${tempId}"] small`);
+        if(temp) temp.textContent='não enviada';
       }
-
-      setStatus("Sincronização ativa", true);
-      setTimeout(pollMessages, 60);
-    } catch (error) {
-      console.error("DBMILESX chat send:", error);
-      markFailed(optimistic, message);
-      setStatus("Falha ao enviar", false);
-    } finally {
-      sending = false;
-      if (submitButton) submitButton.disabled = false;
-    }
-  }, true);
-
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-      event.preventDefault();
-      form.requestSubmit();
     }
   });
 
-  input.addEventListener("input", () => {
-    input.style.height = "48px";
-    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  document.addEventListener('click',(event)=>{
+    const target=event.target.closest('[data-chat-target]');
+    if(!target) return;
+    if(target.dataset.chatTarget==='group') openGroup();
+    else openPrivate(target.dataset.contactId);
   });
 
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) pollMessages();
+  document.querySelectorAll('.dbm-chat-tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.dbm-chat-tab').forEach(x=>x.classList.toggle('active',x===btn));
+      document.querySelectorAll('.dbm-chat-pane').forEach(p=>p.hidden=p.dataset.pane!==btn.dataset.tab);
+    });
   });
-  window.addEventListener("focus", pollMessages);
+
+  search?.addEventListener('input',()=>{
+    const q=search.value.trim().toLowerCase();
+    document.querySelectorAll('[data-search]').forEach(el=>{
+      el.hidden=q && !String(el.dataset.search||'').toLowerCase().includes(q);
+    });
+  });
+
+  back?.addEventListener('click',()=>shell.classList.remove('mobile-conversation-open'));
+
+  input.addEventListener('keydown',(event)=>{
+    if(event.key==='Enter' && !event.shiftKey){
+      event.preventDefault(); form.requestSubmit();
+    }
+  });
 
   scrollBottom();
-  pollMessages();
-  setInterval(pollMessages, POLL_MS);
+  connectGroup();
+  privatePollTimer=setInterval(pollPrivate,1800);
+  sidebarPollTimer=setInterval(refreshSidebar,3500);
+  window.addEventListener('beforeunload',()=>{ clearInterval(privatePollTimer);clearInterval(sidebarPollTimer);try{groupSocket?.close()}catch(_){} });
 })();

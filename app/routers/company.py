@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
+import secrets
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import COMPANY_UPLOAD_DIR
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
-from ..models import ChatMessage, WebCompany, WebQuote, WebUser
+from ..models import ChatMessage, PrivateChatMessage, WebCompany, WebQuote, WebUser
 from ..security import validate_csrf_token
 from ..services.notifications import create_notification
 from ..services.uploads import delete_relative_upload, save_upload_image
@@ -45,6 +46,138 @@ class ChatConnectionManager:
 manager = ChatConnectionManager()
 
 
+def _new_contact_id(db: Session) -> str:
+    """Gera um identificador público, separado do ID interno do banco."""
+    for _ in range(40):
+        value = f"DBM-{secrets.randbelow(1_000_000):06d}"
+        exists = db.scalar(select(WebUser.id).where(WebUser.contact_id == value))
+        if not exists:
+            return value
+    raise RuntimeError("Não foi possível gerar um ID de contato único.")
+
+
+def _ensure_company_contact_ids(db: Session, company_id: int) -> None:
+    members = db.scalars(select(WebUser).where(WebUser.company_id == company_id)).all()
+    changed = False
+    for member in members:
+        if not getattr(member, "contact_id", None):
+            member.contact_id = _new_contact_id(db)
+            changed = True
+    if changed:
+        db.commit()
+
+
+def _chat_member_payload(member: WebUser, current_user_id: int) -> dict:
+    profile = getattr(member, "profile", None)
+    return {
+        "id": member.id,
+        "name": member.name,
+        "email": member.email,
+        "contact_id": member.contact_id or "",
+        "role": member.role,
+        "active": bool(member.active),
+        "is_me": member.id == current_user_id,
+        "avatar_path": getattr(profile, "avatar_path", None) if profile else None,
+    }
+
+
+def _private_conversation_summaries(db: Session, user: WebUser) -> list[dict]:
+    raw = db.scalars(
+        select(PrivateChatMessage)
+        .where(
+            PrivateChatMessage.company_id == user.company_id,
+            or_(
+                PrivateChatMessage.sender_id == user.id,
+                PrivateChatMessage.recipient_id == user.id,
+            ),
+        )
+        .order_by(desc(PrivateChatMessage.created_at))
+        .limit(400)
+    ).all()
+
+    summaries: list[dict] = []
+    seen: set[int] = set()
+    for item in raw:
+        partner_id = item.recipient_id if item.sender_id == user.id else item.sender_id
+        if partner_id in seen:
+            continue
+        partner = db.get(WebUser, partner_id)
+        if partner is None or partner.company_id != user.company_id:
+            continue
+        unread = db.scalar(
+            select(func.count(PrivateChatMessage.id)).where(
+                PrivateChatMessage.company_id == user.company_id,
+                PrivateChatMessage.sender_id == partner_id,
+                PrivateChatMessage.recipient_id == user.id,
+                PrivateChatMessage.is_read.is_(False),
+            )
+        ) or 0
+        summaries.append({
+            "member": _chat_member_payload(partner, user.id),
+            "last_message": item.message,
+            "last_at": item.created_at,
+            "unread": int(unread),
+        })
+        seen.add(partner_id)
+    return summaries
+
+
+def _resolve_private_contact(db: Session, user: WebUser, contact_id: str | None) -> WebUser | None:
+    contact_id = str(contact_id or "").strip().upper()
+    if not contact_id:
+        return None
+    partner = db.scalar(
+        select(WebUser).where(
+            WebUser.contact_id == contact_id,
+            WebUser.company_id == user.company_id,
+            WebUser.active.is_(True),
+        )
+    )
+    if partner is None or partner.id == user.id:
+        return None
+    return partner
+
+
+def _private_messages(db: Session, user: WebUser, partner: WebUser, limit: int = 120) -> list[PrivateChatMessage]:
+    messages = db.scalars(
+        select(PrivateChatMessage)
+        .where(
+            PrivateChatMessage.company_id == user.company_id,
+            or_(
+                (PrivateChatMessage.sender_id == user.id) & (PrivateChatMessage.recipient_id == partner.id),
+                (PrivateChatMessage.sender_id == partner.id) & (PrivateChatMessage.recipient_id == user.id),
+            ),
+        )
+        .order_by(desc(PrivateChatMessage.created_at))
+        .limit(limit)
+    ).all()
+    messages = list(reversed(messages))
+
+    changed = False
+    for item in messages:
+        if item.recipient_id == user.id and not item.is_read:
+            item.is_read = True
+            changed = True
+    if changed:
+        db.commit()
+    return messages
+
+
+def _private_message_payload(item: PrivateChatMessage, user: WebUser) -> dict:
+    sender = item.sender if getattr(item, "sender", None) else None
+    return {
+        "id": item.id,
+        "sender_id": item.sender_id,
+        "recipient_id": item.recipient_id,
+        "user_id": item.sender_id,
+        "user_name": sender.name if sender else ("Você" if item.sender_id == user.id else "Usuário"),
+        "message": item.message,
+        "is_read": bool(item.is_read),
+        "created_at": item.created_at.isoformat(),
+    }
+
+
+
 @router.get("")
 def company_dashboard(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
@@ -55,6 +188,7 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
         return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
 
     company = db.get(WebCompany, user.company_id)
+    _ensure_company_contact_ids(db, user.company_id)
     members = db.scalars(select(WebUser).where(WebUser.company_id == user.company_id).order_by(WebUser.name)).all()
     total_quotes = db.scalar(select(func.count(WebQuote.id)).where(WebQuote.company_id == user.company_id)) or 0
     total_value = db.scalar(
@@ -220,25 +354,155 @@ def add_member(
 
 
 @router.get("/chat")
-def chat_page(request: Request, db: Session = Depends(get_db)):
+def chat_page(request: Request, contact: str = "", db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
     if not user.company_id:
         flash(request, "Crie ou entre em uma empresa para usar o chat.", "error")
         return RedirectResponse("/company", status_code=303)
+
     company = db.get(WebCompany, user.company_id)
-    messages = db.scalars(
+    _ensure_company_contact_ids(db, user.company_id)
+    db.refresh(user)
+
+    members = db.scalars(
+        select(WebUser)
+        .where(WebUser.company_id == user.company_id, WebUser.active.is_(True))
+        .order_by(WebUser.name)
+    ).all()
+
+    group_messages = db.scalars(
         select(ChatMessage)
         .where(ChatMessage.company_id == user.company_id)
         .options(selectinload(ChatMessage.user))
         .order_by(desc(ChatMessage.created_at))
         .limit(100)
     ).all()
-    messages = list(reversed(messages))
-    return templates.TemplateResponse(request, "company/chat.html",
-        context(request, user=user, company=company, messages=messages),
+    group_messages = list(reversed(group_messages))
+
+    selected_contact = _resolve_private_contact(db, user, contact)
+    private_messages = _private_messages(db, user, selected_contact) if selected_contact else []
+
+    return templates.TemplateResponse(
+        request,
+        "company/chat.html",
+        context(
+            request,
+            user=user,
+            company=company,
+            messages=group_messages,
+            members=[_chat_member_payload(item, user.id) for item in members],
+            conversations=_private_conversation_summaries(db, user),
+            selected_contact=_chat_member_payload(selected_contact, user.id) if selected_contact else None,
+            private_messages=private_messages,
+        ),
     )
+
+
+@router.get("/chat/sidebar")
+def chat_sidebar_api(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None or not user.company_id:
+        return JSONResponse({"ok": False}, status_code=401)
+
+    _ensure_company_contact_ids(db, user.company_id)
+    members = db.scalars(
+        select(WebUser)
+        .where(WebUser.company_id == user.company_id, WebUser.active.is_(True))
+        .order_by(WebUser.name)
+    ).all()
+    conversations = _private_conversation_summaries(db, user)
+
+    group_last = db.scalar(
+        select(ChatMessage)
+        .where(ChatMessage.company_id == user.company_id)
+        .order_by(desc(ChatMessage.created_at))
+        .limit(1)
+    )
+    return {
+        "ok": True,
+        "group": {
+            "name": db.get(WebCompany, user.company_id).name,
+            "last_message": group_last.message if group_last else "",
+            "last_at": group_last.created_at.isoformat() if group_last else None,
+        },
+        "conversations": [
+            {
+                **item["member"],
+                "last_message": item["last_message"],
+                "last_at": item["last_at"].isoformat(),
+                "unread": item["unread"],
+            }
+            for item in conversations
+        ],
+        "members": [_chat_member_payload(item, user.id) for item in members if item.id != user.id],
+    }
+
+
+@router.get("/chat/private/{contact_id}")
+def private_messages_api(contact_id: str, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None or not user.company_id:
+        return JSONResponse({"ok": False, "messages": []}, status_code=401)
+
+    partner = _resolve_private_contact(db, user, contact_id)
+    if partner is None:
+        return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
+
+    messages = _private_messages(db, user, partner)
+    return {
+        "ok": True,
+        "contact": _chat_member_payload(partner, user.id),
+        "messages": [_private_message_payload(item, user) for item in messages],
+    }
+
+
+@router.post("/chat/private/{contact_id}")
+async def private_send_api(contact_id: str, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None or not user.company_id:
+        return JSONResponse({"ok": False}, status_code=401)
+
+    partner = _resolve_private_contact(db, user, contact_id)
+    if partner is None:
+        return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    if not validate_csrf_token(request.session, str(payload.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
+
+    message_text = str(payload.get("message") or "").strip()[:2000]
+    if not message_text:
+        return JSONResponse({"ok": False, "message": "Digite uma mensagem."}, status_code=400)
+
+    message = PrivateChatMessage(
+        company_id=user.company_id,
+        sender_id=user.id,
+        recipient_id=partner.id,
+        message=message_text,
+        is_read=False,
+    )
+    db.add(message)
+    db.flush()
+
+    create_notification(
+        db,
+        partner.id,
+        f"Mensagem privada de {user.name}",
+        message_text[:300],
+        kind="chat",
+        link=f"/company/chat?contact={user.contact_id}",
+        commit=False,
+    )
+    db.commit()
+    db.refresh(message)
+
+    return {"ok": True, "message": _private_message_payload(message, user)}
 
 
 @router.get("/messages")
@@ -265,86 +529,6 @@ def messages_api(request: Request, db: Session = Depends(get_db)):
             for item in reversed(messages)
         ]
     }
-
-
-@router.post("/messages/send")
-async def send_message_api(request: Request, db: Session = Depends(get_db)):
-    """
-    Envia mensagem do chat por HTTP.
-    Esta rota é a principal na Vercel, onde WebSocket persistente não é confiável.
-    Aceita JSON ou formulário e retorna a mensagem já persistida.
-    """
-    user = current_user(request, db)
-    if user is None:
-        return JSONResponse({"ok": False, "error": "Sessão expirada."}, status_code=401)
-    if not user.company_id:
-        return JSONResponse({"ok": False, "error": "Usuário sem empresa."}, status_code=403)
-
-    content_type = (request.headers.get("content-type") or "").lower()
-    message_text = ""
-
-    try:
-        if "application/json" in content_type:
-            payload = await request.json()
-            message_text = str((payload or {}).get("message") or "").strip()
-        else:
-            form = await request.form()
-            message_text = str(form.get("message") or "").strip()
-
-            # Se houver CSRF no formulário, valida. Para chamadas JSON same-origin
-            # autenticadas pela sessão, o token não é exigido aqui.
-            csrf_token = str(form.get("csrf_token") or "").strip()
-            if csrf_token and not validate_csrf_token(request.session, csrf_token):
-                return JSONResponse({"ok": False, "error": "Sessão expirada."}, status_code=403)
-    except Exception:
-        return JSONResponse({"ok": False, "error": "Conteúdo inválido."}, status_code=400)
-
-    message_text = message_text[:2000]
-    if not message_text:
-        return JSONResponse({"ok": False, "error": "Digite uma mensagem."}, status_code=400)
-
-    message = ChatMessage(
-        company_id=user.company_id,
-        user_id=user.id,
-        message=message_text,
-    )
-    db.add(message)
-    db.flush()
-
-    recipients = db.scalars(
-        select(WebUser).where(
-            WebUser.company_id == user.company_id,
-            WebUser.id != user.id,
-        )
-    ).all()
-
-    for recipient in recipients:
-        create_notification(
-            db,
-            recipient.id,
-            f"Nova mensagem de {user.name}",
-            message_text[:300],
-            kind="chat",
-            link="/company/chat",
-            commit=False,
-        )
-
-    db.commit()
-    db.refresh(message)
-
-    return JSONResponse(
-        {
-            "ok": True,
-            "message": {
-                "id": message.id,
-                "user_id": user.id,
-                "user_name": user.name or user.email,
-                "message": message.message,
-                "created_at": message.created_at.isoformat() if message.created_at else None,
-            },
-        },
-        status_code=201,
-    )
 
 
 @router.websocket("/ws/chat")
