@@ -5,7 +5,7 @@ import logging
 import re
 import unicodedata
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from types import SimpleNamespace
 
@@ -982,6 +982,21 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
         trip = getattr(quote, "trip", None)
         quote.scope_departure_date = str(scope_data.get("departure_date") or (trip.departure_date if trip else "") or "")
         quote.scope_return_date = str(scope_data.get("return_date") or (trip.return_date if trip else "") or "")
+
+        # Data principal da opção Skip para exibição direta no Histórico.
+        # Prioriza a data do trecho efetivamente voado; depois usa os campos
+        # salvos da própria opção. Isso cobre registros antigos e novos.
+        quote.skip_display_date = ""
+        if quote.skip_mode:
+            flown_index = max(0, int(quote.flown_segment or 1) - 1)
+            if flown_index < len(quote.scope_segments):
+                quote.skip_display_date = str(quote.scope_segments[flown_index].get("date") or "").strip()
+            if not quote.skip_display_date:
+                quote.skip_display_date = (
+                    quote.scope_return_date
+                    if int(quote.flown_segment or 1) > 1 and quote.scope_return_date
+                    else quote.scope_departure_date
+                )
         meta = _quote_meta(quote)
         airline = getattr(quote, "airline", None)
         quote.fare_brand = meta.get("fare_brand") or _default_fare_for_airline(airline.name if airline else "")
@@ -996,6 +1011,22 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
 
         quote.flight_details = _quote_flight_details(quote, data, scope_data)
         quote.flight_detail_chips = _flight_detail_chips(quote.flight_details)
+
+        if quote.skip_mode and not quote.skip_display_date and quote.flight_details:
+            flown_index = max(0, int(quote.flown_segment or 1) - 1)
+            flown_key = ""
+            if flown_index < len(quote.scope_segments):
+                flown_key = str(quote.scope_segments[flown_index].get("key") or "").strip().lower()
+            for detail_index, detail in enumerate(quote.flight_details, start=1):
+                if not isinstance(detail, dict):
+                    continue
+                detail_key = str(detail.get("segment_key") or detail.get("key") or "").strip().lower()
+                if (flown_key and detail_key == flown_key) or (not flown_key and detail_index == flown_index + 1):
+                    candidate_date = str(detail.get("departure_date") or detail.get("date") or "").strip()
+                    if candidate_date:
+                        quote.skip_display_date = candidate_date
+                        break
+
         quote.segment_rows = _history_segment_rows(
             quote.scope_segments,
             quote.flight_details,
@@ -3854,59 +3885,145 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/history")
-def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(get_db)):
-    """Histórico paginado sem esconder cotações recentes.
+def history(
+    request: Request,
+    q: str = "",
+    page: int = 1,
+    sort: str = "modified_desc",
+    date_field: str = "modified",
+    date_from: str = "",
+    date_to: str = "",
+    db: Session = Depends(get_db),
+):
+    """Histórico paginado, filtrável e otimizado.
 
-    A versão anterior paginava primeiro todos os grupos e somente depois as
-    cotações antigas/sem vínculo. Com muitos grupos, uma cotação criada agora
-    podia cair em uma página distante e parecer que tinha desaparecido. Aqui
-    montamos uma única linha do tempo por data e só depois aplicamos a página.
+    - padrão: cotações modificadas recentemente ficam no topo;
+    - permite ordenar por criação/cálculo ou modificação;
+    - permite filtrar intervalo de datas por criação ou modificação;
+    - pagina no banco antes de carregar cards pesados, evitando lag.
     """
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
 
-    page_size = 24
+    page_size = 20
     try:
         page = max(1, int(page or 1))
     except (TypeError, ValueError):
         page = 1
+
     q = q.strip()
+    sort = str(sort or "modified_desc").strip().lower()
+    if sort not in {"modified_desc", "created_desc", "modified_asc", "created_asc"}:
+        sort = "modified_desc"
+    date_field = str(date_field or "modified").strip().lower()
+    if date_field not in {"created", "modified"}:
+        date_field = "modified"
+
+    date_from = str(date_from or "").strip()
+    date_to = str(date_to or "").strip()
+
+    def _parse_filter_date(value: str) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            return None
+
+    start_date = _parse_filter_date(date_from)
+    end_date = _parse_filter_date(date_to)
+    end_exclusive = (end_date + timedelta(days=1)) if end_date else None
+
     group_filter = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
     group_conditions = [group_filter]
     if q:
         pattern = f"%{q}%"
-        group_conditions.append(or_(QuoteGroup.quote_name.ilike(pattern), QuoteGroup.origin.ilike(pattern), QuoteGroup.destination.ilike(pattern)))
+        group_conditions.append(or_(
+            QuoteGroup.quote_name.ilike(pattern),
+            QuoteGroup.origin.ilike(pattern),
+            QuoteGroup.destination.ilike(pattern),
+        ))
+
+    group_filter_date_expr = QuoteGroup.updated_at if date_field == "modified" else QuoteGroup.created_at
+    if start_date:
+        group_conditions.append(group_filter_date_expr >= start_date)
+    if end_exclusive:
+        group_conditions.append(group_filter_date_expr < end_exclusive)
 
     linked_ids = select(QuoteOptionIndex.quote_id)
     access_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
     legacy_conditions = [access_filter, WebQuote.id.notin_(linked_ids)]
     if q:
         pattern = f"%{q}%"
-        legacy_conditions.append(or_(WebQuote.quote_name.ilike(pattern), WebQuote.origin.ilike(pattern), WebQuote.destination.ilike(pattern)))
+        legacy_conditions.append(or_(
+            WebQuote.quote_name.ilike(pattern),
+            WebQuote.origin.ilike(pattern),
+            WebQuote.destination.ilike(pattern),
+        ))
 
-    # Consulta somente IDs e datas: leve mesmo com histórico grande.
+    legacy_modified_expr = func.coalesce(QuoteCommercial.updated_at, WebQuote.created_at)
+    legacy_filter_date_expr = legacy_modified_expr if date_field == "modified" else WebQuote.created_at
+    if start_date:
+        legacy_conditions.append(legacy_filter_date_expr >= start_date)
+    if end_exclusive:
+        legacy_conditions.append(legacy_filter_date_expr < end_exclusive)
+
+    # Contagens baratas no banco. Não carrega todos os objetos para descobrir
+    # quantas páginas existem.
+    group_count = int(db.scalar(
+        select(func.count(QuoteGroup.id)).select_from(QuoteGroup).where(*group_conditions)
+    ) or 0)
+    legacy_count = int(db.scalar(
+        select(func.count(WebQuote.id))
+        .select_from(WebQuote)
+        .outerjoin(QuoteCommercial, QuoteCommercial.quote_id == WebQuote.id)
+        .where(*legacy_conditions)
+    ) or 0)
+
+    total_items = group_count + legacy_count
+    total_pages = max(1, (total_items + page_size - 1) // page_size)
+    page = min(page, total_pages)
+    offset = (page - 1) * page_size
+    fetch_limit = max(page_size, page * page_size)
+
+    created_sort = sort.startswith("created")
+    newest_first = sort.endswith("desc")
+
+    group_sort_expr = QuoteGroup.created_at if created_sort else QuoteGroup.updated_at
+    group_order = desc(group_sort_expr) if newest_first else group_sort_expr.asc()
     group_rows = db.execute(
-        select(QuoteGroup.id, QuoteGroup.created_at).where(*group_conditions)
+        select(QuoteGroup.id, QuoteGroup.created_at, QuoteGroup.updated_at)
+        .where(*group_conditions)
+        .order_by(group_order, desc(QuoteGroup.id) if newest_first else QuoteGroup.id.asc())
+        .limit(fetch_limit)
     ).all()
+
+    legacy_sort_expr = WebQuote.created_at if created_sort else legacy_modified_expr
+    legacy_order = desc(legacy_sort_expr) if newest_first else legacy_sort_expr.asc()
     legacy_rows = db.execute(
-        select(WebQuote.id, WebQuote.created_at).where(*legacy_conditions)
+        select(
+            WebQuote.id,
+            WebQuote.created_at,
+            legacy_modified_expr.label("modified_at"),
+        )
+        .select_from(WebQuote)
+        .outerjoin(QuoteCommercial, QuoteCommercial.quote_id == WebQuote.id)
+        .where(*legacy_conditions)
+        .order_by(legacy_order, desc(WebQuote.id) if newest_first else WebQuote.id.asc())
+        .limit(fetch_limit)
     ).all()
 
     minimum_date = datetime.min
     timeline: list[tuple[datetime, int, str, int]] = []
     for row in group_rows:
-        sort_at = row.created_at or minimum_date
+        sort_at = (row.created_at if created_sort else row.updated_at) or row.created_at or minimum_date
         timeline.append((sort_at, int(row.id or 0), "group", int(row.id)))
     for row in legacy_rows:
-        sort_at = row.created_at or minimum_date
+        sort_at = (row.created_at if created_sort else row.modified_at) or row.created_at or minimum_date
         timeline.append((sort_at, int(row.id or 0), "legacy", int(row.id)))
-    timeline.sort(key=lambda item: (item[0], item[1]), reverse=True)
 
-    total_items = len(timeline)
-    total_pages = max(1, (total_items + page_size - 1) // page_size)
-    page = min(page, total_pages)
-    offset = (page - 1) * page_size
+    timeline.sort(key=lambda item: (item[0], item[1]), reverse=newest_first)
     page_entries = timeline[offset:offset + page_size]
 
     selected_group_ids = [item[3] for item in page_entries if item[2] == "group"]
@@ -3940,29 +4057,25 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
         ).all()
         legacy_by_id = {item.id: item for item in loaded_legacy}
 
-    # Carrega todos os cards de grupo desta página em lote. Isso elimina o
-    # padrão N+1 de consultas que deixava o Histórico lento.
+    # Cards da página são carregados em lote, eliminando N+1.
     page_groups = [groups_by_id[gid] for gid in selected_group_ids if gid in groups_by_id]
     group_cards_batch = _history_group_cards_batch(db, user, page_groups)
 
-    # Mantém exatamente a ordem cronológica da página, inclusive ao misturar
-    # grupos e registros antigos que ainda não possuem vínculo.
     history_entries: list[dict[str, Any]] = []
     history_load_errors = 0
-    for _sort_at, _sort_id, kind, item_id in page_entries:
+    for sort_at, _sort_id, kind, item_id in page_entries:
         if kind == "group":
             card = group_cards_batch.get(item_id)
             if card is None:
                 continue
             history_load_errors += 1 if card.get("load_error") else 0
-            history_entries.append({"kind": "group", "card": card})
+            history_entries.append({"kind": "group", "card": card, "sort_at": sort_at})
         else:
             quote = legacy_by_id.get(item_id)
             if quote is None:
                 continue
-            history_entries.append({"kind": "legacy", "quote": _decorate_quote_scope(quote)})
+            history_entries.append({"kind": "legacy", "quote": _decorate_quote_scope(quote), "sort_at": sort_at})
 
-    # Compatibilidade com templates/integrações anteriores.
     group_cards = [item["card"] for item in history_entries if item["kind"] == "group"]
     legacy_quotes = [item["quote"] for item in history_entries if item["kind"] == "legacy"]
 
@@ -3984,6 +4097,10 @@ def history(request: Request, q: str = "", page: int = 1, db: Session = Depends(
             total_pages=total_pages,
             has_previous=page > 1,
             has_next=page < total_pages,
+            history_sort=sort,
+            history_date_field=date_field,
+            history_date_from=date_from,
+            history_date_to=date_to,
         ),
     )
 
@@ -4788,6 +4905,24 @@ async def save_option_profit(
                         ),
                 }
             )
+
+        # -----------------------------------------------------
+        # MARCA A COTAÇÃO PRINCIPAL COMO MODIFICADA
+        # -----------------------------------------------------
+        # Alterar lucro/margem também é uma modificação da cotação. Antes o
+        # histórico não atualizava QuoteGroup.updated_at aqui, então a cotação
+        # permanecia na posição antiga mesmo após uma edição comercial.
+        touched_quote_ids = [int(target.id) for target in targets if getattr(target, "id", None)]
+        if touched_quote_ids:
+            touched_group_ids = list(db.scalars(
+                select(QuoteOptionIndex.group_id)
+                .where(QuoteOptionIndex.quote_id.in_(touched_quote_ids))
+                .distinct()
+            ).all())
+            for touched_group_id in touched_group_ids:
+                touched_group = db.get(QuoteGroup, int(touched_group_id))
+                if touched_group is not None:
+                    touched_group.updated_at = now
 
         # -----------------------------------------------------
         # COMMIT

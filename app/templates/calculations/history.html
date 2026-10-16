@@ -3,6 +3,8 @@
 {% block eyebrow %}HISTÓRICO{% endblock %}
 {% block page_title %}Cotações principais{% endblock %}
 {% block head %}<style>
+.history-filter-form{display:grid;grid-template-columns:minmax(260px,1.5fr) minmax(170px,.7fr) minmax(170px,.7fr) 145px 145px auto;gap:9px;align-items:end;margin:0 0 12px}.history-filter-search,.history-filter-field{display:grid;gap:5px}.history-filter-search label,.history-filter-field label{font-size:.66rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:#86a6bf}.history-filter-search-input{position:relative}.history-filter-search-input svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#6f91aa}.history-filter-search-input input{width:100%;padding-left:38px!important}.history-filter-form input,.history-filter-form select{min-height:42px}.history-filter-actions{display:flex;gap:7px;align-items:center}.history-date-badge{display:inline-flex;align-items:center;gap:5px;margin-left:7px;padding:3px 7px;border-radius:999px;background:rgba(45,159,221,.1);border:1px solid rgba(59,172,229,.2);color:#a9dcf4;font-size:.65rem;font-weight:850}.skip-date-chip{background:rgba(36,174,225,.11)!important;border-color:rgba(69,191,237,.3)!important;color:#bcecff!important}@media(max-width:1100px){.history-filter-form{grid-template-columns:1fr 1fr 1fr}.history-filter-search{grid-column:1/-1}.history-filter-actions{grid-column:1/-1}}@media(max-width:760px){.history-filter-form{grid-template-columns:1fr 1fr}.history-filter-search{grid-column:1/-1}.history-filter-actions{grid-column:1/-1}.history-filter-actions .secondary-button{flex:1}}
+
 .option-select-actions{display:flex!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important}.option-select-actions form{display:inline-flex!important}.button-open{background:#124c8c!important;border-color:#2f8ee8!important;color:#fff!important}.button-edit{background:#8a5a00!important;border-color:#d99a25!important;color:#fff2c4!important}.button-fare{background:#7b2e87!important;border-color:#c067d0!important;color:#fff!important}.button-duplicate{background:#5b32a8!important;border-color:#8c68df!important;color:#fff!important}.button-accept{background:#087c5c!important;border-color:#1bc79b!important;color:#fff!important}.button-flight{background:#076b82!important;border-color:#21b7d8!important;color:#fff!important}.button-delete{background:#7f1d2d!important;border-color:#e04f66!important;color:#fff!important}.history-segment-list{display:grid!important;gap:8px!important;margin-top:10px!important}.history-segment-row{display:grid!important;grid-template-columns:minmax(220px,.8fr) minmax(260px,1.2fr)!important;gap:12px!important;padding:10px 12px!important;border-radius:12px!important;border:1px solid rgba(129,167,206,.18)!important;background:rgba(255,255,255,.025)!important}.history-segment-route,.history-segment-schedule{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important}.history-segment-schedule span{display:inline-flex!important;padding:5px 8px!important;border-radius:999px!important;background:rgba(57,131,255,.12)!important;border:1px solid rgba(87,163,255,.24)!important}.segment-flown{border-color:rgba(30,213,156,.38)!important;background:rgba(30,213,156,.07)!important}.segment-unflown{border-color:rgba(255,91,110,.35)!important;background:rgba(255,91,110,.055)!important}.quote-change-log{margin:12px 0 4px;padding:10px 12px;border-radius:13px;border:1px solid rgba(101,151,198,.16);background:rgba(4,20,35,.32)}.quote-change-log summary{cursor:pointer;font-weight:800;color:#9fd8f2}.quote-change-list{display:grid;gap:7px;margin-top:9px}.quote-change-item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start;padding:7px 0;border-top:1px solid rgba(255,255,255,.05)}.quote-change-item:first-child{border-top:0}.quote-change-dot{width:8px;height:8px;margin-top:5px;border-radius:50%;background:#4bb8e6}.quote-change-item small{color:#7890a5;white-space:nowrap}.history-pager{display:flex;justify-content:center;align-items:center;gap:12px;margin:20px 0;flex-wrap:wrap}.history-pager strong{color:#dbefff}.history-result-count{text-align:center;color:#8198ad;font-size:.78rem;margin:10px 0}.history-scrollbar-top{display:none;overflow-x:auto;overflow-y:hidden;height:18px;margin:8px 0 7px;border-radius:999px;background:rgba(7,21,36,.58);border:1px solid rgba(113,161,207,.16);scrollbar-color:#38a7d8 #10263c;scrollbar-width:auto}.history-scrollbar-top.is-active{display:block}.history-scrollbar-top-inner{height:1px;min-width:1px}.history-scrollbar-top::-webkit-scrollbar{height:12px}.history-scrollbar-top::-webkit-scrollbar-track{background:#10263c;border-radius:999px}.history-scrollbar-top::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#248fd0,#39c6c8);border:2px solid #10263c;border-radius:999px}.history-options-strip{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;overflow:visible!important;padding:0!important}.history-options-strip>.compact-history-option{width:100%!important;min-width:0!important;max-width:none!important;flex:none!important}.subquote-history-block{position:relative!important;border-width:2px!important;padding:18px!important;margin:18px 0!important;background:linear-gradient(145deg,rgba(10,32,52,.86),rgba(8,24,40,.94))!important;box-shadow:0 14px 34px rgba(0,0,0,.16)!important}.subquote-history-block.is-primary{border-color:rgba(31,203,160,.48)!important}.subquote-history-block.is-subquote{border-color:rgba(91,148,255,.55)!important;margin-top:28px!important}.subquote-history-block.is-subquote:before{content:"";position:absolute;left:18px;right:18px;top:-15px;height:1px;background:linear-gradient(90deg,transparent,rgba(91,148,255,.55),transparent)}.subquote-history-head{align-items:flex-start!important;padding-bottom:14px!important;margin-bottom:14px!important}.subquote-history-title{display:grid;gap:5px}.subquote-kind-badge{display:inline-flex;width:max-content;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;font-size:.68rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.is-primary .subquote-kind-badge{background:rgba(31,203,160,.12);border:1px solid rgba(31,203,160,.34);color:#83f2d1}.is-subquote .subquote-kind-badge{background:rgba(91,148,255,.13);border:1px solid rgba(91,148,255,.38);color:#a9c9ff}.subquote-history-title h3{font-size:1.12rem;margin:0!important}.subquote-history-route{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:#a7c2d8;font-size:.78rem}.subquote-history-route strong{color:#e8f6ff}.subquote-history-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.subquote-empty-state{padding:22px;border:1px dashed rgba(122,165,205,.28);border-radius:14px;text-align:center;color:#86a3ba;background:rgba(255,255,255,.018)}.history-scope-block{margin-top:12px!important}.history-scope-title{border-left:3px solid rgba(74,175,225,.65)!important;padding-left:10px!important}.history-order-note{display:flex;justify-content:center;align-items:center;gap:7px;color:#8eb5d0;font-size:.76rem;margin:-3px 0 12px}.history-order-note strong{color:#bfe9ff}@media(max-width:760px){.history-segment-row{grid-template-columns:1fr!important}.quote-change-item{grid-template-columns:auto 1fr}.quote-change-item small{grid-column:2}}
 
 .profit-price-stack{display:inline-flex;flex-direction:column;gap:6px;margin-left:10px;vertical-align:middle;min-width:190px}.profit-cost-line{display:flex;align-items:baseline;gap:8px;color:#cfe5f7;font-size:.88rem;font-weight:950}.profit-cost-line strong{font-size:1.52rem;color:#f7fcff;letter-spacing:-.03em;line-height:1.05}.profit-sale-line{display:flex;align-items:baseline;gap:7px;color:#76f2bf;font-size:.8rem;font-weight:900}.profit-sale-line strong{font-size:1.12rem;color:#78f0bd;letter-spacing:-.02em}.profit-margin-chip,.profit-card-chip,.profit-sent-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:.64rem;font-weight:900;margin:2px 3px 0 0}.profit-margin-chip{background:rgba(48,211,143,.12);border:1px solid rgba(48,211,143,.28);color:#8ff5c9}.profit-card-chip{background:rgba(166,104,255,.12);border:1px solid rgba(166,104,255,.28);color:#d5baff}.profit-sent-chip{background:rgba(56,132,255,.13);border:1px solid rgba(83,151,255,.28);color:#9bc5ff}.profit-payment-card{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;margin-top:5px;padding:9px 10px;border-radius:12px;background:linear-gradient(90deg,rgba(116,77,190,.15),rgba(22,107,139,.12));border:1px solid rgba(159,123,225,.22);max-width:420px}.profit-payment-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:rgba(168,110,255,.14);color:#d6c2ff;font-size:.86rem;font-weight:950}.profit-payment-main{display:grid;gap:2px}.profit-payment-main strong{color:#f0eaff;font-size:.76rem}.profit-payment-main small{color:#aeb8cf;font-size:.63rem;font-weight:700}.profit-payment-total{text-align:right}.profit-payment-total strong{display:block;color:#d8c2ff;font-size:.78rem}.profit-payment-total small{display:block;color:#94a4bd;font-size:.6rem}.profit-payment-cash{border-color:rgba(52,211,153,.18);background:linear-gradient(90deg,rgba(22,101,77,.13),rgba(12,95,126,.10))}.button-profit{background:#155e4b!important;border-color:#34d399!important;color:#d9fff0!important}.button-profit-all{background:#0b6472!important;border-color:#22d3ee!important;color:#e1fbff!important}.profit-dialog{width:min(640px,calc(100vw - 28px));padding:0;border:1px solid rgba(86,168,224,.25);border-radius:22px;background:linear-gradient(160deg,#0d2138,#09182a);color:#eef8ff;box-shadow:0 30px 90px rgba(0,0,0,.55)}.profit-dialog::backdrop{background:rgba(2,9,19,.75);backdrop-filter:blur(7px)}.profit-dialog-head{display:flex;justify-content:space-between;gap:16px;padding:22px 24px 17px;border-bottom:1px solid rgba(120,166,202,.14)}.profit-dialog-head h3{margin:3px 0 4px;font-size:1.22rem}.profit-dialog-head p{margin:0;color:#8faec5;font-size:.78rem}.profit-dialog-close{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#d6e9f7;cursor:pointer}.profit-dialog-body{padding:20px 24px 24px;display:grid;gap:16px}.profit-cost-box{display:grid;grid-template-columns:1fr 1fr;gap:10px}.profit-kpi{padding:13px 14px;border-radius:14px;border:1px solid rgba(93,151,197,.15);background:rgba(255,255,255,.035)}.profit-kpi small{display:block;color:#7e9cb3;font-size:.66rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.profit-kpi strong{display:block;margin-top:4px;font-size:1.12rem}.profit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.profit-grid.cols-3{grid-template-columns:1fr .75fr 1fr}.profit-grid label{display:grid;gap:6px;color:#a7bfd1;font-size:.76rem;font-weight:800}.profit-grid input,.profit-grid select{width:100%;border-radius:12px;border:1px solid rgba(109,165,210,.2);background:#071525;color:#fff;padding:12px 13px;font:inherit;font-weight:800}.profit-preview-box{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:12px;border-radius:15px;background:linear-gradient(90deg,rgba(22,101,77,.25),rgba(12,95,126,.22));border:1px solid rgba(52,211,153,.18)}.profit-preview-box div{padding:7px 8px}.profit-preview-box small{display:block;color:#8bb8aa;font-size:.64rem;font-weight:900;text-transform:uppercase}.profit-preview-box strong{font-size:1.08rem;color:#78f0bd}.profit-card-note{padding:11px 13px;border-radius:12px;background:rgba(168,110,255,.08);border:1px solid rgba(168,110,255,.18);color:#bda8d6;font-size:.72rem}.profit-checks{display:grid;gap:9px}.profit-checks label{display:flex;gap:9px;align-items:flex-start;color:#a7bfd1;font-size:.76rem}.profit-checks input{margin-top:2px}.profit-dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:3px}
@@ -280,6 +282,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
     <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
     <div><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
+    {% if quote.skip_mode and quote.skip_display_date %}<div><small>Data do Skip</small><strong>{{ quote.skip_display_date|date_br }}</strong></div>{% endif %}
   </div>
   <div class="history-segment-list">
     {% if quote.segment_rows %}
@@ -318,10 +321,30 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   </div>
 </section>
 
-<form class="search-bar" method="get" action="/calculations/history">
-  <svg class="ui-icon"><use href="#icon-search"></use></svg>
-  <input name="q" value="{{ search_query }}" placeholder="Buscar por cliente, cotação, origem ou destino">
-  <button class="secondary-button" type="submit">Buscar</button>
+<form class="history-filter-form card-panel" method="get" action="/calculations/history">
+  <div class="history-filter-search">
+    <label for="historySearch">Buscar</label>
+    <div class="history-filter-search-input"><svg class="ui-icon"><use href="#icon-search"></use></svg><input id="historySearch" name="q" value="{{ search_query }}" placeholder="Cliente, cotação, origem ou destino"></div>
+  </div>
+  <div class="history-filter-field">
+    <label for="historySort">Ordenar por</label>
+    <select id="historySort" name="sort">
+      <option value="modified_desc" {% if history_sort == 'modified_desc' %}selected{% endif %}>Modificação recente</option>
+      <option value="created_desc" {% if history_sort == 'created_desc' %}selected{% endif %}>Criação recente</option>
+      <option value="modified_asc" {% if history_sort == 'modified_asc' %}selected{% endif %}>Modificação antiga</option>
+      <option value="created_asc" {% if history_sort == 'created_asc' %}selected{% endif %}>Criação antiga</option>
+    </select>
+  </div>
+  <div class="history-filter-field">
+    <label for="historyDateField">Filtrar data de</label>
+    <select id="historyDateField" name="date_field">
+      <option value="modified" {% if history_date_field == 'modified' %}selected{% endif %}>Modificação</option>
+      <option value="created" {% if history_date_field == 'created' %}selected{% endif %}>Cadastro / cálculo</option>
+    </select>
+  </div>
+  <div class="history-filter-field"><label for="historyDateFrom">De</label><input id="historyDateFrom" type="date" name="date_from" value="{{ history_date_from }}"></div>
+  <div class="history-filter-field"><label for="historyDateTo">Até</label><input id="historyDateTo" type="date" name="date_to" value="{{ history_date_to }}"></div>
+  <div class="history-filter-actions"><button class="secondary-button" type="submit">Aplicar</button><a class="ghost-button" href="/calculations/history">Limpar</a></div>
 </form>
 
 {% if history_load_errors|default(0) %}
@@ -332,7 +355,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 
 <form method="post" action="/calculations/bulk-delete" id="historyBulkForm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>
 <p class="history-result-count">Mostrando até {{ page_size }} registros por página • {{ total_items }} registro(s) encontrado(s)</p>
-<p class="history-order-note"><strong>Mais recentes primeiro.</strong> Cotações novas e antigas são misturadas pela data real, sem ficarem escondidas em páginas distantes.</p>
+<p class="history-order-note"><strong>{% if history_sort == 'modified_desc' %}Modificadas recentemente primeiro.{% elif history_sort == 'created_desc' %}Criadas recentemente primeiro.{% elif history_sort == 'modified_asc' %}Modificadas há mais tempo primeiro.{% else %}Criadas há mais tempo primeiro.{% endif %}</strong> O histórico usa paginação otimizada e carrega somente os cards desta página.</p>
 <div class="history-stack-form">
   <div class="history-toolbar card-panel compact-toolbar">
     <label class="checkbox-line"><input type="checkbox" id="selectAllHistory"> Selecionar todas</label>
@@ -356,7 +379,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <span class="eyebrow">COTAÇÃO PRINCIPAL</span>
           <h2>{{ group.quote_name }}</h2>
           <p>{{ base.origin or '—' }} → {{ base.destination or '—' }} • {% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %} • {{ base.passengers }} passageiro(s)</p>
-          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at.strftime('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
+          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at.strftime('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Modificada em {{ group.updated_at.strftime('%d/%m/%Y %H:%M') if group.updated_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
         </div>
         <div class="history-total-box">
           <small>{{ options|length }} opção(ões)</small>
@@ -474,7 +497,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
                     {% if quote.fare_brand %}<span class="history-chip fare-chip">{{ quote.fare_brand }}</span>{% endif %}
                     {% if quote.cabin_class %}<span class="history-chip class-chip">{{ quote.cabin_class }}</span>{% endif %}
                     <span class="history-chip scope-chip">{{ quote.scope_label }}</span><span class="history-chip">{{ quote.passengers }} passageiro(s)</span>
-                    {% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% endif %}
+                    {% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% if quote.skip_display_date %}<span class="history-chip skip-date-chip">Data Skip: {{ quote.skip_display_date|date_br }}</span>{% endif %}{% endif %}
                     {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}
                     {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}
                     {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}
@@ -599,7 +622,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <span class="eyebrow">COTAÇÃO ANTIGA</span>
           <h2>{{ quote.quote_name }}</h2>
           <p>{{ quote.origin or '—' }} → {{ quote.destination or '—' }} • {{ quote.airline.name if quote.airline else 'Companhia' }}</p>
-          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong></small>
+          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}{% if quote.commercial and quote.commercial.updated_at %} • Modificada em {{ quote.commercial.updated_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</small>
         </div>
         <div class="history-total-box"><small>Comercial</small>{{ option_price(quote) }}</div>
       </div>
@@ -619,9 +642,9 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   {% endif %}
   {% if total_pages > 1 %}
   <nav class="history-pager" aria-label="Paginação do histórico">
-    {% if has_previous %}<a class="secondary-button small-button" href="/calculations/history?page={{ page - 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">← Anterior</a>{% endif %}
+    {% if has_previous %}<a class="secondary-button small-button" href="/calculations/history?page={{ page - 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}">← Anterior</a>{% endif %}
     <strong>Página {{ page }} de {{ total_pages }}</strong>
-    {% if has_next %}<a class="secondary-button small-button" href="/calculations/history?page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}">Próxima →</a>{% endif %}
+    {% if has_next %}<a class="secondary-button small-button" href="/calculations/history?page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}">Próxima →</a>{% endif %}
   </nav>
   {% endif %}
 </div>
@@ -1046,11 +1069,41 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   saveButton?.addEventListener('click', async () => {
     actionInput.value = 'save';
 
-    // Salva por AJAX sem disparar submit nativo.
-    // Assim o loader global nunca é aberto e o histórico continua visível.
+    // Calcula os valores antes da confirmação.
     const finance = syncCard(cardValueSource.value || 'auto', true);
-// Fecha imediatamente para a sensação de salvamento instantâneo.
+
+    // IMPORTANTE:
+    // fecha primeiro a janela de lucro para a confirmação aparecer SOZINHA,
+    // sem ficar atrás/por cima do formulário de lucro.
     if (dialog.open) dialog.close();
+    window.dbmHideLoader?.();
+
+    const ok = window.dbmDialogConfirm
+      ? await window.dbmDialogConfirm({
+          tone:'save',
+          title:'Confirmar condição comercial',
+          message:'Confira os dados abaixo. Está tudo certo para salvar?',
+          accept:'Salvar', cancel:'Voltar', icon:'💾',
+          tips:[
+            `Venda à vista: ${money(finance.sale)}`,
+            finance.times <= 1 && finance.difference <= 0
+              ? 'Pagamento à vista'
+              : `${finance.times}x de ${money(finance.total / finance.times)} • total ${money(finance.total)}`,
+            finance.difference > 0
+              ? `Juros: ${money(finance.difference)} (${dec(finance.differencePercent)}%)`
+              : 'Sem juros'
+          ]
+        })
+      : window.confirm('Está tudo certo para salvar esta condição comercial?');
+
+    // Se clicar VOLTAR, abre novamente o formulário de lucro
+    // para poder corrigir os valores.
+    if (!ok) {
+      dialog.showModal();
+      return;
+    }
+
+    // Se clicar SALVAR na confirmação, salva de verdade e mantém tudo fechado.
     window.dbmHideLoader?.();
 
     saveButton.disabled = true;
