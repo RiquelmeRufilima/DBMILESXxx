@@ -1,35 +1,167 @@
 {% extends "base.html" %}
 {% block title %}Chat | DBMILESX{% endblock %}
+{% block eyebrow %}EQUIPE{% endblock %}
+{% block page_title %}Chat da empresa{% endblock %}
+
+
+{% block head %}
+<style>
+/* V5.29 — CHAT DESKTOP. NÃO altera mobile. */
+@media (min-width: 921px){
+  .chat-shell{
+    display:flex!important;
+    flex-direction:column!important;
+    min-height:calc(100vh - 125px)!important;
+    max-height:calc(100vh - 125px)!important;
+    overflow:hidden!important;
+  }
+
+  .chat-messages{
+    flex:1 1 auto!important;
+    min-height:0!important;
+    overflow-y:auto!important;
+    padding:18px 22px!important;
+  }
+
+  .chat-file-preview{
+    flex:0 0 auto!important;
+    margin:0 18px 8px!important;
+  }
+
+  .chat-compose{
+    flex:0 0 auto!important;
+    display:grid!important;
+    grid-template-columns:48px minmax(0,1fr) 54px!important;
+    gap:9px!important;
+    align-items:end!important;
+    padding:10px 12px 12px!important;
+    border-top:1px solid rgba(70,151,205,.20)!important;
+    background:rgba(5,21,37,.96)!important;
+    backdrop-filter:blur(14px)!important;
+  }
+
+  .chat-file-button{
+    width:48px!important;
+    height:48px!important;
+    min-width:48px!important;
+    display:grid!important;
+    place-items:center!important;
+    border-radius:15px!important;
+    border:1px solid rgba(74,167,230,.33)!important;
+    background:rgba(21,89,134,.12)!important;
+    color:#bde7ff!important;
+    cursor:pointer!important;
+  }
+
+  .chat-file-button span{
+    font-size:24px!important;
+    line-height:1!important;
+  }
+
+  .chat-compose textarea,
+  .chat-compose #chatInput{
+    width:100%!important;
+    min-width:0!important;
+    min-height:48px!important;
+    max-height:132px!important;
+    resize:none!important;
+    padding:13px 16px!important;
+    border-radius:16px!important;
+    border:1px solid rgba(59,161,229,.48)!important;
+    background:#071a2d!important;
+    color:#f2f9ff!important;
+    font-size:14px!important;
+    line-height:1.45!important;
+    box-shadow:inset 0 0 0 1px rgba(28,119,185,.05)!important;
+  }
+
+  .chat-compose textarea:focus,
+  .chat-compose #chatInput:focus{
+    outline:none!important;
+    border-color:#27aef0!important;
+    box-shadow:0 0 0 3px rgba(39,174,240,.10)!important;
+  }
+
+  .chat-send-button{
+    width:54px!important;
+    height:48px!important;
+    min-width:54px!important;
+    padding:0!important;
+    display:grid!important;
+    place-items:center!important;
+    border-radius:15px!important;
+    font-size:0!important;
+  }
+
+  .chat-send-arrow{
+    font-size:21px!important;
+    line-height:1!important;
+  }
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="chat-shell" data-user-id="{{ user.id }}" data-company-id="{{ user.company_id }}">
+<section class="chat-shell" data-user-id="{{ user.id }}" data-user-name="{{ user.name }}">
   <header class="chat-header">
     <div>
-      <strong>Chat da equipe{% if company and company.name %} · {{ company.name }}{% endif %}</strong>
-      <small id="chatStatus" class="chat-status online">Sincronização ativa</small>
+      <strong>Chat da equipe · {{ company.name }}</strong>
+      <small id="chatStatus">Sincronização ativa</small>
     </div>
   </header>
 
-  <div id="chatMessages" class="chat-messages" aria-live="polite">
+  <div class="chat-messages" id="chatMessages" aria-live="polite">
     {% for item in messages %}
-      <article class="chat-message {% if item.user_id == user.id %}mine{% endif %}" data-message-id="{{ item.id }}">
-        <div class="chat-bubble">
-          <strong>{{ item.user_name }}</strong>
-          <p>{{ item.message }}</p>
-          <small data-created-at="{{ item.created_at }}">{{ item.created_at }}</small>
-        </div>
-      </article>
+    <article class="chat-message {% if item.user_id == user.id %}mine{% else %}theirs{% endif %}" data-message-id="{{ item.id }}">
+      <div class="chat-bubble">
+        <strong>{{ "Você" if item.user_id == user.id else item.user_name }}</strong>
+
+        {% if item.attachment %}
+          {% if item.attachment.kind == "image" %}
+          <a class="chat-attachment chat-image-attachment" href="{{ item.attachment.url }}" target="_blank" rel="noopener">
+            <img src="{{ item.attachment.url }}" alt="{{ item.attachment.name }}">
+          </a>
+          {% else %}
+          <a class="chat-attachment chat-document-attachment" href="{{ item.attachment.url }}" target="_blank" rel="noopener">
+            <span class="chat-file-icon">ARQ</span>
+            <span class="chat-file-copy">
+              <b>{{ item.attachment.name }}</b>
+              <small>Abrir arquivo</small>
+            </span>
+          </a>
+          {% endif %}
+        {% endif %}
+
+        {% if item.message %}<p>{{ item.message }}</p>{% endif %}
+        <small>{{ item.created_at }}</small>
+      </div>
+    </article>
     {% endfor %}
   </div>
 
-  <form id="chatForm" class="chat-compose" data-no-loader="1" autocomplete="off">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <textarea id="chatInput" name="message" maxlength="2000" rows="2" placeholder="Digite uma mensagem..." required></textarea>
-    <button class="primary-button" type="submit" data-no-loader="1">Enviar</button>
-  </form>
+  <div class="chat-file-preview" id="chatFilePreview" hidden>
+    <span id="chatFilePreviewName"></span>
+    <button type="button" id="chatFileClear" aria-label="Remover arquivo">×</button>
+  </div>
 
-  <p id="chatSendError" class="chat-status" hidden></p>
+  <form class="chat-compose" id="chatForm" autocomplete="off" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <label class="chat-file-button" title="Enviar foto ou arquivo" aria-label="Enviar foto ou arquivo">
+      <input id="chatFileInput" type="file" name="file"
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.ppt,.pptx">
+      <span aria-hidden="true">＋</span>
+    </label>
+
+    <textarea id="chatInput" name="message" rows="1" maxlength="2000" placeholder="Digite uma mensagem..."></textarea>
+
+    <button class="primary-button chat-send-button" type="submit" aria-label="Enviar mensagem">
+      <span class="chat-send-arrow">➤</span>
+    </button>
+  </form>
 </section>
 {% endblock %}
+
 {% block scripts %}
-<script src="/static/js/chat.js?v=5.20.0" defer></script>
+<script src="/static/js/chat.js?v=5.24.0" defer></script>
 {% endblock %}

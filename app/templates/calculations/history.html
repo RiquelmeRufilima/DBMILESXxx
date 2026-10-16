@@ -437,6 +437,120 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   }
 }
 
+
+/* ==========================================================
+   V5.29 — HISTÓRICO DESKTOP EM LISTA + DETALHES EXPANSÍVEIS
+   NÃO altera o formato mobile.
+   ========================================================== */
+@media (min-width: 921px){
+  .history-group-card{
+    transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+
+  .history-group-card > .history-card-head,
+  .history-group-card > .history-meta-grid{
+    cursor:pointer;
+  }
+
+  .history-group-card > .history-card-head:hover,
+  .history-group-card > .history-meta-grid:hover{
+    background:rgba(41,164,226,.035)!important;
+  }
+
+  .history-group-card > .history-card-head .history-main-copy h2{
+    font-size:14px!important;
+    line-height:1.2!important;
+    font-weight:950!important;
+    letter-spacing:-.01em!important;
+  }
+
+  .history-group-card > .history-card-head .history-main-copy > p{
+    font-size:12px!important;
+    line-height:1.35!important;
+    font-weight:850!important;
+  }
+
+  .history-group-card > .history-meta-grid strong{
+    font-size:12px!important;
+    line-height:1.25!important;
+  }
+
+  .history-group-card > .history-meta-grid > div:nth-child(2) strong,
+  .history-group-card > .history-meta-grid > div:nth-child(3) strong{
+    font-size:13px!important;
+    font-weight:950!important;
+  }
+
+  .history-expand-toggle{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:30px!important;
+    min-width:30px!important;
+    height:30px!important;
+    padding:0!important;
+    margin-left:7px!important;
+    border-radius:9px!important;
+    border:1px solid rgba(70,167,221,.32)!important;
+    background:rgba(35,126,186,.10)!important;
+    color:#a9ddf8!important;
+    cursor:pointer!important;
+    transition:.18s ease!important;
+  }
+
+  .history-expand-toggle svg{
+    width:15px!important;
+    height:15px!important;
+    transition:transform .2s ease!important;
+  }
+
+  .history-group-card.is-history-expanded{
+    border-color:rgba(42,211,181,.48)!important;
+    box-shadow:0 12px 34px rgba(0,0,0,.18)!important;
+  }
+
+  .history-group-card.is-history-expanded .history-expand-toggle{
+    background:rgba(31,203,160,.13)!important;
+    border-color:rgba(31,203,160,.38)!important;
+    color:#83f2d1!important;
+  }
+
+  .history-group-card.is-history-expanded .history-expand-toggle svg{
+    transform:rotate(180deg)!important;
+  }
+
+  /* Tudo operacional fica recolhido até selecionar/abrir a cotação. */
+  .history-group-card:not(.is-history-expanded) > .history-assignee-form,
+  .history-group-card:not(.is-history-expanded) > .quote-change-log,
+  .history-group-card:not(.is-history-expanded) > .notice-card,
+  .history-group-card:not(.is-history-expanded) > .history-scope-stack,
+  .history-group-card:not(.is-history-expanded) > .history-actions{
+    display:none!important;
+  }
+
+  .history-group-card.is-history-expanded > .history-assignee-form,
+  .history-group-card.is-history-expanded > .quote-change-log,
+  .history-group-card.is-history-expanded > .notice-card,
+  .history-group-card.is-history-expanded > .history-scope-stack,
+  .history-group-card.is-history-expanded > .history-actions{
+    animation:historyDetailsIn .18s ease both;
+  }
+
+  @keyframes historyDetailsIn{
+    from{opacity:0;transform:translateY(-5px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  /* Dá aparência de lista no estado fechado. */
+  .history-group-card:not(.is-history-expanded){
+    margin-bottom:9px!important;
+  }
+
+  .history-group-card:not(.is-history-expanded) > .history-meta-grid{
+    margin-bottom:0!important;
+  }
+}
+
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
@@ -594,6 +708,9 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
         <div class="history-total-box">
           <small>{{ options|length }} opção(ões)</small>
           <strong>{% if options %}{{ options[0].total|money(options[0].currency) }}{% else %}—{% endif %}</strong>
+          <button class="history-expand-toggle" type="button" aria-label="Abrir voos calculados" aria-expanded="false" title="Abrir voos calculados">
+            <svg class="ui-icon"><use href="#icon-chevron"></use></svg>
+          </button>
         </div>
       </div>
 
@@ -1403,6 +1520,67 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   document.getElementById('profitClose')?.addEventListener('click', () => dialog.close());
   document.getElementById('profitCancel')?.addEventListener('click', () => dialog.close());
   dialog?.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+})();
+</script>
+
+
+<script>
+(() => {
+  const cards = Array.from(document.querySelectorAll('.history-group-card:not(.legacy-card)'));
+
+  function setExpanded(card, expanded, scroll = false){
+    if (!card) return;
+    card.classList.toggle('is-history-expanded', expanded);
+    const button = card.querySelector('.history-expand-toggle');
+    if (button) {
+      button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      button.setAttribute('aria-label', expanded ? 'Fechar voos calculados' : 'Abrir voos calculados');
+      button.title = expanded ? 'Fechar voos calculados' : 'Abrir voos calculados';
+    }
+    if (expanded && scroll) {
+      window.setTimeout(() => {
+        card.scrollIntoView({behavior:'smooth', block:'start'});
+      }, 60);
+    }
+  }
+
+  function openOnly(card){
+    cards.forEach(item => {
+      if (item !== card) setExpanded(item, false);
+    });
+    setExpanded(card, true);
+  }
+
+  cards.forEach(card => {
+    const head = card.querySelector(':scope > .history-card-head');
+    const meta = card.querySelector(':scope > .history-meta-grid');
+    const toggle = card.querySelector('.history-expand-toggle');
+
+    const handleAreaClick = (event) => {
+      if (event.target.closest('a,button,input,select,textarea,label,form,details,summary')) return;
+      const willOpen = !card.classList.contains('is-history-expanded');
+      if (willOpen) openOnly(card);
+      else setExpanded(card, false);
+    };
+
+    head?.addEventListener('click', handleAreaClick);
+    meta?.addEventListener('click', handleAreaClick);
+
+    toggle?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = !card.classList.contains('is-history-expanded');
+      if (willOpen) openOnly(card);
+      else setExpanded(card, false);
+    });
+
+    const bulkCheck = card.querySelector(':scope > .history-card-head input[data-history-check]');
+    bulkCheck?.addEventListener('change', () => {
+      if (bulkCheck.checked) openOnly(card);
+    });
+  });
+
+  // Se a URL vier com #group-123, permite abrir futuramente sem afetar o restante.
 })();
 </script>
 
