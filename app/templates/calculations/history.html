@@ -232,6 +232,211 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
  .history-scope-title>small{margin-left:0!important;width:100%!important}
 }
 
+
+
+/* ============================================================
+   V5.28 — RESUMO COMPACTO DO CARD NO DESKTOP
+   IMPORTANTE: só atua em telas acima de 920px.
+   Os cards das opções/voos calculados NÃO são alterados.
+   O layout mobile permanece exatamente como estava.
+   ============================================================ */
+@media (min-width:921px){
+  /* Cabeçalho da cotação principal: formato de lista, mais baixo */
+  .history-group-card > .history-card-head{
+    display:grid!important;
+    grid-template-columns:24px minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:10px!important;
+    margin:0!important;
+    padding:8px 10px 7px!important;
+    border:1px solid rgba(91,157,211,.14)!important;
+    border-radius:12px 12px 0 0!important;
+    background:rgba(6,25,43,.30)!important;
+  }
+  .history-group-card > .history-card-head .select-check{
+    align-self:center!important;
+    margin:0!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy{
+    display:grid!important;
+    grid-template-columns:auto minmax(0,1fr)!important;
+    align-items:center!important;
+    column-gap:9px!important;
+    row-gap:1px!important;
+    min-width:0!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy .eyebrow{
+    grid-column:1!important;
+    grid-row:1!important;
+    margin:0!important;
+    font-size:.58rem!important;
+    line-height:1!important;
+    padding:4px 7px!important;
+    border-radius:999px!important;
+    letter-spacing:.06em!important;
+    white-space:nowrap!important;
+    background:rgba(37,197,166,.09)!important;
+    border:1px solid rgba(37,197,166,.18)!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy h2{
+    grid-column:2!important;
+    grid-row:1!important;
+    margin:0!important;
+    font-size:1rem!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy > p{
+    grid-column:1 / -1!important;
+    margin:2px 0 0!important;
+    font-size:.69rem!important;
+    line-height:1.2!important;
+    color:#a9c3d8!important;
+  }
+  .history-group-card > .history-card-head .quote-author-line{
+    grid-column:1 / -1!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:4px!important;
+    flex-wrap:wrap!important;
+    margin:1px 0 0!important;
+    font-size:.60rem!important;
+    line-height:1.2!important;
+    color:#7899b4!important;
+  }
+  .history-group-card > .history-card-head .quote-author-line .ui-icon{
+    width:11px!important;
+    height:11px!important;
+  }
+  .history-group-card > .history-card-head .history-total-box{
+    min-width:118px!important;
+    display:flex!important;
+    align-items:baseline!important;
+    justify-content:flex-end!important;
+    gap:7px!important;
+    padding:0!important;
+    margin:0!important;
+    background:transparent!important;
+    border:0!important;
+    text-align:right!important;
+  }
+  .history-group-card > .history-card-head .history-total-box small{
+    font-size:.60rem!important;
+    white-space:nowrap!important;
+  }
+  .history-group-card > .history-card-head .history-total-box strong{
+    font-size:.92rem!important;
+    line-height:1!important;
+    white-space:nowrap!important;
+  }
+
+  /* Dados principais deixam de parecer 5 cards grandes e viram uma linha */
+  .history-group-card > .history-meta-grid{
+    display:flex!important;
+    align-items:center!important;
+    flex-wrap:wrap!important;
+    gap:0!important;
+    margin:0 10px!important;
+    padding:0!important;
+    border-left:1px solid rgba(91,157,211,.14)!important;
+    border-right:1px solid rgba(91,157,211,.14)!important;
+    background:rgba(6,25,43,.17)!important;
+  }
+  .history-group-card > .history-meta-grid > div{
+    min-width:0!important;
+    flex:1 1 150px!important;
+    display:flex!important;
+    align-items:baseline!important;
+    gap:6px!important;
+    padding:6px 10px!important;
+    margin:0!important;
+    border:0!important;
+    border-right:1px solid rgba(91,157,211,.12)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .history-group-card > .history-meta-grid > div:last-child{
+    border-right:0!important;
+  }
+  .history-group-card > .history-meta-grid small{
+    font-size:.57rem!important;
+    line-height:1!important;
+    text-transform:uppercase!important;
+    letter-spacing:.04em!important;
+    color:#6f96b3!important;
+    white-space:nowrap!important;
+  }
+  .history-group-card > .history-meta-grid strong{
+    font-size:.68rem!important;
+    line-height:1.15!important;
+    color:#e7f4ff!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+
+  /* Responsável vira uma faixa simples, sem outro card alto */
+  .history-group-card > .history-assignee-form{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:8px!important;
+    margin:0 10px 6px!important;
+    padding:6px 8px!important;
+    border:1px solid rgba(91,157,211,.14)!important;
+    border-radius:0 0 12px 12px!important;
+    background:rgba(6,25,43,.22)!important;
+  }
+  .history-group-card > .history-assignee-form label{
+    display:flex!important;
+    align-items:center!important;
+    gap:8px!important;
+    min-width:0!important;
+    margin:0!important;
+  }
+  .history-group-card > .history-assignee-form label > span{
+    flex:0 0 auto!important;
+    font-size:.58rem!important;
+    color:#7498b5!important;
+    white-space:nowrap!important;
+  }
+  .history-group-card > .history-assignee-form select{
+    width:100%!important;
+    min-width:0!important;
+    height:30px!important;
+    min-height:30px!important;
+    padding:4px 9px!important;
+    border-radius:8px!important;
+    font-size:.66rem!important;
+  }
+  .history-group-card > .history-assignee-form .button-assign{
+    min-height:30px!important;
+    height:30px!important;
+    padding:4px 10px!important;
+    font-size:.60rem!important;
+    border-radius:8px!important;
+    white-space:nowrap!important;
+  }
+
+  /* Log recente permanece disponível, mas ocupa só uma linha fechado */
+  .history-group-card > .quote-change-log{
+    margin:0 10px 7px!important;
+    padding:6px 9px!important;
+    border-radius:9px!important;
+  }
+  .history-group-card > .quote-change-log summary{
+    font-size:.64rem!important;
+    line-height:1.2!important;
+  }
+
+  /* Menos espaço antes dos cards dos voos, sem mudar os cards dos voos */
+  .history-group-card > .history-scope-stack{
+    margin-top:6px!important;
+  }
+}
+
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
