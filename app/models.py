@@ -216,11 +216,24 @@ class ChatMessage(Base):
 
 
 
+
+class UserChatContact(Base):
+    __tablename__ = "web_user_chat_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    contact_user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    owner: Mapped[WebUser] = relationship(foreign_keys=[owner_user_id])
+    contact: Mapped[WebUser] = relationship(foreign_keys=[contact_user_id])
+
+
 class PrivateChatMessage(Base):
     __tablename__ = "web_private_chat_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("web_companies.id", ondelete="CASCADE"), index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("web_companies.id", ondelete="SET NULL"), nullable=True, index=True)
     sender_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
     recipient_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
