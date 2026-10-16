@@ -282,7 +282,6 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
     <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
     <div><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
-    {% if quote.skip_mode and quote.skip_display_date %}<div><small>Data do Skip</small><strong>{{ quote.skip_display_date|date_br }}</strong></div>{% endif %}
   </div>
   <div class="history-segment-list">
     {% if quote.segment_rows %}
@@ -295,10 +294,16 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           {% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}
         </div>
         <div class="history-segment-schedule">
+          {# A data do trecho/Skip pertence a ESTA área do histórico. #}
+          {% if row.show_date_chip %}
+            <span class="segment-date-chip">{{ row.display_date }}</span>
+          {% endif %}
           {% if row.schedules %}
             {% for schedule in row.schedules %}<span>{{ schedule }}</span>{% endfor %}
           {% elif row.status == 'not_flown' %}
             <span class="schedule-muted">Sem horário — trecho não utilizado</span>
+          {% elif row.display_date %}
+            <span class="schedule-muted">Sem horário informado</span>
           {% else %}
             <span class="schedule-muted">Data e horário não informados</span>
           {% endif %}

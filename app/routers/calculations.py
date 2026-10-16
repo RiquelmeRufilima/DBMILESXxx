@@ -1034,6 +1034,7 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
             quote.scope_return_date,
             quote.skip_mode,
             quote.flown_segment,
+            quote.skip_display_date,
         )
         partner_by_segment = {int(item.get("segment") or 0): item for item in quote.segment_partner_airlines}
         for row in quote.segment_rows:
@@ -1679,6 +1680,7 @@ def _history_segment_rows(
     return_date: str = "",
     skip_mode: str = "",
     flown_segment: int | None = None,
+    skip_date: str = "",
 ) -> list[dict[str, Any]]:
     raw_segments = segments if isinstance(segments, list) else []
     raw_details = details if isinstance(details, list) else []
@@ -1712,8 +1714,17 @@ def _history_segment_rows(
         fallback_date = _clean_date_value(segment.get("date"))
         if not fallback_date:
             fallback_date = _clean_date_value(departure_date if idx == 1 else return_date)
-        if not schedules and fallback_date and (not skip_mode or status == "flown"):
-            schedules = [_display_full_date(fallback_date)]
+
+        # No Skip, a data informada especificamente na opção deve aparecer
+        # NA LINHA DO TRECHO VOADO do histórico. Ela tem prioridade sobre
+        # a data base da cotação. O trecho não voado mantém sua própria
+        # data, quando houver, mas não recebe horários.
+        if skip_mode and status == "flown" and _clean_date_value(skip_date):
+            fallback_date = _clean_date_value(skip_date)
+
+        display_date = _display_full_date(fallback_date)
+        if not schedules and display_date and (not skip_mode or status == "flown"):
+            schedules = [display_date]
         rows.append({
             "segment": idx,
             "key": key,
@@ -1722,6 +1733,8 @@ def _history_segment_rows(
             "route": f"{origin} → {destination}",
             "status": status,
             "status_label": "VOADO" if status == "flown" else ("NÃO VOADO" if status == "not_flown" else "TRECHO"),
+            "display_date": display_date,
+            "show_date_chip": bool(display_date) and not any(display_date in str(item) for item in schedules),
             "schedules": schedules,
         })
     if not rows and raw_details:
@@ -1736,6 +1749,8 @@ def _history_segment_rows(
                 "route": f"{_clean_code(item.get('origin')) or '?'} → {_clean_code(item.get('destination')) or '?'}",
                 "status": "neutral",
                 "status_label": "TRECHO",
+                "display_date": _display_full_date(item.get("departure_date") or item.get("date")),
+                "show_date_chip": False,
                 "schedules": [text for text in [_detail_schedule_text(item)] if text],
             })
     return rows
