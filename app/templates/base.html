@@ -404,6 +404,7 @@
     }, true);
   })();
   </script>
-  {% block scripts %}{% endblock %}
+    {% if user %}<script src="/static/js/chat-notifications.js?v=20261017" defer></script>{% endif %}
+{% block scripts %}{% endblock %}
 </body>
 </html>

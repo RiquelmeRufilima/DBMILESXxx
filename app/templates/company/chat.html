@@ -112,7 +112,7 @@
       {% endif %}
     </div>
 
-    <form class="dbm-compose" id="dbmChatForm" {% if chat_view == 'team' and not has_company %}hidden{% elif chat_view != 'team' and not selected_contact %}hidden{% endif %}>
+    <form class="dbm-compose" id="dbmChatForm" {% if chat_view == 'team' and not has_company %}hidden{% elif chat_view != 'team' and not selected_contact %}hidden{% endif %} data-no-loader="1">
       <textarea id="dbmChatInput" maxlength="2000" placeholder="Digite uma mensagem..." required></textarea>
       <button class="dbm-send" type="submit">➤</button>
     </form>
@@ -143,4 +143,5 @@
 
 {% block scripts %}
 <script src="/static/js/chat.js?v=private-chat-v2" defer></script>
+<script src="/static/js/private-chat-enhanced.js?v=20261017" defer></script>
 {% endblock %}
