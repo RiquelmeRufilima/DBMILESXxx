@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 
 from .database import Base
 
@@ -19,7 +19,7 @@ class WebCompany(Base):
     logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    users: Mapped[list["WebUser"]] = relationship(back_populates="company")
+    users: Mapped[list["WebUser"]] = orm_relationship(back_populates="company")
 
 
 class WebUser(Base):
@@ -37,11 +37,11 @@ class WebUser(Base):
     legacy_id: Mapped[int | None] = mapped_column(Integer, unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    company: Mapped[WebCompany | None] = relationship(back_populates="users")
-    quotes: Mapped[list["WebQuote"]] = relationship(back_populates="user")
-    profile: Mapped["UserProfile | None"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
-    preference: Mapped["UserPreference | None"] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
-    notifications: Mapped[list["Notification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    company: Mapped[WebCompany | None] = orm_relationship(back_populates="users")
+    quotes: Mapped[list["WebQuote"]] = orm_relationship(back_populates="user")
+    profile: Mapped["UserProfile | None"] = orm_relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
+    preference: Mapped["UserPreference | None"] = orm_relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
+    notifications: Mapped[list["Notification"]] = orm_relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class UserProfile(Base):
@@ -53,7 +53,7 @@ class UserProfile(Base):
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    user: Mapped[WebUser] = relationship(back_populates="profile")
+    user: Mapped[WebUser] = orm_relationship(back_populates="profile")
 
 
 class UserPreference(Base):
@@ -69,7 +69,7 @@ class UserPreference(Base):
     in_app_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    user: Mapped[WebUser] = relationship(back_populates="preference")
+    user: Mapped[WebUser] = orm_relationship(back_populates="preference")
 
 
 class Airline(Base):
@@ -88,7 +88,7 @@ class Airline(Base):
     builtin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    calculation_types: Mapped[list["CalculationType"]] = relationship(
+    calculation_types: Mapped[list["CalculationType"]] = orm_relationship(
         back_populates="airline", cascade="all, delete-orphan", order_by="CalculationType.id"
     )
 
@@ -107,8 +107,8 @@ class CalculationType(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    airline: Mapped[Airline] = relationship(back_populates="calculation_types")
-    fields: Mapped[list["CalculationField"]] = relationship(
+    airline: Mapped[Airline] = orm_relationship(back_populates="calculation_types")
+    fields: Mapped[list["CalculationField"]] = orm_relationship(
         back_populates="calculation_type", cascade="all, delete-orphan", order_by="CalculationField.order_index"
     )
 
@@ -130,7 +130,7 @@ class CalculationField(Base):
     options_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    calculation_type: Mapped[CalculationType] = relationship(back_populates="fields")
+    calculation_type: Mapped[CalculationType] = orm_relationship(back_populates="fields")
 
 
 class WebQuote(Base):
@@ -154,12 +154,12 @@ class WebQuote(Base):
     total: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-    user: Mapped[WebUser] = relationship(back_populates="quotes")
-    airline: Mapped[Airline | None] = relationship()
-    calculation_type: Mapped[CalculationType | None] = relationship()
-    trip: Mapped["QuoteTripDetail | None"] = relationship(back_populates="quote", cascade="all, delete-orphan", uselist=False)
-    commercial: Mapped["QuoteCommercial | None"] = relationship(back_populates="quote", cascade="all, delete-orphan", uselist=False)
-    pdf_settings: Mapped["QuotePdfSetting | None"] = relationship(back_populates="quote", cascade="all, delete-orphan", uselist=False)
+    user: Mapped[WebUser] = orm_relationship(back_populates="quotes")
+    airline: Mapped[Airline | None] = orm_relationship()
+    calculation_type: Mapped[CalculationType | None] = orm_relationship()
+    trip: Mapped["QuoteTripDetail | None"] = orm_relationship(back_populates="quote", cascade="all, delete-orphan", uselist=False)
+    commercial: Mapped["QuoteCommercial | None"] = orm_relationship(back_populates="quote", cascade="all, delete-orphan", uselist=False)
+    pdf_settings: Mapped["QuotePdfSetting | None"] = orm_relationship(back_populates="quote", cascade="all, delete-orphan", uselist=False)
 
 
 class QuoteTripDetail(Base):
@@ -175,7 +175,7 @@ class QuoteTripDetail(Base):
     client_phone: Mapped[str | None] = mapped_column(String(60), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    quote: Mapped[WebQuote] = relationship(back_populates="trip")
+    quote: Mapped[WebQuote] = orm_relationship(back_populates="trip")
 
 
 class QuoteCommercial(Base):
@@ -186,7 +186,7 @@ class QuoteCommercial(Base):
     observations: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    quote: Mapped[WebQuote] = relationship(back_populates="commercial")
+    quote: Mapped[WebQuote] = orm_relationship(back_populates="commercial")
 
 
 class QuotePdfSetting(Base):
@@ -200,7 +200,7 @@ class QuotePdfSetting(Base):
     custom_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    quote: Mapped[WebQuote] = relationship(back_populates="pdf_settings")
+    quote: Mapped[WebQuote] = orm_relationship(back_populates="pdf_settings")
 
 
 class ChatMessage(Base):
@@ -212,7 +212,7 @@ class ChatMessage(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-    user: Mapped[WebUser] = relationship()
+    user: Mapped[WebUser] = orm_relationship()
 
 
 
@@ -225,8 +225,8 @@ class UserChatContact(Base):
     contact_user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-    owner: Mapped[WebUser] = relationship(foreign_keys=[owner_user_id])
-    contact: Mapped[WebUser] = relationship(foreign_keys=[contact_user_id])
+    owner: Mapped[WebUser] = orm_relationship(foreign_keys=[owner_user_id])
+    contact: Mapped[WebUser] = orm_relationship(foreign_keys=[contact_user_id])
 
 
 class PrivateChatMessage(Base):
@@ -240,8 +240,8 @@ class PrivateChatMessage(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-    sender: Mapped[WebUser] = relationship(foreign_keys=[sender_id])
-    recipient: Mapped[WebUser] = relationship(foreign_keys=[recipient_id])
+    sender: Mapped[WebUser] = orm_relationship(foreign_keys=[sender_id])
+    recipient: Mapped[WebUser] = orm_relationship(foreign_keys=[recipient_id])
 
 
 class Notification(Base):
@@ -256,7 +256,7 @@ class Notification(Base):
     read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-    user: Mapped[WebUser] = relationship(back_populates="notifications")
+    user: Mapped[WebUser] = orm_relationship(back_populates="notifications")
 
 
 class PublicQuoteLink(Base):
@@ -274,8 +274,8 @@ class PublicQuoteLink(Base):
     total_uses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    owner: Mapped[WebUser] = relationship()
-    requests: Mapped[list["QuoteRequest"]] = relationship(back_populates="public_link", cascade="all, delete-orphan")
+    owner: Mapped[WebUser] = orm_relationship()
+    requests: Mapped[list["QuoteRequest"]] = orm_relationship(back_populates="public_link", cascade="all, delete-orphan")
 
 
 class QuoteRequest(Base):
@@ -303,7 +303,7 @@ class QuoteRequest(Base):
     read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
-    public_link: Mapped[PublicQuoteLink] = relationship(back_populates="requests")
+    public_link: Mapped[PublicQuoteLink] = orm_relationship(back_populates="requests")
 
 
 # ============================================================
@@ -326,9 +326,9 @@ class QuoteGroup(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    user: Mapped[WebUser] = relationship()
-    trip: Mapped["QuoteGroupTripDetail | None"] = relationship(back_populates="group", cascade="all, delete-orphan", uselist=False)
-    option_links: Mapped[list["QuoteOptionIndex"]] = relationship(back_populates="group", cascade="all, delete-orphan", order_by="QuoteOptionIndex.position")
+    user: Mapped[WebUser] = orm_relationship()
+    trip: Mapped["QuoteGroupTripDetail | None"] = orm_relationship(back_populates="group", cascade="all, delete-orphan", uselist=False)
+    option_links: Mapped[list["QuoteOptionIndex"]] = orm_relationship(back_populates="group", cascade="all, delete-orphan", order_by="QuoteOptionIndex.position")
 
 
 class QuoteGroupTripDetail(Base):
@@ -344,7 +344,7 @@ class QuoteGroupTripDetail(Base):
     client_phone: Mapped[str | None] = mapped_column(String(60), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    group: Mapped[QuoteGroup] = relationship(back_populates="trip")
+    group: Mapped[QuoteGroup] = orm_relationship(back_populates="trip")
 
 
 class QuoteOptionIndex(Base):
@@ -355,8 +355,8 @@ class QuoteOptionIndex(Base):
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
-    group: Mapped[QuoteGroup] = relationship(back_populates="option_links")
-    quote: Mapped[WebQuote] = relationship()
+    group: Mapped[QuoteGroup] = orm_relationship(back_populates="option_links")
+    quote: Mapped[WebQuote] = orm_relationship()
 
 # ============================================================
 # V5.6 - CADASTRO DE PESSOAS (CLIENTES/PASSAGEIROS)
@@ -429,11 +429,11 @@ class Person(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relacionamentos
-    company: Mapped[WebCompany | None] = relationship()
-    user: Mapped[WebUser | None] = relationship()
+    company: Mapped[WebCompany | None] = orm_relationship()
+    user: Mapped[WebUser | None] = orm_relationship()
     
-    family_members: Mapped[list["PersonFamily"]] = relationship(cascade="all, delete-orphan")
-    attachments: Mapped[list["PersonAttachment"]] = relationship(cascade="all, delete-orphan")
+    family_members: Mapped[list["PersonFamily"]] = orm_relationship(cascade="all, delete-orphan")
+    attachments: Mapped[list["PersonAttachment"]] = orm_relationship(cascade="all, delete-orphan")
 
 
 class PersonFamily(Base):
@@ -445,8 +445,8 @@ class PersonFamily(Base):
     relative_id: Mapped[int] = mapped_column(ForeignKey("web_persons.id"), index=True)
     relationship: Mapped[str] = mapped_column(String(30), nullable=False)
     
-    person: Mapped["Person"] = relationship(foreign_keys=[person_id])
-    relative: Mapped["Person"] = relationship(foreign_keys=[relative_id])
+    person: Mapped["Person"] = orm_relationship(foreign_keys=[person_id])
+    relative: Mapped["Person"] = orm_relationship(foreign_keys=[relative_id])
 
 
 class PersonAttachment(Base):
@@ -461,4 +461,4 @@ class PersonAttachment(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     
-    person: Mapped["Person"] = relationship()
+    person: Mapped["Person"] = orm_relationship()
