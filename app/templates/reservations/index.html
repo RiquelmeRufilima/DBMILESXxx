@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Reservas | DBMILESX{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/reservations.css?v=1">{% endblock %}
+{% block page_title %}Reservas{% endblock %}
+{% block eyebrow %}CADASTROS{% endblock %}
+{% block content %}
+{% macro flight_cell(f) -%}
+{% if f %}
+<div class="rsv-leg">
+  <div class="rsv-leg-route"><b>{{ (f.origin or '—')|upper }}</b><span class="rsv-leg-pill">{{ f.status or 'Fechado' }}</span><b>{{ (f.destination or '—')|upper }}</b></div>
+  <small><svg class="ui-icon"><use href="#icon-clock"></use></svg> {{ f.departure_date|date_br if f.departure_date else '—' }}{% if f.departure_time %} <span>{{ f.departure_time[:5] }}</span>{% endif %}</small>
+</div>
+{% else %}<span class="rsv-muted">—</span>{% endif %}
+{%- endmacro %}
+
+<section class="page-heading inline">
+  <div>
+    <span class="eyebrow">RESERVAS</span>
+    <h1>Reservas aéreas</h1>
+    <p>Adicione reservas pelo localizador e acompanhe tudo num só lugar.</p>
+  </div>
+  <div class="action-cluster"><button class="primary-button" type="button" id="rsvAddButton" data-confirm-ignore="1"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Adicionar</button></div>
+</section>
+
+{% if not auto_enabled %}
+<div class="notice-card rsv-notice"><strong>Busca automática ainda não ativada.</strong> As reservas ficam salvas como “Aguardando sincronização” e são completadas quando um conector (ex.: Amadeus Enterprise) for ligado. Enquanto isso, use o botão <em>Abrir no site da companhia</em> para conferir.</div>
+{% endif %}
+
+<section class="rsv-stats">
+  <article><span>Reservas</span><strong>{{ total }}</strong></article>
+  <article><span>Aguardando</span><strong>{{ counts.get('pendente', 0) }}</strong></article>
+  <article><span>Confirmadas</span><strong>{{ counts.get('sincronizada', 0) }}</strong></article>
+  <article><span>Com notificação</span><strong>{{ notify_count }}</strong></article>
+</section>
+
+<form class="rsv-toolbar card-panel" method="get" action="/reservas">
+  <nav class="rsv-tabs">
+    <a href="/reservas{% if search_query %}?q={{ search_query|urlencode }}{% endif %}" class="{{ 'active' if not status_filter else '' }}">Todas <b>{{ total }}</b></a>
+    {% for key, label in status_labels.items() %}<a href="/reservas?status={{ key }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}" class="{{ 'active' if status_filter == key else '' }}">{{ label }} <b>{{ counts.get(key, 0) }}</b></a>{% endfor %}
+  </nav>
+  <div class="rsv-search"><svg class="ui-icon"><use href="#icon-search"></use></svg><input name="q" value="{{ search_query }}" placeholder="Localizador, passageiro, descrição...">{% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}</div>
+</form>
+
+<section class="panel rsv-panel">
+  {% if items %}
+  <div class="rsv-table" role="table">
+    <div class="rsv-head" role="row"><span>Cia</span><span>Localizador</span><span>Passageiro(s)</span><span>Ida</span><span>Volta</span><span>Descrição</span><span>Ações</span></div>
+    {% for it in items %}{% set r = it.row %}
+    <div class="rsv-row s-{{ r.status }}" role="row" data-rsv-id="{{ r.id }}">
+      <span class="rsv-logo" title="{{ r.airline_name }}">{% if it.airline.logo_url %}<img src="{{ it.airline.logo_url }}" alt="{{ r.airline_name }}" loading="lazy">{% else %}<i style="--logo:{{ it.airline.color }}">{{ it.airline.initials }}</i>{% endif %}</span>
+      <span class="rsv-code">
+        <strong>🎫 {{ it.code }}</strong>
+        <em class="rsv-status s-{{ r.status }}" title="{{ r.last_message or '' }}">{{ it.status_label }}</em>
+      </span>
+      <span class="rsv-pax">{{ it.passenger_label }}{% if it.extra_passengers %} <small>+{{ it.extra_passengers }}</small>{% endif %}</span>
+      <span>{{ flight_cell(it.outbound) }}</span>
+      <span>{{ flight_cell(it.inbound) }}</span>
+      <span class="rsv-desc"><input value="{{ r.description or '' }}" placeholder="Adicionar descrição..." maxlength="300" data-rsv-desc aria-label="Descrição"></span>
+      <span class="rsv-actions">
+        <button type="button" class="rsv-icon" data-rsv-copy="{{ it.code }}" data-confirm-ignore="1" title="Copiar localizador"><svg class="ui-icon"><use href="#icon-copy"></use></svg></button>
+        {% if it.manage_url %}<a class="rsv-icon" href="{{ it.manage_url }}" target="_blank" rel="noopener" title="Abrir no site da companhia"><svg class="ui-icon"><use href="#icon-link"></use></svg></a>{% endif %}
+        <button type="button" class="rsv-icon" data-rsv-sync data-confirm-ignore="1" title="Sincronizar agora"><svg class="ui-icon"><use href="#icon-repeat"></use></svg></button>
+        <button type="button" class="rsv-icon danger" data-rsv-delete data-confirm-ignore="1" title="Excluir"><svg class="ui-icon"><use href="#icon-trash"></use></svg></button>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><svg class="empty-icon"><use href="#icon-route"></use></svg><h3>Nenhuma reserva {{ 'encontrada' if search_query or status_filter else 'adicionada ainda' }}.</h3><p>Clique em <strong>Adicionar</strong>, escolha a companhia e informe o localizador.</p></div>
+  {% endif %}
+  <p class="dbm-tag-error rsv-page-error" id="rsvPageError" hidden></p>
+</section>
+
+<dialog id="rsvDialog" class="rsv-dialog">
+  <div class="rsv-dialog-head"><h3>Adicionar reserva</h3><button type="button" class="rsv-close" data-rsv-close data-confirm-ignore="1" aria-label="Fechar">✕</button></div>
+  <div class="rsv-step" data-rsv-step="1">
+    <p class="rsv-hint">Escolha a companhia da reserva para continuar.</p>
+    <input type="search" id="rsvAirlineSearch" placeholder="Pesquisar companhia..." autocomplete="off">
+    <div class="rsv-airlines" id="rsvAirlines">
+      {% for a in catalog %}
+      <button type="button" class="rsv-airline" data-slug="{{ a.slug }}" data-name="{{ a.name|lower }}" data-confirm-ignore="1">
+        <span class="rsv-logo sm">{% if a.logo_url %}<img src="{{ a.logo_url }}" alt="" loading="lazy">{% else %}<i>{{ a.name[:2]|upper }}</i>{% endif %}</span><span>{{ a.name }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  <form class="rsv-step" data-rsv-step="2" id="rsvForm" hidden novalidate>
+    <div class="rsv-selected"><span class="rsv-logo sm" id="rsvSelectedLogo"></span><div><strong id="rsvSelectedName"></strong><small>Companhia selecionada</small></div><button type="button" class="rsv-link" data-rsv-back data-confirm-ignore="1">Trocar</button></div>
+    <div id="rsvFields" class="rsv-fields"></div>
+    <label class="rsv-notify"><input type="checkbox" name="notify" checked><span><strong>Notificar alterações na reserva</strong><small>Check-in disponível, mudança de voo, status e atualizações da companhia.</small></span></label>
+    <label class="rsv-field"><span>Descrição (opcional)</span><input name="description" maxlength="300" placeholder="Ex.: Venda cadastrada – Riquelme"></label>
+    <p class="dbm-tag-error" id="rsvError" hidden></p>
+    <div class="rsv-dialog-actions"><button type="button" class="ghost-button" data-rsv-back data-confirm-ignore="1">Voltar</button><button type="submit" class="primary-button" id="rsvSubmit" disabled data-confirm-ignore="1">Adicionar reserva</button></div>
+  </form>
+</dialog>
+<script type="application/json" id="rsvCatalog">{{ catalog|tojson }}</script>
+<script src="/static/js/reservations.js?v=1" defer></script>
+{% endblock %}

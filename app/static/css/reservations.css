@@ -1,0 +1,104 @@
+/* Reservas (estilo lista MilhasPix, tema do DBMILESX) */
+.rsv-notice{margin:0 0 14px;padding:12px 14px;border-radius:12px;border:1px solid rgba(245,158,11,.3);background:rgba(245,158,11,.08);color:#fcd34d;font-size:.82rem}
+.rsv-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.rsv-stats article{padding:14px 16px;border-radius:14px;border:1px solid var(--border);background:var(--panel)}
+.rsv-stats span{display:block;font-size:.68rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.rsv-stats strong{display:block;margin-top:4px;font-size:1.5rem}
+.rsv-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}
+.rsv-tabs{display:flex;flex-wrap:wrap;gap:6px}
+.rsv-tabs a{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--border);font-size:.76rem;font-weight:850;color:var(--muted)}
+.rsv-tabs a b{padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.07);font-size:.68rem}
+.rsv-tabs a.active{border-color:var(--cyan);color:var(--text);background:color-mix(in srgb,var(--cyan) 12%,transparent)}
+.rsv-search{position:relative;flex:1;max-width:420px;min-width:220px}
+.rsv-search .ui-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted)}
+.rsv-search input{width:100%;min-height:40px;padding-left:36px!important}
+.rsv-panel{padding:0;overflow:hidden}
+.rsv-table{display:grid}
+.rsv-head,.rsv-row{display:grid;grid-template-columns:56px minmax(130px,.9fr) minmax(150px,1.1fr) minmax(150px,1fr) minmax(150px,1fr) minmax(160px,1.2fr) 150px;gap:12px;align-items:center;padding:12px 16px}
+.rsv-head{font-size:.66rem;font-weight:900;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.rsv-row{border-bottom:1px solid color-mix(in srgb,var(--border) 60%,transparent)}
+.rsv-row.s-pendente{background:color-mix(in srgb,#f59e0b 5%,transparent)}
+.rsv-row:hover{background:color-mix(in srgb,var(--cyan) 5%,transparent)}
+.rsv-logo{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;overflow:hidden;background:#fff;box-shadow:0 0 0 1px var(--border)}
+.rsv-logo img{width:100%;height:100%;object-fit:contain;padding:4px}
+.rsv-logo i{display:grid;place-items:center;width:100%;height:100%;background:var(--logo,#2563eb);color:#fff;font-style:normal;font-weight:950;font-size:.8rem}
+.rsv-logo.sm{width:36px;height:36px}
+.rsv-code{display:grid;gap:4px}
+.rsv-code strong{font-size:.92rem;letter-spacing:.04em}
+.rsv-status{justify-self:start;padding:2px 8px;border-radius:999px;font-style:normal;font-size:.66rem;font-weight:900}
+.rsv-status.s-pendente{background:rgba(245,158,11,.15);color:#fbbf24}
+.rsv-status.s-sincronizada{background:rgba(34,197,94,.14);color:#4ade80}
+.rsv-status.s-nao_encontrada,.rsv-status.s-erro{background:rgba(239,68,68,.14);color:#f87171}
+.rsv-pax{font-weight:800;font-size:.86rem}
+.rsv-pax small{color:var(--muted);font-weight:800}
+.rsv-leg{display:grid;gap:4px}
+.rsv-leg-route{display:flex;align-items:center;gap:6px}
+.rsv-leg-route b{font-size:.86rem}
+.rsv-leg-pill{padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted);font-size:.64rem;font-weight:850}
+.rsv-leg small{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:.74rem}
+.rsv-leg small .ui-icon{width:12px;height:12px;color:#4ea7ff}
+.rsv-muted{color:var(--muted)}
+.rsv-desc input{width:100%;min-height:34px;border:1px dashed transparent;background:transparent;font-size:.8rem}
+.rsv-desc input:hover,.rsv-desc input:focus{border-color:var(--border);background:var(--panel-2)}
+.rsv-desc input.is-saved{border-color:#22c55e}
+.rsv-actions{display:flex;justify-content:flex-end;gap:6px}
+.rsv-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:transparent;color:#4ea7ff;cursor:pointer}
+.rsv-icon.danger{color:#f87171}
+.rsv-icon.is-done{color:#4ade80;border-color:#22c55e}
+.rsv-icon.is-spinning .ui-icon{animation:rsvSpin .8s linear infinite}
+.rsv-icon .ui-icon{width:15px;height:15px}
+@keyframes rsvSpin{to{transform:rotate(360deg)}}
+.rsv-page-error{margin:12px 16px}
+
+.rsv-dialog{width:min(700px,calc(100vw - 24px));padding:0;border:1px solid var(--border);border-radius:20px;background:var(--panel);color:var(--text);box-shadow:0 30px 90px rgba(0,0,0,.5)}
+.rsv-dialog::backdrop{background:rgba(2,9,19,.7);backdrop-filter:blur(6px)}
+.rsv-dialog-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border)}
+.rsv-dialog-head h3{margin:0;font-size:1.15rem}
+.rsv-close{width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer}
+.rsv-step{display:grid;gap:12px;padding:16px 20px 20px}
+.rsv-step[hidden]{display:none}
+.rsv-hint{margin:0;color:var(--muted);font-size:.85rem}
+.rsv-airlines{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:min(56vh,460px);overflow:auto;padding:2px}
+.rsv-airline{display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--text);font-weight:800;font-size:.86rem;text-align:left;cursor:pointer}
+.rsv-airline:hover{border-color:var(--cyan)}
+.rsv-airline[hidden]{display:none}
+.rsv-selected{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04)}
+.rsv-selected div{display:grid;flex:1}
+.rsv-selected small{color:var(--muted)}
+.rsv-link{border:0;background:none;color:#4ea7ff;font-weight:850;cursor:pointer}
+.rsv-fields{display:grid;gap:12px}
+.rsv-field{display:grid;gap:6px;font-size:.8rem;font-weight:850}
+.rsv-input-wrap{position:relative;display:block}
+.rsv-input-wrap input,.rsv-field>input{width:100%;min-height:46px;text-transform:uppercase}
+.rsv-field>input{text-transform:none}
+.rsv-paste{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--muted);font-weight:800;cursor:pointer}
+.rsv-notify{display:flex!important;flex-direction:row!important;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);cursor:pointer}
+.rsv-notify input{width:18px!important;height:18px;min-height:0!important;margin-top:2px;flex:none}
+.rsv-notify span{display:grid;gap:2px}
+.rsv-notify small{color:var(--muted);font-weight:600}
+.rsv-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.rsv-dialog-actions button{min-height:48px;justify-content:center}
+
+@media(max-width:1100px){
+  .rsv-head{display:none}
+  .rsv-row{grid-template-columns:48px 1fr auto;grid-template-areas:"logo code actions" "pax pax pax" "ida volta volta" "desc desc desc";row-gap:8px}
+  .rsv-row>span:nth-child(1){grid-area:logo}
+  .rsv-row>span:nth-child(2){grid-area:code}
+  .rsv-row>span:nth-child(3){grid-area:pax}
+  .rsv-row>span:nth-child(4){grid-area:ida}
+  .rsv-row>span:nth-child(5){grid-area:volta}
+  .rsv-row>span:nth-child(6){grid-area:desc}
+  .rsv-row>span:nth-child(7){grid-area:actions}
+}
+@media(max-width:640px){
+  .rsv-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rsv-airlines{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rsv-actions{flex-wrap:wrap;max-width:80px}
+}
+/* ajustes */
+.rsv-notice{display:block!important}
+.rsv-head,.rsv-row{grid-template-columns:56px minmax(180px,1fr) minmax(140px,1fr) minmax(140px,1fr) minmax(140px,1fr) minmax(150px,1.1fr) 150px}
+.rsv-code strong{white-space:nowrap;font-size:.86rem}
+.rsv-status{display:inline-block;width:max-content;max-width:100%}
+.rsv-input-wrap input[name=last_name],.rsv-input-wrap input[name=full_last_name]{text-transform:none}
+@media(max-width:1100px){.rsv-row .rsv-muted{display:none}}

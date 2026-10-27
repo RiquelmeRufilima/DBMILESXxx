@@ -656,3 +656,41 @@ class QuoteTagLink(Base):
     target_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     created_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Reservas aéreas importadas pelo localizador (base para Amadeus/conectores)
+# ---------------------------------------------------------------------------
+class AirlineReservation(Base):
+    """Reserva informada pelo localizador (como em MilhasPix/Iddas).
+
+    Fica salva mesmo sem conector ativo (status "pendente"); quando um conector
+    de busca estiver configurado, os voos e passageiros são preenchidos.
+    """
+    __tablename__ = "web_airline_reservations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("web_companies.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("web_users.id", ondelete="SET NULL"), nullable=True, index=True)
+    airline_slug: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    airline_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    locator: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    purchase_number: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    last_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    origin: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    notify_changes: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # pendente | sincronizada | nao_encontrada | erro
+    status: Mapped[str] = mapped_column(String(20), default="pendente", nullable=False, index=True)
+    provider: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    booking_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    passengers_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    flights_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    total_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    last_message: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    last_sync_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user: Mapped[WebUser | None] = orm_relationship()

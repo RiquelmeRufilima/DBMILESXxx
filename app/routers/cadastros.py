@@ -37,6 +37,8 @@ from ..services.pdf_service import _html_to_pdf, file_to_data_uri
 from ..web import context, flash, templates
 from ..services.airline_logos import AirlineLogoResolver
 from ..services.tags import flight_target_id, list_tags, tags_for_targets
+from ..services import reservations as reservation_service
+from ..services.protection import register_attempt, seconds_until_allowed, wait_message
 import logging
 
 _voos_logger = logging.getLogger(__name__)
@@ -1921,6 +1923,8 @@ def editar_cotacao(group_id: int, request: Request, db: Session = Depends(get_db
             item=item,
             group=item.group,
             quote=item.quote,
+            locator_airlines=reservation_service.airline_catalog(),
+            locator_auto=any(p["configured"] and p["name"] != "manual" for p in reservation_service.providers_status()),
             data=data,
             statuses=board_statuses,
             people=people,
@@ -2720,6 +2724,72 @@ def voos(request: Request, db: Session = Depends(get_db)):
             },
         ),
     )
+
+
+@router.post("/cotacoes/{group_id}/localizador")
+async def buscar_reserva_localizador(group_id: int, request: Request, db: Session = Depends(get_db)):
+    """"Incluir via localizador" (aba Orçamento da cotação).
+
+    Usa o mesmo módulo da página Reservas: a reserva fica registrada lá e,
+    quando um conector (Amadeus Enterprise) estiver ativo, os voos voltam
+    prontos para o Orçamento. Sem conector, devolve os dados para pré-preencher.
+    Corpo JSON: {airline: "latam", fields: {...}, notify_changes: true, csrf_token}
+    """
+    user = require_user(request, db)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    if not isinstance(data, dict) or not validate_csrf_token(request.session, str(data.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada. Recarregue a página."}, status_code=403)
+
+    group = db.get(QuoteGroup, group_id)
+    if group is None or not _group_allowed(user, group):
+        return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
+
+    wait = seconds_until_allowed(db, "reservation_lookup", str(user.id))
+    if wait:
+        return JSONResponse({"ok": False, "message": wait_message(wait)}, status_code=429)
+    register_attempt(db, "reservation_lookup", str(user.id), commit=False)
+
+    fields = data.get("fields") if isinstance(data.get("fields"), dict) else {}
+    notify = bool(data.get("notify_changes", True))
+    client = (group.trip.client_name if getattr(group, "trip", None) and group.trip.client_name else group.quote_name) or ""
+    payload = {
+        **{k: v for k, v in fields.items() if isinstance(v, str)},
+        "airline": str(data.get("airline") or ""),
+        "notify": "1" if notify else "0",
+        "description": f"Cotação q{int(group.id):04d}" + (f" – {client}" if client else ""),
+    }
+    reservation, error, result = await reservation_service.find_or_create_reservation(db, user, payload)
+    if reservation is None:
+        db.commit()
+        return JSONResponse({"ok": False, "message": error}, status_code=400)
+    db.commit()
+
+    airline = reservation_service.get_airline(reservation.airline_slug) or {"name": reservation.airline_name}
+    link = checkin_link_for_airline(airline["name"]) or ""
+    flights = reservation_service.quote_flights_from_reservation(reservation, notify=notify, checkin_link=link)
+    found = reservation.status == "sincronizada" and bool(flights)
+    last_name = reservation.last_name or ""
+    return {
+        "ok": True,
+        "found": found,
+        "provider": reservation.provider or "manual",
+        "status": reservation.status,
+        "message": (result.message if result else "") or ("Voos encontrados." if found else "Reserva registrada."),
+        "flights": flights if found else [],
+        "reservation_id": reservation.id,
+        "prefill": {
+            "airline": airline["name"],
+            "locator": reservation.locator or "",
+            "purchase_number": reservation.purchase_number or "",
+            "origin": reservation.origin or "",
+            "notes": f"Sobrenome do titular: {last_name}" if last_name else "",
+            "notify_changes": notify,
+            "checkin_link": link,
+        },
+    }
 
 
 @router.get("/voos/{group_id}/editar")

@@ -101,7 +101,7 @@
         <div class="button-row">
           <button class="secondary-button tiny" type="button" onclick="openFlightModal('ida')">+ Incluir voo</button>
           <button class="ghost-button tiny" type="button" disabled>Buscar via fornecedor</button>
-          <button class="ghost-button tiny" type="button" disabled>Incluir via localizador</button>
+          <button class="ghost-button tiny" type="button" onclick="openLocatorModal()">Incluir via localizador</button>
         </div>
       </div>
       <div id="commercialSeedPanel" class="commercial-seed-panel" hidden>
@@ -502,6 +502,8 @@ function saveFlightFromModal(){
   const arrival_date=val('f_arrival_date') || departure_date;
   const previous = editFlightIndex!==null ? (flights[editFlightIndex] || {}) : {};
   const f={kind:val('f_kind')||'ida',label:val('f_label')||'Voo',segment_key:previous.segment_key||(val('f_kind')==='volta'?'return':'outbound'),schedule_option_number:Number(previous.schedule_option_number||1),selected_schedule:('selected_schedule' in previous)?Boolean(previous.selected_schedule):true,flight_number:val('f_flight_number').toUpperCase(),airline,date:departure_date,departure_date,arrival_date,origin:val('f_origin'),destination:val('f_destination'),departure_time:val('f_departure_time'),arrival_time:val('f_arrival_time'),duration:val('f_duration'),locator:val('f_locator').toUpperCase(),purchase_number:val('f_purchase_number'),class:val('f_class')||'Econômica',connections:val('f_connections')||'Direto',checkin_status:val('f_checkin_status')||'pendente',checkin_link:(val('f_checkin_link')||checkinLinkForAirline(airline,val('f_locator'),val('f_purchase_number'))),bags_personal:Number(val('f_bags_personal')||0),bags_carry:Number(val('f_bags_carry')||0),bags_checked:Number(val('f_bags_checked')||0),notes:val('f_notes'),stops:Array.isArray(previous.stops)?previous.stops:[]};
+  if(window.__locatorMeta && editFlightIndex===null){f.notify_changes=!!window.__locatorMeta.notify_changes;f.source='localizador';}
+  window.__locatorMeta=null;
   if(editFlightIndex!==null)flights[editFlightIndex]=f;else flights.push(f);
   closeDialog('flightModal');renderAll();
 }
@@ -780,5 +782,103 @@ document.getElementById('quoteAttachmentInput')?.addEventListener('change',event
 document.getElementById('quoteEditForm').addEventListener('submit',syncHidden);
 document.getElementById('launchForm')?.addEventListener('submit',syncHidden);
 renderAll();
+</script>
+
+<dialog id="locatorModal" class="dark-dialog locator-dialog">
+  <div class="dialog-head"><h2>Buscar pelo Localizador <span class="locator-beta">Beta</span></h2><button onclick="closeDialog('locatorModal')" type="button">×</button></div>
+  <div class="dialog-body">
+    <p class="locator-hint" id="locatorStep1Hint">Escolha a companhia da reserva para continuar.</p>
+    <div class="locator-airline-grid" id="locatorAirlineGrid"></div>
+    <div class="locator-fields" id="locatorFields" hidden></div>
+    <label class="locator-notify" id="locatorNotifyBox" hidden><input type="checkbox" id="locatorNotify" checked><span><b>Notificar alterações na reserva</b><small>Check-in disponível, mudança de voo, status e atualizações da cia aérea.</small></span></label>
+    {% if not locator_auto %}<p class="locator-manual-note" id="locatorManualNote" hidden>A busca automática (Amadeus) ainda não está ativa. Ao incluir, a reserva fica registrada em <b>Reservas</b> e o voo abre já com a companhia e o localizador para você completar os horários.</p>{% endif %}
+    <p class="locator-error" id="locatorError" hidden></p>
+  </div>
+  <div class="dialog-actions"><button class="ghost-button" type="button" onclick="closeDialog('locatorModal')">Cancelar</button><button class="primary-button" type="button" id="locatorSubmit" onclick="submitLocatorLookup()" disabled>Incluir</button></div>
+</dialog>
+<script id="locatorAirlinesData" type="application/json">{{ (locator_airlines|default([]))|tojson }}</script>
+<style>
+.locator-dialog{width:min(760px,calc(100vw - 24px))}
+.locator-beta{font-size:.62rem;font-weight:900;padding:2px 7px;border-radius:999px;background:rgba(38,197,230,.14);color:var(--cyan);vertical-align:3px}
+.locator-hint{margin:0 0 12px;color:var(--muted);font-size:.84rem}
+.locator-airline-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.locator-airline{position:relative;display:flex;align-items:center;gap:10px;min-height:58px;padding:9px 12px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--text);font-weight:800;font-size:.86rem;text-align:left;cursor:pointer;transition:.15s}
+.locator-airline:hover{border-color:color-mix(in srgb,var(--cyan) 50%,var(--border))}
+.locator-airline img,.locator-airline .locator-initials{width:38px;height:38px;flex:none;border-radius:50%;background:#fff;object-fit:contain;padding:4px}
+.locator-airline .locator-initials{display:grid;place-items:center;background:#2563eb;color:#fff;font-size:.75rem;font-weight:950}
+.locator-airline.is-selected{border-color:#2f8ee8;background:rgba(47,142,232,.12);box-shadow:0 0 0 2px rgba(47,142,232,.35)}
+.locator-airline.is-selected:after{content:"✓";position:absolute;top:6px;right:8px;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#2f8ee8;color:#fff;font-size:.7rem}
+.locator-airline-grid.is-collapsed .locator-airline:not(.is-selected){display:none}
+.locator-airline-grid.is-collapsed{grid-template-columns:1fr}
+.locator-change{margin-left:auto;color:#4ea7ff;font-size:.8rem;font-weight:850}
+.locator-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:14px}
+.locator-fields label{display:grid;gap:5px;font-size:.78rem;font-weight:850}
+.locator-fields input{min-height:42px;text-transform:uppercase}
+.locator-fields .field-error{color:#ff8a9a;font-size:.72rem;font-weight:800}
+.locator-notify{display:flex!important;flex-direction:row!important;gap:10px;align-items:flex-start;margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.035);cursor:pointer}
+.locator-notify input{margin-top:3px;width:18px!important;height:18px;min-height:0!important;flex:none}
+.locator-notify span{display:grid;gap:2px}
+.locator-notify small{color:var(--muted)}
+.locator-manual-note{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#fbbf24;font-size:.78rem;font-weight:700}
+.locator-error{margin:10px 0 0;color:#ff8a9a;font-weight:800;font-size:.82rem}
+@media(max-width:640px){.locator-airline-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script>
+(() => {
+  let airlines=[]; try{airlines=JSON.parse(document.getElementById('locatorAirlinesData').textContent||'[]')}catch(_){}
+  const grid=document.getElementById('locatorAirlineGrid'), fieldsBox=document.getElementById('locatorFields');
+  const notifyBox=document.getElementById('locatorNotifyBox'), errorBox=document.getElementById('locatorError');
+  const submit=document.getElementById('locatorSubmit'), hint=document.getElementById('locatorStep1Hint');
+  const manualNote=document.getElementById('locatorManualNote');
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  let selected=null;
+  const showError=m=>{errorBox.textContent=m||'';errorBox.hidden=!m;};
+  function renderGrid(){
+    grid.classList.toggle('is-collapsed',!!selected);
+    grid.innerHTML=airlines.map(a=>`<button type="button" class="locator-airline ${selected&&selected.slug===a.slug?'is-selected':''}" data-key="${esc(a.slug)}">${a.logo_url?`<img src="${esc(a.logo_url)}" alt="" loading="lazy">`:`<span class="locator-initials">${esc(a.name.slice(0,2).toUpperCase())}</span>`}<span>${esc(a.name)}</span>${selected&&selected.slug===a.slug?'<span class="locator-change">Trocar</span>':''}</button>`).join('');
+  }
+  function renderFields(){
+    if(!selected){fieldsBox.hidden=true;notifyBox.hidden=true;if(manualNote)manualNote.hidden=true;submit.disabled=true;hint.hidden=false;return;}
+    hint.hidden=true;
+    fieldsBox.innerHTML=selected.fields.map(f=>`<label>${esc(f.label)} *<input data-field="${esc(f.key)}" placeholder="${esc(f.placeholder)}" autocomplete="off" spellcheck="false" ${f.key==='last_name'||f.key==='full_last_name'?'style="text-transform:none"':''}></label>`).join('');
+    fieldsBox.hidden=false;notifyBox.hidden=false;if(manualNote)manualNote.hidden=false;submit.disabled=false;
+    setTimeout(()=>fieldsBox.querySelector('input')?.focus(),40);
+  }
+  grid.addEventListener('click',e=>{
+    const b=e.target.closest('[data-key]'); if(!b)return;
+    const a=airlines.find(x=>x.slug===b.dataset.key);
+    selected=(selected&&selected.slug===a.slug)?null:a;
+    showError('');renderGrid();renderFields();
+  });
+  fieldsBox.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();window.submitLocatorLookup();}});
+  window.openLocatorModal=function(){selected=null;showError('');renderGrid();renderFields();document.getElementById('locatorModal').showModal();};
+  window.submitLocatorLookup=async function(){
+    if(!selected)return;
+    const fields={};fieldsBox.querySelectorAll('[data-field]').forEach(i=>fields[i.dataset.field]=i.value.trim());
+    showError('');submit.disabled=true;submit.textContent='Buscando...';
+    try{
+      const csrf=document.querySelector('#quoteEditForm input[name="csrf_token"]')?.value||'';
+      const res=await fetch('/cadastros/cotacoes/{{ group.id }}/localizador',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({airline:selected.slug,fields,notify_changes:document.getElementById('locatorNotify').checked,csrf_token:csrf})});
+      let data={};try{data=await res.json();}catch(_){}
+      if(!res.ok||!data.ok){
+        showError(data.message||'Não foi possível buscar a reserva.');return;
+      }
+      closeDialog('locatorModal');
+      if(data.found&&Array.isArray(data.flights)&&data.flights.length){
+        data.flights.forEach(f=>flights.push(f)); renderAll();
+        alert(data.message||'Voos incluídos. Confira e clique em Salvar.');
+        return;
+      }
+      // Sem busca automática: abre o voo já preenchido para completar.
+      const p=data.prefill||{};
+      window.__locatorMeta={notify_changes:!!p.notify_changes};
+      openFlightModal('ida');
+      [['f_airline',p.airline],['f_locator',p.locator],['f_purchase_number',p.purchase_number],['f_origin',p.origin],['f_notes',p.notes],['f_checkin_link',p.checkin_link]].forEach(([id,v])=>{if(v)setVal(id,v);});
+      if(typeof updateAirportHints==='function')updateAirportHints();
+      if(typeof refreshCheckinLinkField==='function')refreshCheckinLinkField();
+    }catch(_){showError('Falha de conexão. Tente novamente.');}
+    finally{submit.disabled=!selected;submit.textContent='Incluir';}
+  };
+})();
 </script>
 {% endblock %}

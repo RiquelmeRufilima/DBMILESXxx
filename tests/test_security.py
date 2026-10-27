@@ -475,3 +475,62 @@ def test_migracao_tabela_antiga_de_etiquetas():
     assert {"kind", "active"} <= cols
     with engine.connect() as conn:
         assert conn.execute(text("SELECT kind, active FROM web_quote_tags")).one() == ("cotacao", 1)
+
+
+# ---------------------------------------------------------------------------
+# Incluir voo via localizador
+# ---------------------------------------------------------------------------
+def test_busca_por_localizador(started_app):
+    import json as _json
+    a = make_company("Empresa Localizador A")
+    b = make_company("Empresa Localizador B")
+    ua = make_user("loc-a@teste.com", company_id=a, role="admin", owner=True)
+    make_user("loc-b@teste.com", company_id=b, role="admin", owner=True)
+    group = make_group(ua, a, "Cotacao Localizador")
+    db = _db()
+    try:
+        db.add(AcceptedQuote(group_id=group, user_id=ua, company_id=a, extra_json=_json.dumps({"client_name": "Cliente Loc"})))
+        db.commit()
+    finally:
+        db.close()
+
+    client = logged(started_app, "loc-a@teste.com")
+    page = client.get(f"/cadastros/cotacoes/{group}", follow_redirects=True).text
+    assert "Incluir via localizador" in page and "locatorAirlinesData" in page
+    token = page_csrf(client, f"/cadastros/cotacoes/{group}")
+    url = f"/cadastros/cotacoes/{group}/localizador"
+
+    # Campos inválidos por companhia
+    r = client.post(url, json={"airline": "gol", "fields": {"locator": "AB", "origin": "FOR", "last_name": "Silva"}, "csrf_token": token})
+    assert r.status_code == 400 and "Localizador" in r.json()["message"]
+
+    # Sem conector ativo: registra em Reservas e volta pré-preenchido
+    r = client.post(url, json={"airline": "latam", "fields": {"purchase_number": "la9575093azol", "last_name": "Silva"}, "notify_changes": True, "csrf_token": token}).json()
+    assert r["ok"] and r["found"] is False and r["status"] == "pendente"
+    assert r["prefill"]["purchase_number"] == "LA9575093AZOL" and r["prefill"]["airline"] == "LATAM"
+    reservas = client.get("/reservas").text
+    assert "LA9575093AZOL" in reservas and "Aguardando" in reservas
+    # Repetir o mesmo localizador reaproveita a reserva (sem duplicar)
+    r2 = client.post(url, json={"airline": "latam", "fields": {"purchase_number": "LA9575093AZOL", "last_name": "Silva"}, "csrf_token": token}).json()
+    assert r2["reservation_id"] == r["reservation_id"]
+
+    # CSRF e outra empresa
+    assert client.post(url, json={"airline": "tap", "fields": {}, "csrf_token": "x"}).status_code == 403
+    other = logged(started_app, "loc-b@teste.com")
+    other_token = page_csrf(other)
+    assert other.post(url, json={"airline": "tap", "fields": {"locator": "ABC123", "full_last_name": "Souza"}, "csrf_token": other_token}).status_code == 404
+
+
+def test_pagina_de_reservas(started_app):
+    c = make_company("Empresa Reservas")
+    make_user("rsv@teste.com", company_id=c, role="admin", owner=True)
+    make_user("rsv-outra@teste.com", company_id=make_company("Outra Reservas"), role="admin", owner=True)
+    client = logged(started_app, "rsv@teste.com")
+    token = page_csrf(client, "/reservas")
+    r = client.post("/reservas", json={"airline": "tap", "locator": "abc123", "full_last_name": "Souza Lima", "notify": "1", "csrf_token": token})
+    assert r.status_code == 200 and r.json()["status"] == "pendente"
+    assert client.post("/reservas", json={"airline": "tap", "locator": "ABC123", "full_last_name": "Souza", "csrf_token": token}).status_code == 400  # duplicada
+    rid = r.json()["id"]
+    other = logged(started_app, "rsv-outra@teste.com")
+    assert "ABC123" not in other.get("/reservas").text
+    assert other.post(f"/reservas/{rid}/excluir", json={"csrf_token": page_csrf(other)}).status_code == 404

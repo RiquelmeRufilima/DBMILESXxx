@@ -33,6 +33,8 @@ LIMITS: dict[str, tuple[int, int]] = {
     "company_join": (8, 15),      # tentativas de código da empresa por usuário
     "contact_lookup": (30, 10),   # buscas de ID de contato (evita varredura)
     "public_request_ip": (15, 60),  # formulário público de solicitação
+    "reservation_lookup": (20, 10),  # buscas de reserva por localizador por usuário
+    "reservation_lookup": (30, 10),  # "Adicionar reserva" por usuário
 }
 
 

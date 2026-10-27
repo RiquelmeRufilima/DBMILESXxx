@@ -20,11 +20,17 @@ def _require_login(request: Request, db: Session):
 @router.get("/status")
 async def amadeus_status(request: Request, db: Session = Depends(get_db)):
     _require_login(request, db)
+    from ..services.reservations import providers_status
+
     return {
         "enabled": amadeus_client.enabled,
         "configured": amadeus_client.configured,
         "environment": amadeus_client.environment,
         "booking_enabled": False,
+        # As APIs Self-Service (usadas por este cliente) foram desligadas pelo
+        # Amadeus em 17/07/2026. A busca por localizador usa o Enterprise.
+        "self_service_retired": True,
+        "reservation_providers": providers_status(),
     }
 
 
