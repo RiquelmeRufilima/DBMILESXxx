@@ -96,7 +96,11 @@ templates.env.filters["from_json"] = safe_from_json
 
 
 def flash(request: Request, message: str, kind: str = "info") -> None:
-    request.session.setdefault("flashes", []).append({"message": message, "kind": kind})
+    # Reatribui a lista (em vez de .append) para a sessão perceber a mudança;
+    # com o Starlette novo, mensagens seguidas se perdiam.
+    flashes = list(request.session.get("flashes") or [])
+    flashes.append({"message": message, "kind": kind})
+    request.session["flashes"] = flashes[-8:]
 
 
 def context(request: Request, *, user=None, **kwargs) -> dict:

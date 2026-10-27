@@ -42,6 +42,7 @@ from .routers import (
     local_control,
     amadeus,
     tags,
+    admin_database,
 )
 from .services.legacy_migration import migrate_legacy_data
 from .services.quote_trip_backfill import backfill_quote_trip_details
@@ -158,6 +159,7 @@ app.include_router(airlines.router)
 app.include_router(cadastros.router)
 app.include_router(company.router)
 app.include_router(tags.router)
+app.include_router(admin_database.router)
 app.include_router(requests.router)
 app.include_router(tasks.router)
 app.include_router(notifications.router)
