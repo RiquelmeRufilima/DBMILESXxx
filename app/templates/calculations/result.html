@@ -37,7 +37,7 @@
     <span class="eyebrow">OPÇÃO DA COTAÇÃO</span>
     <h1>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }} — {{ quote.total|money(quote.currency) }}[cite: 39]</h1>
     <p>{{ quote.quote_name }}{% if quote.variant_key|default('primary') != 'primary' %} • {{ quote.variant_name }}{% endif %} • {{ quote.scope_label or 'Cálculo' }} • {{ quote.origin or '—' }} → {{ quote.destination or '—' }}[cite: 39]</p>
-    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}[cite: 39]</small>
+    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at|brt('%d/%m/%Y %H:%M') if quote.created_at else '—' }}[cite: 39]</small>
   </div>
   <div class="page-actions">
     {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação principal</a>{% endif %}[cite: 39]

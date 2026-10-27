@@ -110,7 +110,7 @@
         {% endif %}
 
         <div class="detail-section">
-            <small class="muted-copy">Cadastrado em {{ person.created_at.strftime('%d/%m/%Y - %H:%M') }}{% if person.created_at != person.updated_at %} • Atualizado em {{ person.updated_at.strftime('%d/%m/%Y - %H:%M') }}{% endif %}</small>
+            <small class="muted-copy">Cadastrado em {{ person.created_at|brt('%d/%m/%Y - %H:%M') }}{% if person.created_at != person.updated_at %} • Atualizado em {{ person.updated_at|brt('%d/%m/%Y - %H:%M') }}{% endif %}</small>
         </div>
     </article>
 

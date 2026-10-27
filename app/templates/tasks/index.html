@@ -100,7 +100,7 @@
     <article class="task-completed-item">
       <div>
         <h3><a href="/tasks/{{ task.id }}">{{ task.title }}</a></h3>
-        <small>Concluída em {{ task.completed_at.strftime('%d/%m/%Y %H:%M') if task.completed_at else '—' }}</small>
+        <small>Concluída em {{ task.completed_at|brt('%d/%m/%Y %H:%M') if task.completed_at else '—' }}</small>
       </div>
       <div class="task-actions">
         <a class="secondary-button small-button" href="/tasks/{{ task.id }}">Abrir</a>

@@ -49,7 +49,7 @@
                 <div><small>Status</small><strong>{{ row.status or 'aceita' }}</strong></div>
                 <div><small>Cotação feita por</small><strong>{{ group.user.name if group.user else 'Não identificado' }}</strong></div>
                 <div><small>Aceita por</small><strong>{{ row.user.name if row.user else 'Não identificado' }}</strong></div>
-                <div><small>Marcado em</small><strong>{{ row.selected_at.strftime('%d/%m/%Y %H:%M') }}</strong></div>
+                <div><small>Marcado em</small><strong>{{ row.selected_at|brt('%d/%m/%Y %H:%M') }}</strong></div>
             </div>
             {% if row.notes %}<p class="muted-note">{{ row.notes }}</p>{% endif %}
             <div class="history-actions">

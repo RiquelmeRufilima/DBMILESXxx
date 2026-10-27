@@ -27,6 +27,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-only-for-pytest-1234567890"
 os.environ["APP_ENV"] = "test"
 os.environ["RUN_FULL_STARTUP_MAINTENANCE"] = "0"
 os.environ["SESSION_HTTPS_ONLY"] = "0"
+os.environ["PERSISTENT_ROOT"] = _TMP  # uploads e dados de teste ficam fora do projeto
 os.environ.pop("VERCEL", None)
 os.environ.pop("BOOTSTRAP_ADMIN_EMAIL", None)
 os.environ.pop("BOOTSTRAP_ADMIN_PASSWORD", None)
@@ -534,3 +535,69 @@ def test_pagina_de_reservas(started_app):
     other = logged(started_app, "rsv-outra@teste.com")
     assert "ABC123" not in other.get("/reservas").text
     assert other.post(f"/reservas/{rid}/excluir", json={"csrf_token": page_csrf(other)}).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Chat: envio privado, equipe, anexos e horário
+# ---------------------------------------------------------------------------
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+PDF_BYTES = b"%PDF-1.4\n%fake\n"
+
+
+def test_chat_privado_equipe_e_anexos(started_app):
+    c = make_company("Empresa Chat")
+    make_user("chat-a@teste.com", company_id=c, role="admin", owner=True)
+    b_id = make_user("chat-b@teste.com", company_id=c)
+    make_user("chat-intruso@teste.com", company_id=make_company("Outra Chat"), role="admin", owner=True)
+    a = logged(started_app, "chat-a@teste.com")
+    b = logged(started_app, "chat-b@teste.com")
+    a.get("/company/chat")
+    b.get("/company/chat")
+    db = _db()
+    try:
+        contact_b = db.get(WebUser, b_id).contact_id
+        contact_a = db.query(WebUser).filter_by(email="chat-a@teste.com").one().contact_id
+    finally:
+        db.close()
+    token_a = page_csrf(a, "/company/chat")
+
+    # Mensagem privada chega para o destinatário, com horário em UTC explícito
+    sent = a.post(f"/company/chat/private/{contact_b}", json={"message": "oi", "csrf_token": token_a}).json()
+    assert sent["ok"] and sent["message"]["created_at"].endswith("+00:00")
+    received = b.get(f"/company/chat/private/{contact_a}").json()
+    assert any(m["message"] == "oi" for m in received["messages"])
+
+    # Chat da equipe por HTTP
+    g = a.post("/company/messages", json={"message": "bom dia equipe", "csrf_token": token_a}).json()
+    assert g["ok"] and any(m["message"] == "bom dia equipe" for m in b.get("/company/messages").json()["messages"])
+
+    # Anexo PNG (print) e PDF
+    up = a.post(f"/company/chat/private/{contact_b}/arquivo", data={"csrf_token": token_a, "message": ""},
+                files={"file": ("print.png", PNG_BYTES, "image/png")}).json()
+    assert up["ok"] and up["message"]["attachment"]["is_image"]
+    url = up["message"]["attachment"]["url"]
+    assert b.get(url).status_code == 200 and b.get(url).content == PNG_BYTES
+    pdf = a.post("/company/messages/arquivo", data={"csrf_token": token_a}, files={"file": ("voucher.pdf", PDF_BYTES, "application/pdf")}).json()
+    assert pdf["ok"] and pdf["message"]["attachment"]["type"] == "application/pdf"
+
+    # Arquivo disfarçado e tipo não permitido
+    fake = a.post(f"/company/chat/private/{contact_b}/arquivo", data={"csrf_token": token_a},
+                  files={"file": ("foto.png", b"<html><script>alert(1)</script>", "image/png")})
+    assert fake.status_code == 400
+    exe = a.post(f"/company/chat/private/{contact_b}/arquivo", data={"csrf_token": token_a},
+                 files={"file": ("virus.exe", b"MZ....", "application/octet-stream")})
+    assert exe.status_code == 400
+
+    # Quem não participa não baixa
+    intruso = logged(started_app, "chat-intruso@teste.com")
+    assert intruso.get(url).status_code == 404
+    assert intruso.get(pdf["message"]["attachment"]["url"]).status_code == 404
+
+
+def test_filtro_horario_brasilia():
+    from datetime import datetime
+
+    from app.web import brt, date_time_br
+
+    assert brt(datetime(2026, 10, 17, 15, 4), "%d/%m %H:%M") == "17/10 12:04"
+    assert date_time_br(datetime(2026, 10, 17, 2, 30)) == "16/10/2026 - 23:30"

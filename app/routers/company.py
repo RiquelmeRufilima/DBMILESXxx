@@ -12,7 +12,7 @@ from collections import defaultdict
 from urllib.parse import quote as url_quote
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
@@ -22,6 +22,7 @@ from ..dependencies import current_user
 from ..models import (
     AcceptedQuote,
     Airline,
+    ChatAttachment,
     ChatMessage,
     CompanyTask,
     FlightRegistry,
@@ -41,8 +42,8 @@ from ..security import hash_password, validate_csrf_token, validate_password
 from ..services.notifications import create_notification
 from ..services.protection import register_attempt, seconds_until_allowed, set_blocked, wait_message
 from ..services.team_accounts import remaining_team_slots, team_user_count
-from ..services.uploads import delete_relative_upload, save_upload_image
-from ..web import context, flash, templates
+from ..services.uploads import delete_relative_upload, read_stored_attachment, save_chat_document, save_upload_image
+from ..web import context, flash, iso_utc, templates
 
 router = APIRouter(prefix="/company", tags=["company"])
 
@@ -346,7 +347,49 @@ def _private_messages(db: Session, user: WebUser, partner: WebUser, limit: int =
     return messages
 
 
-def _private_message_payload(item: PrivateChatMessage, user: WebUser) -> dict:
+_CHAT_SCHEMA_READY = False
+
+
+def _ensure_chat_schema(db: Session) -> None:
+    """Cria a tabela de anexos do chat na primeira vez (Vercel/Neon sem migração)."""
+    global _CHAT_SCHEMA_READY
+    if _CHAT_SCHEMA_READY:
+        return
+    try:
+        ChatAttachment.__table__.create(bind=db.get_bind(), checkfirst=True)
+    except Exception:  # pragma: no cover - corrida entre instâncias
+        pass
+    _CHAT_SCHEMA_READY = True
+
+
+def _attachment_payload(att: ChatAttachment | None) -> dict | None:
+    if att is None:
+        return None
+    return {
+        "id": att.id,
+        "name": att.file_name,
+        "type": att.file_type,
+        "size": int(att.file_size or 0),
+        "url": f"/company/chat/arquivos/{att.id}",
+        "is_image": str(att.file_type or "").startswith("image/"),
+    }
+
+
+def _attachments_for(db: Session, kind: str, message_ids: list[int]) -> dict[int, dict]:
+    if not message_ids:
+        return {}
+    _ensure_chat_schema(db)
+    try:
+        rows = db.scalars(
+            select(ChatAttachment).where(ChatAttachment.kind == kind, ChatAttachment.message_id.in_(message_ids))
+        ).all()
+    except Exception:
+        db.rollback()
+        return {}
+    return {row.message_id: _attachment_payload(row) for row in rows}
+
+
+def _private_message_payload(item: PrivateChatMessage, user: WebUser, attachment: dict | None = None) -> dict:
     sender = item.sender if getattr(item, "sender", None) else None
     return {
         "id": item.id,
@@ -356,7 +399,19 @@ def _private_message_payload(item: PrivateChatMessage, user: WebUser) -> dict:
         "user_name": sender.name if sender else ("Você" if item.sender_id == user.id else "Usuário"),
         "message": item.message,
         "is_read": bool(item.is_read),
-        "created_at": item.created_at.isoformat(),
+        "created_at": iso_utc(item.created_at),
+        "attachment": attachment,
+    }
+
+
+def _group_message_payload(item: ChatMessage, attachment: dict | None = None) -> dict:
+    return {
+        "id": item.id,
+        "user_id": item.user_id,
+        "user_name": item.user.name if item.user else "Usuário",
+        "message": item.message,
+        "created_at": iso_utc(item.created_at),
+        "attachment": attachment,
     }
 
 
@@ -870,13 +925,13 @@ def chat_sidebar_api(request: Request, db: Session = Depends(get_db)):
         "group": {
             "name": company.name if company else "Chat da equipe",
             "last_message": group_last.message if group_last else "",
-            "last_at": group_last.created_at.isoformat() if group_last else None,
+            "last_at": iso_utc(group_last.created_at) if group_last else None,
         },
         "conversations": [
             {
                 **item["member"],
                 "last_message": item["last_message"],
-                "last_at": item["last_at"].isoformat(),
+                "last_at": iso_utc(item["last_at"]),
                 "unread": item["unread"],
             }
             for item in conversations
@@ -971,10 +1026,11 @@ def private_messages_api(contact_id: str, request: Request, db: Session = Depend
         return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
 
     messages = _private_messages(db, user, partner)
+    attachments = _attachments_for(db, "private", [item.id for item in messages])
     return {
         "ok": True,
         "contact": _chat_member_payload(partner, user.id),
-        "messages": [_private_message_payload(item, user) for item in messages],
+        "messages": [_private_message_payload(item, user, attachments.get(item.id)) for item in messages],
     }
 
 
@@ -1052,18 +1108,157 @@ def messages_api(request: Request, db: Session = Depends(get_db)):
         .order_by(desc(ChatMessage.created_at))
         .limit(100)
     ).all()
-    return {
-        "messages": [
-            {
-                "id": item.id,
-                "user_id": item.user_id,
-                "user_name": item.user.name,
-                "message": item.message,
-                "created_at": item.created_at.isoformat(),
-            }
-            for item in reversed(messages)
-        ]
+    attachments = _attachments_for(db, "group", [item.id for item in messages])
+    return {"messages": [_group_message_payload(item, attachments.get(item.id)) for item in reversed(messages)]}
+
+
+# ---------------------------------------------------------------------------
+# Envio por HTTP (o Vercel não mantém WebSocket) + anexos
+# ---------------------------------------------------------------------------
+def _notify_group(db: Session, user: WebUser, text: str) -> None:
+    recipients = db.scalars(select(WebUser).where(WebUser.company_id == user.company_id, WebUser.id != user.id)).all()
+    for recipient in recipients:
+        create_notification(db, recipient.id, f"Nova mensagem de {user.name}", text[:300], kind="chat", link="/company/chat?view=team", commit=False)
+
+
+@router.post("/messages")
+async def group_send_api(request: Request, db: Session = Depends(get_db)):
+    """Envia mensagem para o chat da equipe."""
+    user = current_user(request, db)
+    if user is None or not user.company_id:
+        return JSONResponse({"ok": False, "message": "Entre em uma empresa para usar o chat da equipe."}, status_code=403)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not validate_csrf_token(request.session, str(payload.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada. Recarregue a página."}, status_code=403)
+    text = str(payload.get("message") or "").strip()[:2000]
+    if not text:
+        return JSONResponse({"ok": False, "message": "Digite uma mensagem."}, status_code=400)
+    message = ChatMessage(company_id=user.company_id, user_id=user.id, message=text)
+    db.add(message)
+    db.flush()
+    _notify_group(db, user, text)
+    db.commit()
+    db.refresh(message)
+    return {"ok": True, "message": _group_message_payload(message)}
+
+
+async def _read_upload_form(request: Request):
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        return None, None, "Sessão expirada. Recarregue a página."
+    upload = form.get("file")
+    if not getattr(upload, "filename", None):
+        return None, None, "Escolha um arquivo."
+    caption = str(form.get("message") or "").strip()[:2000]
+    return upload, caption, ""
+
+
+@router.post("/chat/private/{contact_id}/arquivo")
+async def private_upload_api(contact_id: str, request: Request, db: Session = Depends(get_db)):
+    """Envia PDF, Word, JPG ou PNG numa conversa privada."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    _ensure_user_contact_id(db, user)
+    partner = _resolve_private_contact(db, user, contact_id)
+    if partner is None:
+        return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
+    upload, caption, error = await _read_upload_form(request)
+    if error:
+        return JSONResponse({"ok": False, "message": error}, status_code=403 if "Sessão" in error else 400)
+    try:
+        stored = await save_chat_document(upload, prefix=f"p{user.id}")
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"ok": False, "message": "Não foi possível salvar o arquivo agora. Tente novamente."}, status_code=500)
+
+    _ensure_chat_schema(db)
+    exists = db.scalar(select(UserChatContact.id).where(UserChatContact.owner_user_id == user.id, UserChatContact.contact_user_id == partner.id))
+    if not exists:
+        db.add(UserChatContact(owner_user_id=user.id, contact_user_id=partner.id))
+    message = PrivateChatMessage(
+        company_id=user.company_id or None, sender_id=user.id, recipient_id=partner.id,
+        message=caption or f"📎 {stored['name']}", is_read=False,
+    )
+    db.add(message)
+    db.flush()
+    attachment = ChatAttachment(
+        kind="private", message_id=message.id, company_id=user.company_id, uploader_id=user.id, recipient_id=partner.id,
+        file_name=str(stored["name"]), file_type=str(stored["type"]), file_size=int(stored["size"]),
+        storage_json=json.dumps(stored),
+    )
+    db.add(attachment)
+    create_notification(db, partner.id, f"Arquivo de {user.name}", f"📎 {stored['name']}", kind="chat",
+                        link=f"/company/chat?contact={user.contact_id}", commit=False)
+    db.commit()
+    db.refresh(message)
+    return {"ok": True, "message": _private_message_payload(message, user, _attachment_payload(attachment))}
+
+
+@router.post("/messages/arquivo")
+async def group_upload_api(request: Request, db: Session = Depends(get_db)):
+    """Envia PDF, Word, JPG ou PNG no chat da equipe."""
+    user = current_user(request, db)
+    if user is None or not user.company_id:
+        return JSONResponse({"ok": False, "message": "Entre em uma empresa para usar o chat da equipe."}, status_code=403)
+    upload, caption, error = await _read_upload_form(request)
+    if error:
+        return JSONResponse({"ok": False, "message": error}, status_code=403 if "Sessão" in error else 400)
+    try:
+        stored = await save_chat_document(upload, prefix=f"g{user.company_id}")
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
+    except Exception:
+        return JSONResponse({"ok": False, "message": "Não foi possível salvar o arquivo agora. Tente novamente."}, status_code=500)
+    _ensure_chat_schema(db)
+    message = ChatMessage(company_id=user.company_id, user_id=user.id, message=caption or f"📎 {stored['name']}")
+    db.add(message)
+    db.flush()
+    attachment = ChatAttachment(
+        kind="group", message_id=message.id, company_id=user.company_id, uploader_id=user.id,
+        file_name=str(stored["name"]), file_type=str(stored["type"]), file_size=int(stored["size"]),
+        storage_json=json.dumps(stored),
+    )
+    db.add(attachment)
+    _notify_group(db, user, f"📎 {stored['name']}")
+    db.commit()
+    db.refresh(message)
+    return {"ok": True, "message": _group_message_payload(message, _attachment_payload(attachment))}
+
+
+@router.get("/chat/arquivos/{attachment_id}")
+def chat_file(attachment_id: int, request: Request, download: int = 0, db: Session = Depends(get_db)):
+    """Entrega o anexo só para quem participa da conversa."""
+    user = current_user(request, db)
+    if user is None:
+        return Response("Faça login.", status_code=401)
+    _ensure_chat_schema(db)
+    att = db.get(ChatAttachment, attachment_id)
+    allowed = att is not None and (
+        (att.kind == "group" and user.company_id and att.company_id == user.company_id)
+        or (att.kind == "private" and user.id in {att.uploader_id, att.recipient_id})
+    )
+    if not allowed:
+        return Response("Arquivo não encontrado.", status_code=404)
+    try:
+        body, _ = read_stored_attachment(json.loads(att.storage_json or "{}"))
+    except Exception:
+        return Response("Arquivo indisponível.", status_code=404)
+    inline = att.file_type in {"application/pdf", "image/png", "image/jpeg"} and not download
+    name = "".join(ch for ch in att.file_name if ch not in '"\\\r\n;')[:180] or "arquivo"
+    ascii_name = name.encode("ascii", "ignore").decode("ascii") or "arquivo"
+    headers = {
+        "Content-Disposition": f'{"inline" if inline else "attachment"}; filename="{ascii_name}"; filename*=UTF-8\'\'{url_quote(name)}',
+        "Cache-Control": "private, max-age=600",
+        "X-Content-Type-Options": "nosniff",
     }
+    if att.file_type != "application/pdf":
+        headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+    return Response(content=body, media_type=att.file_type, headers=headers)
 
 
 @router.websocket("/ws/chat")
@@ -1117,7 +1312,7 @@ async def chat_websocket(websocket: WebSocket):
                         "user_id": user.id,
                         "user_name": user.name,
                         "message": message.message,
-                        "created_at": message.created_at.isoformat(),
+                        "created_at": iso_utc(message.created_at),
                     },
                 )
         except WebSocketDisconnect:

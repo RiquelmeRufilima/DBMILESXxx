@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
@@ -57,10 +57,42 @@ def date_br(value) -> str:
     return text
 
 
+# Horário de Brasília. O banco grava em UTC (datetime.utcnow). O Brasil não tem
+# horário de verão desde 2019, então UTC-3 fixo é exato e não depende do tzdata.
+BRT = timezone(timedelta(hours=-3), "BRT")
+
+
+def to_brt(value):
+    """Converte um datetime gravado em UTC (sem fuso) para o horário de Brasília."""
+    if not isinstance(value, datetime):
+        return value
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(BRT)
+
+
+def brt(value, fmt: str = "%d/%m/%Y %H:%M") -> str:
+    """Filtro Jinja: {{ item.created_at|brt('%d/%m %H:%M') }}"""
+    if not value:
+        return ""
+    if isinstance(value, datetime):
+        return to_brt(value).strftime(fmt)
+    return str(value)
+
+
+def iso_utc(value) -> str | None:
+    """ISO com fuso (+00:00) para o JavaScript converter certo no navegador."""
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
 def date_time_br(value, time_value=None) -> str:
     """Exibe data e horário no padrão brasileiro, separados por um traço."""
     if isinstance(value, datetime):
-        return value.strftime("%d/%m/%Y - %H:%M")
+        return to_brt(value).strftime("%d/%m/%Y - %H:%M")
     date_text = "" if value in (None, "") else date_br(value)
     if date_text == "—":
         date_text = ""
@@ -77,6 +109,7 @@ def date_time_br(value, time_value=None) -> str:
 templates.env.filters["money"] = money
 templates.env.filters["date_br"] = date_br
 templates.env.filters["date_time_br"] = date_time_br
+templates.env.filters["brt"] = brt
 templates.env.filters["role_label"] = lambda value: ROLE_LABELS.get(str(value or "membro"), str(value or "Membro").title())
 def safe_from_json(value, default=None):
     """Filtro tolerante para bancos antigos ou campos JSON parcialmente corrompidos."""

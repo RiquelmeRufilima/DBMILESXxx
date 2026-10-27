@@ -94,7 +94,7 @@
           <span><small>Valor</small><strong>{{ row.total_value|money }}</strong></span>
         </div>
         <footer>
-          <small>Última atividade: {% if row.last_activity %}{{ row.last_activity.strftime('%d/%m/%Y %H:%M') }}{% else %}sem atividade no período{% endif %}</small>
+          <small>Última atividade: {% if row.last_activity %}{{ row.last_activity|brt('%d/%m/%Y %H:%M') }}{% else %}sem atividade no período{% endif %}</small>
           <a class="secondary-button small-button" href="/cadastros/cotacoes-feitas?user_id={{ member.id if member else '' }}&from={{ filters.from }}&to={{ filters.to }}">Ver cotações</a>
         </footer>
       </article>

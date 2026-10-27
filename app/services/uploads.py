@@ -241,3 +241,74 @@ def read_stored_attachment(entry: dict[str, object]) -> tuple[bytes, str]:
         raise FileNotFoundError("Anexo não encontrado.")
     return path.read_bytes(), str(entry.get("type") or "application/octet-stream")
 
+
+
+# ---------------------------------------------------------------------------
+# Anexos do chat (privado e equipe): PDF, Word, JPG e PNG (prints)
+# ---------------------------------------------------------------------------
+CHAT_FILE_TYPES: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+}
+_CHAT_MAGIC: dict[str, tuple[bytes, ...]] = {
+    ".pdf": (b"%PDF",),
+    ".doc": (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",),
+    ".docx": (b"PK\x03\x04",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+}
+
+
+async def save_chat_document(upload: UploadFile | None, *, max_bytes: int = 10 * 1024 * 1024, prefix: str = "chat") -> dict[str, object] | None:
+    """Salva o anexo do chat no Vercel Blob (ou disco local em desenvolvimento).
+
+    Confere o conteúdo real do arquivo (assinatura), não só a extensão, para
+    impedir que um arquivo disfarçado (ex.: HTML renomeado para .png) seja aceito.
+    """
+    filename = str(getattr(upload, "filename", "") or "").strip()
+    if upload is None or not filename:
+        return None
+    extension = Path(filename).suffix.lower()
+    if extension not in CHAT_FILE_TYPES:
+        raise ValueError("Envie somente PDF, Word (.doc/.docx), JPG ou PNG.")
+    _ensure_upload_storage_available()
+    max_bytes = _hosted_upload_limit(max_bytes)
+    content = await upload.read()
+    if not content:
+        raise ValueError("O arquivo enviado está vazio.")
+    if len(content) > max_bytes:
+        raise ValueError(f"O arquivo deve ter no máximo {max_bytes // (1024 * 1024)} MB.")
+    if not any(content.startswith(sig) for sig in _CHAT_MAGIC[extension]):
+        raise ValueError("O conteúdo do arquivo não confere com o tipo informado.")
+
+    mime = CHAT_FILE_TYPES[extension]
+    stored_name = f"{prefix}-{secrets.token_hex(16)}{extension}"
+    original_name = Path(filename).name[:255]
+    if blob_ready():
+        result = blob_put(f"chat/{stored_name}", content, mime)
+        return {
+            "storage": "vercel_blob",
+            "blob_url": str(result.get("url") or result.get("downloadUrl") or ""),
+            "path": f"chat/{stored_name}",
+            "name": original_name,
+            "type": mime,
+            "size": len(content),
+            "extension": extension,
+        }
+    target_dir = UPLOAD_DIR / "chat"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / stored_name
+    target.write_bytes(content)
+    return {
+        "storage": "local",
+        "path": f"uploads/chat/{stored_name}",
+        "name": original_name,
+        "type": mime,
+        "size": len(content),
+        "extension": extension,
+    }

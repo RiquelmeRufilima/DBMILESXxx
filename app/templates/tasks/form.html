@@ -72,7 +72,7 @@
     {% if task %}
     <div class="task-record-info">
       <span>Status: <strong>{{ 'Concluída' if task.status == 'concluida' else 'Pendente' }}</strong></span>
-      <span>Criada em: <strong>{{ task.created_at.strftime('%d/%m/%Y %H:%M') }}</strong></span>
+      <span>Criada em: <strong>{{ task.created_at|brt('%d/%m/%Y %H:%M') }}</strong></span>
       {% if task.created_by %}<span>Por: <strong>{{ task.created_by.name }}</strong></span>{% endif %}
     </div>
     {% endif %}

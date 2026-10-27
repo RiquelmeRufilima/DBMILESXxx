@@ -223,7 +223,7 @@
             <button class="primary-button large" type="submit" name="save_and_new" value="1">Salvar e Novo</button>
         </div>
 
-        <small class="muted-copy">Cadastrado em {{ person.created_at.strftime('%d/%m/%Y %H:%M') if person else 'Agora' }}</small>
+        <small class="muted-copy">Cadastrado em {{ person.created_at|brt('%d/%m/%Y %H:%M') if person else 'Agora' }}</small>
     </form>
 </section>
 {% endblock %}

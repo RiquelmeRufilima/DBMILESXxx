@@ -694,3 +694,25 @@ class AirlineReservation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     user: Mapped[WebUser | None] = orm_relationship()
+
+
+class ChatAttachment(Base):
+    """Anexo de mensagem do chat (privado ou equipe). Tabela criada sob demanda.
+
+    kind: "private" (PrivateChatMessage) ou "group" (ChatMessage).
+    storage_json guarda onde o arquivo está (Vercel Blob ou disco local);
+    o arquivo só é entregue pela rota autenticada /company/chat/arquivos/{id}.
+    """
+    __tablename__ = "web_chat_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    message_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    company_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    uploader_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    recipient_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    storage_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

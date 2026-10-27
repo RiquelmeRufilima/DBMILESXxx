@@ -3,7 +3,7 @@
 {% block page_title %}Solicitação #{{ quote_request.id }}{% endblock %}
 {% block eyebrow %}DETALHES DO PEDIDO{% endblock %}
 {% block content %}
-<section class="page-heading inline"><div><span class="eyebrow">SOLICITAÇÃO RECEBIDA</span><h1>{{ quote_request.client_name }}</h1><p>{{ quote_request.origin }} → {{ quote_request.destination }} · recebida em {{ quote_request.created_at.strftime('%d/%m/%Y %H:%M') }}</p></div><a class="primary-button" href="/requests/{{ quote_request.id }}/quote"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Criar cotação com estes dados</a></section>
+<section class="page-heading inline"><div><span class="eyebrow">SOLICITAÇÃO RECEBIDA</span><h1>{{ quote_request.client_name }}</h1><p>{{ quote_request.origin }} → {{ quote_request.destination }} · recebida em {{ quote_request.created_at|brt('%d/%m/%Y %H:%M') }}</p></div><a class="primary-button" href="/requests/{{ quote_request.id }}/quote"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Criar cotação com estes dados</a></section>
 <section class="content-grid two-one">
   <article class="panel">
     <div class="detail-section"><div class="section-title"><div class="detail-icon"><svg class="ui-icon"><use href="#icon-user"></use></svg></div><div><h3>Cliente</h3><p>Dados de contato</p></div></div><div class="detail-info-grid"><div><span>Nome</span><strong>{{ quote_request.client_name }}</strong></div><div><span>Telefone</span><strong>{{ quote_request.phone }}</strong></div><div><span>E-mail</span><strong>{{ quote_request.email or '—' }}</strong></div></div></div>

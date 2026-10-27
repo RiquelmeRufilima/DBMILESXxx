@@ -46,7 +46,7 @@
 
   async function check(){
     try{
-      const res = await fetch('/chat/sidebar', {cache:'no-store'});
+      const res = await fetch('/company/chat/sidebar', {cache:'no-store', credentials:'same-origin'});
       if(!res.ok) return;
       const data = await res.json();
       if(!data?.ok) return;
@@ -59,5 +59,5 @@
   }
 
   setTimeout(check,1200);
-  setInterval(check,3500);
+  setInterval(()=>{ if(!document.hidden) check(); },5000);
 })();

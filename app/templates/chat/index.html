@@ -70,7 +70,7 @@
           type="button" data-contact-id="{{ item.member.contact_id }}" data-search="{{ item.member.name }} {{ item.member.contact_id }}">
           <span class="dbm-avatar">{{ item.member.name[:1]|upper }}</span>
           <span class="dbm-chat-copy"><strong>{{ item.member.name }}</strong><small>{{ item.last_message }}</small></span>
-          <span class="dbm-chat-meta">{{ item.last_at.strftime('%H:%M') }}{% if item.unread %}<b class="dbm-unread">{{ item.unread }}</b>{% endif %}</span>
+          <span class="dbm-chat-meta">{{ item.last_at|brt('%H:%M') }}{% if item.unread %}<b class="dbm-unread">{{ item.unread }}</b>{% endif %}</span>
         </button>
         {% endfor %}
       {% else %}
@@ -100,12 +100,12 @@
           <div class="dbm-team-locked"><strong>Você ainda não está em uma empresa</strong><p>Para usar o Chat da equipe, crie uma empresa ou entre em uma empresa existente.</p><a href="/company">Criar ou entrar em uma empresa</a></div>
         {% else %}
           {% for item in messages %}
-          <article class="dbm-msg {% if item.user_id == user.id %}mine{% endif %}" data-message-id="g-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.user.name }}</strong><p>{{ item.message }}</p><small>{{ item.created_at.strftime('%d/%m %H:%M') }}</small></div></article>
+          <article class="dbm-msg {% if item.user_id == user.id %}mine{% endif %}" data-message-id="g-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.user.name }}</strong><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m %H:%M') }}</small></div></article>
           {% endfor %}
         {% endif %}
       {% elif selected_contact %}
         {% for item in private_messages %}
-        <article class="dbm-msg {% if item.sender_id == user.id %}mine{% endif %}" data-message-id="p-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.sender.name if item.sender else ('Você' if item.sender_id == user.id else 'Usuário') }}</strong><p>{{ item.message }}</p><small>{{ item.created_at.strftime('%d/%m %H:%M') }}</small></div></article>
+        <article class="dbm-msg {% if item.sender_id == user.id %}mine{% endif %}" data-message-id="p-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.sender.name if item.sender else ('Você' if item.sender_id == user.id else 'Usuário') }}</strong><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m %H:%M') }}</small></div></article>
         {% endfor %}
       {% else %}
         <div class="dbm-chat-center-empty"><strong>Selecione uma conversa</strong><span>Ou use “Adicionar contatos” para iniciar um novo chat privado.</span></div>

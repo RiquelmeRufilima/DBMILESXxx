@@ -705,7 +705,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <span class="eyebrow">COTAÇÃO PRINCIPAL</span>
           <h2>{{ group.quote_name }}</h2>
           <p>{{ base.origin or '—' }} → {{ base.destination or '—' }} • {% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %} • {{ base.passengers }} passageiro(s)</p>
-          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at.strftime('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Modificada em {{ group.updated_at.strftime('%d/%m/%Y %H:%M') if group.updated_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
+          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at|brt('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Modificada em {{ group.updated_at|brt('%d/%m/%Y %H:%M') if group.updated_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
           {% if tags_ready|default(false) %}{{ tag_row("group", group.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
         </div>
         <div class="history-total-box">
@@ -738,7 +738,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <div class="quote-change-item">
             <span class="quote-change-dot"></span>
             <span>{{ activity.message }}</span>
-            <small>{{ activity.created_at.strftime('%d/%m/%Y - %H:%M') if activity.created_at else '' }}</small>
+            <small>{{ activity.created_at|brt('%d/%m/%Y - %H:%M') if activity.created_at else '' }}</small>
           </div>
           {% endfor %}
         </div>
@@ -952,7 +952,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <span class="eyebrow">COTAÇÃO ANTIGA</span>
           <h2>{{ quote.quote_name }}</h2>
           <p>{{ quote.origin or '—' }} → {{ quote.destination or '—' }} • {{ quote.airline.name if quote.airline else 'Companhia' }}</p>
-          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}{% if quote.commercial and quote.commercial.updated_at %} • Modificada em {{ quote.commercial.updated_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</small>
+          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at|brt('%d/%m/%Y %H:%M') if quote.created_at else '—' }}{% if quote.commercial and quote.commercial.updated_at %} • Modificada em {{ quote.commercial.updated_at|brt('%d/%m/%Y %H:%M') }}{% endif %}</small>
           {% if tags_ready|default(false) %}{{ tag_row("quote", quote.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
         </div>
         <div class="history-total-box"><small>Comercial</small>{{ option_price(quote) }}</div>

@@ -7,7 +7,7 @@
   if (!body || !companyId || !currentUserId) return;
 
   const CHAT_SOUND_URL = "/static/sounds/chat-notification.mp3";
-  const CHAT_POLL_MS = 850;
+  const CHAT_POLL_MS = 4000;
   const chatPage = location.pathname === "/company/chat";
   const lastMessageKey = `dbmilesx:last-chat-message:${companyId}:${currentUserId}`;
 
@@ -294,7 +294,7 @@
 
   // O som global funciona mesmo se /company/ws/realtime falhar.
   pollChatMessages();
-  setInterval(pollChatMessages, CHAT_POLL_MS);
+  setInterval(() => { if (!document.hidden) pollChatMessages(); }, CHAT_POLL_MS);
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) pollChatMessages();

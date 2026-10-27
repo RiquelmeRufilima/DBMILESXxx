@@ -35,6 +35,22 @@
 .dbm-add-contact{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border)}.dbm-add-contact input{border:1px solid var(--border);background:var(--bg-soft);color:var(--text);border-radius:12px;padding:11px 12px;text-transform:uppercase}.dbm-add-contact button{border:0;border-radius:12px;padding:0 16px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:white;font-weight:900}
 .dbm-contact-list{padding:10px;overflow:auto}.dbm-contact-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border-radius:13px}.dbm-contact-row:hover{background:var(--panel-2)}.dbm-contact-row button{border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:800}.dbm-contact-id{display:inline-block;margin-top:3px;color:var(--muted);font-size:.68rem}
 .dbm-agenda-message{padding:0 18px 12px;color:var(--muted);font-size:.8rem}.dbm-agenda-message.error{color:#ff6c7f}.dbm-team-locked{margin:auto;text-align:center;max-width:430px;padding:30px}.dbm-team-locked strong{display:block;font-size:1.15rem;margin-bottom:7px}.dbm-team-locked p{color:var(--muted);line-height:1.5}.dbm-team-locked a{display:inline-flex;margin-top:12px;padding:12px 16px;border-radius:13px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:white;font-weight:900;text-decoration:none}
+/* Anexos (v3) */
+.dbm-compose{grid-template-columns:44px minmax(0,1fr) 52px!important;align-items:end}
+.dbm-attach-preview{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2)}
+.dbm-attach-preview img{width:44px;height:44px;object-fit:cover;border-radius:8px}
+.dbm-attach{width:44px;height:48px;border:1px solid var(--border);border-radius:14px;background:var(--panel-2);color:var(--text);font-size:1.15rem;cursor:pointer}
+.dbm-attach:hover{border-color:var(--cyan)}
+.dbm-att-image{display:block;margin:4px 0;max-width:280px}
+.dbm-att-image img{display:block;width:100%;max-height:260px;object-fit:cover;border-radius:10px;border:1px solid var(--border)}
+.dbm-att-file{display:flex;align-items:center;gap:10px;margin:4px 0;padding:8px 10px;min-width:220px;border-radius:10px;border:1px solid var(--border);background:color-mix(in srgb,var(--panel) 70%,transparent);color:var(--text)!important;text-decoration:none}
+.dbm-att-icon{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:8px;background:#64748b;color:#fff;font-size:.66rem;font-weight:950}
+.dbm-att-icon.is-pdf{background:#dc2626}
+.dbm-att-icon.is-doc{background:#2563eb}
+.dbm-att-copy{display:grid;min-width:0}
+.dbm-att-copy b{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.dbm-att-copy small{color:var(--muted);font-size:.68rem;text-align:left!important;margin:0!important}
+.dbm-att-remove{margin-left:auto;width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer}
 @media(max-width:920px){
   .dbm-chat-v2{grid-template-columns:1fr;height:calc(100dvh - 166px);min-height:520px;border-radius:20px}
   .dbm-chat-side{border-right:0}.dbm-chat-main{display:none}.dbm-chat-v2.mobile-open .dbm-chat-side{display:none}.dbm-chat-v2.mobile-open .dbm-chat-main{display:flex}.dbm-chat-back{display:inline-grid;place-items:center}
@@ -70,7 +86,7 @@
           type="button" data-contact-id="{{ item.member.contact_id }}" data-search="{{ item.member.name }} {{ item.member.contact_id }}">
           <span class="dbm-avatar">{{ item.member.name[:1]|upper }}</span>
           <span class="dbm-chat-copy"><strong>{{ item.member.name }}</strong><small>{{ item.last_message }}</small></span>
-          <span class="dbm-chat-meta">{{ item.last_at.strftime('%H:%M') }}{% if item.unread %}<b class="dbm-unread">{{ item.unread }}</b>{% endif %}</span>
+          <span class="dbm-chat-meta">{{ item.last_at|brt('%H:%M') }}{% if item.unread %}<b class="dbm-unread">{{ item.unread }}</b>{% endif %}</span>
         </button>
         {% endfor %}
       {% else %}
@@ -100,12 +116,12 @@
           <div class="dbm-team-locked"><strong>Você ainda não está em uma empresa</strong><p>Para usar o Chat da equipe, crie uma empresa ou entre em uma empresa existente.</p><a href="/company">Criar ou entrar em uma empresa</a></div>
         {% else %}
           {% for item in messages %}
-          <article class="dbm-msg {% if item.user_id == user.id %}mine{% endif %}" data-message-id="g-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.user.name }}</strong><p>{{ item.message }}</p><small>{{ item.created_at.strftime('%d/%m %H:%M') }}</small></div></article>
+          <article class="dbm-msg {% if item.user_id == user.id %}mine{% endif %}" data-message-id="g-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.user.name }}</strong><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m %H:%M') }}</small></div></article>
           {% endfor %}
         {% endif %}
       {% elif selected_contact %}
         {% for item in private_messages %}
-        <article class="dbm-msg {% if item.sender_id == user.id %}mine{% endif %}" data-message-id="p-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.sender.name if item.sender else ('Você' if item.sender_id == user.id else 'Usuário') }}</strong><p>{{ item.message }}</p><small>{{ item.created_at.strftime('%d/%m %H:%M') }}</small></div></article>
+        <article class="dbm-msg {% if item.sender_id == user.id %}mine{% endif %}" data-message-id="p-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.sender.name if item.sender else ('Você' if item.sender_id == user.id else 'Usuário') }}</strong><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m %H:%M') }}</small></div></article>
         {% endfor %}
       {% else %}
         <div class="dbm-chat-center-empty"><strong>Selecione uma conversa</strong><span>Ou use “Adicionar contatos” para iniciar um novo chat privado.</span></div>
@@ -113,7 +129,10 @@
     </div>
 
     <form class="dbm-compose" id="dbmChatForm" {% if chat_view == 'team' and not has_company %}hidden{% elif chat_view != 'team' and not selected_contact %}hidden{% endif %} data-no-loader="1">
-      <textarea id="dbmChatInput" maxlength="2000" placeholder="Digite uma mensagem..." required></textarea>
+      <div class="dbm-attach-preview" id="dbmAttachPreview" hidden></div>
+      <button class="dbm-attach" id="dbmAttachButton" type="button" title="Anexar PDF, Word, JPG ou PNG" aria-label="Anexar arquivo">📎</button>
+      <input type="file" id="dbmChatFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg" hidden>
+      <textarea id="dbmChatInput" maxlength="2000" placeholder="Digite uma mensagem..." title="Dica: cole um print com Ctrl+V"></textarea>
       <button class="dbm-send" type="submit">➤</button>
     </form>
   </main>
@@ -142,6 +161,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/chat.js?v=private-chat-v2" defer></script>
-<script src="/static/js/private-chat-enhanced.js?v=20261017" defer></script>
+<script src="/static/js/chat.js?v=3.0" defer></script>
 {% endblock %}

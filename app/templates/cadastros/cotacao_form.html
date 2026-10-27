@@ -27,7 +27,7 @@
   <section class="quote-process-panel panel">
     <div class="quote-code-row">
       <label class="mini-code"><span>Código</span><input name="quote_code" value="{{ data.quote_code or ('q%04d' % group.id) }}"></label>
-      <label class="mini-code"><span>Data</span><input type="date" value="{{ item.selected_at.strftime('%Y-%m-%d') if item.selected_at else '' }}" disabled></label>
+      <label class="mini-code"><span>Data</span><input type="date" value="{{ item.selected_at|brt('%Y-%m-%d') if item.selected_at else '' }}" disabled></label>
       <a class="ghost-button tiny" href="/cadastros/cotacoes/{{ group.id }}/visualizar"><svg class="ui-icon"><use href="#icon-eye"></use></svg> Visualizar reserva</a>
     </div>
 
