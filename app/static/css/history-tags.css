@@ -1,0 +1,44 @@
+/* Etiquetas do histórico */
+.history-tag-filter{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding-top:6px;border-top:1px dashed color-mix(in srgb,var(--border,#2a4058) 80%,transparent)}
+.history-tag-filter-label{font-size:.68rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#86a6bf;margin-right:2px}
+.history-tag-empty{color:#86a6bf;font-size:.74rem}
+.dbm-tag-chip{--tag:#26c5e6;display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--tag) 55%,transparent);background:color-mix(in srgb,var(--tag) 16%,transparent);color:var(--text,#e8f6ff);font-size:.72rem;font-weight:850;line-height:1.3;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;user-select:none}
+.dbm-tag-chip:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--tag);flex:none}
+.dbm-tag-chip small{opacity:.65;font-size:.64rem;font-weight:900}
+.dbm-tag-chip.is-filter input{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+.dbm-tag-chip.is-filter{position:relative;opacity:.72}
+.dbm-tag-chip.is-filter.is-on{opacity:1;background:color-mix(in srgb,var(--tag) 34%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--tag) 45%,transparent)}
+.dbm-tag-chip:hover{background:color-mix(in srgb,var(--tag) 28%,transparent)}
+.history-tag-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.dbm-tag-add{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;border:1px dashed color-mix(in srgb,var(--cyan,#26c5e6) 55%,transparent);background:transparent;color:var(--text,#e8f6ff);font-size:.7rem;font-weight:850;cursor:pointer}
+.dbm-tag-add:hover{background:color-mix(in srgb,var(--cyan,#26c5e6) 12%,transparent)}
+
+.dbm-tag-dialog{width:min(520px,calc(100vw - 24px));max-height:min(86vh,720px);padding:0;border:1px solid var(--border,rgba(86,168,224,.25));border-radius:20px;background:var(--panel,#0d2138);color:var(--text,#eef8ff);box-shadow:0 30px 90px rgba(0,0,0,.5)}
+.dbm-tag-dialog[open]{display:flex;flex-direction:column}
+.dbm-tag-dialog::backdrop{background:rgba(2,9,19,.7);backdrop-filter:blur(6px)}
+.dbm-tag-dialog-head{display:flex;justify-content:space-between;gap:14px;padding:18px 20px 12px;border-bottom:1px solid var(--border,rgba(120,166,202,.14))}
+.dbm-tag-dialog-head h3{margin:2px 0 3px;font-size:1.1rem}
+.dbm-tag-dialog-head p{margin:0;color:#8faec5;font-size:.76rem}
+.dbm-tag-close{width:34px;height:34px;flex:none;border-radius:11px;border:1px solid var(--border,rgba(255,255,255,.1));background:transparent;color:inherit;cursor:pointer}
+.dbm-tag-dialog-body{padding:14px 20px;display:grid;gap:12px;overflow:auto}
+.dbm-tag-dialog-body input[type=search]{width:100%;min-height:42px}
+.dbm-tag-options{display:flex;flex-wrap:wrap;gap:8px}
+.dbm-tag-options .dbm-tag-chip{font-size:.78rem;padding:7px 12px}
+.dbm-tag-options .dbm-tag-chip input{position:absolute;opacity:0;pointer-events:none}
+.dbm-tag-options .dbm-tag-chip{position:relative;opacity:.65}
+.dbm-tag-options .dbm-tag-chip.is-on{opacity:1;background:color-mix(in srgb,var(--tag) 36%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--tag) 50%,transparent)}
+.dbm-tag-options .dbm-tag-chip.is-on:after{content:"✓";font-weight:950;margin-left:2px}
+.dbm-tag-new{display:flex;gap:8px;align-items:center}
+.dbm-tag-new input[type=color]{width:38px;height:34px;padding:2px;border-radius:9px;border:1px solid var(--border,#2a4058);background:transparent;cursor:pointer}
+.dbm-tag-error{margin:0;color:#ff8a9a;font-size:.78rem;font-weight:800}
+.dbm-tag-dialog-actions{display:flex;justify-content:flex-end;gap:9px;padding:12px 20px 18px;border-top:1px solid var(--border,rgba(120,166,202,.14))}
+.dbm-tag-manage-list{display:grid;gap:8px}
+.dbm-tag-manage-row{display:grid;grid-template-columns:38px 1fr auto auto;gap:8px;align-items:center}
+.dbm-tag-manage-row input[type=color]{width:38px;height:36px;padding:2px;border-radius:9px;border:1px solid var(--border,#2a4058);background:transparent}
+.dbm-tag-manage-row input[type=text]{min-height:36px;width:100%}
+.dbm-tag-manage-row small{color:#86a6bf;font-size:.68rem;white-space:nowrap}
+@media(max-width:760px){
+  .dbm-tag-dialog{width:100vw;max-width:100vw;max-height:92vh;margin:auto auto 0;border-radius:20px 20px 0 0}
+  .dbm-tag-manage-row{grid-template-columns:38px 1fr auto}
+  .dbm-tag-manage-row small{display:none}
+}

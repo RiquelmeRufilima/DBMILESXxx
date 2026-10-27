@@ -909,6 +909,8 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/quote-form.js?v=5.10.40" defer></script>
+<link rel="stylesheet" href="/static/css/calc-mobile-steps.css?v=1">
+<script src="/static/js/calc-mobile-steps.js?v=1" defer></script>
 <script>
 document.addEventListener('person-selected', function(event) {
   const person = event.detail && event.detail.person ? event.detail.person : null;

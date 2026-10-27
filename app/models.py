@@ -599,3 +599,56 @@ class PersonAttachment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     
     person: Mapped["Person"] = orm_relationship(back_populates="attachments")
+
+# ---------------------------------------------------------------------------
+# Segurança: limite de tentativas e bloqueio feito pelo administrador.
+# Tabelas criadas sob demanda (services/protection.py) para funcionar no
+# Vercel/Neon sem migração no cold start.
+# ---------------------------------------------------------------------------
+class AuthAttempt(Base):
+    """Registro de tentativas (login, códigos, convites) para limitar abusos."""
+    __tablename__ = "web_auth_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    bucket: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class UserAccessBlock(Base):
+    """Usuário bloqueado pelo administrador (diferente de e-mail não confirmado)."""
+    __tablename__ = "web_user_access_blocks"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), primary_key=True)
+    blocked_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Etiquetas do histórico
+# ---------------------------------------------------------------------------
+class QuoteTag(Base):
+    """Etiqueta da empresa (ou do usuário, quando ele não tem empresa)."""
+    __tablename__ = "web_quote_tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("web_companies.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("web_users.id", ondelete="SET NULL"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(40), nullable=False)
+    color: Mapped[str] = mapped_column(String(9), default="#26c5e6", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class QuoteTagLink(Base):
+    """Liga uma etiqueta a um item do histórico.
+
+    target_kind: "group" (cotação principal) ou "quote" (cotação antiga/avulsa).
+    """
+    __tablename__ = "web_quote_tag_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("web_quote_tags.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_kind: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    target_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

@@ -41,6 +41,7 @@ from .routers import (
     menu_aliases,
     local_control,
     amadeus,
+    tags,
 )
 from .services.legacy_migration import migrate_legacy_data
 from .services.quote_trip_backfill import backfill_quote_trip_details
@@ -115,6 +116,36 @@ app.add_middleware(
     max_age=60 * 60 * 12,
 )
 
+@app.middleware("http")
+async def security_and_cache_headers(request, call_next):
+    """Cabeçalhos de segurança em todas as respostas + cache dos estáticos."""
+    response = await call_next(request)
+    path = request.url.path
+    headers = response.headers
+    headers.setdefault("X-Content-Type-Options", "nosniff")
+    headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    if forwarded_proto == "https":
+        headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+
+    # Arquivos enviados por usuários (logos, anexos, fotos) nunca executam script,
+    # mesmo que alguém envie um SVG/HTML malicioso.
+    if path.startswith(("/uploads/", "/imagens/")) or path.lower().endswith(".svg"):
+        if not path.lower().endswith(".pdf"):
+            headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+
+    # Cache: CSS/JS com ?v= mudam de URL a cada versão, então podem ficar 30 dias
+    # no navegador. Demais estáticos: 1 dia. Isso acelera muito a navegação.
+    if path.startswith("/static/") and response.status_code == 200 and path != "/static/sw.js":
+        if "v=" in (request.url.query or ""):
+            headers["Cache-Control"] = "public, max-age=2592000, immutable"
+        else:
+            headers.setdefault("Cache-Control", "public, max-age=86400")
+    return response
+
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(AIRLINE_UPLOAD_DIR.parent)), name="uploads")
 if AIRLINE_IMAGE_DIR.exists():
@@ -126,6 +157,7 @@ app.include_router(calculations.router)
 app.include_router(airlines.router)
 app.include_router(cadastros.router)
 app.include_router(company.router)
+app.include_router(tags.router)
 app.include_router(requests.router)
 app.include_router(tasks.router)
 app.include_router(notifications.router)

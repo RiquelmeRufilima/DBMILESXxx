@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from types import SimpleNamespace
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import delete, desc, func, inspect, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -35,6 +35,7 @@ from ..models import (
 )
 from ..security import validate_csrf_token
 from ..services.calculator import CalculationResult, calculate
+from ..services.tags import delete_links_for_targets, list_tags, tags_for_targets, targets_matching_tag_text, targets_with_all_tags
 from ..services.travel_data import BR_AIRPORTS
 from ..services.schema_migrations import ensure_runtime_schema
 from ..services.quote_activity import record_quote_activity, publish_quote_activity
@@ -3839,7 +3840,7 @@ async def assign_group_user(group_id: int, request: Request, db: Session = Depen
         return RedirectResponse("/login", status_code=303)
     form = await request.form()
     return_to = str(form.get("return_to") or f"/calculations/group/{group_id}").strip()
-    if not return_to.startswith("/") or return_to.startswith("//"):
+    if not return_to.startswith("/") or return_to.startswith("//") or "\\" in return_to or any(ord(ch) < 32 for ch in return_to):
         return_to = f"/calculations/group/{group_id}"
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
         flash(request, "Sessão expirada.", "error")
@@ -3908,6 +3909,7 @@ def history(
     date_field: str = "modified",
     date_from: str = "",
     date_to: str = "",
+    tag: list[int] = Query(default=[]),
     db: Session = Depends(get_db),
 ):
     """Histórico paginado, filtrável e otimizado.
@@ -3950,15 +3952,32 @@ def history(
     end_date = _parse_filter_date(date_to)
     end_exclusive = (end_date + timedelta(days=1)) if end_date else None
 
+    # Etiquetas: carregadas primeiro (também cria as tabelas na 1ª vez).
+    # Se algo falhar, o histórico continua funcionando sem o filtro.
+    try:
+        all_tags = list_tags(db, user, with_usage=True)
+        tags_ready = True
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Etiquetas indisponíveis no histórico: %s", exc)
+        all_tags, tags_ready = [], False
+    valid_tag_ids = {item["id"] for item in all_tags}
+    selected_tag_ids = [tag_id for tag_id in dict.fromkeys(tag or []) if tag_id in valid_tag_ids][:10]
+
     group_filter = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
     group_conditions = [group_filter]
     if q:
         pattern = f"%{q}%"
-        group_conditions.append(or_(
+        group_search = [
             QuoteGroup.quote_name.ilike(pattern),
             QuoteGroup.origin.ilike(pattern),
             QuoteGroup.destination.ilike(pattern),
-        ))
+        ]
+        if tags_ready:
+            group_search.append(QuoteGroup.id.in_(targets_matching_tag_text(user, "group", q)))
+        group_conditions.append(or_(*group_search))
+    if selected_tag_ids:
+        group_conditions.append(QuoteGroup.id.in_(targets_with_all_tags("group", selected_tag_ids)))
 
     group_filter_date_expr = QuoteGroup.updated_at if date_field == "modified" else QuoteGroup.created_at
     if start_date:
@@ -3971,11 +3990,16 @@ def history(
     legacy_conditions = [access_filter, WebQuote.id.notin_(linked_ids)]
     if q:
         pattern = f"%{q}%"
-        legacy_conditions.append(or_(
+        legacy_search = [
             WebQuote.quote_name.ilike(pattern),
             WebQuote.origin.ilike(pattern),
             WebQuote.destination.ilike(pattern),
-        ))
+        ]
+        if tags_ready:
+            legacy_search.append(WebQuote.id.in_(targets_matching_tag_text(user, "quote", q)))
+        legacy_conditions.append(or_(*legacy_search))
+    if selected_tag_ids:
+        legacy_conditions.append(WebQuote.id.in_(targets_with_all_tags("quote", selected_tag_ids)))
 
     legacy_modified_expr = func.coalesce(QuoteCommercial.updated_at, WebQuote.created_at)
     legacy_filter_date_expr = legacy_modified_expr if date_field == "modified" else WebQuote.created_at
@@ -4091,6 +4115,21 @@ def history(
                 continue
             history_entries.append({"kind": "legacy", "quote": _decorate_quote_scope(quote), "sort_at": sort_at})
 
+    # Etiquetas dos cards da página (uma consulta por tipo, sem N+1).
+    if tags_ready:
+        try:
+            group_tag_map = tags_for_targets(db, user, "group", [e["card"]["group"].id for e in history_entries if e["kind"] == "group"])
+            quote_tag_map = tags_for_targets(db, user, "quote", [e["quote"].id for e in history_entries if e["kind"] == "legacy"])
+        except Exception as exc:
+            db.rollback()
+            logger.warning("Falha ao carregar etiquetas dos cards: %s", exc)
+            group_tag_map, quote_tag_map = {}, {}
+        for entry in history_entries:
+            if entry["kind"] == "group":
+                entry["tags"] = group_tag_map.get(entry["card"]["group"].id, [])
+            else:
+                entry["tags"] = quote_tag_map.get(entry["quote"].id, [])
+
     group_cards = [item["card"] for item in history_entries if item["kind"] == "group"]
     legacy_quotes = [item["quote"] for item in history_entries if item["kind"] == "legacy"]
 
@@ -4116,6 +4155,10 @@ def history(
             history_date_field=date_field,
             history_date_from=date_from,
             history_date_to=date_to,
+            all_tags=all_tags,
+            tags_ready=tags_ready,
+            selected_tag_ids=selected_tag_ids,
+            tag_query="".join(f"&tag={tag_id}" for tag_id in selected_tag_ids),
         ),
     )
 
@@ -4221,7 +4264,7 @@ async def save_option_profit(
         form.get("return_to") or "/calculations/history"
     ).strip()
 
-    if not return_to.startswith("/") or return_to.startswith("//"):
+    if not return_to.startswith("/") or return_to.startswith("//") or "\\" in return_to or any(ord(ch) < 32 for ch in return_to):
         return_to = "/calculations/history"
 
     # ---------------------------------------------------------
@@ -5672,6 +5715,11 @@ async def bulk_delete_quotes(request: Request, db: Session = Depends(get_db)):
         for quote in quotes:
             db.delete(quote)
             deleted_quotes += 1
+    try:
+        delete_links_for_targets(db, "group", [g.id for g in groups] if group_ids else [])
+        delete_links_for_targets(db, "quote", [q.id for q in quotes] if quote_ids else [])
+    except Exception as exc:
+        logger.warning("Etiquetas não removidas na exclusão em lote: %s", exc)
     db.commit()
     if deleted_groups or deleted_quotes:
         flash(request, f"{deleted_groups} cotação(ões) principal(is) e {deleted_quotes} opção(ões) excluída(s).", "success")
@@ -5693,6 +5741,10 @@ async def delete_group(group_id: int, request: Request, db: Session = Depends(ge
     if _group_allowed(user, group):
         for quote in _load_options(db, user, group.id):
             db.delete(quote)
+        try:
+            delete_links_for_targets(db, "group", [group.id])
+        except Exception as exc:
+            logger.warning("Etiquetas não removidas na exclusão: %s", exc)
         db.delete(group)
         db.commit()
         flash(request, "Cotação principal excluída.", "success")

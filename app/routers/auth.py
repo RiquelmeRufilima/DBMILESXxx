@@ -16,6 +16,14 @@ from ..database import get_db
 from ..models import UserProfile, WebUser
 from ..security import hash_password, validate_csrf_token, validate_password, verify_password
 from ..services.auth_email import EmailDeliveryError, issue_email_code, send_auth_code, verify_email_code
+from ..services.protection import (
+    clear_attempts,
+    client_ip,
+    is_blocked,
+    register_attempt,
+    seconds_until_allowed,
+    wait_message,
+)
 from ..services.user_defaults import ensure_user_defaults
 from ..web import context, flash, templates
 
@@ -37,6 +45,22 @@ def _verify_url(email: str) -> str:
 
 def _reset_url(email: str) -> str:
     return f"/reset-password?email={quote(_email(email))}"
+
+
+BLOCKED_MESSAGE = "Seu acesso foi bloqueado pelo administrador da empresa. Fale com ele para liberar."
+
+
+def _code_attempt_blocked(request: Request, db: Session, email: str) -> int:
+    """Limite para quem digita códigos de e-mail (por IP e por e-mail)."""
+    return max(
+        seconds_until_allowed(db, "code_ip", client_ip(request)),
+        seconds_until_allowed(db, "code_email", email),
+    )
+
+
+def _register_code_failure(request: Request, db: Session, email: str) -> None:
+    register_attempt(db, "code_ip", client_ip(request), commit=False)
+    register_attempt(db, "code_email", email, commit=False)
 
 
 def _google_client_id() -> str:
@@ -222,8 +246,8 @@ def google_callback(
         db.refresh(user)
         created_with_google = True
 
-    if not user.active:
-        flash(request, "Sua conta DBMILESX está desativada. Fale com o administrador da empresa.", "error")
+    if not user.active or is_blocked(db, user.id):
+        flash(request, BLOCKED_MESSAGE if is_blocked(db, user.id) else "Sua conta DBMILESX está desativada. Fale com o administrador da empresa.", "error")
         return RedirectResponse("/login", status_code=303)
 
     request.session.clear()
@@ -324,9 +348,23 @@ def login(
         return RedirectResponse("/login", status_code=303)
 
     email = _email(email)
+    ip = client_ip(request)
+    wait = max(seconds_until_allowed(db, "login_email", email), seconds_until_allowed(db, "login_ip", ip))
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse("/login", status_code=303)
+
     user = db.scalar(select(WebUser).where(WebUser.email == email))
     if user is None or not verify_password(password, user.password_hash):
+        register_attempt(db, "login_email", email, commit=False)
+        register_attempt(db, "login_ip", ip, commit=True)
         flash(request, "E-mail ou senha incorretos.", "error")
+        return RedirectResponse("/login", status_code=303)
+
+    clear_attempts(db, "login_email", email)
+
+    if is_blocked(db, user.id):
+        flash(request, BLOCKED_MESSAGE, "error")
         return RedirectResponse("/login", status_code=303)
 
     if not user.active:
@@ -383,10 +421,22 @@ def register(
         flash(request, message, "error")
         return RedirectResponse("/register", status_code=303)
 
+    ip = client_ip(request)
+    wait = seconds_until_allowed(db, "register_ip", ip)
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse("/register", status_code=303)
+
     user = db.scalar(select(WebUser).where(WebUser.email == email))
     if user is not None and user.active:
         flash(request, "Este e-mail já possui uma conta. Entre ou use 'Esqueci minha senha'.", "info")
         return RedirectResponse("/login", status_code=303)
+    if user is not None and is_blocked(db, user.id):
+        # Conta bloqueada pelo administrador não pode ser "recriada" para
+        # burlar o bloqueio (antes era possível voltar para a empresa assim).
+        flash(request, BLOCKED_MESSAGE, "error")
+        return RedirectResponse("/login", status_code=303)
+    register_attempt(db, "register_ip", ip, commit=False)
 
     if user is None:
         user = WebUser(
@@ -455,8 +505,14 @@ def verify_email(
         flash(request, "Sessão expirada. Tente novamente.", "error")
         return RedirectResponse(_verify_url(email), status_code=303)
 
+    wait = _code_attempt_blocked(request, db, email)
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse(_verify_url(email), status_code=303)
+
     ok, message = verify_email_code(db, email=email, purpose="register", code=code)
     if not ok:
+        _register_code_failure(request, db, email)
         db.commit()
         flash(request, message, "error")
         return RedirectResponse(_verify_url(email), status_code=303)
@@ -466,6 +522,10 @@ def verify_email(
         db.commit()
         flash(request, "Cadastro não encontrado. Crie a conta novamente.", "error")
         return RedirectResponse("/register", status_code=303)
+    if is_blocked(db, user.id):
+        db.commit()
+        flash(request, BLOCKED_MESSAGE, "error")
+        return RedirectResponse("/login", status_code=303)
 
     user.active = True
     ensure_user_defaults(db, user)
@@ -528,6 +588,13 @@ def forgot_password(
         flash(request, "Informe um e-mail válido.", "error")
         return RedirectResponse("/forgot-password", status_code=303)
 
+    ip = client_ip(request)
+    wait = seconds_until_allowed(db, "forgot_ip", ip)
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse("/forgot-password", status_code=303)
+    register_attempt(db, "forgot_ip", ip)
+
     user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
     if user is not None:
         try:
@@ -580,8 +647,14 @@ def reset_password(
         flash(request, message, "error")
         return RedirectResponse(_reset_url(email), status_code=303)
 
+    wait = _code_attempt_blocked(request, db, email)
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse(_reset_url(email), status_code=303)
+
     ok, message = verify_email_code(db, email=email, purpose="reset", code=code)
     if not ok:
+        _register_code_failure(request, db, email)
         db.commit()
         flash(request, message, "error")
         return RedirectResponse(_reset_url(email), status_code=303)
@@ -611,6 +684,13 @@ def resend_reset_code(
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse(_reset_url(email), status_code=303)
+
+    ip = client_ip(request)
+    wait = seconds_until_allowed(db, "forgot_ip", ip)
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse(_reset_url(email), status_code=303)
+    register_attempt(db, "forgot_ip", ip)
 
     user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
     if user is not None:

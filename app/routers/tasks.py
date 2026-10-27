@@ -55,7 +55,12 @@ def _parse_due_at(raw: str) -> datetime | None:
 
 def _safe_return_to(raw: str | None, fallback: str = "/tasks") -> str:
     value = str(raw or "").strip()
-    if value.startswith("/") and not value.startswith("//"):
+    if (
+        value.startswith("/")
+        and not value.startswith("//")
+        and "\\" not in value
+        and not any(ord(ch) < 32 for ch in value)
+    ):
         return value
     return fallback
 

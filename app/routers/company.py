@@ -39,6 +39,7 @@ from ..models import (
 )
 from ..security import hash_password, validate_csrf_token, validate_password
 from ..services.notifications import create_notification
+from ..services.protection import register_attempt, seconds_until_allowed, set_blocked, wait_message
 from ..services.team_accounts import remaining_team_slots, team_user_count
 from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
@@ -513,8 +514,14 @@ def join_company(
         flash(request, "Sessão expirada. Tente novamente.", "error")
         return RedirectResponse(back, status_code=303)
 
+    wait = seconds_until_allowed(db, "company_join", str(user.id))
+    if wait:
+        flash(request, wait_message(wait), "error")
+        return RedirectResponse(back, status_code=303)
+
     company_id, error = _parse_invite_code(code)
     if company_id is None:
+        register_attempt(db, "company_join", str(user.id))
         flash(request, error, "error")
         return RedirectResponse(back, status_code=303)
 
@@ -524,6 +531,7 @@ def join_company(
         return RedirectResponse(back, status_code=303)
 
     if company_name.strip() and _normalize_company_name(company_name) != _normalize_company_name(company.name):
+        register_attempt(db, "company_join", str(user.id))
         flash(request, "O nome da empresa não confere com o código. Confira com o administrador.", "error")
         return RedirectResponse(back, status_code=303)
 
@@ -731,6 +739,9 @@ def update_member(
     if member.active and not new_active:
         member.auth_version = int(member.auth_version or 1) + 1  # encerra sessões abertas
     member.active = new_active
+    # Marca o bloqueio como feito pelo administrador: impede que a pessoa
+    # reative a conta sozinha pelo fluxo de cadastro/confirmação de e-mail.
+    set_blocked(db, member.id, not new_active, by_user_id=user.id)
     db.commit()
     flash(request, f"Acesso de {member.name} atualizado.", "success")
     return RedirectResponse("/company#equipe", status_code=303)
@@ -889,9 +900,14 @@ async def add_chat_contact(request: Request, db: Session = Depends(get_db)):
     if not validate_csrf_token(request.session, str(payload.get("csrf_token") or "")):
         return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
 
+    wait = seconds_until_allowed(db, "contact_lookup", str(user.id))
+    if wait:
+        return JSONResponse({"ok": False, "message": wait_message(wait)}, status_code=429)
+
     contact_id = str(payload.get("contact_id") or "").strip().upper()
     partner = _resolve_private_contact(db, user, contact_id)
     if partner is None:
+        register_attempt(db, "contact_lookup", str(user.id))
         return JSONResponse({"ok": False, "message": "ID de contato não encontrado."}, status_code=404)
 
     exists = db.scalar(
@@ -921,8 +937,11 @@ async def remove_chat_contact(contact_id: str, request: Request, db: Session = D
     if not validate_csrf_token(request.session, str(payload.get("csrf_token") or "")):
         return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
 
+    if seconds_until_allowed(db, "contact_lookup", str(user.id)):
+        return JSONResponse({"ok": False, "message": "Muitas tentativas. Aguarde alguns minutos."}, status_code=429)
     partner = _resolve_private_contact(db, user, contact_id)
     if partner is None:
+        register_attempt(db, "contact_lookup", str(user.id))
         return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
 
     link = db.scalar(
@@ -944,8 +963,11 @@ def private_messages_api(contact_id: str, request: Request, db: Session = Depend
         return JSONResponse({"ok": False, "messages": []}, status_code=401)
 
     _ensure_user_contact_id(db, user)
+    if seconds_until_allowed(db, "contact_lookup", str(user.id)):
+        return JSONResponse({"ok": False, "message": "Muitas tentativas. Aguarde alguns minutos."}, status_code=429)
     partner = _resolve_private_contact(db, user, contact_id)
     if partner is None:
+        register_attempt(db, "contact_lookup", str(user.id))
         return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
 
     messages = _private_messages(db, user, partner)
@@ -963,8 +985,11 @@ async def private_send_api(contact_id: str, request: Request, db: Session = Depe
         return JSONResponse({"ok": False}, status_code=401)
 
     _ensure_user_contact_id(db, user)
+    if seconds_until_allowed(db, "contact_lookup", str(user.id)):
+        return JSONResponse({"ok": False, "message": "Muitas tentativas. Aguarde alguns minutos."}, status_code=429)
     partner = _resolve_private_contact(db, user, contact_id)
     if partner is None:
+        register_attempt(db, "contact_lookup", str(user.id))
         return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
 
     try:

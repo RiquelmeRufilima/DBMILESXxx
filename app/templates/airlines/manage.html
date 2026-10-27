@@ -101,7 +101,7 @@
           {% if can_manage %}
           <a class="primary-button button-edit" href="/airlines/{{ airline.id }}/types/{{ type.id }}/edit"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Editar lógica</a>
           {% if not type.legacy_key and not airline.builtin %}
-          <form method="post" action="/airlines/{{ airline.id }}/types/{{ type.id }}/delete" onsubmit="return confirm('Excluir a lógica “{{ type.name|e }}”? Ela deixará de aparecer em novos cálculos, mas as cotações antigas continuarão no histórico.');">
+          <form method="post" action="/airlines/{{ airline.id }}/types/{{ type.id }}/delete" onsubmit='return confirm({{ ('Excluir a lógica “' ~ (type.name)|string ~ '”? Ela deixará de aparecer em novos cálculos, mas as cotações antigas continuarão no histórico.')|tojson }})'>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="ghost-button danger" type="submit"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir lógica</button>
           </form>

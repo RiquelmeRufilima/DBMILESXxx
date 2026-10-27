@@ -96,6 +96,27 @@ def update_appearance(
     return RedirectResponse("/settings?tab=appearance", status_code=303)
 
 
+@router.post("/settings/theme-mode")
+async def update_theme_mode(request: Request, db: Session = Depends(get_db)):
+    """Tema claro/escuro salvo na CONTA: celular e computador ficam iguais."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not validate_csrf_token(request.session, str(payload.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
+    mode = str(payload.get("mode") or "")
+    if mode not in {"light", "dark", "system"}:
+        return JSONResponse({"ok": False, "message": "Tema inválido."}, status_code=400)
+    if user.preference is not None:
+        user.preference.theme_mode = mode
+        db.commit()
+    return {"ok": True, "mode": mode}
+
+
 @router.post("/settings/experience")
 def update_experience(
     request: Request, default_page: str = Form("dashboard"), animations: str|None=Form(None),

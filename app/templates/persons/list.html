@@ -9,7 +9,7 @@
     <svg class="ui-icon"><use href="#icon-eye"></use></svg><span>Ver</span>
   </button>
   <a class="secondary-button small-button" href="/persons/{{ person.id }}/edit">{{ 'Completar' if incomplete else 'Editar' }}</a>
-  <form method="post" action="/persons/{{ person.id }}/delete" onsubmit="return confirm('Excluir definitivamente o cadastro de {{ person.name|e }}? Esta ação não poderá ser desfeita.')">
+  <form method="post" action="/persons/{{ person.id }}/delete" onsubmit='return confirm({{ ('Excluir definitivamente o cadastro de ' ~ (person.name)|string ~ '? Esta ação não poderá ser desfeita.')|tojson }})'>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="ghost-button small-button danger" type="submit"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir</button>
   </form>

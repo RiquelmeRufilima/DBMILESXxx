@@ -76,7 +76,7 @@
     </div>
   </div>
   <form method="post" action="/airlines/{{ airline.id }}/types/{{ calc_type.id }}/delete"
-        onsubmit="return confirm('Tem certeza que deseja excluir a lógica “{{ calc_type.name|e }}”? O histórico será preservado.');">
+        onsubmit='return confirm({{ ('Tem certeza que deseja excluir a lógica “' ~ (calc_type.name)|string ~ '”? O histórico será preservado.')|tojson }})'>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="ghost-button danger" type="submit">
       <svg class="ui-icon"><use href="#icon-trash"></use></svg>

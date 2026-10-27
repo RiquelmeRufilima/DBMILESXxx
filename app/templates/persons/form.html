@@ -139,7 +139,7 @@
                             <td><a href="/persons/{{ f.relative.id }}">{{ f.relative.name }}</a></td>
                             <td>{{ f.relationship|title }}</td>
                             <td>
-                                <form method="post" action="/persons/{{ person.id }}/family/{{ f.id }}/delete" onsubmit="return confirm('Remover {{ f.relative.name }}?')">
+                                <form method="post" action="/persons/{{ person.id }}/family/{{ f.id }}/delete" onsubmit='return confirm({{ ('Remover ' ~ (f.relative.name)|string ~ '?')|tojson }})'>
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <button class="ghost-button small-button danger" type="submit">Remover</button>
                                 </form>
@@ -185,7 +185,7 @@
                             <td><a href="/{{ a.file_path }}" target="_blank">{{ a.file_name }}</a></td>
                             <td>{{ a.description or '—' }}</td>
                             <td>
-                                <form method="post" action="/persons/attachment/{{ a.id }}/delete" onsubmit="return confirm('Remover {{ a.file_name }}?')">
+                                <form method="post" action="/persons/attachment/{{ a.id }}/delete" onsubmit='return confirm({{ ('Remover ' ~ (a.file_name)|string ~ '?')|tojson }})'>
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <button class="ghost-button small-button danger" type="submit">Remover</button>
                                 </form>

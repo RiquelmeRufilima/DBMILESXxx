@@ -1,0 +1,30 @@
+/* Calculadora em etapas — somente celular (o JS só ativa abaixo de 760px) */
+.mcalc-stepper[hidden],.mcalc-nav[hidden]{display:none!important}
+.mcalc-stepper{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 12px;position:sticky;top:var(--topbar,68px);z-index:29;scroll-margin-top:calc(var(--topbar,68px) + 8px);padding:8px 0;background:var(--bg,#061423)}
+.mcalc-stepper button{display:grid;justify-items:center;gap:3px;padding:7px 2px;border-radius:12px;border:1px solid var(--border,#1f3a55);background:var(--panel,#0b1d31);color:var(--muted,#8fb0c8);font:inherit;font-size:.66rem;font-weight:850;cursor:pointer}
+.mcalc-stepper b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:color-mix(in srgb,var(--cyan,#26c5e6) 14%,transparent);color:var(--text,#e8f6ff);font-size:.75rem}
+.mcalc-stepper button.is-active{border-color:var(--cyan,#26c5e6);color:var(--text,#e8f6ff);box-shadow:0 0 0 2px color-mix(in srgb,var(--cyan,#26c5e6) 30%,transparent)}
+.mcalc-stepper button.is-active b{background:var(--cyan,#26c5e6);color:#04121f}
+.mcalc-stepper button.is-done b{background:color-mix(in srgb,#34d399 70%,transparent);color:#04121f}
+
+.wizard-grid.is-mobile-steps{display:block!important}
+.wizard-grid.is-mobile-steps [data-mstep-hide]{display:none!important}
+.wizard-grid.is-mobile-steps[data-mstep-current="1"] .form-panel{display:none!important}
+.wizard-grid.is-mobile-steps:not([data-mstep-current="1"]) .selector-panel{display:none!important}
+.wizard-grid.is-mobile-steps[data-mstep-current="1"] [data-mstep]:not([data-mstep="1"]),
+.wizard-grid.is-mobile-steps[data-mstep-current="2"] [data-mstep]:not([data-mstep="2"]),
+.wizard-grid.is-mobile-steps[data-mstep-current="3"] [data-mstep]:not([data-mstep="3"]),
+.wizard-grid.is-mobile-steps[data-mstep-current="4"] [data-mstep]:not([data-mstep="4"]){display:none!important}
+.wizard-grid.is-mobile-steps .form-panel{padding-bottom:84px}
+
+.mcalc-nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--panel,#0b1d31) 94%,transparent);border-top:1px solid var(--border,#1f3a55);backdrop-filter:blur(10px);box-shadow:0 -10px 30px rgba(0,0,0,.25)}
+.mcalc-nav .primary-button{flex:1;justify-content:center;min-height:46px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcalc-nav .ghost-button{min-height:46px}
+.mcalc-nav-info{font-size:.7rem;font-weight:850;color:var(--muted,#8fb0c8);white-space:nowrap}
+.mcalc-nav [hidden]{display:none!important}
+.wizard-grid.is-mobile-steps[data-mstep-current="4"] .mcalc-nav{position:static;margin-top:12px;padding:0;background:none;border:0;box-shadow:none;backdrop-filter:none}
+.wizard-grid.is-mobile-steps[data-mstep-current="4"] .form-panel{padding-bottom:0}
+/* Enquanto a calculadora em etapas está aberta, a barra de etapas ocupa o rodapé
+   (o menu continua acessível pelo botão de menu no topo). */
+body.mcalc-active .mobile-nav{display:none!important}
+body.mcalc-active{padding-bottom:0}

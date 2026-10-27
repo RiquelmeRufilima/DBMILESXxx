@@ -52,18 +52,24 @@
     themeQuickToggle.setAttribute('title', light ? 'Tema escuro' : 'Tema claro');
   };
 
-  const quickTheme = localStorage.getItem(themeStorageKey);
-  if (quickTheme === 'light' || quickTheme === 'dark') {
-    root.dataset.theme = quickTheme;
-  }
+  // O tema agora fica salvo na conta (igual no celular e no computador).
+  // A preferência antiga guardada só neste aparelho é descartada.
+  try { localStorage.removeItem(themeStorageKey); } catch (_) {}
   syncThemeButton();
 
   themeQuickToggle?.addEventListener('click', () => {
     const next = root.dataset.theme === 'light' ? 'dark' : 'light';
     root.dataset.theme = next;
     root.dataset.themeMode = next;
-    localStorage.setItem(themeStorageKey, next);
     syncThemeButton();
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content
+      || document.querySelector('input[name="csrf_token"]')?.value || '';
+    fetch('/settings/theme-mode', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode: next, csrf_token: csrf}),
+    }).catch(() => {});
   });
 
   if ('serviceWorker' in navigator) {

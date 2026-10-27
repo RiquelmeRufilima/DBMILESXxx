@@ -13,13 +13,28 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..models import WebUser, WebQuote, QuoteGroup, QuoteOptionIndex, WebCompany
 from ..security import hash_password, validate_csrf_token
+from ..services.protection import set_blocked
 from ..web import context, flash, templates
 
 router = APIRouter(prefix="/admin/database", tags=["admin-database"])
 
 
 def _admin_allowed(user: WebUser | None) -> bool:
-    return bool(user and user.active and user.role in {"admin", "gerente"})
+    """Somente administradores DENTRO de uma empresa.
+
+    Antes: qualquer admin/gerente sem empresa via e alterava todos os usuários
+    do sistema, e gerentes podiam gerar senha para o administrador.
+    """
+    return bool(user and user.active and user.company_id and (user.is_owner or user.role == "admin"))
+
+
+def _target_protected(admin: WebUser, target: WebUser | None) -> bool:
+    return bool(
+        target is None
+        or target.company_id != admin.company_id
+        or target.id == admin.id
+        or (target.is_owner and not admin.is_owner)
+    )
 
 
 def _temporary_password(length: int = 12) -> str:
@@ -34,7 +49,7 @@ def admin_database(request: Request, db: Session = Depends(get_db)):
         flash(request, "Acesso restrito ao administrador.", "error")
         return RedirectResponse("/dashboard", status_code=303)
 
-    company_filter = WebUser.company_id == user.company_id if user.company_id else True
+    company_filter = WebUser.company_id == user.company_id
     users = db.scalars(
         select(WebUser)
         .where(company_filter)
@@ -67,12 +82,13 @@ def reset_user_password(user_id: int, request: Request, csrf_token: str = Form(.
         return RedirectResponse("/admin/database", status_code=303)
 
     target = db.get(WebUser, user_id)
-    if target is None or (admin.company_id and target.company_id != admin.company_id):
-        flash(request, "Usuário não encontrado nessa empresa.", "error")
+    if _target_protected(admin, target):
+        flash(request, "Essa senha não pode ser alterada por aqui.", "error")
         return RedirectResponse("/admin/database", status_code=303)
 
     new_password = _temporary_password()
     target.password_hash = hash_password(new_password)
+    target.auth_version = int(target.auth_version or 1) + 1  # encerra sessões antigas
     db.commit()
     request.session["generated_password"] = {"name": target.name, "email": target.email, "password": new_password, "when": datetime.now().strftime("%d/%m/%Y - %H:%M")}
     flash(request, "Senha temporária gerada. Copie agora; por segurança ela não será exibida novamente.", "success")
@@ -89,10 +105,13 @@ def toggle_user(user_id: int, request: Request, csrf_token: str = Form(...), db:
         flash(request, "Sessão expirada. Tente novamente.", "error")
         return RedirectResponse("/admin/database", status_code=303)
     target = db.get(WebUser, user_id)
-    if target is None or target.id == admin.id or (admin.company_id and target.company_id != admin.company_id):
+    if _target_protected(admin, target):
         flash(request, "Usuário não pode ser alterado.", "error")
         return RedirectResponse("/admin/database", status_code=303)
     target.active = not target.active
+    if not target.active:
+        target.auth_version = int(target.auth_version or 1) + 1
+    set_blocked(db, target.id, not target.active, by_user_id=admin.id)
     db.commit()
     flash(request, "Status do usuário atualizado.", "success")
     return RedirectResponse("/admin/database", status_code=303)

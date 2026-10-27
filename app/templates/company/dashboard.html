@@ -12,7 +12,7 @@
     <a class="primary-button" href="/company/chat"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Abrir chat da equipe</a>
     {% if can_manage_members and remaining_slots > 0 %}<a class="secondary-button" href="#codigo-entrada" data-invite-shortcut="1">＋ Convidar membro</a>{% endif %}
     {% if not user.is_owner %}
-    <form method="post" action="/company/leave" onsubmit="return confirm('Sair de {{ company.name }}? Sua conta DBMILESX continuará ativa e você poderá criar ou entrar em outra empresa depois.')">
+    <form method="post" action="/company/leave" onsubmit='return confirm({{ ('Sair de ' ~ (company.name)|string ~ '? Sua conta DBMILESX continuará ativa e você poderá criar ou entrar em outra empresa depois.')|tojson }})'>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <button class="ghost-button danger" type="submit" data-confirm-ignore="1">Sair da empresa</button>
     </form>
@@ -112,7 +112,7 @@
             <small class="muted">Ao salvar, todos os acessos antigos desse usuário serão encerrados.</small>
             <button class="ghost-button small-button" type="submit">Salvar nova senha</button>
           </form>
-          <form method="post" action="/company/members/{{ member.id }}/remove" onsubmit="return confirm('Remover {{ member.name }} da empresa? A conta DBMILESX continuará ativa e as cotações antigas continuarão identificadas.')">
+          <form method="post" action="/company/members/{{ member.id }}/remove" onsubmit='return confirm({{ ('Remover ' ~ (member.name)|string ~ ' da empresa? A conta DBMILESX continuará ativa e as cotações antigas continuarão identificadas.')|tojson }})'>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="ghost-button small-button danger" type="submit">Remover da empresa</button>
           </form>

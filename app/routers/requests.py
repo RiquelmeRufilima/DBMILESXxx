@@ -15,6 +15,7 @@ from ..dependencies import current_user
 from ..models import PublicQuoteLink, QuoteRequest, WebCompany
 from ..security import validate_csrf_token
 from ..services.notifications import create_notification
+from ..services.protection import client_ip, register_attempt, seconds_until_allowed, wait_message
 from ..web import context, flash, templates
 
 router = APIRouter(tags=["requests"])
@@ -172,9 +173,20 @@ async def public_request_submit(token: str, request: Request, db: Session = Depe
     if not link or not link.active or (link.expires_at and link.expires_at < now) or link.total_uses >= link.max_uses:
         return templates.TemplateResponse(request, "requests/public.html", context(request, public_link=link, link_valid=False, company=None), status_code=410)
 
+    ip = client_ip(request)
+    wait = seconds_until_allowed(db, "public_request_ip", ip)
+    if wait:
+        return templates.TemplateResponse(
+            request,
+            "requests/public.html",
+            context(request, public_link=link, link_valid=True, company=db.get(WebCompany, link.company_id) if link.company_id else None, public_error=wait_message(wait)),
+            status_code=429,
+        )
+    register_attempt(db, "public_request_ip", ip)
+
     form = await request.form()
-    name = str(form.get("client_name") or "").strip()
-    phone = str(form.get("phone") or "").strip()
+    name = str(form.get("client_name") or "").strip()[:180]
+    phone = str(form.get("phone") or "").strip()[:40]
     origin = str(form.get("origin") or "").strip()
     destination = str(form.get("destination") or "").strip()
     if not all([name, phone, origin, destination]):

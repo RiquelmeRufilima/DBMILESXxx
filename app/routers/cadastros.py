@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import quote as url_quote
+
 import json
 import re
 import unicodedata
@@ -2287,15 +2289,31 @@ def arquivo_cotacao_anexo(group_id: int, attachment_id: str, request: Request, d
         body, mime = read_stored_attachment(entry)
     except (FileNotFoundError, ValueError, RuntimeError):
         return Response("Arquivo indisponível.", status_code=404)
-    name = str(entry.get("name") or "arquivo").replace('"', "")
-    return Response(
-        content=body,
-        media_type=mime or str(entry.get("type") or "application/octet-stream"),
-        headers={
-            "Content-Disposition": f'inline; filename="{name}"',
-            "Cache-Control": "private, max-age=300",
-        },
-    )
+    # Segurança: o tipo é decidido pela extensão (não pelo que o navegador de
+    # quem enviou declarou). Só PDF e imagens comuns abrem no navegador; o resto
+    # (inclusive SVG, HTML, XML, TXT) é baixado, evitando XSS por anexo.
+    safe_inline = {
+        ".pdf": "application/pdf", ".png": "image/png", ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif",
+        ".bmp": "image/bmp", ".ico": "image/x-icon",
+    }
+    raw_name = str(entry.get("name") or "arquivo")
+    extension = str(entry.get("extension") or ("." + raw_name.rsplit(".", 1)[-1] if "." in raw_name else "")).lower()
+    name = "".join(ch for ch in raw_name if ch not in '"\\\r\n;')[:180] or "arquivo"
+    ascii_name = name.encode("ascii", "ignore").decode("ascii") or "arquivo"
+    if extension in safe_inline:
+        media_type, disposition = safe_inline[extension], "inline"
+    else:
+        media_type, disposition = "application/octet-stream", "attachment"
+    headers = {
+        "Content-Disposition": f'{disposition}; filename="{ascii_name}"; filename*=UTF-8\'\'{url_quote(name)}',
+        "Cache-Control": "private, max-age=300",
+        "X-Content-Type-Options": "nosniff",
+    }
+    if extension != ".pdf":
+        # O Chrome não abre PDF com "sandbox"; para os demais tipos, isola o arquivo.
+        headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+    return Response(content=body, media_type=media_type, headers=headers)
 
 
 @router.get("/cotacoes/{group_id}/preview/data")

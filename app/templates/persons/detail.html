@@ -13,7 +13,7 @@
     <div class="action-cluster">
         <a class="secondary-button" href="/persons">← Voltar</a>
         <a class="primary-button" href="/persons/{{ person.id }}/edit">Editar</a>
-        <form method="post" action="/persons/{{ person.id }}/delete" style="display:inline;" onsubmit="return confirm('Excluir {{ person.name }}?')">
+        <form method="post" action="/persons/{{ person.id }}/delete" style="display:inline;" onsubmit='return confirm({{ ('Excluir ' ~ (person.name)|string ~ '?')|tojson }})'>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="ghost-button danger" type="submit">Excluir</button>
         </form>
@@ -134,7 +134,7 @@
         <hr>
         <a class="primary-button full" href="/persons/{{ person.id }}/edit">Editar cadastro</a>
         <a class="secondary-button full" href="/calculations/new?person_id={{ person.id }}">Criar cotação</a>
-        <form method="post" action="/persons/{{ person.id }}/delete" style="margin-top:8px;" onsubmit="return confirm('Excluir {{ person.name }}?')">
+        <form method="post" action="/persons/{{ person.id }}/delete" style="margin-top:8px;" onsubmit='return confirm({{ ('Excluir ' ~ (person.name)|string ~ '?')|tojson }})'>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button class="ghost-button danger full" type="submit">Excluir pessoa</button>
         </form>
