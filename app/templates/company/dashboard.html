@@ -10,6 +10,7 @@
   </div>
   <div class="form-actions">
     <a class="primary-button" href="/company/chat"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Abrir chat da equipe</a>
+    {% if can_manage_members and remaining_slots > 0 %}<a class="secondary-button" href="#codigo-entrada" data-invite-shortcut="1">＋ Convidar membro</a>{% endif %}
     {% if not user.is_owner %}
     <form method="post" action="/company/leave" onsubmit="return confirm('Sair de {{ company.name }}? Sua conta DBMILESX continuará ativa e você poderá criar ou entrar em outra empresa depois.')">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -29,7 +30,7 @@
 {% if can_manage_members %}
 <section class="panel" id="codigo-entrada">
   <div class="panel-heading">
-    <div><span class="eyebrow">ENTRADA POR CÓDIGO</span><h2>Código para entrar na empresa</h2><p>Gere um código temporário para um usuário já cadastrado no DBMILESX entrar em {{ company.name }}. O código expira exatamente 5 minutos após ser gerado.</p></div>
+    <div><span class="eyebrow">ENTRADA POR CÓDIGO</span><h2>Código para entrar na empresa</h2><p>Gere um código temporário e envie para a pessoa (ela precisa ter conta no DBMILESX). Ela entra em <strong>Empresa → Entrar em empresa</strong> ou direto pelo link do convite. O código expira {{ invite_minutes }} minuto(s) após ser gerado.</p></div>
     <span class="team-limit-seal">{{ remaining_slots }} vagas</span>
   </div>
   {% if remaining_slots > 0 %}
@@ -43,8 +44,10 @@
     </div>
   </div>
   <div class="form-actions">
-    <button class="primary-button" type="button" id="generateCompanyInviteCode" data-confirm-ignore="1">Gerar código de 5 minutos</button>
+    <button class="primary-button" type="button" id="generateCompanyInviteCode" data-confirm-ignore="1">Gerar código de {{ invite_minutes }} min</button>
     <button class="secondary-button" type="button" id="copyCompanyInviteCode" data-confirm-ignore="1" disabled>Copiar código</button>
+    <button class="secondary-button" type="button" id="shareCompanyInvite" data-confirm-ignore="1" disabled>📲 Convidar pelo WhatsApp</button>
+    <button class="ghost-button" type="button" id="copyCompanyInviteLink" data-confirm-ignore="1" disabled>🔗 Copiar convite</button>
   </div>
   <p id="companyInviteError" class="muted" hidden></p>
   {% else %}
@@ -154,9 +157,29 @@
   const codeInput = document.getElementById('companyInviteCode');
   const countdown = document.getElementById('companyInviteCountdown');
   const errorBox = document.getElementById('companyInviteError');
+  const shareButton = document.getElementById('shareCompanyInvite');
+  const copyLinkButton = document.getElementById('copyCompanyInviteLink');
   if (!generateButton || !codeInput) return;
 
   let timer = null;
+  let invite = null;
+  const setInviteButtons = (enabled) => {
+    [copyButton, shareButton, copyLinkButton].forEach((button) => { if (button) button.disabled = !enabled; });
+  };
+  const copyText = async (text, button) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      const area = document.createElement('textarea');
+      area.value = text; document.body.appendChild(area); area.select();
+      document.execCommand('copy'); area.remove();
+    }
+    if (button) {
+      const old = button.textContent;
+      button.textContent = 'Copiado ✓';
+      setTimeout(() => { button.textContent = old; }, 1400);
+    }
+  };
   const setError = (message) => {
     if (!errorBox) return;
     errorBox.textContent = message || '';
@@ -172,7 +195,8 @@
       if (seconds <= 0) {
         clearInterval(timer);
         timer = null;
-        if (copyButton) copyButton.disabled = true;
+        invite = null;
+        setInviteButtons(false);
       }
     };
     tick();
@@ -186,8 +210,9 @@
       const response = await fetch('/company/invite-code', {headers: {'Accept': 'application/json'}, cache: 'no-store'});
       const data = await response.json();
       if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível gerar o código.');
+      invite = data;
       codeInput.value = data.code;
-      if (copyButton) copyButton.disabled = false;
+      setInviteButtons(true);
       startCountdown(data.expires_at);
     } catch (error) {
       setError(error && error.message ? error.message : 'Não foi possível gerar o código.');
@@ -197,19 +222,31 @@
   });
 
   if (copyButton) {
-    copyButton.addEventListener('click', async () => {
-      if (!codeInput.value || codeInput.value.includes('Clique')) return;
-      try {
-        await navigator.clipboard.writeText(codeInput.value);
-        const old = copyButton.textContent;
-        copyButton.textContent = 'Copiado';
-        setTimeout(() => { copyButton.textContent = old; }, 1200);
-      } catch (_) {
-        codeInput.select();
-        document.execCommand('copy');
-      }
+    copyButton.addEventListener('click', () => {
+      if (!invite) return;
+      copyText(invite.code, copyButton);
     });
   }
+  if (copyLinkButton) {
+    copyLinkButton.addEventListener('click', () => {
+      if (!invite) return;
+      copyText(invite.share_text, copyLinkButton);
+    });
+  }
+  if (shareButton) {
+    shareButton.addEventListener('click', async () => {
+      if (!invite) return;
+      if (navigator.share && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        try { await navigator.share({title: 'Convite DBMILESX', text: invite.share_text}); return; } catch (_) {}
+      }
+      window.open(invite.whatsapp_url, '_blank', 'noopener');
+    });
+  }
+  document.querySelectorAll('[data-invite-shortcut]').forEach((link) => {
+    link.addEventListener('click', () => {
+      if (!invite) setTimeout(() => generateButton.click(), 250);
+    });
+  });
 })();
 </script>
 

@@ -1,24 +1,185 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
+import os
+import re
 import secrets
+import time
 from collections import defaultdict
+from urllib.parse import quote as url_quote
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import desc, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from ..config import COMPANY_UPLOAD_DIR
+from ..config import COMPANY_UPLOAD_DIR, MAX_TEAM_USERS, SECRET_KEY
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
-from ..models import ChatMessage, PrivateChatMessage, UserChatContact, WebCompany, WebQuote, WebUser
-from ..security import validate_csrf_token
+from ..models import (
+    AcceptedQuote,
+    Airline,
+    ChatMessage,
+    CompanyTask,
+    FlightRegistry,
+    Person,
+    PrivateChatMessage,
+    PublicQuoteLink,
+    QuoteActivity,
+    QuoteBoardStatus,
+    QuoteGroup,
+    QuoteRequest,
+    UserChatContact,
+    WebCompany,
+    WebQuote,
+    WebUser,
+)
+from ..security import hash_password, validate_csrf_token, validate_password
 from ..services.notifications import create_notification
+from ..services.team_accounts import remaining_team_slots, team_user_count
 from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
 router = APIRouter(prefix="/company", tags=["company"])
+
+
+# ---------------------------------------------------------------------------
+# Empresa: código temporário de entrada, convites, membros e histórico
+# ---------------------------------------------------------------------------
+
+# Duração do código de entrada (padrão 5 minutos; pode ser alterado no Vercel
+# pela variável de ambiente COMPANY_INVITE_MINUTES).
+INVITE_CODE_MINUTES = max(1, int(os.getenv("COMPANY_INVITE_MINUTES", "5") or 5))
+PENDING_INVITE_COOKIE = "dbm_company_invite"
+
+ROLE_OPTIONS = [
+    {"value": "membro", "label": "Consultor", "description": "Faz cotações e vê o histórico da empresa"},
+    {"value": "gerente", "label": "Gerente", "description": "Acompanha a equipe e a operação"},
+    {"value": "admin", "label": "Administrador", "description": "Gerencia membros, códigos e dados da empresa"},
+]
+VALID_ROLES = {item["value"] for item in ROLE_OPTIONS}
+
+
+def _can_manage_company(user: WebUser) -> bool:
+    """Somente administradores (incluindo o acesso principal) gerenciam a empresa."""
+    return bool(user.company_id and (user.is_owner or user.role == "admin"))
+
+
+def _normalize_company_name(value: str | None) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+
+
+def _to_base36(number: int) -> str:
+    alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if number <= 0:
+        return "0"
+    out = ""
+    while number:
+        number, rest = divmod(number, 36)
+        out = alphabet[rest] + out
+    return out
+
+
+def _invite_signature(company_id: int, expires_at: int) -> str:
+    raw = hmac.new(
+        str(SECRET_KEY).encode("utf-8"),
+        f"company-invite:{company_id}:{expires_at}".encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return base64.b32encode(raw).decode("ascii")[:8]
+
+
+def _make_invite_code(company_id: int) -> tuple[str, int]:
+    """Gera um código assinado (não precisa de tabela nova no banco).
+
+    Formato: <id da empresa>-<expiração em base36>-<assinatura>.
+    Funciona em várias instâncias do Vercel porque é validado pela SECRET_KEY.
+    """
+    expires_at = int(time.time()) + INVITE_CODE_MINUTES * 60
+    code = f"{company_id}-{_to_base36(expires_at)}-{_invite_signature(company_id, expires_at)}"
+    return code, expires_at
+
+
+def _parse_invite_code(code: str | None) -> tuple[int | None, str]:
+    """Retorna (company_id, "") quando válido ou (None, mensagem de erro)."""
+    value = re.sub(r"\s+", "", str(code or "")).upper()
+    parts = value.split("-")
+    if len(parts) != 3 or not parts[0].isdigit():
+        return None, "Código inválido. Confira o código enviado pelo administrador."
+    try:
+        company_id = int(parts[0])
+        expires_at = int(parts[1], 36)
+    except ValueError:
+        return None, "Código inválido. Confira o código enviado pelo administrador."
+    if not hmac.compare_digest(parts[2], _invite_signature(company_id, expires_at)):
+        return None, "Código inválido. Confira o código enviado pelo administrador."
+    if expires_at < int(time.time()):
+        return None, "Esse código expirou. Peça ao administrador para gerar um novo."
+    return company_id, ""
+
+
+def _invite_link(request: Request, company: WebCompany, code: str) -> str:
+    base = str(request.base_url).rstrip("/")
+    return f"{base}/company/join?empresa={url_quote(company.name)}&codigo={url_quote(code)}"
+
+
+def _share_personal_history_with_company(db: Session, user: WebUser, company_id: int) -> None:
+    """Leva o histórico pessoal (feito antes de entrar na empresa) para a empresa.
+
+    Todo o histórico do sistema é filtrado por company_id quando o usuário tem
+    empresa. Sem isso, as cotações antigas do usuário "sumiriam" ao entrar e não
+    ficariam visíveis para os outros membros.
+    """
+    targets = [
+        (WebQuote, WebQuote.user_id, WebQuote.company_id),
+        (QuoteGroup, QuoteGroup.user_id, QuoteGroup.company_id),
+        (AcceptedQuote, AcceptedQuote.user_id, AcceptedQuote.company_id),
+        (FlightRegistry, FlightRegistry.user_id, FlightRegistry.company_id),
+        (QuoteBoardStatus, QuoteBoardStatus.user_id, QuoteBoardStatus.company_id),
+        (Person, Person.user_id, Person.company_id),
+        (PublicQuoteLink, PublicQuoteLink.owner_user_id, PublicQuoteLink.company_id),
+        (QuoteRequest, QuoteRequest.owner_user_id, QuoteRequest.company_id),
+        (QuoteActivity, QuoteActivity.actor_user_id, QuoteActivity.company_id),
+        (CompanyTask, CompanyTask.created_by_user_id, CompanyTask.company_id),
+        (Airline, Airline.owner_user_id, Airline.owner_company_id),
+    ]
+    for model, owner_col, company_col in targets:
+        try:
+            with db.begin_nested():
+                db.execute(
+                    update(model)
+                    .where(owner_col == user.id, company_col.is_(None))
+                    .values({company_col.key: company_id})
+                    .execution_options(synchronize_session=False)
+                )
+        except Exception:
+            # Tabela/coluna opcional ainda não criada em uma base antiga:
+            # não impede a entrada na empresa.
+            continue
+
+
+def _notify_company_admins(db: Session, company_id: int, title: str, body: str, exclude_user_id: int | None = None) -> None:
+    admins = db.scalars(
+        select(WebUser).where(
+            WebUser.company_id == company_id,
+            WebUser.active.is_(True),
+            or_(WebUser.role == "admin", WebUser.is_owner.is_(True)),
+        )
+    ).all()
+    for admin in admins:
+        if exclude_user_id and admin.id == exclude_user_id:
+            continue
+        create_notification(db, admin.id, title, body, kind="company", link="/company#equipe", commit=False)
+
+
+def _company_member_or_none(db: Session, user: WebUser, member_id: int) -> WebUser | None:
+    member = db.get(WebUser, member_id)
+    if member is None or member.company_id != user.company_id:
+        return None
+    return member
 
 
 class ChatConnectionManager:
@@ -205,11 +366,27 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=303)
 
     if not user.company_id:
-        return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
+        # Usuário sem empresa: se abriu um link de convite antes de entrar,
+        # leva direto para a tela de entrada com os dados preenchidos.
+        pending = request.cookies.get(PENDING_INVITE_COOKIE)
+        if pending:
+            response = RedirectResponse(f"/company/join?{pending}", status_code=303)
+            response.delete_cookie(PENDING_INVITE_COOKIE)
+            return response
+        return templates.TemplateResponse(request, "company/index.html", context(request, user=user))
 
     company = db.get(WebCompany, user.company_id)
+    if company is None:
+        user.company_id = None
+        db.commit()
+        return RedirectResponse("/company", status_code=303)
+
     _ensure_company_contact_ids(db, user.company_id)
-    members = db.scalars(select(WebUser).where(WebUser.company_id == user.company_id).order_by(WebUser.name)).all()
+    members = db.scalars(
+        select(WebUser)
+        .where(WebUser.company_id == user.company_id)
+        .order_by(WebUser.is_owner.desc(), WebUser.name)
+    ).all()
     total_quotes = db.scalar(select(func.count(WebQuote.id)).where(WebQuote.company_id == user.company_id)) or 0
     total_value = db.scalar(
         select(func.coalesce(func.sum(WebQuote.total), 0)).where(WebQuote.company_id == user.company_id)
@@ -232,8 +409,25 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
             total_quotes=total_quotes,
             total_value=total_value,
             last_messages=last_messages,
+            active_count=sum(1 for member in members if member.active),
+            team_count=team_user_count(db, user.company_id),
+            max_team_users=MAX_TEAM_USERS,
+            remaining_slots=remaining_team_slots(db, user.company_id),
+            can_manage_members=_can_manage_company(user),
+            role_options=ROLE_OPTIONS,
+            invite_minutes=INVITE_CODE_MINUTES,
         ),
     )
+
+
+@router.get("/create")
+def create_company_page(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if user.company_id:
+        return RedirectResponse("/company", status_code=303)
+    return templates.TemplateResponse(request, "company/create.html", context(request, user=user))
 
 
 @router.post("/create")
@@ -251,93 +445,228 @@ def create_company(
         return RedirectResponse("/company", status_code=303)
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company", status_code=303)
+        return RedirectResponse("/company/create", status_code=303)
 
-    name = name.strip()
+    name = re.sub(r"\s+", " ", name).strip()[:180]
     if len(name) < 2:
         flash(request, "Informe o nome da empresa.", "error")
-        return RedirectResponse("/company", status_code=303)
+        return RedirectResponse("/company/create", status_code=303)
 
-    company = WebCompany(name=name, cnpj=cnpj.strip() or None)
+    normalized = _normalize_company_name(name)
+    existing_names = db.scalars(select(WebCompany.name)).all()
+    if any(_normalize_company_name(item) == normalized for item in existing_names):
+        flash(request, "Já existe uma empresa com esse nome. Para entrar nela, peça o código ao administrador.", "error")
+        return RedirectResponse("/company/create", status_code=303)
+
+    company = WebCompany(name=name, cnpj=cnpj.strip()[:30] or None)
     db.add(company)
     db.flush()
     user.company_id = company.id
     user.role = "admin"
+    user.is_owner = True
+    _share_personal_history_with_company(db, user, company.id)
     db.commit()
-    flash(request, f"Empresa '{name}' criada.", "success")
+    flash(request, f"Empresa '{name}' criada. Gere um código para convidar sua equipe.", "success")
     return RedirectResponse("/company", status_code=303)
 
 
-@router.post("/branding")
-async def update_company_branding(request: Request, db: Session = Depends(get_db)):
+@router.get("/join")
+def join_company_page(request: Request, empresa: str = "", codigo: str = "", db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        # Guarda o convite e, depois do login, /company abre esta tela preenchida.
+        response = RedirectResponse("/login", status_code=303)
+        if empresa or codigo:
+            query = f"empresa={url_quote(empresa[:180])}&codigo={url_quote(codigo[:60])}"
+            response.set_cookie(PENDING_INVITE_COOKIE, query, max_age=60 * 60, httponly=True, samesite="lax")
+            flash(request, "Entre na sua conta DBMILESX para aceitar o convite da empresa.", "info")
+        return response
+    if user.company_id:
+        company = db.get(WebCompany, user.company_id)
+        flash(request, f"Você já faz parte de {company.name if company else 'uma empresa'}. Saia dela antes de entrar em outra.", "info")
+        return RedirectResponse("/company", status_code=303)
+    response = templates.TemplateResponse(
+        request,
+        "company/join.html",
+        context(request, user=user, prefill_company=empresa[:180], prefill_code=codigo[:60]),
+    )
+    response.delete_cookie(PENDING_INVITE_COOKIE)
+    return response
+
+
+@router.post("/join")
+def join_company(
+    request: Request,
+    company_name: str = Form(""),
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if not user.company_id or user.role != "admin":
-        flash(request, "Somente o administrador da empresa pode alterar a identidade visual.", "error")
+    if user.company_id:
         return RedirectResponse("/company", status_code=303)
 
+    back = f"/company/join?empresa={url_quote(company_name[:180])}&codigo={url_quote(code[:60])}"
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada. Tente novamente.", "error")
+        return RedirectResponse(back, status_code=303)
+
+    company_id, error = _parse_invite_code(code)
+    if company_id is None:
+        flash(request, error, "error")
+        return RedirectResponse(back, status_code=303)
+
+    company = db.get(WebCompany, company_id)
+    if company is None:
+        flash(request, "Empresa não encontrada. Peça um novo código ao administrador.", "error")
+        return RedirectResponse(back, status_code=303)
+
+    if company_name.strip() and _normalize_company_name(company_name) != _normalize_company_name(company.name):
+        flash(request, "O nome da empresa não confere com o código. Confira com o administrador.", "error")
+        return RedirectResponse(back, status_code=303)
+
+    if remaining_team_slots(db, company.id) <= 0:
+        flash(request, "Essa empresa não tem vagas disponíveis. Fale com o administrador.", "error")
+        return RedirectResponse(back, status_code=303)
+
+    user.company_id = company.id
+    user.role = "membro"
+    user.is_owner = False
+    _share_personal_history_with_company(db, user, company.id)
+    _notify_company_admins(
+        db,
+        company.id,
+        "Novo membro na empresa",
+        f"{user.name} ({user.email}) entrou em {company.name} usando o código de entrada.",
+        exclude_user_id=user.id,
+    )
+    db.commit()
+    flash(request, f"Você entrou em {company.name}! O histórico agora é compartilhado com a equipe.", "success")
+    return RedirectResponse("/company", status_code=303)
+
+
+@router.get("/invite-code")
+def generate_invite_code(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "error": "Faça login novamente."}, status_code=401)
+    if not _can_manage_company(user):
+        return JSONResponse({"ok": False, "error": "Somente administradores da empresa podem gerar códigos."}, status_code=403)
     company = db.get(WebCompany, user.company_id)
     if company is None:
-        flash(request, "Empresa não encontrada.", "error")
-        return RedirectResponse("/company", status_code=303)
+        return JSONResponse({"ok": False, "error": "Empresa não encontrada."}, status_code=404)
+    if remaining_team_slots(db, company.id) <= 0:
+        return JSONResponse({"ok": False, "error": "Sem vagas disponíveis na equipe."}, status_code=400)
 
-    form = await request.form()
-    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse("/company", status_code=303)
-
-    company.name = str(form.get("name") or company.name).strip()[:180] or company.name
-    company.cnpj = str(form.get("cnpj") or "").strip()[:30] or None
-    company.phone = str(form.get("phone") or "").strip()[:40] or None
-    company.email = str(form.get("email") or "").strip()[:180] or None
-
-    upload = form.get("logo")
-    try:
-        logo_path = await save_upload_image(
-            upload if getattr(upload, "filename", None) else None,
-            COMPANY_UPLOAD_DIR,
-            max_bytes=6 * 1024 * 1024,
-            filename_prefix=f"company-{company.id}",
-        )
-    except ValueError as exc:
-        flash(request, str(exc), "error")
-        return RedirectResponse("/company", status_code=303)
-
-    old_path = None
-    if logo_path:
-        old_path = company.logo_path
-        company.logo_path = logo_path
-
-    db.commit()
-    if old_path:
-        delete_relative_upload(old_path)
-    flash(request, "Dados e logo da empresa salvos. A logo será usada nos PDFs por padrão.", "success")
-    return RedirectResponse("/company", status_code=303)
+    code, expires_at = _make_invite_code(company.id)
+    invite_url = _invite_link(request, company, code)
+    share_text = (
+        f"Você foi convidado(a) para entrar na empresa {company.name} no DBMILESX.\n\n"
+        f"Empresa: {company.name}\nCódigo: {code}\n"
+        f"(válido por {INVITE_CODE_MINUTES} minutos)\n\n"
+        f"Entre pelo link: {invite_url}"
+    )
+    return JSONResponse(
+        {
+            "ok": True,
+            "code": code,
+            "expires_at": expires_at,
+            "minutes": INVITE_CODE_MINUTES,
+            "company_name": company.name,
+            "invite_url": invite_url,
+            "share_text": share_text,
+            "whatsapp_url": "https://wa.me/?text=" + url_quote(share_text),
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
-@router.post("/branding/remove-logo")
-async def remove_company_logo(request: Request, db: Session = Depends(get_db)):
+@router.post("/leave")
+def leave_company(request: Request, csrf_token: str = Form(...), db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if not user.company_id or user.role != "admin":
-        flash(request, "Somente o administrador da empresa pode remover a logo.", "error")
+    if not user.company_id:
         return RedirectResponse("/company", status_code=303)
-
-    form = await request.form()
-    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+    if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if user.is_owner:
+        flash(request, "O acesso principal não pode sair da empresa.", "error")
         return RedirectResponse("/company", status_code=303)
 
     company = db.get(WebCompany, user.company_id)
-    old_path = company.logo_path if company else None
+    company_id = user.company_id
+    user.company_id = None
+    user.role = "membro"
+    user.is_owner = False
     if company:
-        company.logo_path = None
-        db.commit()
-    delete_relative_upload(old_path)
-    flash(request, "Logo da empresa removida.", "success")
+        _notify_company_admins(db, company_id, "Membro saiu da empresa", f"{user.name} saiu de {company.name}.")
+    db.commit()
+    flash(request, "Você saiu da empresa. As cotações feitas continuam no histórico da empresa.", "success")
     return RedirectResponse("/company", status_code=303)
+
+
+@router.post("/members/create")
+def create_member(
+    request: Request,
+    name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("membro"),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not _can_manage_company(user):
+        flash(request, "Somente administradores podem criar usuários da empresa.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    if remaining_team_slots(db, user.company_id) <= 0:
+        flash(request, "Limite de usuários atingido.", "error")
+        return RedirectResponse("/company", status_code=303)
+
+    name = name.strip()[:180]
+    email = email.strip().lower()[:180]
+    if len(name) < 2 or "@" not in email:
+        flash(request, "Informe nome e e-mail válidos.", "error")
+        return RedirectResponse("/company#adicionar-membro", status_code=303)
+    ok, message = validate_password(password)
+    if not ok:
+        flash(request, message, "error")
+        return RedirectResponse("/company#adicionar-membro", status_code=303)
+
+    existing = db.scalar(select(WebUser).where(func.lower(WebUser.email) == email))
+    if existing is not None:
+        if existing.company_id == user.company_id:
+            flash(request, "Esse usuário já faz parte da empresa.", "info")
+        elif existing.company_id:
+            flash(request, "Esse e-mail já pertence a outra empresa.", "error")
+        else:
+            flash(request, "Esse e-mail já tem conta no DBMILESX. Gere um código de entrada e envie para a pessoa.", "error")
+        return RedirectResponse("/company#codigo-entrada", status_code=303)
+
+    member = WebUser(
+        name=name,
+        email=email,
+        password_hash=hash_password(password),
+        role=role if role in VALID_ROLES else "membro",
+        active=True,
+        is_owner=False,
+        company_id=user.company_id,
+    )
+    db.add(member)
+    db.flush()
+    member.contact_id = _new_contact_id(db)
+    db.commit()
+    flash(request, f"{member.name} foi criado e adicionado à empresa.", "success")
+    return RedirectResponse("/company#equipe", status_code=303)
 
 
 @router.post("/members/add")
@@ -351,14 +680,17 @@ def add_member(
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
-    if not user.company_id or user.role not in {"admin", "gerente"}:
+    if not _can_manage_company(user):
         flash(request, "Você não tem permissão para gerenciar membros.", "error")
         return RedirectResponse("/company", status_code=303)
     if not validate_csrf_token(request.session, csrf_token):
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/company", status_code=303)
+    if remaining_team_slots(db, user.company_id) <= 0:
+        flash(request, "Limite de usuários atingido.", "error")
+        return RedirectResponse("/company", status_code=303)
 
-    member = db.scalar(select(WebUser).where(WebUser.email == email.strip().lower()))
+    member = db.scalar(select(WebUser).where(func.lower(WebUser.email) == email.strip().lower()))
     if member is None:
         flash(request, "Esse e-mail ainda não possui conta. Peça para a pessoa se cadastrar primeiro.", "error")
         return RedirectResponse("/company", status_code=303)
@@ -367,10 +699,96 @@ def add_member(
         return RedirectResponse("/company", status_code=303)
 
     member.company_id = user.company_id
-    member.role = role if role in {"membro", "gerente", "admin"} else "membro"
+    member.role = role if role in VALID_ROLES else "membro"
+    _share_personal_history_with_company(db, member, user.company_id)
     db.commit()
     flash(request, f"{member.name} foi adicionado à equipe.", "success")
     return RedirectResponse("/company", status_code=303)
+
+
+@router.post("/members/{member_id}/update")
+def update_member(
+    member_id: int,
+    request: Request,
+    role: str = Form("membro"),
+    active: str = Form(""),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not _can_manage_company(user) or not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sem permissão ou sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    member = _company_member_or_none(db, user, member_id)
+    if member is None or member.is_owner or member.id == user.id:
+        flash(request, "Esse acesso não pode ser alterado.", "error")
+        return RedirectResponse("/company#equipe", status_code=303)
+
+    member.role = role if role in VALID_ROLES else "membro"
+    new_active = active == "1"
+    if member.active and not new_active:
+        member.auth_version = int(member.auth_version or 1) + 1  # encerra sessões abertas
+    member.active = new_active
+    db.commit()
+    flash(request, f"Acesso de {member.name} atualizado.", "success")
+    return RedirectResponse("/company#equipe", status_code=303)
+
+
+@router.post("/members/{member_id}/reset-password")
+def reset_member_password(
+    member_id: int,
+    request: Request,
+    password: str = Form(...),
+    password_confirm: str = Form(...),
+    csrf_token: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not _can_manage_company(user) or not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sem permissão ou sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    member = _company_member_or_none(db, user, member_id)
+    if member is None or member.is_owner or member.id == user.id:
+        flash(request, "Essa senha não pode ser alterada por aqui.", "error")
+        return RedirectResponse("/company#equipe", status_code=303)
+    if password != password_confirm:
+        flash(request, "As senhas não conferem.", "error")
+        return RedirectResponse("/company#equipe", status_code=303)
+    ok, message = validate_password(password)
+    if not ok:
+        flash(request, message, "error")
+        return RedirectResponse("/company#equipe", status_code=303)
+
+    member.password_hash = hash_password(password)
+    member.auth_version = int(member.auth_version or 1) + 1
+    db.commit()
+    flash(request, f"Senha de {member.name} alterada. Os acessos antigos foram encerrados.", "success")
+    return RedirectResponse("/company#equipe", status_code=303)
+
+
+@router.post("/members/{member_id}/remove")
+def remove_member(member_id: int, request: Request, csrf_token: str = Form(...), db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not _can_manage_company(user) or not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sem permissão ou sessão expirada.", "error")
+        return RedirectResponse("/company", status_code=303)
+    member = _company_member_or_none(db, user, member_id)
+    if member is None or member.is_owner or member.id == user.id:
+        flash(request, "Esse acesso não pode ser removido.", "error")
+        return RedirectResponse("/company#equipe", status_code=303)
+
+    member.company_id = None
+    member.role = "membro"
+    member.is_owner = False
+    db.commit()
+    flash(request, f"{member.name} foi removido da empresa. As cotações dele continuam no histórico.", "success")
+    return RedirectResponse("/company#equipe", status_code=303)
 
 
 @router.get("/chat")

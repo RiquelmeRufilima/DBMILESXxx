@@ -24,6 +24,10 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
 
+    # Convite de empresa aberto antes do login: continua o fluxo de entrada.
+    if not user.company_id and request.cookies.get("dbm_company_invite"):
+        return RedirectResponse("/company", status_code=303)
+
     # O dashboard é uma tela de resumo. Nenhum card secundário deve impedir
     # a abertura da página caso uma tabela/coluna opcional ainda não tenha
     # sido criada no Neon ou em uma base local antiga.

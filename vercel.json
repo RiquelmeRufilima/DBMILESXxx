@@ -1,9 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "includeFiles": "app/{templates,static,imagens}/**"
+      "includeFiles": "app/**"
     }
   },
   "routes": [

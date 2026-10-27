@@ -9,13 +9,14 @@
     <span class="brand-mark jumbo">⇢</span>
     <span class="eyebrow">ENTRAR EM EMPRESA</span>
     <h1>Entre em uma empresa existente.</h1>
-    <p>Peça ao administrador o nome exato da empresa e um código de entrada. Cada código dura somente 5 minutos.</p>
+    <p>Peça ao administrador o nome da empresa e o código de entrada gerado no painel da empresa. O código é temporário: se expirar, peça um novo.</p>
     <form method="post" action="/company/join" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <label>Nome da empresa existente<input name="company_name" required placeholder="Ex: ISI VIAGENS" autocomplete="organization"></label>
-      <label>Código da empresa<input name="code" required placeholder="Ex: 1-TCJ2K4-A1B2C3D4" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false"></label>
+      <label>Nome da empresa<input name="company_name" value="{{ prefill_company or '' }}" placeholder="Ex: ISI VIAGENS" autocomplete="organization"></label>
+      <label>Código de entrada<input name="code" value="{{ prefill_code or '' }}" required placeholder="Ex: 1-TCJ2K4-A1B2C3D4" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;letter-spacing:.06em"></label>
       <button class="primary-button large full" type="submit">Entrar na empresa</button>
     </form>
+    <p class="muted" style="margin-top:14px">Ao entrar, o histórico de cotações passa a ser compartilhado com todos os membros da empresa — incluindo as cotações que você já fez.</p>
   </article>
 </section>
 {% endblock %}
