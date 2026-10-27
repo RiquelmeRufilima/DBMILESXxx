@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Form, Query, Request, UploadFile, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from sqlalchemy import delete, desc, func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
@@ -14,6 +14,7 @@ from ..models import Person, PersonAttachment, PersonFamily, QuoteGroupTripDetai
 from ..security import validate_csrf_token
 from ..services.uploads import save_upload_image, delete_relative_upload
 from ..web import context, flash, templates
+from ..services.tags import delete_links_for_targets, list_tags, tags_for_targets, targets_matching_tag_text, targets_with_all_tags
 
 router = APIRouter(prefix="/persons", tags=["persons"])
 
@@ -67,23 +68,35 @@ def _person_context(user, person: Person | None = None) -> dict:
 
 @router.get("")
 @router.get("/")
-def person_list(request: Request, q: str = "", db: Session = Depends(get_db)):
+def person_list(request: Request, q: str = "", tag: list[int] = Query(default=[]), db: Session = Depends(get_db)):
     """Lista de pessoas cadastradas"""
     user = require_user(request, db)
-    
+
+    try:
+        all_tags = list_tags(db, user, with_usage=True, kind="pessoa")
+        tags_ready = True
+    except Exception:
+        db.rollback()
+        all_tags, tags_ready = [], False
+    valid_ids = {t["id"] for t in all_tags}
+    selected_tag_ids = [t for t in dict.fromkeys(tag or []) if t in valid_ids][:10]
+
     statement = select(Person).where(_visibility_filter(user), Person.active.is_(True))
     if q.strip():
         pattern = f"%{q.strip()}%"
-        statement = statement.where(
-            or_(
-                Person.name.ilike(pattern),
-                Person.cpf_cnpj.ilike(pattern),
-                Person.rg.ilike(pattern),
-                Person.email.ilike(pattern),
-                Person.phone.ilike(pattern),
-                Person.mobile.ilike(pattern),
-            )
-        )
+        search = [
+            Person.name.ilike(pattern),
+            Person.cpf_cnpj.ilike(pattern),
+            Person.rg.ilike(pattern),
+            Person.email.ilike(pattern),
+            Person.phone.ilike(pattern),
+            Person.mobile.ilike(pattern),
+        ]
+        if tags_ready:
+            search.append(Person.id.in_(targets_matching_tag_text(user, "person", q.strip())))
+        statement = statement.where(or_(*search))
+    if selected_tag_ids:
+        statement = statement.where(Person.id.in_(targets_with_all_tags("person", selected_tag_ids)))
     
     persons = db.scalars(
         statement.order_by(desc(Person.is_complete), desc(Person.created_at))
@@ -92,11 +105,20 @@ def person_list(request: Request, q: str = "", db: Session = Depends(get_db)):
     
     pending = [p for p in persons if not p.is_complete]
     complete = [p for p in persons if p.is_complete]
-    
+    person_tags = {}
+    if tags_ready:
+        try:
+            person_tags = tags_for_targets(db, user, "person", [p.id for p in persons])
+        except Exception:
+            db.rollback()
+
     return templates.TemplateResponse(
         request,
         "persons/list.html",
-        context(request, user=user, pending=pending, complete=complete, search_query=q)
+        context(
+            request, user=user, pending=pending, complete=complete, search_query=q,
+            all_tags=all_tags, tags_ready=tags_ready, selected_tag_ids=selected_tag_ids, person_tags=person_tags,
+        )
     )
 
 
@@ -487,6 +509,10 @@ async def delete_person(person_id: int, request: Request, db: Session = Depends(
     db.execute(update(QuoteGroupTripDetail).where(QuoteGroupTripDetail.client_person_id == person.id).values(client_person_id=None))
     db.execute(update(QuoteTripDetail).where(QuoteTripDetail.client_person_id == person.id).values(client_person_id=None))
     db.execute(delete(PersonAttachment).where(PersonAttachment.person_id == person.id))
+    try:
+        delete_links_for_targets(db, "person", [person.id])
+    except Exception:
+        pass
     db.execute(delete(Person).where(Person.id == person.id))
     db.commit()
     for path in attachment_paths:

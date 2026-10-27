@@ -3955,7 +3955,7 @@ def history(
     # Etiquetas: carregadas primeiro (também cria as tabelas na 1ª vez).
     # Se algo falhar, o histórico continua funcionando sem o filtro.
     try:
-        all_tags = list_tags(db, user, with_usage=True)
+        all_tags = list_tags(db, user, with_usage=True, kind="cotacao")
         tags_ready = True
     except Exception as exc:
         db.rollback()

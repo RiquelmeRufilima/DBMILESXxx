@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/tags.html" import tag_row, tag_filter, tag_assets %}
 {% block title %}Pessoas | DBMILESX{% endblock %}
 {% block page_title %}Pessoas{% endblock %}
 {% block eyebrow %}CADASTROS{% endblock %}
@@ -25,7 +26,7 @@
     <tbody>
       {% for person in rows %}
       <tr>
-        <td><strong>{{ person.name }}</strong></td>
+        <td><strong>{{ person.name }}</strong>{% if tags_ready %}{{ tag_row("person", person.id, person_tags.get(person.id, []), "/persons") }}{% endif %}</td>
         <td>{{ person.cpf_cnpj or person.rg or '—' }}</td>
         <td>{{ person.birth_date|date_br if person.birth_date else '—' }}</td>
         <td>{{ person.mobile or person.phone or '—' }}</td>
@@ -56,7 +57,8 @@
   <svg class="ui-icon"><use href="#icon-search"></use></svg>
   <input name="q" value="{{ search_query }}" placeholder="Buscar por nome, CPF, RG, CNPJ, e-mail ou telefone">
   <button class="secondary-button" type="submit">Buscar</button>
-  {% if search_query %}<a class="ghost-button" href="/persons">Limpar</a>{% endif %}
+  {% if search_query or selected_tag_ids %}<a class="ghost-button" href="/persons">Limpar</a>{% endif %}
+  {% if tags_ready %}{{ tag_filter(all_tags, selected_tag_ids, "pessoa") }}{% endif %}
 </form>
 
 {% if pending %}
@@ -157,4 +159,5 @@
   modal.addEventListener('click',event=>{if(event.target===modal) modal.close();});
 })();
 </script>
+{% if tags_ready %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
 {% endblock %}

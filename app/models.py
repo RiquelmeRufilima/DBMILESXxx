@@ -636,13 +636,17 @@ class QuoteTag(Base):
     user_id: Mapped[int | None] = mapped_column(ForeignKey("web_users.id", ondelete="SET NULL"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(40), nullable=False)
     color: Mapped[str] = mapped_column(String(9), default="#26c5e6", nullable=False)
+    # Tipo: "cotacao", "voo" ou "pessoa" (onde a etiqueta pode ser usada)
+    kind: Mapped[str] = mapped_column(String(20), default="cotacao", nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class QuoteTagLink(Base):
     """Liga uma etiqueta a um item do histórico.
 
-    target_kind: "group" (cotação principal) ou "quote" (cotação antiga/avulsa).
+    target_kind: "group" (cotação principal), "quote" (cotação antiga/avulsa),
+    "flight" (trecho de voo: group_id * 1000 + índice do trecho) ou "person".
     """
     __tablename__ = "web_quote_tag_links"
 

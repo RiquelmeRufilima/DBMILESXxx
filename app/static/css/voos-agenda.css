@@ -1,0 +1,72 @@
+/* Agenda de voos (estilo Iddas, com logo das companhias como no MilhasPix) */
+.voos-filter{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;align-items:end;margin:0 0 10px}
+.voos-filter>label{display:grid;gap:5px;font-size:.68rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.voos-filter input,.voos-filter select{min-height:40px;width:100%}
+.voos-filter .date-range{display:flex;align-items:center;gap:6px}
+.voos-filter .date-range b{font-size:.7rem;color:var(--muted)}
+.voos-filter-actions{display:flex;gap:8px}
+.voos-filter-actions .primary-button{flex:1;justify-content:center}
+.voos-filter .history-tag-filter{grid-column:1/-1}
+
+.voos-legend{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+.voos-count{margin-right:auto;font-weight:900;color:var(--text)}
+.legend-chip{padding:4px 9px;border-radius:7px;font-size:.68rem;font-weight:900;color:#0b1220}
+.legend-chip.t-realizado{background:#9ca3af}
+.legend-chip.t-proximo{background:#facc15}
+.legend-chip.t-distante{background:#34d399}
+
+.voos-agenda{display:grid;gap:6px}
+.voos-day-label{justify-self:start;margin:12px 0 2px;padding:3px 10px;border-radius:7px;background:var(--text);color:var(--bg);font-size:.72rem;font-weight:950;letter-spacing:.02em}
+.voo-card{--tl:#9ca3af;display:grid;grid-template-columns:96px 74px minmax(170px,1.2fr) 56px minmax(260px,2fr) 170px;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--border);border-left:4px solid var(--tl);border-radius:12px;background:var(--panel);transition:background .15s}
+.voo-card:hover{background:color-mix(in srgb,var(--panel) 85%,var(--cyan) 6%)}
+.voo-card.t-realizado{--tl:#6b7280}
+.voo-card.t-proximo{--tl:#facc15}
+.voo-card.t-distante{--tl:#34d399}
+.voo-card.t-semdata{--tl:#475569}
+.voo-when{display:grid;gap:3px}
+.voo-when strong{font-size:.9rem;font-weight:900}
+.voo-when span{font-size:.9rem;font-weight:900;color:var(--text)}
+.voo-code{justify-self:start;padding:3px 8px;border-radius:7px;background:#1d6fe0;color:#fff!important;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.72rem;font-weight:900;letter-spacing:.03em}
+.voo-client{display:grid;gap:3px;min-width:0}
+.voo-client strong{font-size:.9rem;font-weight:850;overflow:hidden;text-overflow:ellipsis}
+.voo-client small{color:var(--muted);font-size:.74rem}
+.voo-whats{display:inline-grid;place-items:center;vertical-align:-3px;color:#25d366}
+.voo-whats .ui-icon{width:16px;height:16px}
+.voo-airline-logo{width:48px;height:48px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#fff;box-shadow:0 0 0 1px var(--border),0 4px 14px rgba(0,0,0,.18)}
+.voo-airline-logo img{width:100%;height:100%;object-fit:contain;padding:5px}
+.voo-airline-logo span{display:grid;place-items:center;width:100%;height:100%;background:var(--logo,#2563eb);color:#fff;font-weight:950;font-size:.85rem;letter-spacing:.02em}
+.voo-route{display:grid;gap:6px;min-width:0}
+.voo-route>strong{font-size:.9rem;font-weight:900}
+.voo-arrow{color:var(--muted);font-weight:700;margin:0 2px}
+.voo-meta{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:.78rem}
+.voo-kind{padding:2px 7px;border-radius:6px;font-size:.66rem;font-weight:950;color:#fff;background:#64748b}
+.voo-kind.k-ida{background:#16a34a}
+.voo-kind.k-volta{background:#2563eb}
+.voo-locator{padding:2px 7px;border-radius:6px;border:1px solid var(--border);font-size:.7rem;font-weight:900;letter-spacing:.04em}
+.voo-route .history-tag-row{margin-top:0}
+.voo-side{display:grid;justify-items:end;gap:6px}
+.voo-checkin{padding:3px 9px;border-radius:7px;font-size:.68rem;font-weight:900;border:1px solid color-mix(in srgb,#f59e0b 50%,transparent);color:#fbbf24;background:color-mix(in srgb,#f59e0b 10%,transparent)}
+.voo-checkin.is-done{border-color:color-mix(in srgb,#22c55e 50%,transparent);color:#4ade80;background:color-mix(in srgb,#22c55e 10%,transparent)}
+.voo-checkin-link{font-size:.72rem;font-weight:800;color:#4ea7ff}
+.voo-actions{display:flex;gap:6px}
+.voo-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;border:1px solid var(--border);color:#4ea7ff}
+.voo-icon .ui-icon{width:16px;height:16px}
+html[data-theme="light"] .voo-airline-logo{background:#fff}
+
+@media(max-width:1180px){
+  .voo-card{grid-template-columns:90px 70px 1fr 50px 1.6fr;}
+  .voo-side{grid-column:1/-1;grid-auto-flow:column;justify-content:end;align-items:center}
+}
+@media(max-width:760px){
+  .voos-filter{grid-template-columns:1fr 1fr}
+  .voos-filter>label:nth-child(3),.voos-filter-actions{grid-column:1/-1}
+  .voo-card{grid-template-columns:44px 1fr auto;grid-template-areas:"logo client when" "route route route" "side side side";gap:10px;padding:12px}
+  .voo-airline-logo{grid-area:logo;width:42px;height:42px}
+  .voo-client{grid-area:client}
+  .voo-when{grid-area:when;justify-items:end}
+  .voo-when strong{font-size:.72rem;color:var(--muted)}
+  .voo-code{display:none}
+  .voo-route{grid-area:route}
+  .voo-side{grid-area:side;grid-auto-flow:column;justify-content:space-between;align-items:center;justify-items:start}
+  .voos-legend .legend-chip{font-size:.6rem}
+}

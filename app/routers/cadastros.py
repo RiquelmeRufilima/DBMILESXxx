@@ -19,6 +19,7 @@ from ..database import get_db
 from ..dependencies import require_user
 from ..models import (
     AcceptedQuote,
+    Airline,
     FlightRegistry,
     Person,
     QuoteGroup,
@@ -34,6 +35,11 @@ from ..services.quote_activity import record_quote_activity, publish_quote_activ
 from ..services.uploads import delete_relative_upload, delete_stored_attachment, read_stored_attachment, save_quote_attachment, save_upload_image
 from ..services.pdf_service import _html_to_pdf, file_to_data_uri
 from ..web import context, flash, templates
+from ..services.airline_logos import AirlineLogoResolver
+from ..services.tags import flight_target_id, list_tags, tags_for_targets
+import logging
+
+_voos_logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cadastros", tags=["cadastros"])
 
@@ -2624,7 +2630,76 @@ def voos(request: Request, db: Session = Depends(get_db)):
                 accepted=accepted,
             )
 
-    flight_items.sort(key=lambda item: (item.get("sort_date") or date.max, (item.get("group").quote_name if item.get("group") else "") or "", item.get("flight_index", 0)))
+    flight_items.sort(key=lambda item: (item.get("sort_date") or date.max, str(item.get("flight_data", {}).get("departure_time") or ""), (item.get("group").quote_name if item.get("group") else "") or "", item.get("flight_index", 0)))
+
+    # ---- Visual estilo agenda: logo, situação, horário, etiquetas ----------
+    try:
+        airline_filter = Airline.owner_company_id == user.company_id if user.company_id else Airline.owner_user_id == user.id
+        visible_airlines = db.scalars(select(Airline).where((Airline.builtin.is_(True)) | airline_filter)).all()
+    except Exception:
+        db.rollback()
+        visible_airlines = []
+    logos = AirlineLogoResolver(visible_airlines)
+    today = date.today()
+    for item in flight_items:
+        fl = item.get("flight_data") or {}
+        quote = item.get("quote")
+        airline_label = str(fl.get("airline") or item["row"].get("airline_name") or (quote.airline.name if quote and quote.airline else "") or "")
+        item["airline"] = logos.resolve(airline_label, quote.airline if quote else None)
+        dep = item.get("sort_date") if item.get("sort_date") != date.max else None
+        if dep is None:
+            item["timeline"] = "semdata"
+        elif dep < today:
+            item["timeline"] = "realizado"
+        elif (dep - today).days <= 7:
+            item["timeline"] = "proximo"
+        else:
+            item["timeline"] = "distante"
+        kind = str(fl.get("kind") or "").lower()
+        item["kind_label"] = "Ida" if kind == "ida" else "Volta" if kind == "volta" else ("Trecho" if kind else "")
+        item["time_label"] = str(fl.get("departure_time") or "").strip()[:5].replace(":", "h")
+        trip = item.get("trip")
+        phone = (getattr(trip, "client_phone", None) if trip else None) or ""
+        digits = re.sub(r"\D", "", str(phone))
+        if digits and not digits.startswith("55") and len(digits) in {10, 11}:
+            digits = "55" + digits
+        item["whatsapp"] = f"https://wa.me/{digits}" if len(digits) >= 12 else ""
+        item["tag_target_id"] = flight_target_id(item["group"].id, item.get("flight_index") or 0)
+
+    tag_ids_selected: list[int] = []
+    for raw in qp.getlist("tag"):
+        try:
+            tag_ids_selected.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    try:
+        all_flight_tags = list_tags(db, user, with_usage=True, kind="voo")
+        tag_map = tags_for_targets(db, user, "flight", [item["tag_target_id"] for item in flight_items])
+        tags_ready = True
+    except Exception as exc:
+        db.rollback()
+        _voos_logger.warning("Etiquetas indisponíveis nos voos: %s", exc)
+        all_flight_tags, tag_map, tags_ready = [], {}, False
+    valid_ids = {t["id"] for t in all_flight_tags}
+    tag_ids_selected = [t for t in dict.fromkeys(tag_ids_selected) if t in valid_ids]
+    for item in flight_items:
+        item["tags"] = tag_map.get(item["tag_target_id"], [])
+    if tag_ids_selected:
+        wanted = set(tag_ids_selected)
+        flight_items = [item for item in flight_items if wanted.issubset({t["id"] for t in item["tags"]})]
+
+    timeline_filter = (qp.get("situacao") or "").strip().lower()
+    if timeline_filter in {"realizado", "proximo", "distante"}:
+        flight_items = [item for item in flight_items if item["timeline"] == timeline_filter]
+
+    # Agrupa por data de embarque (como na agenda do Iddas).
+    flight_days: list[dict[str, Any]] = []
+    for item in flight_items:
+        key = item.get("sort_date") if item.get("sort_date") != date.max else None
+        if not flight_days or flight_days[-1]["date"] != key:
+            flight_days.append({"date": key, "flights": []})
+        flight_days[-1]["flights"].append(item)
+
     return templates.TemplateResponse(
         request,
         "cadastros/voos.html",
@@ -2632,11 +2707,16 @@ def voos(request: Request, db: Session = Depends(get_db)):
             request,
             user=user,
             flight_items=flight_items,
+            flight_days=flight_days,
             airport_map=BR_AIRPORTS,
             users=_users_for_filters(db, user),
+            all_tags=all_flight_tags,
+            tags_ready=tags_ready,
+            selected_tag_ids=tag_ids_selected,
             filters={
                 "q": q, "client": client_filter, "locator": locator_filter, "status": status_filter,
                 "user_id": str(user_filter or ""), "from": qp.get("from") or "", "to": qp.get("to") or "",
+                "situacao": timeline_filter,
             },
         ),
     )

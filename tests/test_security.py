@@ -40,7 +40,7 @@ assert config.DATABASE_URL.startswith("sqlite"), "Os testes só podem rodar em S
 
 from app.database import SessionLocal  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Person, QuoteGroup, WebCompany, WebUser  # noqa: E402
+from app.models import AcceptedQuote, Person, QuoteGroup, WebCompany, WebUser  # noqa: E402
 from app.security import hash_password  # noqa: E402
 
 PASSWORD = "SenhaForte123"
@@ -385,7 +385,7 @@ def test_etiquetas_isoladas_por_empresa(started_app):
     # Empresa B não vê, não usa e não apaga a etiqueta da empresa A
     client_b = logged(started_app, "tag-b@teste.com")
     token_b = page_csrf(client_b, "/calculations/history")
-    assert all(t["id"] != tag_id for t in client_b.get("/tags").json()["tags"])
+    assert all(t["id"] != tag_id for t in client_b.get("/tags/api").json()["tags"])
     used = client_b.post("/tags/assign", json={"kind": "group", "id": group_b, "tag_ids": [tag_id], "csrf_token": token_b}).json()
     assert used["tags"] == []
     assert client_b.post(f"/tags/{tag_id}/delete", json={"csrf_token": token_b}).status_code == 404
@@ -393,3 +393,85 @@ def test_etiquetas_isoladas_por_empresa(started_app):
     # Filtro por etiqueta no histórico
     filtered = client_a.get(f"/calculations/history?tag={tag_id}").text
     assert "Cotacao Tag A" in filtered
+
+
+# ---------------------------------------------------------------------------
+# Etiquetas: tipos (cotação/voo/pessoa), página e voos
+# ---------------------------------------------------------------------------
+def test_pagina_de_etiquetas_e_tipos(started_app):
+    c = make_company("Empresa Tipos")
+    uid = make_user("tipos@teste.com", company_id=c, role="admin", owner=True)
+    group = make_group(uid, c, "Cotacao Tipos")
+    db = _db()
+    try:
+        person = Person(name="Pessoa Tipos", company_id=c, user_id=uid)
+        db.add(person)
+        db.commit()
+        person_id = person.id
+    finally:
+        db.close()
+    client = logged(started_app, "tipos@teste.com")
+    token = page_csrf(client, "/tags")
+    assert "Etiquetas" in client.get("/tags").text
+
+    voo = client.post("/tags", json={"name": "PET", "kind": "voo", "csrf_token": token}).json()["tag"]
+    pessoa = client.post("/tags", json={"name": "Cliente VIP", "kind": "pessoa", "csrf_token": token}).json()["tag"]
+    assert voo["kind"] == "voo" and pessoa["kind"] == "pessoa"
+
+    # Etiqueta de voo NÃO entra em pessoa (tipo errado é ignorado)
+    r = client.post("/tags/assign", json={"kind": "person", "id": person_id, "tag_ids": [voo["id"], pessoa["id"]], "csrf_token": token}).json()
+    assert [t["name"] for t in r["tags"]] == ["Cliente VIP"]
+    assert "Pessoa Tipos" in client.get(f"/persons?tag={pessoa['id']}").text
+
+    # Voo: id = group_id * 1000 + trecho
+    r = client.post("/tags/assign", json={"kind": "flight", "id": group * 1000 + 1, "tag_ids": [voo["id"]], "csrf_token": token}).json()
+    assert r["ok"] and r["tags"][0]["name"] == "PET"
+
+    # Desativar e filtrar por situação
+    client.post(f"/tags/{voo['id']}/update", json={"active": "0", "csrf_token": token})
+    assert "PET" not in client.get("/tags?situacao=ativo").text
+    assert "PET" in client.get("/tags?situacao=inativo").text
+
+
+def test_tela_de_voos_com_logo_e_etiquetas(started_app):
+    import json as _json
+    c = make_company("Empresa Voos")
+    uid = make_user("voos@teste.com", company_id=c, role="admin", owner=True)
+    group = make_group(uid, c, "Cotacao Voos")
+    db = _db()
+    try:
+        db.add(AcceptedQuote(group_id=group, user_id=uid, company_id=c, extra_json=_json.dumps({
+            "client_name": "Rafael Teste",
+            "flights": [{"kind": "ida", "origin": "FOR", "destination": "GRU", "departure_date": "2030-01-10",
+                         "departure_time": "10:55", "airline": "LATAM Airlines", "locator": "ABC123"}],
+        })))
+        db.commit()
+    finally:
+        db.close()
+    client = logged(started_app, "voos@teste.com")
+    html = client.get("/cadastros/voos").text
+    assert "Rafael Teste" in html and "/imagens/latam.png" in html and "ABC123" in html
+    assert "10h55" in html and "t-distante" in html
+
+    token = page_csrf(client, "/cadastros/voos")
+    tag = client.post("/tags", json={"name": "Grupo Copa", "kind": "voo", "csrf_token": token}).json()["tag"]
+    client.post("/tags/assign", json={"kind": "flight", "id": group * 1000, "tag_ids": [tag["id"]], "csrf_token": token})
+    assert "Rafael Teste" in client.get(f"/cadastros/voos?tag={tag['id']}").text
+
+
+def test_migracao_tabela_antiga_de_etiquetas():
+    """Banco que já tinha a tabela de etiquetas sem as colunas novas (deploy anterior)."""
+    from sqlalchemy import create_engine, inspect, text
+
+    from app.services import protection
+    from app.services.schema_migrations import _add_columns
+
+    engine = create_engine(f"sqlite:///{Path(_TMP) / 'old.db'}")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE web_quote_tags (id INTEGER PRIMARY KEY, company_id INTEGER, user_id INTEGER, name VARCHAR(40) NOT NULL, color VARCHAR(9) NOT NULL, created_at DATETIME NOT NULL)"))
+        conn.execute(text("INSERT INTO web_quote_tags (company_id, user_id, name, color, created_at) VALUES (1, 1, 'Antiga', '#fff000', '2026-10-27')"))
+    _add_columns(engine, "web_quote_tags", {"kind": "VARCHAR(20) DEFAULT 'cotacao' NOT NULL", "active": "BOOLEAN DEFAULT 1 NOT NULL"})
+    cols = {c["name"] for c in inspect(engine).get_columns("web_quote_tags")}
+    assert {"kind", "active"} <= cols
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT kind, active FROM web_quote_tags")).one() == ("cotacao", 1)

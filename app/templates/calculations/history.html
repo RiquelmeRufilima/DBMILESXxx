@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/tags.html" import tag_row, tag_filter, tag_assets %}
 {% block title %}Histórico | DBMILESX{% endblock %}
 {% block eyebrow %}HISTÓRICO{% endblock %}
 {% block page_title %}Cotações principais{% endblock %}
@@ -669,20 +670,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   <div class="history-filter-field"><label for="historyDateFrom">De</label><input id="historyDateFrom" type="date" name="date_from" value="{{ history_date_from }}"></div>
   <div class="history-filter-field"><label for="historyDateTo">Até</label><input id="historyDateTo" type="date" name="date_to" value="{{ history_date_to }}"></div>
   <div class="history-filter-actions"><button class="secondary-button" type="submit">Aplicar</button><a class="ghost-button" href="/calculations/history">Limpar</a></div>
-  {% if tags_ready|default(false) %}
-  <div class="history-tag-filter" id="historyTagFilter">
-    <span class="history-tag-filter-label">🏷 Etiquetas</span>
-    {% for t in all_tags %}
-    <label class="dbm-tag-chip is-filter{% if t.id in selected_tag_ids %} is-on{% endif %}" style="--tag:{{ t.color }}">
-      <input type="checkbox" name="tag" value="{{ t.id }}" {% if t.id in selected_tag_ids %}checked{% endif %} data-tag-filter-input>
-      <span>{{ t.name }}</span><small>{{ t.usage }}</small>
-    </label>
-    {% else %}
-    <small class="history-tag-empty">Nenhuma etiqueta ainda. Use o botão “Etiquetar” em uma cotação para criar a primeira.</small>
-    {% endfor %}
-    <button type="button" class="ghost-button small-button" id="manageTagsButton" data-confirm-ignore="1">Gerenciar etiquetas</button>
-  </div>
-  {% endif %}
+  {% if tags_ready|default(false) %}{{ tag_filter(all_tags, selected_tag_ids, "cotacao") }}{% endif %}
 </form>
 
 {% if history_load_errors|default(0) %}
@@ -718,7 +706,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <h2>{{ group.quote_name }}</h2>
           <p>{{ base.origin or '—' }} → {{ base.destination or '—' }} • {% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %} • {{ base.passengers }} passageiro(s)</p>
           <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at.strftime('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Modificada em {{ group.updated_at.strftime('%d/%m/%Y %H:%M') if group.updated_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
-          {% if tags_ready|default(false) %}<div class="history-tag-row" data-tag-target data-kind="group" data-id="{{ group.id }}" data-tags='{{ entry.tags|default([])|tojson }}'>{% for t in entry.tags|default([]) %}<a class="dbm-tag-chip" style="--tag:{{ t.color }}" href="/calculations/history?tag={{ t.id }}">{{ t.name }}</a>{% endfor %}<button type="button" class="dbm-tag-add" data-tag-edit data-confirm-ignore="1">🏷 Etiquetar</button></div>{% endif %}
+          {% if tags_ready|default(false) %}{{ tag_row("group", group.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
         </div>
         <div class="history-total-box">
           <small>{{ options|length }} opção(ões)</small>
@@ -965,7 +953,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
           <h2>{{ quote.quote_name }}</h2>
           <p>{{ quote.origin or '—' }} → {{ quote.destination or '—' }} • {{ quote.airline.name if quote.airline else 'Companhia' }}</p>
           <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at.strftime('%d/%m/%Y %H:%M') if quote.created_at else '—' }}{% if quote.commercial and quote.commercial.updated_at %} • Modificada em {{ quote.commercial.updated_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</small>
-          {% if tags_ready|default(false) %}<div class="history-tag-row" data-tag-target data-kind="quote" data-id="{{ quote.id }}" data-tags='{{ entry.tags|default([])|tojson }}'>{% for t in entry.tags|default([]) %}<a class="dbm-tag-chip" style="--tag:{{ t.color }}" href="/calculations/history?tag={{ t.id }}">{{ t.name }}</a>{% endfor %}<button type="button" class="dbm-tag-add" data-tag-edit data-confirm-ignore="1">🏷 Etiquetar</button></div>{% endif %}
+          {% if tags_ready|default(false) %}{{ tag_row("quote", quote.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
         </div>
         <div class="history-total-box"><small>Comercial</small>{{ option_price(quote) }}</div>
       </div>
@@ -1601,25 +1589,6 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 </script>
 
 
-{% if tags_ready|default(false) %}
-<link rel="stylesheet" href="/static/css/history-tags.css?v=1">
-<dialog id="tagEditDialog" class="dbm-tag-dialog">
-  <div class="dbm-tag-dialog-head"><div><span class="eyebrow">ETIQUETAS</span><h3 id="tagEditTitle">Etiquetar cotação</h3><p>Marque as etiquetas desta cotação ou crie uma nova.</p></div><button type="button" class="dbm-tag-close" data-tag-close data-confirm-ignore="1" aria-label="Fechar">✕</button></div>
-  <div class="dbm-tag-dialog-body">
-    <input type="search" id="tagEditSearch" placeholder="Pesquisar ou digitar nova etiqueta..." autocomplete="off" maxlength="40">
-    <div class="dbm-tag-options" id="tagEditOptions"></div>
-    <div class="dbm-tag-new"><input type="color" id="tagNewColor" value="#26c5e6" aria-label="Cor da nova etiqueta"><button type="button" class="secondary-button small-button" id="tagCreateButton" data-confirm-ignore="1" hidden></button></div>
-    <p class="dbm-tag-error" id="tagEditError" hidden></p>
-  </div>
-  <div class="dbm-tag-dialog-actions"><button type="button" class="ghost-button" data-tag-close data-confirm-ignore="1">Cancelar</button><button type="button" class="primary-button" id="tagEditSave" data-confirm-ignore="1">Salvar etiquetas</button></div>
-</dialog>
-<dialog id="tagManageDialog" class="dbm-tag-dialog">
-  <div class="dbm-tag-dialog-head"><div><span class="eyebrow">ETIQUETAS DA {{ 'EMPRESA' if user.company_id else 'SUA CONTA' }}</span><h3>Gerenciar etiquetas</h3><p>{{ 'Todos os membros da empresa usam as mesmas etiquetas.' if user.company_id else 'Suas etiquetas pessoais.' }}</p></div><button type="button" class="dbm-tag-close" data-tag-close data-confirm-ignore="1" aria-label="Fechar">✕</button></div>
-  <div class="dbm-tag-dialog-body"><div class="dbm-tag-manage-list" id="tagManageList"></div><p class="dbm-tag-error" id="tagManageError" hidden></p></div>
-  <div class="dbm-tag-dialog-actions"><button type="button" class="primary-button" data-tag-close data-tag-reload data-confirm-ignore="1">Concluir</button></div>
-</dialog>
-<script type="application/json" id="historyTagsData">{{ {"tags": all_tags, "csrf": csrf_token}|tojson }}</script>
-<script src="/static/js/history-tags.js?v=1" defer></script>
-{% endif %}
+{% if tags_ready|default(false) %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
 {% endblock %}
 {% block scripts %}<script src="/static/js/history-bulk.js?v=5.10.34" defer></script>{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Etiquetas | DBMILESX{% endblock %}
+{% block page_title %}Etiquetas{% endblock %}
+{% block eyebrow %}CADASTROS{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/tags.css?v=2">
+<section class="page-heading inline">
+  <div>
+    <span class="eyebrow">ETIQUETAS</span>
+    <h1>Etiquetas</h1>
+    <p>Organize cotações, voos e pessoas com etiquetas coloridas e use-as para filtrar. {{ 'As etiquetas são compartilhadas com toda a equipe da empresa.' if user.company_id else '' }}</p>
+  </div>
+  <div class="action-cluster"><button class="primary-button" type="button" id="tagNewButton" data-confirm-ignore="1"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Novo</button></div>
+</section>
+
+<form class="tags-page-filter card-panel" method="get" action="/tags">
+  <label>Tipo
+    <select name="tipo">
+      <option value="">Todos</option>
+      {% for key, label in tag_kinds.items() %}<option value="{{ key }}" {% if filtro_tipo == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Situação
+    <select name="situacao">
+      <option value="ativo" {% if filtro_situacao == 'ativo' %}selected{% endif %}>Ativo</option>
+      <option value="inativo" {% if filtro_situacao == 'inativo' %}selected{% endif %}>Inativo</option>
+      <option value="todos" {% if filtro_situacao == 'todos' %}selected{% endif %}>Todos</option>
+    </select>
+  </label>
+  <button class="primary-button" type="submit">Pesquisar</button>
+</form>
+
+<section class="panel tags-page-panel">
+  {% if tags %}
+  <div class="tags-table" role="table" aria-label="Etiquetas">
+    <div class="tags-table-head" role="row"><span>Etiqueta</span><span>Tipo</span><span>Usos</span><span>Ativo</span><span></span></div>
+    {% for t in tags %}
+    <div class="tags-table-row{% if not t.active %} is-inactive{% endif %}" role="row" data-tag-row='{{ t|tojson }}'>
+      <span><span class="dbm-tag-chip" style="--tag:{{ t.color }}">{{ t.name }}</span></span>
+      <span><span class="tag-kind-badge kind-{{ t.kind }}">{% if t.kind == 'voo' %}<svg class="ui-icon"><use href="#icon-plane"></use></svg>{% elif t.kind == 'pessoa' %}<svg class="ui-icon"><use href="#icon-user"></use></svg>{% else %}<svg class="ui-icon"><use href="#icon-file"></use></svg>{% endif %} {{ t.kind_label }}</span></span>
+      <span class="tags-usage">{{ t.usage or 0 }}</span>
+      <span><label class="tag-switch" title="Ativar / desativar"><input type="checkbox" data-tag-active {% if t.active %}checked{% endif %}><i></i></label></span>
+      <span class="tags-row-actions">
+        <button type="button" class="tag-icon-button" data-tag-open-edit data-confirm-ignore="1" title="Editar" aria-label="Editar"><svg class="ui-icon"><use href="#icon-edit"></use></svg></button>
+        <button type="button" class="tag-icon-button danger" data-tag-delete data-confirm-ignore="1" title="Apagar" aria-label="Apagar"><svg class="ui-icon"><use href="#icon-trash"></use></svg></button>
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><svg class="empty-icon"><use href="#icon-tag"></use></svg><h3>Nenhuma etiqueta {{ 'inativa' if filtro_situacao == 'inativo' else '' }} encontrada.</h3><p>Clique em <strong>Novo</strong> para criar, ou use o botão “Etiqueta” no histórico, nos voos ou nas pessoas.</p></div>
+  {% endif %}
+  <p class="dbm-tag-error" id="tagsPageError" hidden></p>
+</section>
+
+<dialog id="tagFormDialog" class="dbm-tag-dialog">
+  <form method="dialog" id="tagForm">
+    <div class="dbm-tag-dialog-head"><div><span class="eyebrow">ETIQUETA</span><h3 id="tagFormTitle">Nova etiqueta</h3><p>Escolha o nome, a cor e onde ela poderá ser usada.</p></div><button type="button" class="dbm-tag-close" data-tag-form-close data-confirm-ignore="1" aria-label="Fechar">✕</button></div>
+    <div class="dbm-tag-dialog-body">
+      <label>Nome<input name="name" id="tagFormName" maxlength="40" required placeholder="Ex.: Cliente VIP"></label>
+      <div class="tag-form-grid">
+        <label>Tipo<select name="kind" id="tagFormKind">{% for key, label in tag_kinds.items() %}<option value="{{ key }}" {% if filtro_tipo == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <label>Cor<input type="color" name="color" id="tagFormColor" value="#26c5e6"></label>
+      </div>
+      <div class="tag-color-presets" id="tagColorPresets">{% for c in ['#26c5e6','#34d399','#f59e0b','#f472b6','#a78bfa','#60a5fa','#f87171','#facc15','#2dd4bf','#fb923c','#94a3b8'] %}<button type="button" style="--tag:{{ c }}" data-color="{{ c }}" data-confirm-ignore="1" aria-label="Cor {{ c }}"></button>{% endfor %}</div>
+      <div class="tag-preview">Prévia: <span class="dbm-tag-chip" id="tagFormPreview" style="--tag:#26c5e6">Etiqueta</span></div>
+      <p class="tag-kind-warning" id="tagKindWarning" hidden>Trocar o tipo remove esta etiqueta dos itens onde ela já foi usada.</p>
+      <p class="dbm-tag-error" id="tagFormError" hidden></p>
+    </div>
+    <div class="dbm-tag-dialog-actions"><button type="button" class="ghost-button" data-tag-form-close data-confirm-ignore="1">Cancelar</button><button type="submit" class="primary-button" id="tagFormSave" data-confirm-ignore="1">Salvar</button></div>
+  </form>
+</dialog>
+<script src="/static/js/tags-page.js?v=1" defer></script>
+{% endblock %}

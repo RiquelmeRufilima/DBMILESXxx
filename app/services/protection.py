@@ -52,6 +52,17 @@ def ensure_protection_schema(db: Session) -> None:
             table.create(bind=bind, checkfirst=True)
         except Exception as exc:  # pragma: no cover - corrida entre instâncias
             logger.warning("Tabela %s não pôde ser criada agora: %s", table.name, exc)
+    # Colunas novas das etiquetas (versão com tipo e ativo/inativo).
+    try:
+        from .schema_migrations import _add_columns
+
+        engine = getattr(bind, "engine", bind)
+        _add_columns(engine, "web_quote_tags", {
+            "kind": "VARCHAR(20) DEFAULT 'cotacao' NOT NULL",
+            "active": "BOOLEAN DEFAULT 1 NOT NULL",
+        })
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Colunas novas das etiquetas não puderam ser criadas: %s", exc)
     _SCHEMA_READY = True
 
 

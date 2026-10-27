@@ -80,6 +80,8 @@
     <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="icon-sparkles" viewBox="0 0 24 24"><path d="m12 2 1.6 4.4L18 8l-4.4 1.6L12 14l-1.6-4.4L6 8l4.4-1.6zM19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9z"/></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="icon-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+    <symbol id="icon-whatsapp" viewBox="0 0 24 24"><path d="M3.5 20.5 5 16.3A8.5 8.5 0 1 1 8 19.2Z"/><path d="M9 8.5c.2 2.8 2.7 5.6 6 6.3l1.2-1.4-1.9-1-1 .8c-1-.4-2-1.4-2.4-2.4l.8-1-1-1.9Z"/></symbol>
     <symbol id="icon-tasks" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M8 10l1.5 1.5L12 9M14 10h2M8 16l1.5 1.5L12 15M14 16h2"/></symbol>
     <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
     <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></symbol>
@@ -111,6 +113,7 @@
       <a href="/cadastros/cotacoes-feitas" class="nav-link {% if request.url.path.startswith('/cadastros/cotacoes-feitas') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
       <a href="/cadastros/fluxo-calculo" class="nav-link {% if request.url.path.startswith('/cadastros/fluxo-calculo') or request.url.path.startswith('/cadastros/fluxo-de-calculo') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Fluxo de cálculo</a>
       <a href="/cadastros/voos" class="nav-link {% if request.url.path.startswith('/cadastros/voos') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Voos</a>
+      <a href="/tags" class="nav-link {% if request.url.path.startswith('/tags') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-tag"></use></svg> Etiquetas</a>
 
 
 

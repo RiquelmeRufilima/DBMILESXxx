@@ -1,0 +1,35 @@
+{# Etiquetas reutilizáveis: cotações (group/quote), voos (flight) e pessoas (person). #}
+{% macro tag_row(target_kind, target_id, tags, filter_url) -%}
+<div class="history-tag-row" data-tag-target data-kind="{{ target_kind }}" data-id="{{ target_id }}" data-filter-url="{{ filter_url }}" data-tags='{{ (tags or [])|tojson }}'>{% for t in tags or [] %}<a class="dbm-tag-chip" style="--tag:{{ t.color }}" href="{{ filter_url }}?tag={{ t.id }}">{{ t.name }}</a>{% endfor %}<button type="button" class="dbm-tag-add" data-tag-edit data-confirm-ignore="1" title="Etiquetar"><svg class="ui-icon"><use href="#icon-tag"></use></svg><span>Etiqueta</span></button></div>
+{%- endmacro %}
+
+{% macro tag_filter(all_tags, selected_ids, kind_label='cotacao') -%}
+<div class="history-tag-filter" id="historyTagFilter">
+  <span class="history-tag-filter-label"><svg class="ui-icon"><use href="#icon-tag"></use></svg> Etiquetas</span>
+  {% for t in all_tags if t.active or t.id in selected_ids %}
+  <label class="dbm-tag-chip is-filter{% if t.id in selected_ids %} is-on{% endif %}" style="--tag:{{ t.color }}">
+    <input type="checkbox" name="tag" value="{{ t.id }}" {% if t.id in selected_ids %}checked{% endif %} data-tag-filter-input>
+    <span>{{ t.name }}</span>{% if t.usage is defined %}<small>{{ t.usage }}</small>{% endif %}
+  </label>
+  {% else %}
+  <small class="history-tag-empty">Nenhuma etiqueta ainda. Use o botão “Etiqueta” em um item para criar a primeira.</small>
+  {% endfor %}
+  <a class="ghost-button small-button" href="/tags?tipo={{ kind_label }}">Gerenciar etiquetas</a>
+</div>
+{%- endmacro %}
+
+{% macro tag_assets(all_tags, csrf_token) -%}
+<link rel="stylesheet" href="/static/css/tags.css?v=2">
+<dialog id="tagEditDialog" class="dbm-tag-dialog">
+  <div class="dbm-tag-dialog-head"><div><span class="eyebrow">ETIQUETAS</span><h3 id="tagEditTitle">Etiquetar</h3><p>Marque as etiquetas ou crie uma nova.</p></div><button type="button" class="dbm-tag-close" data-tag-close data-confirm-ignore="1" aria-label="Fechar">✕</button></div>
+  <div class="dbm-tag-dialog-body">
+    <input type="search" id="tagEditSearch" placeholder="Pesquisar ou digitar nova etiqueta..." autocomplete="off" maxlength="40">
+    <div class="dbm-tag-options" id="tagEditOptions"></div>
+    <div class="dbm-tag-new"><input type="color" id="tagNewColor" value="#26c5e6" aria-label="Cor da nova etiqueta"><button type="button" class="secondary-button small-button" id="tagCreateButton" data-confirm-ignore="1" hidden></button></div>
+    <p class="dbm-tag-error" id="tagEditError" hidden></p>
+  </div>
+  <div class="dbm-tag-dialog-actions"><a class="ghost-button" href="/tags">Gerenciar</a><span style="flex:1"></span><button type="button" class="ghost-button" data-tag-close data-confirm-ignore="1">Cancelar</button><button type="button" class="primary-button" id="tagEditSave" data-confirm-ignore="1">Salvar</button></div>
+</dialog>
+<script type="application/json" id="dbmTagsData">{{ {"tags": all_tags, "csrf": csrf_token}|tojson }}</script>
+<script src="/static/js/tags.js?v=2" defer></script>
+{%- endmacro %}
