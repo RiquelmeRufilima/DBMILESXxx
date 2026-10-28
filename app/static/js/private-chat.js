@@ -38,12 +38,26 @@
   };
   const scrollBottom = () => { if (list) list.scrollTop = list.scrollHeight; };
 
+  function renderMessageBody(text){
+    const match=String(text||'').match(/\[DBM_QUOTE:(\d+)\]/);
+    if(!match)return `<p>${esc(text)}</p>`;
+    const id=Number(match[1]);const caption=String(text).replace(/\[DBM_QUOTE:\d+\]/g,'').trim();
+    return `<div class="dbm-quote-chat-card"><strong>✈️ Cotação compartilhada</strong><p>${esc(caption)}</p><div><a href="/chat/quotes/${id}/view" class="dbm-quote-open">Abrir</a> <button type="button" data-save-quote="${id}">Salvar no histórico</button></div></div>`;
+  }
   function messageHtml(item,prefix){
     const senderId=Number(item.user_id ?? item.sender_id ?? 0);
     const mine=senderId===userId;
-    return `<article class="dbm-msg ${mine?'mine':''}" data-message-id="${prefix}-${Number(item.id)}"><label class="dbm-msg-select" hidden><input type="checkbox" value="${Number(item.id)}" data-select-prefix="${prefix}" ${mine?'':'disabled'} aria-label="Selecionar mensagem"></label><div class="dbm-msg-bubble"><strong>${esc(item.user_name || (mine?'Você':'Usuário'))}</strong><p>${esc(item.message)}</p><small>${esc(when(item.created_at))}</small></div></article>`;
+    return `<article class="dbm-msg ${mine?'mine':''}" data-message-id="${prefix}-${Number(item.id)}"><label class="dbm-msg-select" hidden><input type="checkbox" value="${Number(item.id)}" data-select-prefix="${prefix}" ${mine?'':'disabled'} aria-label="Selecionar mensagem"></label><div class="dbm-msg-bubble"><strong>${esc(item.user_name || (mine?'Você':'Usuário'))}</strong>${renderMessageBody(item.message)}<small>${esc(when(item.created_at))}</small></div></article>`;
   }
 
+  function hydrateSharedQuoteCards(){
+    list?.querySelectorAll('.dbm-msg-bubble > p').forEach(p=>{
+      const raw=p.textContent||'';
+      if(!/\[DBM_QUOTE:\d+\]/.test(raw))return;
+      const holder=document.createElement('div');holder.innerHTML=renderMessageBody(raw);
+      p.replaceWith(holder.firstElementChild);
+    });
+  }
   function setMessages(items,prefix){
     if (!items?.length){
       list.innerHTML='<div class="dbm-chat-center-empty"><strong>Nenhuma mensagem ainda</strong><span>Envie a primeira mensagem desta conversa.</span></div>';
@@ -176,6 +190,7 @@
     }
   });
 
+  document.addEventListener('click',async e=>{const b=e.target.closest('[data-save-quote]');if(!b)return;e.preventDefault();b.disabled=true;try{const r=await fetch(`/chat/quotes/${Number(b.dataset.saveQuote)}/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf_token:csrf})});const j=await r.json();if(!j.ok)throw Error(j.message||'Falha ao salvar');b.textContent='Salvo ✓';}catch(err){alert(err.message||'Erro');b.disabled=false;}});
   document.addEventListener('click',event=>{
     const conversation=event.target.closest('[data-contact-id]');
     if(conversation && !conversation.closest('#dbmContactList')){ openPrivate(conversation.dataset.contactId); return; }
@@ -256,6 +271,8 @@
   if(list)observer.observe(list,{childList:true,subtree:false});
   const pendingQuote=sessionStorage.getItem('dbmPendingQuoteMessage');
   if(pendingQuote && input){ input.value=pendingQuote;sessionStorage.removeItem('dbmPendingQuoteMessage');status.textContent='Cotação pronta para encaminhar. Selecione o contato e envie.'; }
+  hydrateSharedQuoteCards();
+  if(list)new MutationObserver(hydrateSharedQuoteCards).observe(list,{childList:true});
   scrollBottom(); setTabs(); updateCompose(); connectGroup();
   privatePoll=setInterval(pollPrivateMessages,1800);
   sidebarPoll=setInterval(refreshSidebar,3500);

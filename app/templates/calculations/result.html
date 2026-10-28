@@ -3,6 +3,10 @@
 {% block eyebrow %}RESULTADO{% endblock %}
 {% block page_title %}Opção calculada{% endblock %}
 {% block content %}
+{% if shared_view|default(false) %}
+<style>.result-grid > .card-panel:nth-child(2),.page-actions form,.result-grid .button-delete,.result-grid .button-edit,.result-grid .button-fare,.result-grid .button-duplicate,.result-grid .button-accept,.result-grid .button-open,.result-grid .quote-actions-panel{display:none!important}</style>
+<script>document.addEventListener('DOMContentLoaded',()=>{document.getElementById('saveSharedQuote')?.addEventListener('click',async e=>{const b=e.currentTarget;b.disabled=true;try{const r=await fetch('/chat/quotes/{{ quote.id }}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message||'Falha');b.textContent='Abrir cópia salva';b.disabled=false;b.onclick=()=>location.href=j.url;}catch(err){alert(err.message);b.disabled=false;}});});</script>
+{% endif %}
 {% set flight_chips = quote.flight_detail_chips|default([], true) %}
 {% set flexible_schedule = quote.has_flexible_schedule|default(false) %}
 {% set route_items = quote.scope_route_items|default([], true) %}
@@ -39,7 +43,7 @@
     <p>{{ quote.quote_name }}{% if quote.variant_key|default('primary') != 'primary' %} • {{ quote.variant_name }}{% endif %} • {{ quote.scope_label or 'Cálculo' }} • {{ quote.origin or '—' }} → {{ quote.destination or '—' }}</p>
     <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at|brt('%d/%m/%Y %H:%M') if quote.created_at else '—' }}</small>
   </div>
-  <div class="page-actions">
+  {% if shared_view|default(false) %}<div class="page-actions"><a class="secondary-button" href="/company/chat">Voltar ao chat</a><button class="primary-button" type="button" id="saveSharedQuote">Salvar no histórico</button></div>{% else %}<div class="page-actions">
     {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação principal</a>{% endif %}
     <a class="secondary-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cálculo</a>
     <a class="secondary-button button-fare" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}#optionMetadataSection">Alterar tarifa</a>
@@ -47,6 +51,7 @@
     <a class="ghost-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
   </div>
 </section>
+{% endif %}
 
 <section class="result-grid">
   <div class="card-panel">
@@ -121,7 +126,24 @@
 </section>
 
 
-<section class="card-panel top-gap-xl" id="quoteSharePanel">
+
+<div id="dbmQuoteForwardModal" hidden class="dbm-quote-modal" role="dialog" aria-modal="true" aria-label="Encaminhar cotação">
+ <div class="dbm-quote-dialog"><div class="dbm-quote-head"><strong>Encaminhar cotação para</strong><button type="button" id="dbmQuoteClose">✕</button></div>
+ <input id="dbmQuoteSearch" type="search" placeholder="Pesquisar contato ou grupo" aria-label="Pesquisar contato">
+ <div id="dbmQuoteTargets">Carregando contatos...</div><p id="dbmQuoteNotice" role="status"></p></div></div>
+<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}</style>
+<script>
+(()=>{const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');let contacts=[];
+ const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const render=()=>{const q=search.value.toLowerCase();targets.innerHTML=[{contact_id:'group',name:'👥 Grupo da empresa'},...contacts].filter(c=>(c.name+' '+c.contact_id).toLowerCase().includes(q)).map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.contact_id)}">${esc(c.name)}</button>`).join('')||'Nenhum contato encontrado.';};
+ document.getElementById('dbmQuoteClose').onclick=()=>box.hidden=true;
+ search.oninput=render;
+ document.querySelectorAll('#forwardQuoteMessage,#forwardQuoteInternal').forEach(b=>b.addEventListener('click',async()=>{if(!contacts.length){try{let r=await fetch('/chat/sidebar');let d=await r.json();contacts=[...(d.contacts||[]),...(d.conversations||[])].filter((c,i,a)=>c.contact_id&&a.findIndex(x=>x.contact_id===c.contact_id)===i);contacts=contacts.filter(c=>c.active);render();}catch(e){notice.textContent='Erro ao carregar os contatos';}}}));
+ targets.addEventListener('click',async e=>{const b=e.target.closest('[data-target]');if(!b)return;b.disabled=true;notice.textContent='Encaminhando cotação...';try{const r=await fetch('/chat/quotes/forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message);notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);}catch(err){notice.textContent=err.message||'Erro ao encaminhar';}finally{b.disabled=false;}});
+})();
+</script>
+
+{% if not shared_view|default(false) %}<section class="card-panel top-gap-xl" id="quoteSharePanel">
   <div class="panel-heading"><div><span class="eyebrow">ATENDIMENTO</span><h2>Mensagem para o cliente</h2></div></div>
   <p class="quote-share-muted">Edite a observação e revise a mensagem antes de compartilhar. Custos, lucro e deságio não entram no texto do cliente.</p>
   <label for="quoteObservations"><strong>Observação da cotação</strong></label>
@@ -207,16 +229,17 @@
   try {await navigator.clipboard.writeText(internalEditor.value);status.textContent='Resumo interno copiado'}
   catch(_){internalEditor.focus();internalEditor.select();status.textContent='Selecione e copie o texto'}
  });
+ function openQuoteForwardPicker(){document.getElementById('dbmQuoteForwardModal').hidden=false;}
  document.getElementById('forwardQuoteInternal').addEventListener('click',()=>{
   if(!confirm('Este resumo inclui custo e lucro. Enviar para o chat interno?')) return;
-  sessionStorage.setItem('dbmPendingQuoteMessage',internalEditor.value);location.href='/chat';
+  openQuoteForwardPicker();
  });
  document.getElementById('forwardQuoteMessage').addEventListener('click',()=>{
-  sessionStorage.setItem('dbmPendingQuoteMessage',editor.value);
-  location.href='/chat';
+  openQuoteForwardPicker();
  });
 })();
 </script>
+{% endif %}
 
 <section class="card-panel top-gap-xl">
   <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO</span><h2>Campos usados no cálculo</h2></div></div>

@@ -50,6 +50,7 @@
 {% endblock %}
 
 {% block content %}
+<style>.dbm-quote-chat-card{border:1px solid #36708d;border-radius:12px;padding:12px;margin:8px 0;background:#103249;max-width:100%;overflow-wrap:anywhere}.dbm-quote-chat-card strong{display:block;margin-bottom:6px}.dbm-quote-chat-card a,.dbm-quote-chat-card button{display:inline-block;padding:8px 11px;border:1px solid #4a91ba;border-radius:8px;background:#105581;color:white;text-decoration:none;font-weight:700;font-size:.82rem;cursor:pointer;margin-top:8px}</style>
 <section class="dbm-chat-v2 {% if selected_contact or chat_view == 'team' %}mobile-open{% endif %}" id="dbmChatV2"
   data-user-id="{{ user.id }}"
   data-user-contact-id="{{ user.contact_id }}"
@@ -148,6 +149,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/private-chat.js?v=4" defer></script>
+<script src="/static/js/private-chat.js?v=20261028-share" defer></script>
 <script src="/static/js/private-chat-enhanced.js?v=20261017" defer></script>
 {% endblock %}

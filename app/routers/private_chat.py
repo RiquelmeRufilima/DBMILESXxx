@@ -3,11 +3,11 @@ import secrets
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import desc, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from ..chat_models import ChatIdentity, PrivateChatMessage, UserChatContact
 from ..database import get_db
 from ..dependencies import current_user
-from ..models import ChatMessage, WebCompany, WebUser
+from ..models import ChatMessage, WebCompany, WebUser, WebQuote, QuoteTripDetail, QuoteCommercial
 from ..security import validate_csrf_token
 from ..services.notifications import create_notification
 from ..web import context, templates
@@ -173,3 +173,91 @@ async def delete_group_messages(request: Request, db: Session = Depends(get_db))
         db.delete(row)
     db.commit()
     return {'ok': True, 'deleted_ids': sorted(ids)}
+
+
+@router.post('/quotes/forward')
+async def forward_quote(request: Request, db: Session = Depends(get_db)):
+    """Compartilha uma referência verificável à cotação (sem custo visível no texto)."""
+    me = current_user(request, db)
+    if me is None or not me.company_id:
+        return JSONResponse({'ok': False, 'message': 'É necessário pertencer a uma empresa.'}, 403)
+    try:
+        d = await request.json()
+        qid = int(d.get('quote_id'))
+    except (ValueError, TypeError, AttributeError):
+        return JSONResponse({'ok': False, 'message': 'Cotação inválida.'}, 400)
+    if not validate_csrf_token(request.session, str(d.get('csrf_token') or '')):
+        return JSONResponse({'ok': False, 'message': 'Sessão expirada.'}, 403)
+    quote = db.get(WebQuote, qid)
+    if not quote or quote.company_id != me.company_id:
+        return JSONResponse({'ok': False, 'message': 'Cotação indisponível.'}, 404)
+    target = str(d.get('target') or '').strip()
+    message_text = f'✈️ Cotação compartilhada | {quote.quote_name[:100]} | {quote.origin or "—"} → {quote.destination or "—"}\n[DBM_QUOTE:{qid}]'
+    if target == 'group':
+        row = ChatMessage(company_id=me.company_id, user_id=me.id, message=message_text)
+        db.add(row)
+        recipients = db.scalars(select(WebUser).where(WebUser.company_id == me.company_id, WebUser.id != me.id, WebUser.active.is_(True))).all()
+        for recipient in recipients:
+            create_notification(db, recipient.id, 'Cotação compartilhada', f'{me.name} encaminhou uma cotação.', kind='chat', link='/company/chat?view=team', commit=False)
+    else:
+        recipient = _resolve(db, me, target)
+        if not recipient or recipient.company_id != me.company_id:
+            return JSONResponse({'ok': False, 'message': 'Compartilhe apenas com contatos da sua empresa.'}, 403)
+        row = PrivateChatMessage(sender_id=me.id, recipient_id=recipient.id, message=message_text, is_read=False)
+        db.add(row)
+        create_notification(db, recipient.id, 'Cotação compartilhada', f'{me.name} encaminhou uma cotação.', kind='chat', link=f'/chat?contact={_identity(db,me).contact_id}', commit=False)
+    db.commit()
+    return {'ok': True, 'quote_id': qid}
+
+
+def _shared_quote_for(db: Session, me: WebUser, quote_id: int):
+    quote = db.scalar(select(WebQuote).where(WebQuote.id == quote_id).options(selectinload(WebQuote.trip), selectinload(WebQuote.commercial)))
+    if quote is None or not me.company_id or quote.company_id != me.company_id:
+        return None
+    # O usuário precisa receber a cotação no grupo ou no chat privado.
+    shared_tag = f'[DBM_QUOTE:{quote_id}]'
+    group = db.scalar(select(ChatMessage.id).where(ChatMessage.company_id == me.company_id, ChatMessage.message.contains(shared_tag)).limit(1))
+    private = db.scalar(select(PrivateChatMessage.id).where(PrivateChatMessage.message.contains(shared_tag), or_(PrivateChatMessage.recipient_id == me.id, PrivateChatMessage.sender_id == me.id)).limit(1))
+    return quote if group or private else None
+
+
+@router.get('/quotes/{quote_id}/view')
+def quote_shared_view(quote_id: int, request: Request, db: Session = Depends(get_db)):
+    from ..routers.calculations import _decorate_quote_scope, _safe_json
+    from ..models import QuoteOptionIndex
+    me = current_user(request, db)
+    if me is None:
+        return RedirectResponse('/login', 303)
+    quote = _shared_quote_for(db, me, quote_id)
+    if quote is None:
+        return JSONResponse({'detail': 'Cotação compartilhada não disponível.'}, 404)
+    quote = _decorate_quote_scope(quote)
+    link = db.get(QuoteOptionIndex, quote.id)
+    return templates.TemplateResponse(request, 'calculations/result.html', context(request, user=me, quote=quote, group_id=link.group_id if link else None, inputs=_safe_json(quote.input_json, {}), breakdown=_safe_json(quote.breakdown_json, {}), segments=_safe_json(quote.trip.segments_json, []) if quote.trip else [], shared_view=True))
+
+
+@router.post('/quotes/{quote_id}/save')
+async def save_shared_quote(quote_id: int, request: Request, db: Session = Depends(get_db)):
+    me = current_user(request, db)
+    if me is None:
+        return JSONResponse({'ok': False}, 401)
+    try:
+        d = await request.json()
+    except Exception:
+        d = {}
+    if not validate_csrf_token(request.session, str(d.get('csrf_token') or '')):
+        return JSONResponse({'ok': False, 'message': 'Sessão expirada.'}, 403)
+    source = _shared_quote_for(db, me, quote_id)
+    if not source:
+        return JSONResponse({'ok': False, 'message': 'Cotação não disponível.'}, 404)
+    clone = WebQuote(user_id=me.id, company_id=me.company_id, airline_id=source.airline_id, calculation_type_id=source.calculation_type_id, quote_name=f'Cópia recebida: {source.quote_name}'[:180], origin=source.origin, destination=source.destination, passengers=source.passengers, babies=source.babies, bags=source.bags, currency=source.currency, input_json=source.input_json, breakdown_json=source.breakdown_json, total=source.total)
+    db.add(clone)
+    db.flush()
+    if source.trip:
+        t=source.trip
+        db.add(QuoteTripDetail(quote_id=clone.id, travel_type=t.travel_type, departure_date=t.departure_date, return_date=t.return_date, segments_json=t.segments_json, client_name=t.client_name, client_email=t.client_email, client_phone=t.client_phone, notes=t.notes, client_person_id=None))
+    if source.commercial:
+        c=source.commercial
+        db.add(QuoteCommercial(quote_id=clone.id, sale_value=c.sale_value, cost_basis=c.cost_basis, profit_value=c.profit_value, profit_percent=c.profit_percent, sent_to_client_at=c.sent_to_client_at, card_installments=c.card_installments or 1, card_interest_mode=c.card_interest_mode or 'cash', card_total_value=c.card_total_value, card_installment_value=c.card_installment_value, card_difference_value=c.card_difference_value, observations=c.observations))
+    db.commit()
+    return {'ok': True, 'saved_quote_id': clone.id, 'url': f'/calculations/result/{clone.id}'}
