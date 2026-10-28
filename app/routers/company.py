@@ -13,7 +13,8 @@ from urllib.parse import quote as url_quote
 
 from fastapi import APIRouter, Depends, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from sqlalchemy import desc, func, or_, select, update
+from sqlalchemy import case, desc, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import COMPANY_UPLOAD_DIR, MAX_TEAM_USERS, SECRET_KEY
@@ -252,43 +253,49 @@ def _chat_member_payload(member: WebUser, current_user_id: int) -> dict:
     }
 
 
-def _private_conversation_summaries(db: Session, user: WebUser) -> list[dict]:
-    raw = db.scalars(
-        select(PrivateChatMessage)
-        .where(
-            or_(
-                PrivateChatMessage.sender_id == user.id,
-                PrivateChatMessage.recipient_id == user.id,
-            )
+def _private_conversation_summaries(db: Session, user: WebUser, limit: int = 20) -> list[dict]:
+    # Uma mensagem por conversa no próprio SQL, sem varrer 500 mensagens e
+    # consultar cada parceiro/unread em um laço (N+1).
+    partner_col = case(
+        (PrivateChatMessage.sender_id == user.id, PrivateChatMessage.recipient_id),
+        else_=PrivateChatMessage.sender_id,
+    )
+    ranked = (
+        select(
+            PrivateChatMessage.id.label("message_id"),
+            partner_col.label("partner_id"),
+            func.row_number().over(
+                partition_by=partner_col,
+                order_by=(PrivateChatMessage.created_at.desc(), PrivateChatMessage.id.desc()),
+            ).label("rank"),
         )
-        .order_by(desc(PrivateChatMessage.created_at))
-        .limit(500)
+        .where(or_(PrivateChatMessage.sender_id == user.id, PrivateChatMessage.recipient_id == user.id))
+        .subquery()
+    )
+    raw = db.execute(
+        select(PrivateChatMessage, WebUser)
+        .join(ranked, ranked.c.message_id == PrivateChatMessage.id)
+        .join(WebUser, WebUser.id == ranked.c.partner_id)
+        .where(ranked.c.rank == 1, WebUser.active.is_(True))
+        .order_by(desc(PrivateChatMessage.created_at), desc(PrivateChatMessage.id))
+        .limit(limit + 1)
     ).all()
-
+    ids = [partner.id for _, partner in raw]
+    unread_counts = dict(db.execute(
+        select(PrivateChatMessage.sender_id, func.count(PrivateChatMessage.id))
+        .where(PrivateChatMessage.sender_id.in_(ids), PrivateChatMessage.recipient_id == user.id,
+               PrivateChatMessage.is_read.is_(False))
+        .group_by(PrivateChatMessage.sender_id)
+    ).all()) if ids else {}
     summaries: list[dict] = []
-    seen: set[int] = set()
-    for item in raw:
-        partner_id = item.recipient_id if item.sender_id == user.id else item.sender_id
-        if partner_id in seen:
-            continue
-        partner = db.get(WebUser, partner_id)
-        if partner is None or not partner.active:
-            continue
+    for item, partner in raw:
         _ensure_user_contact_id(db, partner)
-        unread = db.scalar(
-            select(func.count(PrivateChatMessage.id)).where(
-                PrivateChatMessage.sender_id == partner_id,
-                PrivateChatMessage.recipient_id == user.id,
-                PrivateChatMessage.is_read.is_(False),
-            )
-        ) or 0
         summaries.append({
             "member": _chat_member_payload(partner, user.id),
             "last_message": item.message,
             "last_at": item.created_at,
-            "unread": int(unread),
+            "unread": int(unread_counts.get(partner.id, 0)),
         })
-        seen.add(partner_id)
     return summaries
 
 
@@ -323,8 +330,9 @@ def _resolve_private_contact(db: Session, user: WebUser, contact_id: str | None)
     return partner
 
 
-def _private_messages(db: Session, user: WebUser, partner: WebUser, limit: int = 120) -> list[PrivateChatMessage]:
-    messages = db.scalars(
+def _private_messages(db: Session, user: WebUser, partner: WebUser, limit: int = 30,
+                      before_id: int = 0, after_id: int = 0) -> list[PrivateChatMessage]:
+    query = (
         select(PrivateChatMessage)
         .where(
             or_(
@@ -332,9 +340,12 @@ def _private_messages(db: Session, user: WebUser, partner: WebUser, limit: int =
                 (PrivateChatMessage.sender_id == partner.id) & (PrivateChatMessage.recipient_id == user.id),
             )
         )
-        .order_by(desc(PrivateChatMessage.created_at))
-        .limit(limit)
-    ).all()
+    )
+    if before_id:
+        query = query.where(PrivateChatMessage.id < before_id)
+    if after_id:
+        query = query.where(PrivateChatMessage.id > after_id)
+    messages = db.scalars(query.order_by(desc(PrivateChatMessage.id)).limit(min(max(limit, 1), 100))).all()
     messages = list(reversed(messages))
 
     changed = False
@@ -705,7 +716,7 @@ def create_member(
         flash(request, message, "error")
         return RedirectResponse("/company#adicionar-membro", status_code=303)
 
-    existing = db.scalar(select(WebUser).where(func.lower(WebUser.email) == email))
+    existing = db.scalar(select(WebUser).where(func.lower(func.trim(WebUser.email)) == email))
     if existing is not None:
         if existing.company_id == user.company_id:
             flash(request, "Esse usuário já faz parte da empresa.", "info")
@@ -725,7 +736,12 @@ def create_member(
         company_id=user.company_id,
     )
     db.add(member)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        flash(request, "Este e-mail já está cadastrado. Convide a conta existente.", "error")
+        return RedirectResponse("/company#codigo-entrada", status_code=303)
     member.contact_id = _new_contact_id(db)
     db.commit()
     flash(request, f"{member.name} foi criado e adicionado à empresa.", "success")
@@ -876,12 +892,13 @@ def chat_page(request: Request, contact: str = "", view: str = "conversations", 
             .where(ChatMessage.company_id == user.company_id)
             .options(selectinload(ChatMessage.user))
             .order_by(desc(ChatMessage.created_at))
-            .limit(100)
+            .limit(30)
         ).all()
         group_messages = list(reversed(group_messages))
 
     selected_contact = _resolve_private_contact(db, user, contact)
     private_messages = _private_messages(db, user, selected_contact) if selected_contact else []
+    conversation_rows = _private_conversation_summaries(db, user)
 
     return templates.TemplateResponse(
         request,
@@ -892,7 +909,8 @@ def chat_page(request: Request, contact: str = "", view: str = "conversations", 
             company=company,
             has_company=bool(user.company_id and company),
             messages=group_messages,
-            conversations=_private_conversation_summaries(db, user),
+            conversations=conversation_rows[:20],
+            conversation_has_more=len(conversation_rows) > 20,
             contacts=_saved_contacts(db, user),
             selected_contact=_chat_member_payload(selected_contact, user.id) if selected_contact else None,
             private_messages=private_messages,
@@ -902,7 +920,7 @@ def chat_page(request: Request, contact: str = "", view: str = "conversations", 
 
 
 @router.get("/chat/sidebar")
-def chat_sidebar_api(request: Request, db: Session = Depends(get_db)):
+def chat_sidebar_api(request: Request, limit: int = 20, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"ok": False}, status_code=401)
@@ -918,9 +936,11 @@ def chat_sidebar_api(request: Request, db: Session = Depends(get_db)):
             .limit(1)
         )
 
-    conversations = _private_conversation_summaries(db, user)
+    limit = min(max(limit, 20), 1000)
+    conversations = _private_conversation_summaries(db, user, limit=limit)
     return {
         "ok": True,
+        "has_more": len(conversations) > limit,
         "has_company": bool(company),
         "group": {
             "name": company.name if company else "Chat da equipe",
@@ -934,10 +954,22 @@ def chat_sidebar_api(request: Request, db: Session = Depends(get_db)):
                 "last_at": iso_utc(item["last_at"]),
                 "unread": item["unread"],
             }
-            for item in conversations
+            for item in conversations[:limit]
         ],
         "contacts": _saved_contacts(db, user),
     }
+
+
+@router.get("/chat/unread")
+def chat_unread_api(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    count = db.scalar(select(func.count(PrivateChatMessage.id)).where(
+        PrivateChatMessage.recipient_id == user.id,
+        PrivateChatMessage.is_read.is_(False),
+    )) or 0
+    return {"ok": True, "unread": int(count)}
 
 
 @router.post("/chat/contacts")
@@ -1012,7 +1044,8 @@ async def remove_chat_contact(contact_id: str, request: Request, db: Session = D
 
 
 @router.get("/chat/private/{contact_id}")
-def private_messages_api(contact_id: str, request: Request, db: Session = Depends(get_db)):
+def private_messages_api(contact_id: str, request: Request, before_id: int = 0, after_id: int = 0,
+                         db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"ok": False, "messages": []}, status_code=401)
@@ -1025,12 +1058,13 @@ def private_messages_api(contact_id: str, request: Request, db: Session = Depend
         register_attempt(db, "contact_lookup", str(user.id))
         return JSONResponse({"ok": False, "message": "Contato não encontrado."}, status_code=404)
 
-    messages = _private_messages(db, user, partner)
+    messages = _private_messages(db, user, partner, before_id=before_id, after_id=after_id, limit=60 if after_id else 30)
     attachments = _attachments_for(db, "private", [item.id for item in messages])
     return {
         "ok": True,
         "contact": _chat_member_payload(partner, user.id),
         "messages": [_private_message_payload(item, user, attachments.get(item.id)) for item in messages],
+        "has_more": len(messages) == 30 if not after_id else False,
     }
 
 
@@ -1097,19 +1131,23 @@ async def private_send_api(contact_id: str, request: Request, db: Session = Depe
 
 
 @router.get("/messages")
-def messages_api(request: Request, db: Session = Depends(get_db)):
+def messages_api(request: Request, before_id: int = 0, after_id: int = 0, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None or not user.company_id:
         return JSONResponse({"messages": []}, status_code=401)
-    messages = db.scalars(
+    query = (
         select(ChatMessage)
         .where(ChatMessage.company_id == user.company_id)
         .options(selectinload(ChatMessage.user))
-        .order_by(desc(ChatMessage.created_at))
-        .limit(100)
-    ).all()
+    )
+    if before_id:
+        query = query.where(ChatMessage.id < before_id)
+    if after_id:
+        query = query.where(ChatMessage.id > after_id)
+    messages = db.scalars(query.order_by(desc(ChatMessage.id)).limit(60 if after_id else 30)).all()
     attachments = _attachments_for(db, "group", [item.id for item in messages])
-    return {"messages": [_group_message_payload(item, attachments.get(item.id)) for item in reversed(messages)]}
+    return {"messages": [_group_message_payload(item, attachments.get(item.id)) for item in reversed(messages)],
+            "has_more": len(messages) == 30 if not after_id else False}
 
 
 # ---------------------------------------------------------------------------

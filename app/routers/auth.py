@@ -10,6 +10,7 @@ from urllib.request import Request as UrlRequest, urlopen
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -32,6 +33,15 @@ router = APIRouter(tags=["auth"])
 
 def _email(value: str) -> str:
     return str(value or "").strip().lower()[:180]
+
+
+def _account_for_email(db: Session, email: str) -> tuple[WebUser | None, bool]:
+    """Nunca escolher uma das duas contas com mesmo e-mail por acaso."""
+    candidates = db.scalars(
+        select(WebUser).where(func.lower(func.trim(WebUser.email)) == _email(email))
+        .order_by(WebUser.id).limit(2)
+    ).all()
+    return (candidates[0] if len(candidates) == 1 else None, len(candidates) > 1)
 
 
 def _valid_email(value: str) -> bool:
@@ -213,9 +223,10 @@ def google_callback(
     # O Google já confirmou a identidade/e-mail. Se o usuário ainda não existir,
     # criamos uma conta pessoal do DBMILESX sem empresa vinculada. Depois ele
     # pode criar uma empresa ou aceitar um convite normalmente.
-    user = db.scalar(
-        select(WebUser).where(func.lower(func.trim(WebUser.email)) == email)
-    )
+    user, duplicated = _account_for_email(db, email)
+    if duplicated:
+        flash(request, "Este e-mail está associado a mais de uma conta antiga. Contate o administrador para unificar com segurança.", "error")
+        return RedirectResponse("/login", status_code=303)
     created_with_google = False
     if user is None:
         google_name = str(google_user.get("name") or "").strip()[:180]
@@ -237,7 +248,12 @@ def google_callback(
             is_owner=False,
         )
         db.add(user)
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            flash(request, "Este e-mail acabou de ser cadastrado. Entre com sua conta existente.", "info")
+            return RedirectResponse("/login", status_code=303)
 
         # Cria perfil/preferências uma única vez. Não adicione UserProfile
         # manualmente aqui: ensure_user_defaults() já faz isso e, no Neon,
@@ -354,7 +370,10 @@ def login(
         flash(request, wait_message(wait), "error")
         return RedirectResponse("/login", status_code=303)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    user, duplicated = _account_for_email(db, email)
+    if duplicated:
+        flash(request, "Encontramos contas duplicadas neste e-mail. Solicite ao administrador a unificação dos cadastros.", "error")
+        return RedirectResponse("/login", status_code=303)
     if user is None or not verify_password(password, user.password_hash):
         register_attempt(db, "login_email", email, commit=False)
         register_attempt(db, "login_ip", ip, commit=True)
@@ -427,15 +446,22 @@ def register(
         flash(request, wait_message(wait), "error")
         return RedirectResponse("/register", status_code=303)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email))
-    if user is not None and user.active:
-        flash(request, "Este e-mail já possui uma conta. Entre ou use 'Esqueci minha senha'.", "info")
+    user, duplicated = _account_for_email(db, email)
+    if duplicated:
+        flash(request, "Este e-mail já está em uso por contas antigas duplicadas. Contate o administrador.", "error")
         return RedirectResponse("/login", status_code=303)
     if user is not None and is_blocked(db, user.id):
         # Conta bloqueada pelo administrador não pode ser "recriada" para
         # burlar o bloqueio (antes era possível voltar para a empresa assim).
         flash(request, BLOCKED_MESSAGE, "error")
         return RedirectResponse("/login", status_code=303)
+    if user is not None:
+        if user.active:
+            flash(request, "Este e-mail já possui uma conta. Entre ou use 'Esqueci minha senha'.", "info")
+            return RedirectResponse("/login", status_code=303)
+        request.session["pending_verify_email"] = email
+        flash(request, "Este e-mail já tem cadastro pendente. Confirme o código ou solicite um novo; não é possível criar outra conta.", "info")
+        return RedirectResponse(_verify_url(email), status_code=303)
     register_attempt(db, "register_ip", ip, commit=False)
 
     if user is None:
@@ -449,13 +475,12 @@ def register(
             is_owner=False,
         )
         db.add(user)
-        db.flush()
-    else:
-        user.name = name
-        user.phone = phone or None
-        user.password_hash = hash_password(password)
-        user.active = False
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            flash(request, "Este e-mail já está cadastrado. Entre ou recupere sua senha.", "info")
+            return RedirectResponse("/login", status_code=303)
 
     profile = user.profile
     if profile is None:
@@ -517,7 +542,7 @@ def verify_email(
         flash(request, message, "error")
         return RedirectResponse(_verify_url(email), status_code=303)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    user, _ = _account_for_email(db, email)
     if user is None:
         db.commit()
         flash(request, "Cadastro não encontrado. Crie a conta novamente.", "error")
@@ -550,7 +575,7 @@ def resend_verify_email(
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse(_verify_url(email), status_code=303)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email))
+    user, _ = _account_for_email(db, email)
     if user is None or user.active:
         flash(request, "Esta conta já está confirmada ou não existe.", "info")
         return RedirectResponse("/login", status_code=303)
@@ -595,8 +620,8 @@ def forgot_password(
         return RedirectResponse("/forgot-password", status_code=303)
     register_attempt(db, "forgot_ip", ip)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
-    if user is not None:
+    user, _ = _account_for_email(db, email)
+    if user is not None and user.active:
         try:
             code = issue_email_code(db, email=email, purpose="reset")
             db.commit()
@@ -659,8 +684,8 @@ def reset_password(
         flash(request, message, "error")
         return RedirectResponse(_reset_url(email), status_code=303)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
-    if user is None:
+    user, _ = _account_for_email(db, email)
+    if user is None or not user.active:
         db.commit()
         flash(request, "Não foi possível redefinir esta conta.", "error")
         return RedirectResponse("/forgot-password", status_code=303)
@@ -692,8 +717,8 @@ def resend_reset_code(
         return RedirectResponse(_reset_url(email), status_code=303)
     register_attempt(db, "forgot_ip", ip)
 
-    user = db.scalar(select(WebUser).where(WebUser.email == email, WebUser.active.is_(True)))
-    if user is not None:
+    user, _ = _account_for_email(db, email)
+    if user is not None and user.active:
         try:
             code = issue_email_code(db, email=email, purpose="reset")
             db.commit()

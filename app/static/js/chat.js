@@ -28,6 +28,8 @@
   const overlay = $('dbmAgendaOverlay');
   const contactInput = $('dbmContactIdInput');
   const agendaMessage = $('dbmAgendaMessage');
+  const olderWrap = $('dbmOlderWrap');
+  const olderButton = $('dbmLoadOlder');
 
   const ALLOWED = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
   const MAX_BYTES = 4 * 1024 * 1024; // limite do Vercel por envio
@@ -36,7 +38,11 @@
   let pendingFile = null;
   let sending = false;
   let lastSeenId = 0;
+  let oldestId = 0;
   let firstLoad = true;
+  let loading = false;
+  let generation = 0;
+  let conversationLimit = 20;
 
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[c]));
   const fmt = new Intl.DateTimeFormat('pt-BR', {timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
@@ -84,13 +90,13 @@
   function render(items, prefix) {
     const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
     const existing = new Set([...list.querySelectorAll('[data-message-id]')].map((el) => el.dataset.messageId));
-    if (!items.length) {
+    if (!items.length && firstLoad) {
       list.innerHTML = emptyHtml('Nenhuma mensagem ainda', 'Envie a primeira mensagem desta conversa.');
+      firstLoad = false;
       return;
     }
+    if (!items.length) return;
     list.querySelector('.dbm-chat-center-empty,.dbm-team-locked')?.remove();
-    // Remove mensagens "provisórias" que já chegaram do servidor
-    list.querySelectorAll('[data-message-id^="temp-"]').forEach((el) => el.remove());
     let added = 0;
     let incoming = false;
     const html = [];
@@ -104,7 +110,9 @@
     if (firstLoad) { list.innerHTML = items.map((x) => messageHtml(x, prefix)).join(''); }
     else if (html.length) list.insertAdjacentHTML('beforeend', html.join(''));
     lastSeenId = Math.max(lastSeenId, ...items.map((x) => Number(x.id) || 0));
-    if (firstLoad || nearBottom || added) scrollBottom();
+    const batchOldest = Math.min(...items.map((x) => Number(x.id) || Infinity));
+    oldestId = Math.min(oldestId || batchOldest, batchOldest);
+    if (firstLoad || nearBottom) scrollBottom();
     if (!firstLoad && incoming) window.dbmChatPlaySound?.();
     firstLoad = false;
   }
@@ -124,30 +132,65 @@
   }
 
   async function loadCurrent() {
+    if ((loading && !firstLoad) || document.hidden) return;
+    loading = true;
+    const currentGeneration = generation;
+    const currentView = view;
+    const currentContact = contactId;
     try {
-      if (view === 'team') {
+      if (currentView === 'team') {
         if (!hasCompany) return;
-        const data = await getJSON('/company/messages');
+        const data = await getJSON(`/company/messages${firstLoad || !lastSeenId ? '' : `?after_id=${lastSeenId}`}`);
+        if (currentGeneration !== generation) return;
+        const initial = firstLoad;
         render(data.messages || [], 'g');
-      } else if (contactId) {
-        const data = await getJSON(`/company/chat/private/${encodeURIComponent(contactId)}`);
+        if (initial) olderWrap.hidden = !data.has_more;
+      } else if (currentContact) {
+        const data = await getJSON(`/company/chat/private/${encodeURIComponent(currentContact)}${firstLoad || !lastSeenId ? '' : `?after_id=${lastSeenId}`}`);
+        if (currentGeneration !== generation) return;
         if (!data.ok) throw new Error(data.message);
         if (firstLoad && data.contact) {
           title.textContent = data.contact.name;
           subtitle.textContent = `${data.contact.contact_id} • Chat privado`;
           avatar.textContent = (data.contact.name || '?').charAt(0).toUpperCase();
         }
+        const initial = firstLoad;
         render(data.messages || [], 'p');
+        if (initial) olderWrap.hidden = !data.has_more;
       }
       setStatus(view === 'team' ? 'Chat da equipe' : (contactId ? 'Chat privado' : ''));
     } catch (_) {
       setStatus('Sem conexão — tentando de novo');
+    } finally {
+      if (currentGeneration === generation) loading = false;
     }
   }
 
+  olderButton?.addEventListener('click', async () => {
+    if (!oldestId || olderButton.disabled) return;
+    const currentGeneration = generation;
+    olderButton.disabled = true;
+    olderButton.textContent = 'Carregando...';
+    try {
+      const url = view === 'team' ? '/company/messages' : `/company/chat/private/${encodeURIComponent(contactId)}`;
+      const data = await getJSON(`${url}?before_id=${oldestId}`);
+      if (currentGeneration !== generation) return;
+      const items = data.messages || [];
+      const before = list.scrollHeight;
+      const html = items.filter(item => !list.querySelector(`[data-message-id="${view === 'team' ? 'g' : 'p'}-${Number(item.id)}"]`))
+        .map(item => messageHtml(item, view === 'team' ? 'g' : 'p')).join('');
+      if (html) list.insertAdjacentHTML('afterbegin', html);
+      if (items.length) oldestId = Math.min(oldestId, ...items.map(x => Number(x.id)));
+      list.scrollTop += list.scrollHeight - before;
+      olderWrap.hidden = !data.has_more;
+    } catch (_) { setStatus('Erro ao carregar mensagens anteriores'); }
+    finally { olderButton.disabled = false; olderButton.textContent = 'Carregar mensagens anteriores'; }
+  });
+
   function openPrivate(id) {
     if (!id) return;
-    view = 'conversations'; contactId = id; firstLoad = true; lastSeenId = 0;
+    generation++; loading = false; view = 'conversations'; contactId = id; firstLoad = true; lastSeenId = 0; oldestId = 0;
+    olderWrap.hidden = true; delete olderWrap.dataset.initialized;
     list.innerHTML = emptyHtml('Carregando...', '');
     setTabs(); updateCompose(); clearPending();
     history.replaceState({}, '', `/company/chat?contact=${encodeURIComponent(id)}`);
@@ -158,7 +201,8 @@
 
   function openTeam() {
     if (!hasCompany) { location.href = '/company'; return; }
-    view = 'team'; contactId = ''; firstLoad = true; lastSeenId = 0;
+    generation++; loading = false; view = 'team'; contactId = ''; firstLoad = true; lastSeenId = 0; oldestId = 0;
+    olderWrap.hidden = true; delete olderWrap.dataset.initialized;
     title.textContent = companyName; subtitle.textContent = 'Grupo da empresa';
     avatar.textContent = (companyName || 'E').charAt(0).toUpperCase();
     list.innerHTML = emptyHtml('Carregando...', '');
@@ -170,9 +214,11 @@
 
   async function refreshSidebar() {
     try {
-      const data = await getJSON('/company/chat/sidebar');
+      const data = await getJSON(`/company/chat/sidebar?limit=${conversationLimit}`);
       const holder = $('dbmConversationSide');
       if (!data.ok || !holder) return;
+      const more = $('dbmMoreConversations');
+      if (more) more.hidden = !data.has_more;
       if (!data.conversations?.length) {
         holder.innerHTML = '<div class="dbm-empty-side"><div><strong>Nenhum chat iniciado</strong><span>Adicione um contato à sua agenda para começar uma conversa.</span></div></div>';
         return;
@@ -182,6 +228,11 @@
       if (q) holder.querySelectorAll('[data-search]').forEach((el) => { el.hidden = !el.dataset.search.toLowerCase().includes(q); });
     } catch (_) { /* tenta na próxima */ }
   }
+
+  $('dbmMoreConversations')?.addEventListener('click', () => {
+    conversationLimit += 20;
+    refreshSidebar();
+  });
 
   // ------------------------- anexos -------------------------
   function clearPending() {
@@ -223,7 +274,7 @@
 
   // ------------------------- envio -------------------------
   function addTemp(text, label) {
-    const key = `temp-${Date.now()}`;
+    const key = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     list.querySelector('.dbm-chat-center-empty')?.remove();
     list.insertAdjacentHTML('beforeend', `<article class="dbm-msg mine" data-message-id="${key}"><div class="dbm-msg-bubble"><strong>Você</strong>${text ? `<p>${esc(text)}</p>` : ''}<small>${esc(label)}</small></div></article>`);
     scrollBottom();
@@ -239,15 +290,20 @@
     if (view !== 'team' && !contactId) return;
 
     sending = true;
+    const destination = view === 'team' ? 'g' : 'p';
+    const selectedGeneration = generation;
+    const originalFile = pendingFile;
     const tempKey = addTemp(text || (pendingFile ? `📎 ${pendingFile.name}` : ''), pendingFile ? 'enviando arquivo...' : 'enviando...');
     const base = view === 'team' ? '/company/messages' : `/company/chat/private/${encodeURIComponent(contactId)}`;
+    input.value = '';
+    clearPending();
     try {
       let res;
-      if (pendingFile) {
+      if (originalFile) {
         const fd = new FormData();
         fd.append('csrf_token', csrf);
         fd.append('message', text);
-        fd.append('file', pendingFile);
+        fd.append('file', originalFile);
         res = await fetch(view === 'team' ? '/company/messages/arquivo' : `${base}/arquivo`, {method: 'POST', credentials: 'same-origin', body: fd});
       } else {
         res = await fetch(base, {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', Accept: 'application/json'}, body: JSON.stringify({message: text, csrf_token: csrf})});
@@ -255,15 +311,21 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.message || 'Não enviada');
       document.querySelector(`[data-message-id="${tempKey}"]`)?.remove();
-      list.insertAdjacentHTML('beforeend', messageHtml(data.message, view === 'team' ? 'g' : 'p'));
-      lastSeenId = Math.max(lastSeenId, Number(data.message.id) || 0);
-      input.value = '';
-      clearPending();
-      scrollBottom();
+      if (selectedGeneration === generation && !list.querySelector(`[data-message-id="${destination}-${Number(data.message.id)}"]`))
+        list.insertAdjacentHTML('beforeend', messageHtml(data.message, destination));
+      if (selectedGeneration === generation) {
+        lastSeenId = Math.max(lastSeenId, Number(data.message.id) || 0);
+        scrollBottom();
+      }
       refreshSidebar();
     } catch (error) {
-      const small = document.querySelector(`[data-message-id="${tempKey}"] small`);
-      if (small) small.textContent = `${error.message || 'Não enviada'} — tente novamente`;
+      document.querySelector(`[data-message-id="${tempKey}"]`)?.remove();
+      if (selectedGeneration === generation) {
+        if (!input.value.trim()) input.value = text;
+        if (originalFile) setPending(originalFile);
+        setStatus(`${error.message || 'Mensagem não enviada'} — tente novamente`);
+        input.focus();
+      }
     } finally {
       sending = false;
     }
@@ -279,7 +341,8 @@
   });
   document.querySelectorAll('[data-main-tab]').forEach((btn) => btn.addEventListener('click', () => {
     if (btn.dataset.mainTab === 'team') { openTeam(); return; }
-    view = 'conversations'; contactId = ''; setTabs(); clearPending();
+    generation++; view = 'conversations'; contactId = ''; setTabs(); clearPending();
+    olderWrap.hidden = true; delete olderWrap.dataset.initialized;
     title.textContent = 'Conversas'; subtitle.textContent = 'Selecione um contato'; avatar.textContent = 'C';
     list.innerHTML = emptyHtml('Selecione uma conversa', 'Ou use “Adicionar contatos” para iniciar um novo chat privado.');
     updateCompose(); history.replaceState({}, '', '/company/chat'); shell.classList.remove('mobile-open');
@@ -316,7 +379,7 @@
   // ------------------------- ciclo -------------------------
   setTabs(); updateCompose();
   if (view === 'team' || contactId) loadCurrent();
-  setInterval(() => { if (!document.hidden) loadCurrent(); }, 3000);
+  setInterval(() => { if (!document.hidden) loadCurrent(); }, 1600);
   setInterval(() => { if (!document.hidden) refreshSidebar(); }, 7000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadCurrent(); refreshSidebar(); } });
 })();

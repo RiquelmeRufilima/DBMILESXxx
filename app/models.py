@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 
 from .database import Base
@@ -44,6 +44,11 @@ class WebUser(Base):
     profile: Mapped["UserProfile | None"] = orm_relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
     preference: Mapped["UserPreference | None"] = orm_relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
     notifications: Mapped[list["Notification"]] = orm_relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+# Um mesmo endereço não pode virar duas contas por diferenças de caixa/espaços.
+# Bancos existentes recebem este índice pelo script de migração auditável.
+Index("ux_web_users_email_normalized", func.lower(func.trim(WebUser.email)), unique=True)
 
 
 class UserProfile(Base):
@@ -276,6 +281,27 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     user: Mapped[WebUser] = orm_relationship(back_populates="notifications")
+
+
+class PushSubscription(Base):
+    """Um navegador/dispositivo autorizado por usuário (Web Push)."""
+    __tablename__ = "web_push_subscriptions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    p256dh: Mapped[str] = mapped_column(Text, nullable=False)
+    auth: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class CheckinReminder(Base):
+    """Idempotência do aviso, inclusive quando o cron repete execução."""
+    __tablename__ = "web_checkin_reminders"
+    __table_args__ = (UniqueConstraint("user_id", "flight_key", name="uq_checkin_user_flight"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    flight_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class PublicQuoteLink(Base):
@@ -716,3 +742,12 @@ class ChatAttachment(Base):
     file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     storage_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# Índices compostos das consultas incrementais mais frequentes.
+Index("ix_chat_company_recent", ChatMessage.company_id, ChatMessage.id)
+Index("ix_pv_sender_recipient_recent", PrivateChatMessage.sender_id, PrivateChatMessage.recipient_id, PrivateChatMessage.id)
+Index("ix_pv_recipient_sender_recent", PrivateChatMessage.recipient_id, PrivateChatMessage.sender_id, PrivateChatMessage.id)
+Index("ix_pv_unread_recipient", PrivateChatMessage.recipient_id, PrivateChatMessage.is_read)
+Index("ix_person_company_progress", Person.company_id, Person.is_complete, Person.created_at, Person.id)
+Index("ix_person_user_progress", Person.user_id, Person.is_complete, Person.created_at, Person.id)

@@ -1,0 +1,5 @@
+{% from 'persons/list.html' import person_table with context %}
+<div id="personBatch" data-next-offset="{{ next_offset }}" data-has-more="{{ '1' if has_more else '0' }}">
+  <div data-person-batch="pending">{{ person_table(pending, True) }}</div>
+  <div data-person-batch="complete">{{ person_table(complete, False) }}</div>
+</div>

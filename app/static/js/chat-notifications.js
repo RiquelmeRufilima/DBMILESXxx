@@ -40,17 +40,13 @@
     window.addEventListener(name, unlock, {once:true, passive:true});
   });
 
-  function sumUnread(data){
-    return (data?.conversations || []).reduce((acc,item)=>acc + Number(item.unread || 0), 0);
-  }
-
   async function check(){
     try{
-      const res = await fetch('/company/chat/sidebar', {cache:'no-store', credentials:'same-origin'});
+      const res = await fetch('/company/chat/unread', {cache:'no-store', credentials:'same-origin'});
       if(!res.ok) return;
       const data = await res.json();
       if(!data?.ok) return;
-      const current = sumUnread(data);
+      const current = Number(data.unread || 0);
       if(!baselineReady){ previousUnread=current; baselineReady=true; return; }
       if(current > previousUnread) play();
       previousUnread = current;
@@ -59,5 +55,5 @@
   }
 
   setTimeout(check,1200);
-  setInterval(()=>{ if(!document.hidden) check(); },5000);
+  setInterval(()=>{ if(!document.hidden) check(); },5500);
 })();

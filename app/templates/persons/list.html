@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "partials/tags.html" import tag_row, tag_filter, tag_assets %}
 {% block title %}Pessoas | DBMILESX{% endblock %}
+{% block head %}<style>#pendingPersonPanel[hidden],#completePersonTable[hidden],#personEmptyState[hidden],#loadMorePersons[hidden]{display:none!important}</style>{% endblock %}
 {% block page_title %}Pessoas{% endblock %}
 {% block eyebrow %}CADASTROS{% endblock %}
 
@@ -61,23 +62,24 @@
   {% if tags_ready %}{{ tag_filter(all_tags, selected_tag_ids, "pessoa") }}{% endif %}
 </form>
 
-{% if pending %}
-<section class="panel pending-person-panel">
+<section class="panel pending-person-panel" id="pendingPersonPanel" {% if not pending %}hidden{% endif %}>
   <div class="panel-heading">
-    <div><span class="eyebrow">PENDENTES</span><h2>Cadastros incompletos</h2><p>{{ pending|length }} pessoa(s) aguardando dados.</p></div>
+    <div><span class="eyebrow">PENDENTES</span><h2>Cadastros incompletos</h2><p>Carregados: <span id="pendingPersonCount">{{ pending|length }}</span></p></div>
   </div>
   {{ person_table(pending, True) }}
 </section>
-{% endif %}
 
 <section class="panel">
-  <div class="panel-heading"><div><span class="eyebrow">CADASTROS COMPLETOS</span><h2>{{ complete|length }} pessoa(s)</h2></div></div>
-  {% if complete %}
+  <div class="panel-heading"><div><span class="eyebrow">CADASTROS COMPLETOS</span><h2><span id="completePersonCount">{{ complete|length }}</span> carregado(s)</h2></div></div>
+  <div id="completePersonTable" {% if not complete %}hidden{% endif %}>
     {{ person_table(complete, False) }}
-  {% else %}
-    <div class="empty-state"><svg class="empty-icon"><use href="#icon-user"></use></svg><h3>Nenhuma pessoa cadastrada</h3><p>Clique em “Novo cadastro” para começar.</p><a class="primary-button" href="/persons/new">Cadastrar pessoa</a></div>
-  {% endif %}
+  </div>
+  <div id="personEmptyState" {% if pending or complete or has_more %}hidden{% endif %} class="empty-state"><svg class="empty-icon"><use href="#icon-user"></use></svg><h3>Nenhuma pessoa cadastrada</h3><p>Clique em “Novo cadastro” para começar.</p><a class="primary-button" href="/persons/new">Cadastrar pessoa</a></div>
 </section>
+<div class="load-more-area" style="display:flex;justify-content:center;margin:18px 0 25px">
+  <button class="secondary-button" type="button" id="loadMorePersons" data-offset="{{ next_offset }}" {% if not has_more %}hidden{% endif %}>Carregar mais 20 pessoas</button>
+  <span id="personsLoadStatus" role="status" aria-live="polite" class="muted"></span>
+</div>
 
 <dialog id="personPreviewModal" class="modal-dialog person-preview-modal">
   <div class="modal-head">
@@ -154,9 +156,43 @@
     }
   }
 
-  document.querySelectorAll('.person-preview-button').forEach(button=>button.addEventListener('click',()=>openPreview(button.dataset.personId)));
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('.person-preview-button');
+    if(button) openPreview(button.dataset.personId);
+  });
   document.querySelectorAll('[data-close-person-preview]').forEach(button=>button.addEventListener('click',()=>modal.close()));
   modal.addEventListener('click',event=>{if(event.target===modal) modal.close();});
+
+  const more=document.getElementById('loadMorePersons');
+  const feedback=document.getElementById('personsLoadStatus');
+  more?.addEventListener('click',async()=>{
+    if(more.disabled)return;
+    more.disabled=true; more.textContent='Carregando...'; feedback.textContent='';
+    try{
+      const params=new URLSearchParams(location.search);
+      params.set('offset',more.dataset.offset); params.set('partial','true');
+      const response=await fetch(`/persons?${params}`,{headers:{Accept:'text/html'},credentials:'same-origin'});
+      if(!response.ok)throw new Error('Não foi possível carregar os próximos cadastros.');
+      const doc=new DOMParser().parseFromString(await response.text(),'text/html');
+      for(const [kind,panel,holder,count] of [
+        ['pending','pendingPersonPanel','pendingPersonPanel','pendingPersonCount'],
+        ['complete',null,'completePersonTable','completePersonCount']
+      ]){
+        const rows=[...doc.querySelectorAll(`[data-person-batch="${kind}"] tbody tr`)];
+        if(!rows.length)continue;
+        const root=document.getElementById(holder);
+        if(panel)root.hidden=false; else root.hidden=false;
+        root.querySelector('tbody').append(...rows);
+        document.getElementById(count).textContent=root.querySelectorAll('tbody tr').length;
+      }
+      const batch=doc.getElementById('personBatch');
+      if(!batch)throw new Error('Resposta inválida.');
+      more.dataset.offset=batch.dataset.nextOffset;
+      more.hidden=batch.dataset.hasMore!=='1';
+      feedback.textContent=more.hidden?'Todos os cadastros foram carregados.':'';
+    }catch(err){feedback.textContent=err.message||'Erro ao carregar.';}
+    finally{more.disabled=false;more.textContent='Carregar mais 20 pessoas';}
+  });
 })();
 </script>
 {% if tags_ready %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}

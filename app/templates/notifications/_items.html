@@ -1,0 +1,10 @@
+{% macro notification_row(item) %}
+<article class="notification-item {% if not item.read %}unread{% endif %} kind-{{ item.kind }}">
+  <div class="notification-symbol"><svg class="ui-icon"><use href="#{% if item.kind == 'request' %}icon-inbox{% elif item.kind == 'chat' %}icon-chat{% elif item.kind == 'task' %}icon-clock{% elif item.kind == 'success' %}icon-check{% else %}icon-bell{% endif %}"></use></svg></div>
+  <div><div class="notification-title-row"><strong>{{ item.title }}</strong>{% if not item.read %}<span class="unread-dot"></span>{% endif %}</div><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m/%Y %H:%M') }}</small></div>
+  <form method="post" action="/notifications/{{ item.id }}/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="table-action" type="submit">{% if item.link %}Abrir{% else %}Lida{% endif %} →</button></form>
+</article>
+{% endmacro %}
+<div id="notificationBatch" data-next-offset="{{ next_offset }}" data-has-more="{{ '1' if has_more else '0' }}">
+  {% for item in notifications %}{{ notification_row(item) }}{% endfor %}
+</div>

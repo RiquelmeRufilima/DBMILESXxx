@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import delete, desc, func, inspect, or_, select
+from sqlalchemy import delete, desc, func, inspect, literal, or_, select, union_all
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db, engine
@@ -4024,46 +4024,29 @@ def history(
     total_pages = max(1, (total_items + page_size - 1) // page_size)
     page = min(page, total_pages)
     offset = (page - 1) * page_size
-    fetch_limit = max(page_size, page * page_size)
-
     created_sort = sort.startswith("created")
     newest_first = sort.endswith("desc")
 
     group_sort_expr = QuoteGroup.created_at if created_sort else QuoteGroup.updated_at
-    group_order = desc(group_sort_expr) if newest_first else group_sort_expr.asc()
-    group_rows = db.execute(
-        select(QuoteGroup.id, QuoteGroup.created_at, QuoteGroup.updated_at)
-        .where(*group_conditions)
-        .order_by(group_order, desc(QuoteGroup.id) if newest_first else QuoteGroup.id.asc())
-        .limit(fetch_limit)
-    ).all()
-
     legacy_sort_expr = WebQuote.created_at if created_sort else legacy_modified_expr
-    legacy_order = desc(legacy_sort_expr) if newest_first else legacy_sort_expr.asc()
-    legacy_rows = db.execute(
-        select(
-            WebQuote.id,
-            WebQuote.created_at,
-            legacy_modified_expr.label("modified_at"),
-        )
+    # A união deixa ordenação e OFFSET no banco, inclusive em páginas altas.
+    # Antes, a página 100 trazia milhares de IDs de ambos os conjuntos ao Python.
+    combined = union_all(
+        select(QuoteGroup.id.label("item_id"), literal("group").label("kind"),
+               group_sort_expr.label("sort_at")).where(*group_conditions),
+        select(WebQuote.id.label("item_id"), literal("legacy").label("kind"),
+               legacy_sort_expr.label("sort_at"))
         .select_from(WebQuote)
         .outerjoin(QuoteCommercial, QuoteCommercial.quote_id == WebQuote.id)
-        .where(*legacy_conditions)
-        .order_by(legacy_order, desc(WebQuote.id) if newest_first else WebQuote.id.asc())
-        .limit(fetch_limit)
+        .where(*legacy_conditions),
+    ).subquery()
+    ordering = (combined.c.sort_at.desc(), combined.c.item_id.desc()) if newest_first else (
+        combined.c.sort_at.asc(), combined.c.item_id.asc())
+    page_rows = db.execute(
+        select(combined.c.sort_at, combined.c.item_id, combined.c.kind)
+        .order_by(*ordering).offset(offset).limit(page_size)
     ).all()
-
-    minimum_date = datetime.min
-    timeline: list[tuple[datetime, int, str, int]] = []
-    for row in group_rows:
-        sort_at = (row.created_at if created_sort else row.updated_at) or row.created_at or minimum_date
-        timeline.append((sort_at, int(row.id or 0), "group", int(row.id)))
-    for row in legacy_rows:
-        sort_at = (row.created_at if created_sort else row.modified_at) or row.created_at or minimum_date
-        timeline.append((sort_at, int(row.id or 0), "legacy", int(row.id)))
-
-    timeline.sort(key=lambda item: (item[0], item[1]), reverse=newest_first)
-    page_entries = timeline[offset:offset + page_size]
+    page_entries = [(row.sort_at or datetime.min, row.item_id, row.kind, row.item_id) for row in page_rows]
 
     selected_group_ids = [item[3] for item in page_entries if item[2] == "group"]
     selected_legacy_ids = [item[3] for item in page_entries if item[2] == "legacy"]

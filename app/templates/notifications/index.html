@@ -1,8 +1,96 @@
 {% extends "base.html" %}
+{% from 'notifications/_items.html' import notification_row with context %}
 {% block title %}Notificações | DBMILESX{% endblock %}
 {% block page_title %}Notificações{% endblock %}
 {% block eyebrow %}CENTRAL DE ALERTAS{% endblock %}
+{% block head %}<style>#loadMoreNotifications[hidden],#enablePush[hidden],#disablePush[hidden]{display:none!important}</style>{% endblock %}
 {% block content %}
 <section class="page-heading inline"><div><span class="eyebrow">NOTIFICAÇÕES</span><h1>Nada importante passa despercebido.</h1><p>Solicitações recebidas, avisos do sistema e atividades da conta.</p></div>{% if unread_count %}<form method="post" action="/notifications/read-all"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary-button" type="submit"><svg class="ui-icon"><use href="#icon-check"></use></svg> Marcar todas como lidas</button></form>{% endif %}</section>
-<section class="panel notifications-panel">{% if notifications %}<div class="notification-list">{% for item in notifications %}<article class="notification-item {% if not item.read %}unread{% endif %} kind-{{ item.kind }}"><div class="notification-symbol"><svg class="ui-icon"><use href="#{% if item.kind == 'request' %}icon-inbox{% elif item.kind == 'chat' %}icon-chat{% elif item.kind == 'task' %}icon-clock{% elif item.kind == 'success' %}icon-check{% else %}icon-bell{% endif %}"></use></svg></div><div><div class="notification-title-row"><strong>{{ item.title }}</strong>{% if not item.read %}<span class="unread-dot"></span>{% endif %}</div><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m/%Y %H:%M') }}</small></div><form method="post" action="/notifications/{{ item.id }}/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="table-action" type="submit">{% if item.link %}Abrir{% else %}Lida{% endif %} →</button></form></article>{% endfor %}</div>{% else %}<div class="empty-state"><svg class="empty-icon"><use href="#icon-bell"></use></svg><h3>Nenhuma notificação</h3><p>Quando algo importante acontecer, aparecerá aqui.</p></div>{% endif %}</section>
+<section class="panel" style="margin-bottom:18px">
+  <div class="panel-heading"><div><span class="eyebrow">ALERTAS NO CELULAR</span><h2>Receber avisos de check-in</h2><p>Permita notificações para receber alertas mesmo com o app fechado. No iPhone, adicione primeiro o DBMILESX à tela de início.</p></div></div>
+  <button class="primary-button" type="button" id="enablePush">Ativar notificações neste dispositivo</button>
+  <button class="ghost-button" type="button" id="disablePush" hidden>Desativar neste dispositivo</button>
+  <p id="pushMessage" role="status" aria-live="polite" style="margin:10px 0 0;color:var(--muted)"></p>
+</section>
+<section class="panel notifications-panel">
+  <div class="notification-list" id="notificationList">
+    {% for item in notifications %}{{ notification_row(item) }}{% endfor %}
+  </div>
+  {% if not notifications %}<div class="empty-state"><svg class="empty-icon"><use href="#icon-bell"></use></svg><h3>Nenhuma notificação</h3><p>Quando algo importante acontecer, aparecerá aqui.</p></div>{% endif %}
+  <div style="display:flex;justify-content:center;padding:16px">
+    <button class="secondary-button" id="loadMoreNotifications" type="button" data-offset="{{ next_offset }}" {% if not has_more %}hidden{% endif %}>Carregar mais 20 notificações</button>
+  </div>
+  <p id="moreNotificationsStatus" role="status" aria-live="polite"></p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const enable=document.getElementById('enablePush');
+  const disable=document.getElementById('disablePush');
+  const note=document.getElementById('pushMessage');
+  const csrf={{ csrf_token|tojson }};
+  const more=document.getElementById('loadMoreNotifications');
+  more.addEventListener('click',async()=>{
+    if(more.disabled)return;
+    more.disabled=true; more.textContent='Carregando...';
+    try{
+      const response=await fetch(`/notifications?offset=${encodeURIComponent(more.dataset.offset)}&partial=true`,{credentials:'same-origin'});
+      if(!response.ok)throw new Error('Falha ao carregar notificações.');
+      const parsed=new DOMParser().parseFromString(await response.text(),'text/html');
+      const batch=parsed.getElementById('notificationBatch');
+      if(!batch)throw new Error('Resposta inválida.');
+      document.getElementById('notificationList').append(...batch.querySelectorAll('.notification-item'));
+      more.dataset.offset=batch.dataset.nextOffset;
+      more.hidden=batch.dataset.hasMore!=='1';
+    }catch(err){document.getElementById('moreNotificationsStatus').textContent=err.message;}
+    finally{more.disabled=false;more.textContent='Carregar mais 20 notificações';}
+  });
+  const ready=('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+  const bytes=key=>{
+    const normalized=key.replace(/-/g,'+').replace(/_/g,'/');
+    const raw=atob(normalized.padEnd(Math.ceil(normalized.length/4)*4,'='));
+    return Uint8Array.from(raw,c=>c.charCodeAt(0));
+  };
+  async function subscription(){
+    const worker=await navigator.serviceWorker.ready;
+    return worker.pushManager.getSubscription();
+  }
+  async function sync(){
+    if(!ready){note.textContent='Notificações push não são suportadas neste navegador. No iPhone, instale o site como app pela tela inicial.';enable.disabled=true;return;}
+    const sub=await subscription();
+    enable.hidden=!!sub; disable.hidden=!sub;
+    if(sub)note.textContent='Notificações ativadas neste aparelho.';
+  }
+  enable.addEventListener('click',async()=>{
+    enable.disabled=true;note.textContent='Solicitando permissão...';
+    try{
+      const permission=await Notification.requestPermission();
+      if(permission!=='granted')throw new Error('Permissão negada no navegador. Ajuste nas configurações do dispositivo.');
+      const config=await (await fetch('/notifications/push/config')).json();
+      if(!config.ok)throw new Error('A chave de notificações ainda precisa ser configurada no servidor.');
+      const worker=await navigator.serviceWorker.ready;
+      const sub=await worker.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(config.public_key)});
+      const response=await fetch('/notifications/push/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...sub.toJSON(),csrf_token:csrf})});
+      const result=await response.json();
+      if(!response.ok||!result.ok){await sub.unsubscribe();throw new Error(result.message||'Falha ao ativar.');}
+      note.textContent='Pronto! Alertas de check-in ativados neste aparelho.';
+      await sync();
+    }catch(error){note.textContent=error.message||'Não foi possível ativar.';}
+    finally{enable.disabled=false;}
+  });
+  disable.addEventListener('click',async()=>{
+    const sub=await subscription();
+    if(!sub)return;
+    try{
+      const response=await fetch('/notifications/push/unsubscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({endpoint:sub.endpoint,csrf_token:csrf})});
+      if(!response.ok)throw new Error('Falha ao desativar no servidor.');
+      await sub.unsubscribe();note.textContent='Notificações desativadas neste dispositivo.';await sync();
+    }catch(error){note.textContent=error.message||'Falha ao desativar.';}
+  });
+  sync().catch(()=>{note.textContent='Não foi possível verificar a permissão deste dispositivo.';});
+})();
+</script>
 {% endblock %}

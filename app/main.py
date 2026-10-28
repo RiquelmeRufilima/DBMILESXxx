@@ -44,6 +44,7 @@ from .routers import (
     tags,
     admin_database,
     reservations,
+    checkin_cron,
 )
 from .services.legacy_migration import migrate_legacy_data
 from .services.quote_trip_backfill import backfill_quote_trip_details
@@ -145,6 +146,9 @@ async def security_and_cache_headers(request, call_next):
             headers["Cache-Control"] = "public, max-age=2592000, immutable"
         else:
             headers.setdefault("Cache-Control", "public, max-age=86400")
+    if path == "/static/sw.js":
+        headers["Service-Worker-Allowed"] = "/"
+        headers["Cache-Control"] = "no-cache"
     return response
 
 
@@ -165,6 +169,7 @@ app.include_router(reservations.router)
 app.include_router(requests.router)
 app.include_router(tasks.router)
 app.include_router(notifications.router)
+app.include_router(checkin_cron.router)
 app.include_router(profile.router)
 app.include_router(settings.router)
 app.include_router(menu_aliases.router)

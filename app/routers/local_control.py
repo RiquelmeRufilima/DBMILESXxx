@@ -247,7 +247,7 @@ def create_user(
     if len(name) < 2 or "@" not in email or "." not in email:
         flash(request, "Informe nome e e-mail válidos.", "error")
         return _redirect_dashboard()
-    if db.scalar(select(WebUser.id).where(WebUser.email == email)):
+    if db.scalar(select(WebUser.id).where(func.lower(func.trim(WebUser.email)) == email)):
         flash(request, "Este e-mail já está em uso.", "error")
         return _redirect_dashboard()
     valid, message = validate_password(password)
@@ -312,7 +312,7 @@ async def update_user(
     if len(new_name) < 2 or "@" not in new_email or "." not in new_email:
         flash(request, "Informe nome e e-mail válidos.", "error")
         return _redirect_dashboard()
-    duplicate = db.scalar(select(WebUser.id).where(WebUser.email == new_email, WebUser.id != user.id))
+    duplicate = db.scalar(select(WebUser.id).where(func.lower(func.trim(WebUser.email)) == new_email, WebUser.id != user.id))
     if duplicate:
         flash(request, "Este e-mail já pertence a outro acesso.", "error")
         return _redirect_dashboard()

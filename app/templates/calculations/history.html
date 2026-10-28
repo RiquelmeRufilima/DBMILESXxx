@@ -975,7 +975,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   <nav class="history-pager" aria-label="Paginação do histórico">
     {% if has_previous %}<a class="secondary-button small-button" href="/calculations/history?page={{ page - 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">← Anterior</a>{% endif %}
     <strong>Página {{ page }} de {{ total_pages }}</strong>
-    {% if has_next %}<a class="secondary-button small-button" href="/calculations/history?page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">Próxima →</a>{% endif %}
+    {% if has_next %}<a class="secondary-button small-button" id="historyLoadMore" data-no-loader="1" href="/calculations/history?page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">Carregar mais 20 cotações</a>{% endif %}
   </nav>
   {% endif %}
 </div>
@@ -1033,7 +1033,9 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     style:'currency', currency:'BRL'
   });
 
-  document.querySelectorAll('[data-combine-builder]').forEach((builder) => {
+  function initCombineBuilder(builder) {
+    if (builder.dataset.combineReady) return;
+    builder.dataset.combineReady = '1';
     const submit = builder.querySelector('[data-combine-submit]');
     const countNode = builder.querySelector('[data-combine-count]');
     const costNode = builder.querySelector('[data-combine-cost]');
@@ -1116,6 +1118,10 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
       }
     });
     update();
+  }
+  document.querySelectorAll('[data-combine-builder]').forEach(initCombineBuilder);
+  document.addEventListener('dbm:history-added', event => {
+    event.detail?.querySelectorAll('[data-combine-builder]').forEach(initCombineBuilder);
   });
 })();
 </script>
@@ -1279,7 +1285,10 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     setTimeout(() => valueInput.focus(), 30);
   }
 
-  document.querySelectorAll('.js-profit-open').forEach(btn => btn.addEventListener('click', () => showProfitDialog(btn)));
+  document.addEventListener('click', event => {
+    const btn = event.target.closest('.js-profit-open');
+    if (btn) showProfitDialog(btn);
+  });
   valueInput?.addEventListener('input', fromValue);
   percentInput?.addEventListener('input', fromPercent);
   valueInput?.addEventListener('focus', () => sourceInput.value = 'value');
@@ -1530,8 +1539,6 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 
 <script>
 (() => {
-  const cards = Array.from(document.querySelectorAll('.history-group-card:not(.legacy-card)'));
-
   function setExpanded(card, expanded, scroll = false){
     if (!card) return;
     card.classList.toggle('is-history-expanded', expanded);
@@ -1549,39 +1556,54 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
   }
 
   function openOnly(card){
-    cards.forEach(item => {
+    document.querySelectorAll('.history-group-card:not(.legacy-card)').forEach(item => {
       if (item !== card) setExpanded(item, false);
     });
     setExpanded(card, true);
   }
+  document.addEventListener('click', event => {
+    const card = event.target.closest('.history-group-card:not(.legacy-card)');
+    if (!card) return;
+    const toggle = event.target.closest('.history-expand-toggle');
+    const area = event.target.closest('.history-card-head,.history-meta-grid');
+    if (!toggle && (!area || event.target.closest('a,button,input,select,textarea,label,form,details,summary'))) return;
+    if (toggle) { event.preventDefault(); event.stopPropagation(); }
+    if (card.classList.contains('is-history-expanded')) setExpanded(card, false);
+    else openOnly(card);
+  });
+  document.addEventListener('change', event => {
+    if (event.target.matches('.history-card-head input[data-history-check]') && event.target.checked)
+      openOnly(event.target.closest('.history-group-card'));
+  });
 
-  cards.forEach(card => {
-    const head = card.querySelector(':scope > .history-card-head');
-    const meta = card.querySelector(':scope > .history-meta-grid');
-    const toggle = card.querySelector('.history-expand-toggle');
-
-    const handleAreaClick = (event) => {
-      if (event.target.closest('a,button,input,select,textarea,label,form,details,summary')) return;
-      const willOpen = !card.classList.contains('is-history-expanded');
-      if (willOpen) openOnly(card);
-      else setExpanded(card, false);
-    };
-
-    head?.addEventListener('click', handleAreaClick);
-    meta?.addEventListener('click', handleAreaClick);
-
-    toggle?.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const willOpen = !card.classList.contains('is-history-expanded');
-      if (willOpen) openOnly(card);
-      else setExpanded(card, false);
-    });
-
-    const bulkCheck = card.querySelector(':scope > .history-card-head input[data-history-check]');
-    bulkCheck?.addEventListener('change', () => {
-      if (bulkCheck.checked) openOnly(card);
-    });
+  // Mantém a página utilizável enquanto mais 20 cards são anexados.
+  document.getElementById('historyLoadMore')?.addEventListener('click', async event => {
+    event.preventDefault();
+    const button = event.currentTarget;
+    if (button.dataset.loading === '1') return;
+    button.dataset.loading = '1';
+    const text = button.textContent;
+    button.textContent = 'Carregando...';
+    try {
+      const response = await fetch(button.href, {credentials:'same-origin',headers:{Accept:'text/html'}});
+      if (!response.ok) throw new Error('Falha ao carregar');
+      const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const container = document.querySelector('.quote-history-stack');
+      const fetched = page.querySelector('.quote-history-stack');
+      if (!container || !fetched) throw new Error('Resposta inesperada');
+      const newCards = document.createElement('div');
+      newCards.append(...fetched.children);
+      const next = page.getElementById('historyLoadMore');
+      button.href = next?.getAttribute('href') || button.href;
+      button.hidden = !next;
+      container.append(...newCards.children);
+      // Eventos de formulário e seleção são delegados aos novos cards.
+      document.dispatchEvent(new CustomEvent('dbm:history-added',{detail:container}));
+      const shown = container.querySelectorAll(':scope > article').length;
+      const label = document.querySelector('.history-pager > strong');
+      if (label) label.textContent = `${shown} de {{ total_items }} cotações carregadas`;
+    } catch (_) { button.textContent = 'Não foi possível carregar. Tentar novamente'; return; }
+    finally { delete button.dataset.loading; if(!button.hidden) button.textContent = text; }
   });
 
   // Se a URL vier com #group-123, permite abrir futuramente sem afetar o restante.
@@ -1591,4 +1613,4 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 
 {% if tags_ready|default(false) %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
 {% endblock %}
-{% block scripts %}<script src="/static/js/history-bulk.js?v=5.10.34" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/history-bulk.js?v=5.27.0" defer></script>{% endblock %}

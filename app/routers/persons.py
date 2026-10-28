@@ -68,7 +68,7 @@ def _person_context(user, person: Person | None = None) -> dict:
 
 @router.get("")
 @router.get("/")
-def person_list(request: Request, q: str = "", tag: list[int] = Query(default=[]), db: Session = Depends(get_db)):
+def person_list(request: Request, q: str = "", tag: list[int] = Query(default=[]), offset: int = 0, partial: bool = False, db: Session = Depends(get_db)):
     """Lista de pessoas cadastradas"""
     user = require_user(request, db)
 
@@ -98,10 +98,14 @@ def person_list(request: Request, q: str = "", tag: list[int] = Query(default=[]
     if selected_tag_ids:
         statement = statement.where(Person.id.in_(targets_with_all_tags("person", selected_tag_ids)))
     
-    persons = db.scalars(
-        statement.order_by(desc(Person.is_complete), desc(Person.created_at))
-        .limit(500)
+    # Paginação real no banco: nunca hidratar centenas de cadastros por tela.
+    offset = min(max(int(offset), 0), 100000)
+    batch = db.scalars(
+        statement.order_by(Person.is_complete.asc(), desc(Person.created_at), desc(Person.id))
+        .offset(offset).limit(21)
     ).all()
+    has_more = len(batch) > 20
+    persons = batch[:20]
     
     pending = [p for p in persons if not p.is_complete]
     complete = [p for p in persons if p.is_complete]
@@ -114,10 +118,11 @@ def person_list(request: Request, q: str = "", tag: list[int] = Query(default=[]
 
     return templates.TemplateResponse(
         request,
-        "persons/list.html",
+        "persons/_batch.html" if partial else "persons/list.html",
         context(
             request, user=user, pending=pending, complete=complete, search_query=q,
             all_tags=all_tags, tags_ready=tags_ready, selected_tag_ids=selected_tag_ids, person_tags=person_tags,
+            has_more=has_more, next_offset=offset + len(persons),
         )
     )
 
