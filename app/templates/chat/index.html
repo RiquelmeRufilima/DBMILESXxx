@@ -40,6 +40,12 @@
   .dbm-chat-side{border-right:0}.dbm-chat-main{display:none}.dbm-chat-v2.mobile-open .dbm-chat-side{display:none}.dbm-chat-v2.mobile-open .dbm-chat-main{display:flex}.dbm-chat-back{display:inline-grid;place-items:center}
   .dbm-chat-messages{padding:13px}.dbm-msg-bubble{max-width:86%}.dbm-chat-list{padding-bottom:84px}
 }
+.dbm-message-selection{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border)}
+.dbm-message-selection button{padding:8px 12px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;color:var(--text);cursor:pointer}
+.dbm-message-selection #dbmDeleteSelected{background:#852f40;color:#fff}
+.dbm-message-selection button[hidden],.dbm-msg-select[hidden]{display:none!important}
+.dbm-msg-select{display:flex;align-items:center;margin:0 8px;cursor:pointer}
+.dbm-msg-select input{width:19px;height:19px;accent-color:#28a8ef}
 </style>
 {% endblock %}
 
@@ -142,6 +148,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/private-chat.js?v=3" defer></script>
+<script src="/static/js/private-chat.js?v=4" defer></script>
 <script src="/static/js/private-chat-enhanced.js?v=20261017" defer></script>
 {% endblock %}

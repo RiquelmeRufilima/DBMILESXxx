@@ -8,37 +8,6 @@
 {% set route_items = quote.scope_route_items|default([], true) %}
 
 <style>
-  /* O resultado tem duas áreas reais: resumo e ações. Evita a grade legada
-     de três colunas que espremia o valor e sobrepunha botões. */
-  .result-hero{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:start!important;gap:22px!important;padding:24px!important}
-  .result-hero>div:first-child{min-width:0}
-  .result-hero h1{font-size:clamp(1.55rem,2.8vw,2.3rem);line-height:1.15;overflow-wrap:anywhere}
-  .result-hero p{margin-top:8px;line-height:1.5;overflow-wrap:anywhere}
-  .result-hero .quote-author-line{display:block;margin-top:10px;color:var(--muted);line-height:1.45}
-  .result-hero .page-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:8px;max-width:570px}
-  .result-hero .page-actions form{margin:0}
-  .result-hero .page-actions a,.result-hero .page-actions button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;white-space:normal;text-align:center}
-  .result-grid{grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr)!important}
-  .result-grid>.card-panel{min-width:0}
-  .result-grid .selected-company-bar{display:flex;align-items:center;gap:15px;min-width:0}
-  .result-grid .selected-company-bar img{max-width:120px;max-height:80px;object-fit:contain;border-radius:12px;background:white}
-  .result-grid .history-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .result-grid .history-meta-grid strong{overflow-wrap:anywhere}
-  .result-grid .button-column{display:grid;gap:9px}
-  .result-grid .button-column>a,.result-grid .button-column form,.result-grid .button-column form>button{width:100%;text-align:center;justify-content:center}
-  @media(max-width:980px){
-    .result-hero,.result-grid{grid-template-columns:1fr!important}
-    .result-hero .page-actions{max-width:none;justify-content:flex-start}
-  }
-  @media(max-width:600px){
-    .result-hero{padding:18px!important;gap:17px!important}
-    .result-hero .page-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
-    .result-hero .page-actions>a:first-child{grid-column:1/-1}
-    .result-hero .page-actions form,.result-hero .page-actions button{width:100%}
-    .result-hero .page-actions a,.result-hero .page-actions button{font-size:.8rem;padding:9px}
-    .result-grid .history-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-    .result-grid .selected-company-bar{flex-wrap:wrap}
-  }
   /* Estilo do botão do olhinho para ocultar/exibir trecho */
   .toggle-segment-visibility {
     background: transparent;
@@ -150,6 +119,104 @@
     </div>
   </div>
 </section>
+
+
+<section class="card-panel top-gap-xl" id="quoteSharePanel">
+  <div class="panel-heading"><div><span class="eyebrow">ATENDIMENTO</span><h2>Mensagem para o cliente</h2></div></div>
+  <p class="quote-share-muted">Edite a observação e revise a mensagem antes de compartilhar. Custos, lucro e deságio não entram no texto do cliente.</p>
+  <label for="quoteObservations"><strong>Observação da cotação</strong></label>
+  <textarea id="quoteObservations" rows="3" maxlength="3000" placeholder="Ex.: Tarifa Standard • 1 bagagem de 23 kg">{{ quote.trip.notes if quote.trip and quote.trip.notes else '' }}</textarea>
+  <div class="quote-share-actions"><button class="secondary-button" type="button" id="saveQuoteObservation">Salvar observação</button><span id="quoteShareStatus" role="status"></span></div>
+  <p class="quote-share-muted"><strong>Tipo exato do cálculo:</strong> {{ quote.calculation_type.name if quote.calculation_type else 'Não informado' }} • <strong>Tarifa:</strong> {{ quote.fare_brand or 'Não informada' }}</p>
+  <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
+  <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
+  <label for="quoteInternalMessage"><strong>Resumo interno — custo, lucro e origem da cotação</strong></label>
+  <p class="quote-share-muted">Somente para uso interno: revise os dados antes de encaminhar. O texto do cliente acima não inclui valores de custo.</p>
+  <textarea id="quoteInternalMessage" rows="13" spellcheck="true"></textarea>
+  <div class="quote-share-actions">
+    <button class="secondary-button" type="button" id="copyQuoteInternal">Copiar resumo interno</button>
+    <button class="secondary-button" type="button" id="forwardQuoteInternal">Encaminhar resumo interno ao chat</button>
+  </div>
+  <div class="quote-share-actions">
+    <button class="primary-button" type="button" id="copyQuoteMessage">Copiar mensagem</button>
+    <button class="secondary-button" type="button" id="forwardQuoteMessage">Encaminhar para o chat</button>
+  </div>
+</section>
+<style>
+#quoteSharePanel textarea{width:100%;max-width:100%;box-sizing:border-box;margin:10px 0 16px;padding:13px;border:1px solid #315273;border-radius:12px;background:#081e32;color:#f4f9ff;resize:vertical;line-height:1.55}
+.quote-share-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.quote-share-actions button{min-height:42px}.quote-share-muted{color:#a9c2d7}
+@media(max-width:600px){.quote-share-actions{display:grid;grid-template-columns:1fr 1fr}.quote-share-actions button{width:100%;white-space:normal}.quote-share-actions #quoteShareStatus{grid-column:1/-1}}
+</style>
+<script>
+(() => {
+ const note = document.getElementById('quoteObservations');
+ const editor = document.getElementById('quoteClientMessage');
+ const status = document.getElementById('quoteShareStatus');
+ const internalEditor = document.getElementById('quoteInternalMessage');
+ const formatMoney = value => Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ const sale = {{ (quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value else quote.total)|tojson }};
+ const cost = {{ quote.total|tojson }};
+ const profit = {{ (quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0)|tojson }};
+ const margin = {{ (quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0)|tojson }};
+ const method = {{ (quote.calculation_type.name if quote.calculation_type else 'Não informado')|tojson }};
+ const fare = {{ (quote.fare_brand or 'Não informada')|tojson }};
+ const airline = {{ (quote.display_airline_name or (quote.airline.name if quote.airline else 'Companhia'))|tojson }};
+ const agency = {{ (quote.user.company.name if quote.user and quote.user.company else 'Não informada')|tojson }};
+ const responsible = {{ (quote.user.name if quote.user else 'Não informado')|tojson }};
+ const includedBags = {{ (quote.input_json|default('{}', true))|tojson }};
+ let fareIncluded = '';
+ try {fareIncluded = JSON.parse(includedBags)._meta?.included_bags_per_passenger ?? ''}catch(_){}
+ const baggage = {{ quote.bags|tojson }};
+ const passengers = {{ quote.passengers|tojson }};
+ const babies = {{ quote.babies|tojson }};
+ const name = {{ (quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name)|tojson }};
+ const route = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
+ const scope = {{ (quote.scope_label or '')|tojson }};
+ function template(){
+  const roundtrip = /volta|round/i.test(scope);
+  const people = `${passengers} passageiro(s)${babies?` e ${babies} bebê(s)`:''}`;
+  const bag = fareIncluded !== '' ? (Number(fareIncluded)>0?`✅ +${fareIncluded} bagagem(ns) despachada(s) incluída(s) por passageiro\n`:'') : '';
+  const bagExtra = baggage>0?`✅ ${baggage} bagagem(ns) adicional(is) comprada(s)\n`:'';
+  const obs=note.value.trim();
+  return `✈️ COTAÇÃO - ${name}\n\n🛫 ${route}\n✈️ Voos de ${roundtrip?'IDA e VOLTA':'IDA'}\n\n✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${bagExtra}${obs?`✅ ${obs}\n`:''}\n👥 Valor total para ${people}.\n\n💰 Por: ${formatMoney(sale)}\n\n⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea.`;
+ }
+ function internalTemplate(){
+   const obs=note.value.trim();
+   const discount = (()=>{try {const input=JSON.parse(includedBags); return ['valor_gol','desagio'].every(k=>input[k]!==undefined)?`\n🧮 Deságio GOL: ${formatMoney(input.valor_gol)} - ${input.desagio}%`:''}catch(_){return ''}})();
+   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n✈️ Companhia: ${airline}\n📍 Rota: ${route}\n🏢 Cotado por: ${agency}\n👤 Responsável: ${responsible}\n🧮 Tipo do cálculo: ${method}\n🎫 Tarifa: ${fare}\n🧳 Franquia despachada: ${fareIncluded===''?'Confirmar':fareIncluded+' por passageiro'}\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${Number(margin||0).toFixed(2)}%${discount}\n\n📝 Observações: ${obs || '—'}`;
+ }
+ editor.value=template();
+ internalEditor.value=internalTemplate();
+ document.getElementById('saveQuoteObservation').addEventListener('click',async()=>{
+  status.textContent='Salvando...';
+  try {
+   const res=await fetch({{ ('/calculations/result/' ~ quote.id ~ '/observations')|tojson }},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({observations:note.value,csrf_token:{{ csrf_token|tojson }}})});
+   const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Falha ao salvar');
+   status.textContent='Observação salva';
+  }catch(err){status.textContent=err.message||'Erro ao salvar';}
+ });
+ note.addEventListener('input',()=>{if(!editor.dataset.edited)editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();});
+ internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
+ editor.addEventListener('input',()=>editor.dataset.edited='1');
+ document.getElementById('copyQuoteMessage').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(editor.value);status.textContent='Mensagem copiada';}
+  catch(_){editor.focus();editor.select();status.textContent='Selecione e copie o texto';}
+ });
+ document.getElementById('copyQuoteInternal').addEventListener('click',async()=>{
+  try {await navigator.clipboard.writeText(internalEditor.value);status.textContent='Resumo interno copiado'}
+  catch(_){internalEditor.focus();internalEditor.select();status.textContent='Selecione e copie o texto'}
+ });
+ document.getElementById('forwardQuoteInternal').addEventListener('click',()=>{
+  if(!confirm('Este resumo inclui custo e lucro. Enviar para o chat interno?')) return;
+  sessionStorage.setItem('dbmPendingQuoteMessage',internalEditor.value);location.href='/chat';
+ });
+ document.getElementById('forwardQuoteMessage').addEventListener('click',()=>{
+  sessionStorage.setItem('dbmPendingQuoteMessage',editor.value);
+  location.href='/chat';
+ });
+})();
+</script>
 
 <section class="card-panel top-gap-xl">
   <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO</span><h2>Campos usados no cálculo</h2></div></div>

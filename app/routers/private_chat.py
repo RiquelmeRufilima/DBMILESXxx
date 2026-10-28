@@ -115,3 +115,61 @@ async def send_private(contact_id:str,request:Request,db:Session=Depends(get_db)
     row=PrivateChatMessage(sender_id=me.id,recipient_id=p.id,message=text,is_read=False); db.add(row); db.flush()
     create_notification(db,p.id,f'Mensagem privada de {me.name}',text[:300],kind='chat',link=f'/chat?contact={_identity(db,me).contact_id}',commit=False); db.commit(); db.refresh(row)
     return {'ok':True,'message':_payload(row,me)}
+
+
+@router.post('/private/messages/delete')
+async def delete_private_messages(request: Request, db: Session = Depends(get_db)):
+    me = current_user(request, db)
+    if me is None:
+        return JSONResponse({'ok': False, 'message': 'Não autenticado.'}, 401)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    if not validate_csrf_token(request.session, str(data.get('csrf_token') or '')):
+        return JSONResponse({'ok': False, 'message': 'Sessão expirada.'}, 403)
+    raw_ids = data.get('message_ids', [])
+    if not isinstance(raw_ids, list) or not (1 <= len(raw_ids) <= 100):
+        return JSONResponse({'ok': False, 'message': 'Selecione de 1 a 100 mensagens.'}, 400)
+    try:
+        ids = set(int(i) for i in raw_ids)
+    except (TypeError, ValueError):
+        return JSONResponse({'ok': False, 'message': 'IDs inválidos.'}, 400)
+    if any(i <= 0 for i in ids):
+        return JSONResponse({'ok': False, 'message': 'IDs inválidos.'}, 400)
+    rows = db.scalars(select(PrivateChatMessage).where(PrivateChatMessage.id.in_(ids), PrivateChatMessage.sender_id == me.id)).all()
+    if len(rows) != len(ids):
+        return JSONResponse({'ok': False, 'message': 'Só é possível excluir mensagens que você enviou.'}, 403)
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return {'ok': True, 'deleted_ids': sorted(ids)}
+
+
+@router.post('/group/messages/delete')
+async def delete_group_messages(request: Request, db: Session = Depends(get_db)):
+    me = current_user(request, db)
+    if me is None or not me.company_id:
+        return JSONResponse({'ok': False, 'message': 'Grupo indisponível.'}, 403)
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    if not validate_csrf_token(request.session, str(data.get('csrf_token') or '')):
+        return JSONResponse({'ok': False, 'message': 'Sessão expirada.'}, 403)
+    values = data.get('message_ids', [])
+    if not isinstance(values, list) or not (1 <= len(values) <= 100):
+        return JSONResponse({'ok': False, 'message': 'Selecione de 1 a 100 mensagens.'}, 400)
+    try:
+        ids = set(int(v) for v in values)
+    except (ValueError, TypeError):
+        return JSONResponse({'ok': False, 'message': 'IDs inválidos.'}, 400)
+    if any(i <= 0 for i in ids):
+        return JSONResponse({'ok': False, 'message': 'IDs inválidos.'}, 400)
+    rows = db.scalars(select(ChatMessage).where(ChatMessage.id.in_(ids), ChatMessage.company_id == me.company_id, ChatMessage.user_id == me.id)).all()
+    if len(rows) != len(ids):
+        return JSONResponse({'ok': False, 'message': 'Só é possível excluir mensagens suas deste grupo.'}, 403)
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return {'ok': True, 'deleted_ids': sorted(ids)}

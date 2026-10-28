@@ -747,12 +747,19 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
           </label>
           <label>Tarifa
             <select name="fare_brand">
+              {% set calc_key_l = (selected_type.legacy_key|lower) if selected_type and selected_type.legacy_key else '' %}
               {% if 'latam' in airline_name_l %}
-                {% set fares = ['Light','Standard','Full'] %}
-              {% elif 'smiles' in airline_name_l or 'gol' in airline_name_l %}
+                {% set fares = ['Light','Standard','Full','Premium Business Full'] %}
+              {% elif 'smiles' in airline_name_l or calc_key_l == 'gol_smiles' %}
+                {% set fares = ['Light','Turbinada'] %}
+              {% elif 'gol' in airline_name_l or calc_key_l == 'gol_desagio' %}
                 {% set fares = ['Light','Classic','Flex'] %}
               {% elif 'azul' in airline_name_l or 'tudoazul' in airline_name_l or 'tudo azul' in airline_name_l %}
-                {% set fares = ['Azul','Mais Azul','Azul Super','Business'] %}
+                {% if 'pelo mundo' in airline_name_l or 'pelomundo' in calc_key_l or 'liminar' in airline_name_l %}
+                  {% set fares = ['Sem bagagem','Com bagagem'] %}
+                {% else %}
+                  {% set fares = ['Azul','Mais Azul','Azul Super','Business','Com bagagem','Sem bagagem'] %}
+                {% endif %}
               {% else %}
                 {% set fares = ['Com bagagem','Sem bagagem'] %}
               {% endif %}
@@ -760,6 +767,14 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
                 <option value="{{ fare }}" {% if meta.get('fare_brand') == fare %}selected{% endif %}>{{ fare }}</option>
               {% endfor %}
             </select>
+          </label>
+          <label>Bagagem despachada incluída na tarifa
+            <select name="included_bags_per_passenger" id="includedBagsFare">
+              {% set included = meta.get('included_bags_per_passenger', '')|string %}
+              <option value="" {% if not included %}selected{% endif %}>A confirmar conforme passagem e rota</option>
+              {% for amount in range(0,4) %}<option value="{{ amount }}" {% if included == amount|string %}selected{% endif %}>{{ 'Sem bagagem despachada' if amount == 0 else ('+' ~ amount ~ ' bagagem(ns) por passageiro incluída(s)') }}</option>{% endfor %}
+            </select>
+            <small>Franquia da tarifa selecionada: não é custo adicional. Confirme a regra do bilhete e da rota antes de marcar.</small>
           </label>
         </div>
       </div>
@@ -1390,6 +1405,20 @@ document.addEventListener('person-selected', function(event) {
   protectForm(document.getElementById('quoteBaseForm'));
 })();
 (function(){
+  // Sugestões de franquia por família tarifária; o agente confirma o bilhete.
+  const fareSelect = document.querySelector('select[name="fare_brand"]');
+  const includedSelect = document.getElementById('includedBagsFare');
+  const suggestedBags = {
+    'light': '0', 'sem bagagem': '0', 'com bagagem': '1',
+    'turbinada': '1', 'classic': '1', 'flex': '1',
+    'standard': '1', 'full': '1', 'premium business full': '2',
+    'azul': '0', 'mais azul': '1', 'azul super': '2', 'business': '3'
+  };
+  fareSelect?.addEventListener('change', () => {
+    if (!includedSelect) return;
+    const suggestion = suggestedBags[fareSelect.value.trim().toLowerCase()];
+    includedSelect.value = suggestion === undefined ? '' : suggestion;
+  });
   const moneyHints = /taxa|valor|pre[cç]o|custo|dinheiro|milheiro|bagagem|comiss[aã]o|tarifa|adicional|imposto/i;
   const milesHints = /milha|ponto|avios/i;
 
@@ -1475,6 +1504,15 @@ document.addEventListener('person-selected', function(event) {
       if(input.value.trim()) input.value = kind === 'money' ? formatBRMoney(parsed.value) : formatMiles(parsed.value);
     };
 
+    if(kind === 'miles') input.addEventListener('input', () => {
+      // A normalização de pontuação é feita apenas nesse campo, sem alterar valores monetários.
+      const before=input.value;
+      const position=input.selectionStart;
+      if(before.includes(',')) {
+        input.value=before.replace(/,/g,'.');
+        if(position!==null) input.setSelectionRange(position,position);
+      }
+    });
     input.addEventListener('blur', validateAndFormat);
     input.addEventListener('input', () => input.setCustomValidity(''));
   });

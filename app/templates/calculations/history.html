@@ -657,6 +657,8 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 {% macro option_saved_details(quote) -%}
   <div class="history-option-detail-grid professional-option-details">
     <div><small>Tarifa</small><strong>{{ quote.fare_brand or 'Não informada' }}</strong></div>
+    <div><small>Tipo de cálculo</small><strong>{{ quote.exact_calculation_type or 'Não informado' }}</strong></div>
+    <div><small>Bagagem incluída na tarifa</small><strong>{% if quote.included_bags_per_passenger is not none and quote.included_bags_per_passenger != '' %}{% if quote.included_bags_per_passenger|int > 0 %}+{{ quote.included_bags_per_passenger }} bag. por passageiro{% else %}Sem bagagem despachada{% endif %}{% else %}A confirmar{% endif %}</strong></div>
     <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
     <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
     <div><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
@@ -903,7 +905,7 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
                   </div>
                   {% endif %}
                   {{ option_saved_details(quote) }}
-                  <small>{{ quote.method_label or (quote.calculation_type.name if quote.calculation_type else 'Cálculo') }}{% if quote.bags %} • {{ quote.bags }} bag.{% endif %}{% if quote.extra_value_saved %} • Taxa {{ quote.extra_value_saved }}{% endif %}</small>
+                  <small>{{ quote.exact_calculation_type or 'Cálculo' }}{% if quote.bags %} • {{ quote.bags }} bag.{% endif %}{% if quote.extra_value_saved %} • Taxa {{ quote.extra_value_saved }}{% endif %}</small>
                   <small class="quote-option-author">Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong></small>
                   {% if quote.option_description %}<small class="history-option-note">{{ quote.option_description }}</small>{% endif %}
                 </div>

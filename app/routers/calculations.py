@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import delete, desc, func, inspect, literal, or_, select, union_all
+from sqlalchemy import delete, desc, func, inspect, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..database import get_db, engine
@@ -1001,6 +1001,8 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
         meta = _quote_meta(quote)
         airline = getattr(quote, "airline", None)
         quote.fare_brand = meta.get("fare_brand") or _default_fare_for_airline(airline.name if airline else "")
+        quote.included_bags_per_passenger = meta.get("included_bags_per_passenger", "")
+        quote.exact_calculation_type = (quote.calculation_type.name if quote.calculation_type else "Cálculo")
         quote.cabin_class = meta.get("cabin_class") or ""
         quote.option_description = meta.get("description") or ""
         quote.extra_name_saved = meta.get("extra_name") or ""
@@ -3638,6 +3640,7 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     }
     values["_meta"] = {
         "fare_brand": str(form.get("fare_brand") or "").strip(),
+        "included_bags_per_passenger": str(form.get("included_bags_per_passenger") or "").strip(),
         "cabin_class": str(form.get("cabin_class") or "").strip(),
         "description": str(form.get("option_description") or "").strip(),
         "extra_name": str(form.get("extra_name") or "").strip(),
@@ -3900,6 +3903,31 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments))
 
 
+@router.post('/result/{quote_id}/observations')
+async def save_result_observations(quote_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({'ok': False, 'message': 'Não autenticado.'}, status_code=401)
+    quote = db.get(WebQuote, quote_id)
+    if not _quote_allowed(user, quote):
+        return JSONResponse({'ok': False, 'message': 'Cotação não encontrada.'}, status_code=404)
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not validate_csrf_token(request.session, str(payload.get('csrf_token') or '')):
+        return JSONResponse({'ok': False, 'message': 'Sessão expirada.'}, status_code=403)
+    note = str(payload.get('observations') or '').strip()
+    if len(note) > 3000:
+        return JSONResponse({'ok': False, 'message': 'Limite de 3.000 caracteres.'}, status_code=400)
+    if quote.trip is None:
+        quote.trip = QuoteTripDetail(notes=note)
+    else:
+        quote.trip.notes = note
+    db.commit()
+    return {'ok': True, 'observations': note}
+
+
 @router.get("/history")
 def history(
     request: Request,
@@ -4024,29 +4052,46 @@ def history(
     total_pages = max(1, (total_items + page_size - 1) // page_size)
     page = min(page, total_pages)
     offset = (page - 1) * page_size
+    fetch_limit = max(page_size, page * page_size)
+
     created_sort = sort.startswith("created")
     newest_first = sort.endswith("desc")
 
     group_sort_expr = QuoteGroup.created_at if created_sort else QuoteGroup.updated_at
+    group_order = desc(group_sort_expr) if newest_first else group_sort_expr.asc()
+    group_rows = db.execute(
+        select(QuoteGroup.id, QuoteGroup.created_at, QuoteGroup.updated_at)
+        .where(*group_conditions)
+        .order_by(group_order, desc(QuoteGroup.id) if newest_first else QuoteGroup.id.asc())
+        .limit(fetch_limit)
+    ).all()
+
     legacy_sort_expr = WebQuote.created_at if created_sort else legacy_modified_expr
-    # A união deixa ordenação e OFFSET no banco, inclusive em páginas altas.
-    # Antes, a página 100 trazia milhares de IDs de ambos os conjuntos ao Python.
-    combined = union_all(
-        select(QuoteGroup.id.label("item_id"), literal("group").label("kind"),
-               group_sort_expr.label("sort_at")).where(*group_conditions),
-        select(WebQuote.id.label("item_id"), literal("legacy").label("kind"),
-               legacy_sort_expr.label("sort_at"))
+    legacy_order = desc(legacy_sort_expr) if newest_first else legacy_sort_expr.asc()
+    legacy_rows = db.execute(
+        select(
+            WebQuote.id,
+            WebQuote.created_at,
+            legacy_modified_expr.label("modified_at"),
+        )
         .select_from(WebQuote)
         .outerjoin(QuoteCommercial, QuoteCommercial.quote_id == WebQuote.id)
-        .where(*legacy_conditions),
-    ).subquery()
-    ordering = (combined.c.sort_at.desc(), combined.c.item_id.desc()) if newest_first else (
-        combined.c.sort_at.asc(), combined.c.item_id.asc())
-    page_rows = db.execute(
-        select(combined.c.sort_at, combined.c.item_id, combined.c.kind)
-        .order_by(*ordering).offset(offset).limit(page_size)
+        .where(*legacy_conditions)
+        .order_by(legacy_order, desc(WebQuote.id) if newest_first else WebQuote.id.asc())
+        .limit(fetch_limit)
     ).all()
-    page_entries = [(row.sort_at or datetime.min, row.item_id, row.kind, row.item_id) for row in page_rows]
+
+    minimum_date = datetime.min
+    timeline: list[tuple[datetime, int, str, int]] = []
+    for row in group_rows:
+        sort_at = (row.created_at if created_sort else row.updated_at) or row.created_at or minimum_date
+        timeline.append((sort_at, int(row.id or 0), "group", int(row.id)))
+    for row in legacy_rows:
+        sort_at = (row.created_at if created_sort else row.modified_at) or row.created_at or minimum_date
+        timeline.append((sort_at, int(row.id or 0), "legacy", int(row.id)))
+
+    timeline.sort(key=lambda item: (item[0], item[1]), reverse=newest_first)
+    page_entries = timeline[offset:offset + page_size]
 
     selected_group_ids = [item[3] for item in page_entries if item[2] == "group"]
     selected_legacy_ids = [item[3] for item in page_entries if item[2] == "legacy"]

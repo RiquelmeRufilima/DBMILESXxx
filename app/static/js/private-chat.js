@@ -41,7 +41,7 @@
   function messageHtml(item,prefix){
     const senderId=Number(item.user_id ?? item.sender_id ?? 0);
     const mine=senderId===userId;
-    return `<article class="dbm-msg ${mine?'mine':''}" data-message-id="${prefix}-${Number(item.id)}"><div class="dbm-msg-bubble"><strong>${esc(item.user_name || (mine?'Você':'Usuário'))}</strong><p>${esc(item.message)}</p><small>${esc(when(item.created_at))}</small></div></article>`;
+    return `<article class="dbm-msg ${mine?'mine':''}" data-message-id="${prefix}-${Number(item.id)}"><label class="dbm-msg-select" hidden><input type="checkbox" value="${Number(item.id)}" data-select-prefix="${prefix}" ${mine?'':'disabled'} aria-label="Selecionar mensagem"></label><div class="dbm-msg-bubble"><strong>${esc(item.user_name || (mine?'Você':'Usuário'))}</strong><p>${esc(item.message)}</p><small>${esc(when(item.created_at))}</small></div></article>`;
   }
 
   function setMessages(items,prefix){
@@ -226,6 +226,36 @@
   back?.addEventListener('click',()=>shell.classList.remove('mobile-open'));
   input?.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit();}});
 
+  const bar=document.createElement('div');
+  bar.className='dbm-message-selection';
+  bar.innerHTML='<button type="button" id="dbmSelectMessages">Selecionar mensagens</button> <button type="button" id="dbmDeleteSelected" hidden>Excluir selecionadas</button> <button type="button" id="dbmCancelSelection" hidden>Cancelar</button>';
+  list?.parentElement?.insertBefore(bar,list);
+  let selectMode=false;
+  function syncSelection(){
+    list.querySelectorAll('.dbm-msg-select').forEach(el=>{el.hidden=!selectMode;});
+    const count=list.querySelectorAll('input[data-select-prefix]:checked').length;
+    document.getElementById('dbmDeleteSelected').textContent=`Excluir selecionadas (${count})`;
+  }
+  document.getElementById('dbmSelectMessages').onclick=()=>{selectMode=true;document.getElementById('dbmSelectMessages').hidden=true;document.getElementById('dbmDeleteSelected').hidden=false;document.getElementById('dbmCancelSelection').hidden=false;syncSelection();};
+  document.getElementById('dbmCancelSelection').onclick=()=>{selectMode=false;document.getElementById('dbmSelectMessages').hidden=false;document.getElementById('dbmDeleteSelected').hidden=true;document.getElementById('dbmCancelSelection').hidden=true;list.querySelectorAll('input[data-select-prefix]').forEach(x=>x.checked=false);syncSelection();};
+  list?.addEventListener('change',e=>{if(e.target.matches('input[data-select-prefix]'))syncSelection();});
+  document.getElementById('dbmDeleteSelected').onclick=async()=>{
+    const prefix=view==='team'?'g':'p';
+    const ids=[...list.querySelectorAll(`input[data-select-prefix="${prefix}"]:checked`)].map(x=>Number(x.value));
+    if(!ids.length)return;
+    if(!confirm(`Excluir ${ids.length} mensagem(ns) enviadas por você?`))return;
+    try{
+      const response=await fetch((view==='team'?'/chat/group/messages/delete':'/chat/private/messages/delete'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message_ids:ids,csrf_token:csrf})});
+      const data=await response.json();if(!data.ok)throw Error(data.message||'Falha ao excluir');
+      for(const id of data.deleted_ids){list.querySelector(`[data-message-id="${prefix}-${id}"]`)?.remove();}
+      document.getElementById('dbmCancelSelection').click();refreshSidebar();
+    }catch(e){alert(e.message||'Não foi possível excluir.');}
+  };
+  // As caixas de seleção só aparecem ao ativar o modo seleção.
+  const observer=new MutationObserver(()=>{ if(selectMode)syncSelection(); });
+  if(list)observer.observe(list,{childList:true,subtree:false});
+  const pendingQuote=sessionStorage.getItem('dbmPendingQuoteMessage');
+  if(pendingQuote && input){ input.value=pendingQuote;sessionStorage.removeItem('dbmPendingQuoteMessage');status.textContent='Cotação pronta para encaminhar. Selecione o contato e envie.'; }
   scrollBottom(); setTabs(); updateCompose(); connectGroup();
   privatePoll=setInterval(pollPrivateMessages,1800);
   sidebarPoll=setInterval(refreshSidebar,3500);
