@@ -744,6 +744,25 @@ class ChatAttachment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class ChatMessageFlag(Base):
+    """Marcações das mensagens do chat: fixar, favoritar e denunciar.
+
+    kind: "group" (ChatMessage) ou "private" (PrivateChatMessage).
+    flag: "pin" (visível para todos da conversa), "fav" (só para quem marcou)
+    ou "report" (registro de denúncia). Tabela criada sob demanda.
+    """
+    __tablename__ = "web_chat_message_flags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    message_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    flag: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    company_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 # Índices compostos das consultas incrementais mais frequentes.
 Index("ix_chat_company_recent", ChatMessage.company_id, ChatMessage.id)
 Index("ix_pv_sender_recipient_recent", PrivateChatMessage.sender_id, PrivateChatMessage.recipient_id, PrivateChatMessage.id)

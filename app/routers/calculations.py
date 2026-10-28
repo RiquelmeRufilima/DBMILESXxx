@@ -1284,7 +1284,7 @@ def _format_saved_calculation_value(value: Any, field: CalculationField | Any) -
         return raw
 
     field_type = str(getattr(field, "field_type", "") or "").strip().lower()
-    if field_type == "miles":
+    if field_type == "miles" or _field_semantic_type(field) == "miles":
         try:
             return f"{_parse_miles_field(raw):.3f}"
         except (TypeError, ValueError):
@@ -1400,13 +1400,24 @@ def _parse_amount(value: Any, *, field_name: str = "valor") -> float:
 def _field_semantic_type(field: CalculationField | Any) -> str:
     """Resolve o tipo financeiro real do campo, inclusive cadastros antigos."""
     explicit = str(getattr(field, "field_type", "") or "").strip().lower()
-    if explicit in {"miles", "money", "integer", "percent", "text", "select"}:
+    if explicit in {"miles", "integer", "percent", "text", "select"}:
         return explicit
     key = _normalized_token(getattr(field, "key", ""))
     label = _normalized_token(getattr(field, "label", ""))
     combined = f"{key} {label}"
-    if any(token in combined for token in ("milha", "ponto", "avios")) and "milheiro" not in combined:
+    # Campos de quantidade de pontos/milhas (ex.: "Pontos/Milhas totais em
+    # milheiros" da Azul) são SEMPRE milhas com 3 casas, mesmo que o cadastro
+    # antigo no banco esteja como "money"/"number". "milheiro" no rótulo não
+    # transforma o campo em dinheiro; só valor/taxa/preço/custo/dinheiro.
+    money_words = ("valor", "taxa", "preco", "custo", "dinheiro", "imposto", "comissao", "tarifa")
+    is_points_quantity = (
+        key in {"milhas", "milha", "pontos", "ponto", "avios"}
+        or (any(token in combined for token in ("milha", "ponto", "avios")) and not any(word in label for word in money_words))
+    )
+    if is_points_quantity:
         return "miles"
+    if explicit == "money":
+        return explicit
     if any(token in combined for token in (
         "taxa", "valor", "preco", "custo", "dinheiro", "milheiro",
         "bagagem", "comissao", "tarifa", "adicional", "imposto"
@@ -2701,6 +2712,9 @@ def _new_calculation_impl(
     # Valores usados APENAS para exibição ao editar. O JSON original permanece
     # intacto até o usuário salvar novamente.
     field_display_values: dict[str, str] = {}
+    field_semantic_types: dict[str, str] = {
+        str(_field.key): _field_semantic_type(_field) for _field in calculation_fields
+    }
     for _field in calculation_fields:
         _raw_saved = field_values.get(_field.key, _field.default_value or "0")
         field_display_values[_field.key] = _format_saved_calculation_value(_raw_saved, _field)
@@ -2783,6 +2797,7 @@ def _new_calculation_impl(
             selected_type=selected_type,
             field_values=field_values,
             field_display_values=field_display_values,
+            field_semantic_types=field_semantic_types,
             calculation_fields=calculation_fields,
             option_id=option_id,
             option_bags=option_bags,

@@ -183,7 +183,7 @@ def _parse_fields(raw: str) -> list[dict]:
             {
                 "key": key,
                 "label": label,
-                "field_type": field_type if field_type in {"number", "integer", "percent", "text", "select"} else "number",
+                "field_type": field_type if field_type in {"number", "integer", "percent", "text", "select", "miles", "money"} else "number",
                 "default_value": str(item.get("default_value") or "0"),
                 "required": bool(item.get("required")),
                 "min_value": item.get("min_value"),

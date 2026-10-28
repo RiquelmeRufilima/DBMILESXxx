@@ -25,6 +25,7 @@ from ..models import (
     Airline,
     ChatAttachment,
     ChatMessage,
+    ChatMessageFlag,
     CompanyTask,
     FlightRegistry,
     Person,
@@ -370,6 +371,10 @@ def _ensure_chat_schema(db: Session) -> None:
         ChatAttachment.__table__.create(bind=db.get_bind(), checkfirst=True)
     except Exception:  # pragma: no cover - corrida entre instâncias
         pass
+    try:
+        ChatMessageFlag.__table__.create(bind=db.get_bind(), checkfirst=True)
+    except Exception:  # pragma: no cover - corrida entre instâncias
+        pass
     _CHAT_SCHEMA_READY = True
 
 
@@ -408,6 +413,7 @@ def _private_message_payload(item: PrivateChatMessage, user: WebUser, attachment
         "recipient_id": item.recipient_id,
         "user_id": item.sender_id,
         "user_name": sender.name if sender else ("Você" if item.sender_id == user.id else "Usuário"),
+        "user_contact_id": (getattr(sender, "contact_id", "") or "") if sender else "",
         "message": item.message,
         "is_read": bool(item.is_read),
         "created_at": iso_utc(item.created_at),
@@ -420,6 +426,7 @@ def _group_message_payload(item: ChatMessage, attachment: dict | None = None) ->
         "id": item.id,
         "user_id": item.user_id,
         "user_name": item.user.name if item.user else "Usuário",
+        "user_contact_id": (getattr(item.user, "contact_id", "") or "") if item.user else "",
         "message": item.message,
         "created_at": iso_utc(item.created_at),
         "attachment": attachment,
@@ -1297,6 +1304,302 @@ def chat_file(attachment_id: int, request: Request, download: int = 0, db: Sessi
     if att.file_type != "application/pdf":
         headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
     return Response(content=body, media_type=att.file_type, headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# Opções das mensagens: responder, encaminhar, fixar, favoritar, denunciar,
+# apagar e encaminhar cotação para o chat.
+# ---------------------------------------------------------------------------
+FORWARD_LABEL = "↪ Encaminhada"
+
+
+def _parse_message_keys(values) -> list[tuple[str, int]]:
+    """Converte ["g-12", "p-30"] em [("group", 12), ("private", 30)]."""
+    out: list[tuple[str, int]] = []
+    if not isinstance(values, list):
+        return out
+    for raw in values[:100]:
+        text = str(raw or "").strip()
+        if len(text) < 3 or text[1] != "-" or text[0] not in "gp":
+            continue
+        try:
+            number = int(text[2:])
+        except ValueError:
+            continue
+        if number > 0:
+            out.append(("group" if text[0] == "g" else "private", number))
+    return out
+
+
+def _load_allowed_message(db: Session, user: WebUser, kind: str, message_id: int):
+    if kind == "group":
+        item = db.get(ChatMessage, message_id)
+        if item is None or not user.company_id or item.company_id != user.company_id:
+            return None
+        return item
+    item = db.get(PrivateChatMessage, message_id)
+    if item is None or user.id not in {item.sender_id, item.recipient_id}:
+        return None
+    return item
+
+
+def _message_owner_id(kind: str, item) -> int:
+    return int(item.user_id if kind == "group" else item.sender_id)
+
+
+def _forward_targets(db: Session, user: WebUser, targets) -> tuple[list[str], str]:
+    clean: list[str] = []
+    if not isinstance(targets, list):
+        targets = [targets]
+    for raw in targets[:20]:
+        value = str(raw or "").strip()
+        if not value:
+            continue
+        if value == "group":
+            if not user.company_id:
+                return [], "Você não está em uma empresa."
+        elif _resolve_private_contact(db, user, value) is None:
+            return [], f"Contato {value} não encontrado."
+        if value not in clean:
+            clean.append(value if value == "group" else value.upper())
+    if not clean:
+        return [], "Escolha para quem encaminhar."
+    return clean, ""
+
+
+def _send_copy(db: Session, user: WebUser, target: str, text: str, attachment: ChatAttachment | None = None):
+    """Grava uma mensagem (e cópia do anexo, se houver) no grupo ou no privado."""
+    text = str(text or "").strip()[:2000] or "↪"
+    if target == "group":
+        message = ChatMessage(company_id=user.company_id, user_id=user.id, message=text)
+        db.add(message)
+        db.flush()
+        if attachment is not None:
+            db.add(ChatAttachment(
+                kind="group", message_id=message.id, company_id=user.company_id, uploader_id=user.id,
+                file_name=attachment.file_name, file_type=attachment.file_type, file_size=attachment.file_size,
+                storage_json=attachment.storage_json,
+            ))
+        _notify_group(db, user, text)
+        return message
+    partner = _resolve_private_contact(db, user, target)
+    if partner is None:
+        return None
+    exists = db.scalar(select(UserChatContact.id).where(
+        UserChatContact.owner_user_id == user.id, UserChatContact.contact_user_id == partner.id))
+    if not exists:
+        db.add(UserChatContact(owner_user_id=user.id, contact_user_id=partner.id))
+    message = PrivateChatMessage(company_id=user.company_id or None, sender_id=user.id, recipient_id=partner.id,
+                                 message=text, is_read=False)
+    db.add(message)
+    db.flush()
+    if attachment is not None:
+        db.add(ChatAttachment(
+            kind="private", message_id=message.id, company_id=user.company_id, uploader_id=user.id,
+            recipient_id=partner.id, file_name=attachment.file_name, file_type=attachment.file_type,
+            file_size=attachment.file_size, storage_json=attachment.storage_json,
+        ))
+    create_notification(db, partner.id, f"Mensagem de {user.name}", text[:300], kind="chat",
+                        link=f"/company/chat?contact={user.contact_id}", commit=False)
+    return message
+
+
+async def _json_with_csrf(request: Request) -> tuple[dict, JSONResponse | None]:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    if not validate_csrf_token(request.session, str(payload.get("csrf_token") or "")):
+        return payload, JSONResponse({"ok": False, "message": "Sessão expirada. Recarregue a página."}, status_code=403)
+    return payload, None
+
+
+@router.post("/chat/forward")
+async def chat_forward_api(request: Request, db: Session = Depends(get_db)):
+    """Encaminha mensagens (com anexos) para o grupo e/ou contatos."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    _ensure_user_contact_id(db, user)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    keys = _parse_message_keys(payload.get("message_ids"))
+    if not keys:
+        return JSONResponse({"ok": False, "message": "Selecione ao menos uma mensagem."}, status_code=400)
+    targets, problem = _forward_targets(db, user, payload.get("targets"))
+    if problem:
+        return JSONResponse({"ok": False, "message": problem}, status_code=400)
+    _ensure_chat_schema(db)
+    originals = []
+    for kind, message_id in sorted(keys, key=lambda x: x[1]):
+        item = _load_allowed_message(db, user, kind, message_id)
+        if item is None:
+            return JSONResponse({"ok": False, "message": "Mensagem indisponível."}, status_code=404)
+        attachment = db.scalar(select(ChatAttachment).where(ChatAttachment.kind == kind, ChatAttachment.message_id == item.id))
+        text = str(item.message or "")
+        if text.startswith(FORWARD_LABEL + "\n"):
+            text = text[len(FORWARD_LABEL) + 1:]
+        originals.append((f"{FORWARD_LABEL}\n{text}"[:2000], attachment))
+    sent = 0
+    for target in targets:
+        for text, attachment in originals:
+            if _send_copy(db, user, target, text, attachment) is not None:
+                sent += 1
+    db.commit()
+    return {"ok": True, "sent": sent}
+
+
+@router.post("/chat/quotes/forward")
+async def chat_quote_forward_api(request: Request, db: Session = Depends(get_db)):
+    """Encaminha uma cotação (link interno, sem custo no texto) para o chat."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    _ensure_user_contact_id(db, user)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    try:
+        quote_id = int(payload.get("quote_id"))
+    except (TypeError, ValueError):
+        return JSONResponse({"ok": False, "message": "Cotação inválida."}, status_code=400)
+    quote = db.get(WebQuote, quote_id)
+    if quote is None or not (quote.user_id == user.id or (user.company_id and quote.company_id == user.company_id)):
+        return JSONResponse({"ok": False, "message": "Cotação indisponível."}, status_code=404)
+    targets, problem = _forward_targets(db, user, payload.get("targets") or payload.get("target"))
+    if problem:
+        return JSONResponse({"ok": False, "message": problem}, status_code=400)
+    custom = str(payload.get("message") or "").strip()
+    name = str(getattr(quote, "quote_name", "") or f"Cotação {quote.id}")[:100]
+    route = f"{getattr(quote, 'origin', '') or '—'} → {getattr(quote, 'destination', '') or '—'}"
+    header = f"✈️ Cotação compartilhada | {name} | {route}"
+    text = f"{header}\n\n{custom[:1500]}\n\n/calculations/result/{quote.id}" if custom else f"{header}\n/calculations/result/{quote.id}"
+    for target in targets:
+        _send_copy(db, user, target, text)
+    db.commit()
+    return {"ok": True, "quote_id": quote.id}
+
+
+@router.post("/chat/messages/action")
+async def chat_message_action_api(request: Request, db: Session = Depends(get_db)):
+    """Fixar/desafixar, favoritar/desfavoritar, denunciar ou apagar mensagens."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    action = str(payload.get("action") or "").strip().lower()
+    if action not in {"pin", "unpin", "fav", "unfav", "report", "delete"}:
+        return JSONResponse({"ok": False, "message": "Ação inválida."}, status_code=400)
+    keys = _parse_message_keys(payload.get("message_ids"))
+    if not keys:
+        return JSONResponse({"ok": False, "message": "Selecione ao menos uma mensagem."}, status_code=400)
+    _ensure_chat_schema(db)
+
+    items = []
+    for kind, message_id in keys:
+        item = _load_allowed_message(db, user, kind, message_id)
+        if item is None:
+            return JSONResponse({"ok": False, "message": "Mensagem indisponível."}, status_code=404)
+        items.append((kind, item))
+
+    if action == "delete":
+        manager = _can_manage_company(user)
+        for kind, item in items:
+            own = _message_owner_id(kind, item) == user.id
+            if not (own or (kind == "group" and manager)):
+                return JSONResponse({"ok": False, "message": "Você só pode apagar mensagens que enviou."}, status_code=403)
+        deleted = []
+        for kind, item in items:
+            db.execute(ChatAttachment.__table__.delete().where(ChatAttachment.kind == kind, ChatAttachment.message_id == item.id))
+            db.execute(ChatMessageFlag.__table__.delete().where(ChatMessageFlag.kind == kind, ChatMessageFlag.message_id == item.id))
+            deleted.append(f"{'g' if kind == 'group' else 'p'}-{item.id}")
+            db.delete(item)
+        db.commit()
+        return {"ok": True, "deleted": deleted}
+
+    flag = {"pin": "pin", "unpin": "pin", "fav": "fav", "unfav": "fav", "report": "report"}[action]
+    for kind, item in items:
+        base = select(ChatMessageFlag).where(
+            ChatMessageFlag.kind == kind, ChatMessageFlag.message_id == item.id, ChatMessageFlag.flag == flag)
+        # Fixar vale para a conversa toda; favoritar/denunciar é por usuário.
+        existing = db.scalars(base if flag == "pin" else base.where(ChatMessageFlag.user_id == user.id)).all()
+        if action in {"unpin", "unfav"}:
+            for row in existing:
+                db.delete(row)
+            continue
+        if existing and flag != "report":
+            continue
+        note = str(payload.get("reason") or "").strip()[:500] or None
+        db.add(ChatMessageFlag(user_id=user.id, kind=kind, message_id=item.id, flag=flag,
+                               company_id=user.company_id, note=note))
+        if flag == "report":
+            author = db.get(WebUser, _message_owner_id(kind, item))
+            managers = db.scalars(select(WebUser).where(
+                WebUser.company_id == user.company_id, WebUser.id != user.id,
+                or_(WebUser.role == "admin", WebUser.is_owner.is_(True)))).all() if user.company_id else []
+            for manager in managers:
+                create_notification(
+                    db, manager.id, "Mensagem denunciada no chat",
+                    f"{user.name} denunciou uma mensagem de {author.name if author else 'usuário'}: "
+                    f"{str(item.message or '')[:180]}" + (f" • Motivo: {note}" if note else ""),
+                    kind="chat", link="/company/chat?view=team" if kind == "group" else "/company/chat", commit=False)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/chat/flags")
+def chat_flags_api(request: Request, view: str = "", contact: str = "", db: Session = Depends(get_db)):
+    """Mensagens fixadas da conversa aberta + favoritas do usuário."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    _ensure_chat_schema(db)
+    try:
+        if view == "team":
+            if not user.company_id:
+                return {"ok": True, "pinned": [], "favorites": []}
+            kind = "group"
+            ids_query = select(ChatMessage.id).where(ChatMessage.company_id == user.company_id)
+        else:
+            partner = _resolve_private_contact(db, user, contact)
+            if partner is None:
+                return {"ok": True, "pinned": [], "favorites": []}
+            kind = "private"
+            ids_query = select(PrivateChatMessage.id).where(or_(
+                (PrivateChatMessage.sender_id == user.id) & (PrivateChatMessage.recipient_id == partner.id),
+                (PrivateChatMessage.sender_id == partner.id) & (PrivateChatMessage.recipient_id == user.id),
+            ))
+        rows = db.scalars(
+            select(ChatMessageFlag).where(
+                ChatMessageFlag.kind == kind,
+                ChatMessageFlag.flag.in_(["pin", "fav"]),
+                ChatMessageFlag.message_id.in_(ids_query),
+            ).order_by(desc(ChatMessageFlag.created_at))
+        ).all()
+    except Exception:
+        db.rollback()
+        return {"ok": True, "pinned": [], "favorites": []}
+    prefix = "g" if kind == "group" else "p"
+    pinned, favorites, seen = [], [], set()
+    model = ChatMessage if kind == "group" else PrivateChatMessage
+    for row in rows:
+        key = f"{prefix}-{row.message_id}"
+        if row.flag == "fav" and row.user_id == user.id:
+            favorites.append(key)
+        elif row.flag == "pin" and key not in seen:
+            seen.add(key)
+            item = db.get(model, row.message_id)
+            if item is None:
+                continue
+            owner = db.get(WebUser, _message_owner_id(kind, item))
+            pinned.append({"key": key, "text": str(item.message or "")[:200],
+                           "user_name": owner.name if owner else "Usuário"})
+    return {"ok": True, "pinned": pinned[:10], "favorites": favorites}
 
 
 @router.websocket("/ws/chat")

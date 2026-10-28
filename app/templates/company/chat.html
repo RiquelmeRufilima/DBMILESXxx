@@ -53,6 +53,60 @@
 .dbm-att-copy b{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
 .dbm-att-copy small{color:var(--muted);font-size:.68rem;text-align:left!important;margin:0!important}
 .dbm-att-remove{margin-left:auto;width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer}
+/* Opções das mensagens (v4) */
+.dbm-msg-bubble{position:relative}
+.dbm-msg-menu-btn{position:absolute;top:4px;right:5px;width:26px;height:22px;display:grid;place-items:center;border:0;border-radius:8px;background:color-mix(in srgb,var(--panel-2) 82%,transparent);color:var(--muted);font-size:15px;line-height:1;cursor:pointer;opacity:0;transition:opacity .15s}
+.dbm-msg:hover .dbm-msg-menu-btn,.dbm-msg-menu-btn:focus-visible{opacity:1}
+.dbm-msg-bubble>strong{padding-right:24px}
+@media(hover:none){.dbm-msg-menu-btn{opacity:.85}}
+.dbm-msg-menu{position:fixed;z-index:6000;min-width:236px;padding:6px 0;border-radius:12px;background:#1e2329;color:#e9edef;border:1px solid #2f3a44;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.dbm-msg-menu[hidden]{display:none}
+.dbm-msg-menu button{display:flex;align-items:center;gap:14px;width:100%;padding:10px 18px;border:0;background:transparent;color:inherit;font:inherit;font-size:.92rem;text-align:left;cursor:pointer}
+.dbm-msg-menu button:hover,.dbm-msg-menu button:focus-visible{background:#2a3138;outline:none}
+.dbm-msg-menu svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.dbm-msg-menu hr{border:0;border-top:1px solid #2f3a44;margin:5px 0}
+.dbm-msg-menu button.danger{color:#ff8a95}
+.dbm-msg-forwarded{display:block;font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.dbm-msg-quote{margin:2px 0 6px;padding:6px 9px;border-left:3px solid var(--cyan);border-radius:8px;background:color-mix(in srgb,var(--bg) 40%,transparent);font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px}
+.dbm-msg-quote b{display:block;color:var(--cyan-2);font-size:.72rem}
+.dbm-msg-link{color:var(--cyan-2);font-weight:800;text-decoration:underline}
+.dbm-msg.is-fav .dbm-msg-bubble small::before{content:"★ ";color:#f5c542}
+.dbm-msg.is-pinned .dbm-msg-bubble small::after{content:" 📌"}
+.dbm-msg.is-flash .dbm-msg-bubble{box-shadow:0 0 0 3px color-mix(in srgb,var(--cyan) 60%,transparent)}
+.dbm-reply-bar{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid var(--cyan);border-radius:10px;background:var(--panel-2)}
+.dbm-reply-bar[hidden]{display:none}
+.dbm-reply-bar div{flex:1;min-width:0}.dbm-reply-bar b{display:block;font-size:.75rem;color:var(--cyan-2)}.dbm-reply-bar span{display:block;font-size:.82rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbm-reply-bar button{width:30px;height:30px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer}
+.dbm-pin-bar{display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);background:var(--panel)}
+.dbm-pin-bar[hidden]{display:none}
+.dbm-pin-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer;padding:4px}
+.dbm-pin-main svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--cyan-2);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dbm-pin-main span{min-width:0;font-size:.82rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dbm-pin-main b{color:var(--text);margin-right:6px}
+.dbm-pin-x{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.dbm-select-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--border);background:var(--panel)}
+.dbm-select-bar[hidden]{display:none}
+.dbm-select-bar [data-sel-count]{flex:1;font-weight:850}
+.dbm-select-bar button{border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}
+.dbm-select-bar button:disabled{opacity:.45;cursor:not-allowed}
+.dbm-select-bar button.danger{color:#ff8a95}
+.dbm-compose.is-hidden-by-select{display:none!important}
+.dbm-msg-check{display:none}
+.is-selecting .dbm-msg{align-items:center;gap:10px;cursor:pointer}
+.is-selecting .dbm-msg-check{display:block;flex:none;width:20px;height:20px;border-radius:6px;border:2px solid var(--muted);order:-1}
+.is-selecting .dbm-msg.mine .dbm-msg-check{margin-right:auto}
+.is-selecting .dbm-msg.is-selected .dbm-msg-check{background:#22c983;border-color:#22c983;box-shadow:inset 0 0 0 3px var(--panel)}
+.is-selecting .dbm-msg.is-selected .dbm-msg-bubble{outline:2px solid color-mix(in srgb,#22c983 70%,transparent)}
+.is-selecting .dbm-msg-menu-btn{display:none}
+.dbm-fwd-list{padding:8px 10px;overflow:auto;flex:1}
+.dbm-fwd-row{display:grid;grid-template-columns:22px 44px minmax(0,1fr);gap:10px;align-items:center;padding:9px;border-radius:12px;cursor:pointer}
+.dbm-fwd-row[hidden]{display:none}
+.dbm-fwd-row:hover{background:var(--panel-2)}
+.dbm-fwd-row input{width:18px;height:18px;accent-color:#22c983}
+.dbm-fwd-empty{padding:24px;text-align:center;color:var(--muted)}
+.dbm-fwd-foot{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--border)}
+.dbm-fwd-foot p{flex:1;margin:0;color:var(--muted);font-size:.82rem}
+.dbm-fwd-foot button{border:0;border-radius:12px;padding:11px 18px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;font-weight:900;cursor:pointer}
+.dbm-fwd-foot button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:920px){
   .dbm-chat-v2{grid-template-columns:1fr;height:calc(100dvh - 166px);min-height:520px;border-radius:20px}
   .dbm-chat-side{border-right:0}.dbm-chat-main{display:none}.dbm-chat-v2.mobile-open .dbm-chat-side{display:none}.dbm-chat-v2.mobile-open .dbm-chat-main{display:flex}.dbm-chat-back{display:inline-grid;place-items:center}
@@ -112,6 +166,7 @@
       </div>
       <span class="dbm-chat-status" id="dbmChatStatus"></span>
     </header>
+    <div class="dbm-pin-bar" id="dbmPinBar" hidden></div>
     <div class="dbm-chat-older" id="dbmOlderWrap" hidden><button type="button" id="dbmLoadOlder">Carregar mensagens anteriores</button></div>
 
     <div class="dbm-chat-messages" id="dbmChatMessages">
@@ -133,12 +188,21 @@
     </div>
 
     <form class="dbm-compose" id="dbmChatForm" {% if chat_view == 'team' and not has_company %}hidden{% elif chat_view != 'team' and not selected_contact %}hidden{% endif %} data-no-loader="1">
+      <div class="dbm-reply-bar" id="dbmReplyBar" hidden></div>
       <div class="dbm-attach-preview" id="dbmAttachPreview" hidden></div>
       <button class="dbm-attach" id="dbmAttachButton" type="button" title="Anexar PDF, Word, JPG ou PNG" aria-label="Anexar arquivo">📎</button>
       <input type="file" id="dbmChatFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg" hidden>
       <textarea id="dbmChatInput" maxlength="2000" placeholder="Digite uma mensagem..." title="Dica: cole um print com Ctrl+V"></textarea>
       <button class="dbm-send" type="submit">➤</button>
     </form>
+    <div class="dbm-select-bar" id="dbmSelectBar" hidden>
+      <span data-sel-count>0 selecionada(s)</span>
+      <button type="button" data-sel-action="copy">Copiar</button>
+      <button type="button" data-sel-action="forward">Encaminhar</button>
+      <button type="button" data-sel-action="fav">Favoritar</button>
+      <button type="button" class="danger" data-sel-action="delete" title="Só mensagens enviadas por você">Apagar</button>
+      <button type="button" data-sel-action="cancel">Cancelar</button>
+    </div>
   </main>
 </section>
 
@@ -162,8 +226,16 @@
     </div>
   </section>
 </div>
+<div class="dbm-agenda-overlay" id="dbmForwardOverlay" aria-hidden="true">
+  <section class="dbm-agenda" role="dialog" aria-label="Encaminhar mensagem">
+    <header class="dbm-agenda-head"><div><h3>Encaminhar para</h3><p>Conversas mais recentes primeiro</p></div><button class="dbm-close" id="dbmForwardClose" type="button">×</button></header>
+    <div class="dbm-add-contact" style="grid-template-columns:1fr"><input id="dbmForwardSearch" placeholder="Pesquisar contato ou grupo" style="text-transform:none" autocomplete="off"></div>
+    <div class="dbm-fwd-list" id="dbmForwardList"></div>
+    <div class="dbm-fwd-foot"><p id="dbmForwardNotice" role="status"></p><button type="button" id="dbmForwardSend" disabled>Encaminhar ➤</button></div>
+  </section>
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/chat.js?v=3.1" defer></script>
+<script src="/static/js/chat.js?v=4.0" defer></script>
 {% endblock %}

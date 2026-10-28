@@ -73,11 +73,11 @@
       {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
       {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
       {% set extra_bags_total = quote.bags|default(0, true)|int %}
-      <div><small>Bagagens{% if not fare_bags_known %} adicionais{% endif %}</small><strong>{{ fare_bags_total + extra_bags_total }}{% if not fare_bags_known %} <small>+ franquia a confirmar</small>{% endif %}</strong></div>
+      <div><small>Bagagens · por trecho</small><strong>{{ fare_bags_total + extra_bags_total }} bagagem(ns)</strong></div>
       <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
     </div>
     <div class="result-baggage-total-breakdown" style="margin-top:8px;color:var(--text-muted,#a7bdce);font-size:.9rem" aria-label="Detalhamento de bagagens">
-      {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong>{% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) • franquia da tarifa ainda não informada{% endif %}
+      {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong> (por trecho){% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar (por trecho){% endif %}
     </div>
     {% if route_items or flight_chips or quote.flown_segment|default(None) or quote.operation_scope_label or quote.partner_airline %}
     <div class="result-flight-chips">
@@ -139,16 +139,43 @@
  <div class="dbm-quote-dialog"><div class="dbm-quote-head"><strong>Encaminhar cotação para</strong><button type="button" id="dbmQuoteClose">✕</button></div>
  <input id="dbmQuoteSearch" type="search" placeholder="Pesquisar contato ou grupo" aria-label="Pesquisar contato">
  <div id="dbmQuoteTargets">Carregando contatos...</div><p id="dbmQuoteNotice" role="status"></p></div></div>
-<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}</style>
+<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}.dbm-quote-target strong{display:block}.dbm-quote-target small{display:block;color:#9fb8cc;font-size:.78rem;margin-top:3px}</style>
 <script>
-(()=>{const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');let contacts=[];
+(()=>{const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');
+ let contacts=[],groupName='Grupo da empresa',hasCompany=true,loaded=false,loading=null;
  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const render=()=>{const q=search.value.toLowerCase();targets.innerHTML=[{contact_id:'group',name:'👥 Grupo da empresa'},...contacts].filter(c=>(c.name+' '+c.contact_id).toLowerCase().includes(q)).map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.contact_id)}">${esc(c.name)}</button>`).join('')||'Nenhum contato encontrado.';};
+ const when=iso=>{if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});};
+ const render=()=>{
+  const q=search.value.toLowerCase().trim();
+  const list=[];
+  if(hasCompany) list.push({contact_id:'group',name:'👥 '+groupName,sub:'Chat da empresa'});
+  contacts.forEach(c=>list.push({contact_id:c.contact_id,name:c.name,sub:(c.last_at?'Última mensagem '+when(c.last_at)+' • ':'')+'ID '+c.contact_id}));
+  const rows=list.filter(c=>(c.name+' '+c.contact_id).toLowerCase().includes(q));
+  targets.innerHTML=rows.map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.contact_id)}"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></button>`).join('')||'Nenhum contato encontrado.';
+ };
+ async function load(){
+  if(loaded) return render();
+  if(loading) return loading;
+  targets.textContent='Carregando contatos...';notice.textContent='';
+  loading=(async()=>{try{
+   const r=await fetch('/company/chat/sidebar?limit=50',{credentials:'same-origin',headers:{'Accept':'application/json'}});
+   if(!r.ok) throw Error('HTTP '+r.status);
+   const d=await r.json();
+   groupName=(d.group&&d.group.name)||groupName; hasCompany=d.has_company!==false;
+   // Primeiro quem mandou mensagem mais recentemente; depois os contatos salvos.
+   const recent=(d.conversations||[]).slice().sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
+   const seen=new Set();contacts=[];
+   [...recent,...(d.contacts||[])].forEach(c=>{if(!c||!c.contact_id||c.is_me||c.active===false||seen.has(c.contact_id))return;seen.add(c.contact_id);contacts.push(c);});
+   loaded=true;render();
+  }catch(e){targets.textContent='';notice.textContent='Erro ao carregar os contatos. Tente novamente.';}finally{loading=null;}})();
+  return loading;
+ }
+ window.dbmOpenQuoteForward=()=>{box.hidden=false;search.value='';load();setTimeout(()=>search.focus(),50);};
  document.getElementById('dbmQuoteClose').onclick=()=>box.hidden=true;
+ box.addEventListener('click',e=>{if(e.target===box)box.hidden=true;});
  search.oninput=render;
- document.querySelectorAll('#forwardQuoteMessage,#forwardQuoteInternal').forEach(b=>b.addEventListener('click',async()=>{if(!contacts.length){try{let r=await fetch('/chat/sidebar');let d=await r.json();contacts=[...(d.contacts||[]),...(d.conversations||[])].filter((c,i,a)=>c.contact_id&&a.findIndex(x=>x.contact_id===c.contact_id)===i);contacts=contacts.filter(c=>c.active);render();}catch(e){notice.textContent='Erro ao carregar os contatos';}}}));
- targets.addEventListener('click',async e=>{const b=e.target.closest('[data-target]');if(!b)return;b.disabled=true;notice.textContent='Encaminhando cotação...';try{const r=await fetch('/chat/quotes/forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message);notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);}catch(err){notice.textContent=err.message||'Erro ao encaminhar';}finally{b.disabled=false;}});
-})();
+ targets.addEventListener('click',async e=>{const b=e.target.closest('[data-target]');if(!b)return;b.disabled=true;notice.textContent='Encaminhando cotação...';try{const r=await fetch('/company/chat/quotes/forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message);notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);}catch(err){notice.textContent=err.message||'Erro ao encaminhar';}finally{b.disabled=false;}});
+})()
 </script>
 
 {% if not shared_view|default(false) %}<section class="card-panel top-gap-xl" id="quoteSharePanel">
@@ -206,7 +233,7 @@
  function template(){
   const roundtrip = /volta|round/i.test(scope);
   const people = `${passengers} passageiro(s)${babies?` e ${babies} bebê(s)`:''}`;
-  const bag = fareIncluded !== '' ? (Number(fareIncluded)>0?`✅ +${fareIncluded} bagagem(ns) despachada(s) incluída(s) por passageiro\n`:'') : '';
+  const bag = fareIncluded !== '' ? (Number(fareIncluded)>0?`✅ +${fareIncluded} bagagem(ns) despachada(s) incluída(s) por passageiro, por trecho\n`:'') : '';
   const bagExtra = baggage>0?`✅ ${baggage} bagagem(ns) adicional(is) comprada(s)\n`:'';
   const obs=note.value.trim();
   return `✈️ COTAÇÃO - ${name}\n\n🛫 ${route}\n✈️ Voos de ${roundtrip?'IDA e VOLTA':'IDA'}\n\n✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${bagExtra}${obs?`✅ ${obs}\n`:''}\n👥 Valor total para ${people}.\n\n💰 Por: ${formatMoney(sale)}\n\n⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea.`;
@@ -237,7 +264,7 @@
   try {await navigator.clipboard.writeText(internalEditor.value);status.textContent='Resumo interno copiado'}
   catch(_){internalEditor.focus();internalEditor.select();status.textContent='Selecione e copie o texto'}
  });
- function openQuoteForwardPicker(){document.getElementById('dbmQuoteForwardModal').hidden=false;}
+ function openQuoteForwardPicker(){if(window.dbmOpenQuoteForward)window.dbmOpenQuoteForward();else document.getElementById('dbmQuoteForwardModal').hidden=false;}
  document.getElementById('forwardQuoteInternal').addEventListener('click',()=>{
   if(!confirm('Este resumo inclui custo e lucro. Enviar para o chat interno?')) return;
   openQuoteForwardPicker();

@@ -698,7 +698,8 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
             {% elif field.field_type == 'text' %}
               <input type="text" name="field_{{ field.key }}" value="{{ saved_value }}" {% if field.required %}required{% endif %}>
             {% else %}
-              <input type="text" inputmode="decimal" data-field-type="{{ field.field_type }}" data-field-key="{{ field.key }}" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="{% if field.field_type == 'miles' %}Ex.: 1.000 ou 0.500{% else %}0,00{% endif %}" autocomplete="off">
+              {% set effective_field_type = (field_semantic_types or {}).get(field.key, field.field_type) %}
+              <input type="text" inputmode="decimal" data-field-type="{{ effective_field_type }}" data-field-key="{{ field.key }}" name="field_{{ field.key }}" value="{{ saved_value if saved_value else '' }}" {% if field.required %}required{% endif %} placeholder="{% if effective_field_type == 'miles' %}Ex.: 1.000 ou 0.500{% else %}0,00{% endif %}" autocomplete="off">
             {% endif %}
             {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
           </label>
@@ -768,13 +769,13 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
               {% endfor %}
             </select>
           </label>
-          <label>Bagagem despachada incluída na tarifa
+          <label>Bagagem despachada incluída na tarifa (por passageiro, por trecho)
             <select name="included_bags_per_passenger" id="includedBagsFare">
               {% set included = meta.get('included_bags_per_passenger', '')|string %}
               <option value="" {% if not included %}selected{% endif %}>A confirmar conforme passagem e rota</option>
-              {% for amount in range(0,4) %}<option value="{{ amount }}" {% if included == amount|string %}selected{% endif %}>{{ 'Sem bagagem despachada' if amount == 0 else ('+' ~ amount ~ ' bagagem(ns) por passageiro incluída(s)') }}</option>{% endfor %}
+              {% for amount in range(0,4) %}<option value="{{ amount }}" {% if included == amount|string %}selected{% endif %}>{{ 'Sem bagagem despachada' if amount == 0 else ('+' ~ amount ~ ' bagagem(ns) por passageiro, por trecho, incluída(s)') }}</option>{% endfor %}
             </select>
-            <small>Franquia da tarifa selecionada: não é custo adicional. Confirme a regra do bilhete e da rota antes de marcar.</small>
+            <small>Franquia da tarifa selecionada, válida por trecho: não é custo adicional. Confirme a regra do bilhete e da rota antes de marcar.</small>
           </label>
         </div>
       </div>
@@ -1422,13 +1423,17 @@ document.addEventListener('person-selected', function(event) {
   const moneyHints = /taxa|valor|pre[cç]o|custo|dinheiro|milheiro|bagagem|comiss[aã]o|tarifa|adicional|imposto/i;
   const milesHints = /milha|ponto|avios/i;
 
+  function milhesQuantityOk(label, combined){
+    return milesHints.test(combined) && !/valor|taxa|pre[cç]o|custo|dinheiro|imposto|comiss[aã]o|tarifa/i.test(label);
+  }
+
   function fieldKind(input){
     const explicit = String(input.dataset.financialType || input.dataset.fieldType || '').toLowerCase();
     if(explicit === 'money' || explicit === 'miles') return explicit;
     const key = String(input.dataset.fieldKey || input.name || '');
     const label = String(input.closest('label')?.textContent || '');
     const combined = `${key} ${label}`;
-    if(milesHints.test(combined) && !/milheiro/i.test(combined)) return 'miles';
+    if(/^(milhas?|pontos?|avios)$/i.test(key) || (milhesQuantityOk(label, combined))) return 'miles';
     if(moneyHints.test(combined)) return 'money';
     return explicit || 'number';
   }
