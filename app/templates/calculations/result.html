@@ -68,8 +68,16 @@
     <div class="history-meta-grid top-gap">
       <div><small>Passageiros</small><strong>{{ quote.passengers }}</strong></div>
       <div><small>Bebês</small><strong>{{ quote.babies }}</strong></div>
-      <div><small>Bagagens</small><strong>{{ quote.bags }}</strong></div>
+      {% set fare_bags_value = inputs.get('_meta', {}).get('included_bags_per_passenger') if inputs.get('_meta') is mapping else none %}
+      {% set fare_bags_known = fare_bags_value is not none and fare_bags_value|string != '' %}
+      {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
+      {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
+      {% set extra_bags_total = quote.bags|default(0, true)|int %}
+      <div><small>Bagagens{% if not fare_bags_known %} adicionais{% endif %}</small><strong>{{ fare_bags_total + extra_bags_total }}{% if not fare_bags_known %} <small>+ franquia a confirmar</small>{% endif %}</strong></div>
       <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
+    </div>
+    <div class="result-baggage-total-breakdown" style="margin-top:8px;color:var(--text-muted,#a7bdce);font-size:.9rem" aria-label="Detalhamento de bagagens">
+      {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong>{% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) • franquia da tarifa ainda não informada{% endif %}
     </div>
     {% if route_items or flight_chips or quote.flown_segment|default(None) or quote.operation_scope_label or quote.partner_airline %}
     <div class="result-flight-chips">
