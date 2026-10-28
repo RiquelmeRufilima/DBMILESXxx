@@ -1420,6 +1420,12 @@ document.addEventListener('person-selected', function(event) {
     const suggestion = suggestedBags[fareSelect.value.trim().toLowerCase()];
     includedSelect.value = suggestion === undefined ? '' : suggestion;
   });
+  // Ao abrir o cálculo, a tarifa já vem preenchida (ex.: Classic) sem disparar
+  // "change"; preenche a franquia sugerida se ainda estiver "A confirmar".
+  if (fareSelect && includedSelect && includedSelect.value === '') {
+    const initial = suggestedBags[String(fareSelect.value || '').trim().toLowerCase()];
+    if (initial !== undefined) includedSelect.value = initial;
+  }
   const moneyHints = /taxa|valor|pre[cç]o|custo|dinheiro|milheiro|bagagem|comiss[aã]o|tarifa|adicional|imposto/i;
   const milesHints = /milha|ponto|avios/i;
 

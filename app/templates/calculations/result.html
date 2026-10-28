@@ -68,7 +68,7 @@
     <div class="history-meta-grid top-gap">
       <div><small>Passageiros</small><strong>{{ quote.passengers }}</strong></div>
       <div><small>Bebês</small><strong>{{ quote.babies }}</strong></div>
-      {% set fare_bags_value = inputs.get('_meta', {}).get('included_bags_per_passenger') if inputs.get('_meta') is mapping else none %}
+      {% set fare_bags_value = quote.included_bags_per_passenger if quote.included_bags_per_passenger is defined else (inputs.get('_meta', {}).get('included_bags_per_passenger') if inputs.get('_meta') is mapping else none) %}
       {% set fare_bags_known = fare_bags_value is not none and fare_bags_value|string != '' %}
       {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
       {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
@@ -224,6 +224,7 @@
  const includedBags = {{ (quote.input_json|default('{}', true))|tojson }};
  let fareIncluded = '';
  try {fareIncluded = JSON.parse(includedBags)._meta?.included_bags_per_passenger ?? ''}catch(_){}
+ if (fareIncluded === '') fareIncluded = {{ (quote.included_bags_per_passenger if quote.included_bags_per_passenger is defined else '')|string|tojson }};
  const baggage = {{ quote.bags|tojson }};
  const passengers = {{ quote.passengers|tojson }};
  const babies = {{ quote.babies|tojson }};

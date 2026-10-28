@@ -1001,7 +1001,7 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
         meta = _quote_meta(quote)
         airline = getattr(quote, "airline", None)
         quote.fare_brand = meta.get("fare_brand") or _default_fare_for_airline(airline.name if airline else "")
-        quote.included_bags_per_passenger = meta.get("included_bags_per_passenger", "")
+        quote.included_bags_per_passenger = _included_bags_for_fare(meta.get("included_bags_per_passenger", ""), quote.fare_brand)
         quote.exact_calculation_type = (quote.calculation_type.name if quote.calculation_type else "Cálculo")
         quote.cabin_class = meta.get("cabin_class") or ""
         quote.option_description = meta.get("description") or ""
@@ -1768,6 +1768,24 @@ def _history_segment_rows(
                 "schedules": [text for text in [_detail_schedule_text(item)] if text],
             })
     return rows
+
+
+# Franquia padrão de bagagem despachada por família tarifária (por passageiro,
+# por trecho). Usada quando a opção foi salva com "A confirmar".
+FARE_INCLUDED_BAGS = {
+    "light": 0, "sem bagagem": 0, "com bagagem": 1,
+    "turbinada": 1, "classic": 1, "flex": 1,
+    "standard": 1, "full": 1, "premium business full": 2,
+    "azul": 0, "mais azul": 1, "azul super": 2, "business": 3,
+}
+
+
+def _included_bags_for_fare(saved: Any, fare_brand: str | None) -> str:
+    value = str(saved if saved is not None else "").strip()
+    if value:
+        return value
+    suggestion = FARE_INCLUDED_BAGS.get(str(fare_brand or "").strip().lower())
+    return "" if suggestion is None else str(suggestion)
 
 
 def _default_fare_for_airline(airline_name: str | None) -> str:
