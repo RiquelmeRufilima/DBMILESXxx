@@ -73,11 +73,8 @@
       {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
       {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
       {% set extra_bags_total = quote.bags|default(0, true)|int %}
-      <div><small>Bagagens · por trecho</small><strong>{{ fare_bags_total + extra_bags_total }} bagagem(ns)</strong></div>
+      <div><small>Bagagens</small><strong>{{ fare_bags_total + extra_bags_total }} bagagem(ns)</strong><span style="display:block;margin-top:5px;color:#8fe8d0;font-size:.78rem;font-weight:600">{% if not fare_bags_known %}{% if extra_bags_total %}{{ extra_bags_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif extra_bags_total and fare_bags_total %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa{% elif extra_bags_total %}{{ extra_bags_total }} bagagem(ns) adicional(is){% elif fare_bags_total %}{{ fare_bags_total }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span></div>
       <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
-    </div>
-    <div class="result-baggage-total-breakdown" style="margin-top:8px;color:var(--text-muted,#a7bdce);font-size:.9rem" aria-label="Detalhamento de bagagens">
-      {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong> (por trecho){% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar (por trecho){% endif %}
     </div>
     {% if route_items or flight_chips or quote.flown_segment|default(None) or quote.operation_scope_label or quote.partner_airline %}
     <div class="result-flight-chips">
@@ -234,7 +231,7 @@
  function template(){
   const roundtrip = /volta|round/i.test(scope);
   const people = `${passengers} passageiro(s)${babies?` e ${babies} bebê(s)`:''}`;
-  const bag = fareIncluded !== '' ? (Number(fareIncluded)>0?`✅ +${fareIncluded} bagagem(ns) despachada(s) incluída(s) por passageiro, por trecho\n`:'') : '';
+  const bag = fareIncluded !== '' ? (Number(fareIncluded)>0?`✅ +${fareIncluded} bagagem(ns) despachada(s) incluída(s) por passageiro\n`:'') : '';
   const bagExtra = baggage>0?`✅ ${baggage} bagagem(ns) adicional(is) comprada(s)\n`:'';
   const obs=note.value.trim();
   return `✈️ COTAÇÃO - ${name}\n\n🛫 ${route}\n✈️ Voos de ${roundtrip?'IDA e VOLTA':'IDA'}\n\n✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${bagExtra}${obs?`✅ ${obs}\n`:''}\n👥 Valor total para ${people}.\n\n💰 Por: ${formatMoney(sale)}\n\n⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea.`;

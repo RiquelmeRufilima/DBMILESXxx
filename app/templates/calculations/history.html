@@ -689,8 +689,9 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
     {% set bags_included_total = bags_included_per_person * (quote.passengers|int) %}
     {% set bags_extra_total = quote.bags|default(0, true)|int %}
     <div class="history-baggage-detail">
-      <small>Bagagens · 23 kg · por trecho</small>
+      <small>Bagagens · 23 kg</small>
       <strong>{{ bags_included_total + bags_extra_total }} bagagem(ns)</strong>
+      <span class="history-bag-extra">{% if not included_is_known %}{% if bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bags_extra_total and bags_included_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + {{ bags_included_total }} bagagem(ns) da tarifa{% elif bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is){% elif bags_included_total %}{{ bags_included_total }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
     </div>
     <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
     <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
@@ -943,12 +944,8 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
                   {% set bag_included = bag_per_person * (quote.passengers|int) %}
                   {% set bag_extra = quote.bags|default(0, true)|int %}
                   <div class="history-bag-summary" aria-label="Resumo de bagagens">
-                    <strong>Bagagens: {{ bag_included + bag_extra }} bagagem(ns) por trecho</strong>
-                    {% if bag_known %}
-                      <span>{{ bag_extra }} bagagem(ns) adicional(is) + {{ bag_included }} bagagem(ns) da tarifa = <b>{{ bag_included + bag_extra }} bagagem(ns) no total</b> (por trecho)</span>
-                    {% else %}
-                      <span>{{ bag_extra }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar (por trecho)</span>
-                    {% endif %}
+                    <strong>Bagagens: {{ bag_included + bag_extra }} bagagem(ns)</strong>
+                    <span>{% if not bag_known %}{% if bag_extra %}{{ bag_extra }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bag_extra and bag_included %}{{ bag_extra }} bagagem(ns) adicional(is) + {{ bag_included }} bagagem(ns) da tarifa{% elif bag_extra %}{{ bag_extra }} bagagem(ns) adicional(is){% elif bag_included %}{{ bag_included }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
                   </div>
                   <small class="history-calc-type">Cálculo: {{ quote.exact_calculation_type or 'Não informado' }}{% if quote.extra_value_saved %} • Taxa {{ quote.extra_value_saved }}{% endif %}</small>
                   <small class="quote-option-author">Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong></small>

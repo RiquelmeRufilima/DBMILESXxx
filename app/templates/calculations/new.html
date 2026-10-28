@@ -769,13 +769,13 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
               {% endfor %}
             </select>
           </label>
-          <label>Bagagem despachada incluída na tarifa (por passageiro, por trecho)
+          <label>Bagagem despachada incluída na tarifa
             <select name="included_bags_per_passenger" id="includedBagsFare">
               {% set included = meta.get('included_bags_per_passenger', '')|string %}
               <option value="" {% if not included %}selected{% endif %}>A confirmar conforme passagem e rota</option>
-              {% for amount in range(0,4) %}<option value="{{ amount }}" {% if included == amount|string %}selected{% endif %}>{{ 'Sem bagagem despachada' if amount == 0 else ('+' ~ amount ~ ' bagagem(ns) por passageiro, por trecho, incluída(s)') }}</option>{% endfor %}
+              {% for amount in range(0,4) %}<option value="{{ amount }}" {% if included == amount|string %}selected{% endif %}>{{ 'Sem bagagem despachada' if amount == 0 else ('+' ~ amount ~ ' bagagem(ns) por passageiro incluída(s)') }}</option>{% endfor %}
             </select>
-            <small>Franquia da tarifa selecionada, válida por trecho: não é custo adicional. Confirme a regra do bilhete e da rota antes de marcar.</small>
+            <small>Franquia da tarifa selecionada: não é custo adicional. Confirme a regra do bilhete e da rota antes de marcar.</small>
           </label>
         </div>
       </div>
