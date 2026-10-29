@@ -24,7 +24,7 @@ _SCHEMA_READY = False
 
 # Limites padrão: (máximo de tentativas, janela em minutos)
 LIMITS: dict[str, tuple[int, int]] = {
-    "login_email": (5, 15),       # 5 senhas erradas por e-mail a cada 15 min
+    "login_email": (7, 15),       # 7 senhas erradas por e-mail a cada 15 min
     "login_ip": (20, 15),         # 20 erros por IP a cada 15 min
     "register_ip": (8, 60),       # 8 cadastros por IP por hora
     "code_ip": (15, 15),          # códigos de e-mail digitados por IP
@@ -33,7 +33,6 @@ LIMITS: dict[str, tuple[int, int]] = {
     "company_join": (8, 15),      # tentativas de código da empresa por usuário
     "contact_lookup": (30, 10),   # buscas de ID de contato (evita varredura)
     "public_request_ip": (15, 60),  # formulário público de solicitação
-    "reservation_lookup": (20, 10),  # buscas de reserva por localizador por usuário
     "reservation_lookup": (30, 10),  # "Adicionar reserva" por usuário
 }
 

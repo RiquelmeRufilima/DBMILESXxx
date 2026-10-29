@@ -281,7 +281,7 @@ def test_xss_no_nome_da_pessoa_nao_executa(started_app):
 def test_limite_de_tentativas_no_login(started_app):
     make_user("forca-bruta@teste.com")
     client = new_client(started_app)
-    for _ in range(5):
+    for _ in range(7):
         assert login(client, "forca-bruta@teste.com", "errada", ip="10.7.7.7").headers["location"] == "/login"
     # Mesmo com a senha CERTA, fica bloqueado temporariamente
     response = login(client, "forca-bruta@teste.com", PASSWORD, ip="10.7.7.8")

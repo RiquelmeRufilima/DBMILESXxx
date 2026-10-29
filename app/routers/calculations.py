@@ -2993,8 +2993,8 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
         })
 
     if travel_type == "multi_city":
-        if not normalized_segments:
-            flash(request, "Adicione pelo menos um trecho no multitrecho.", "error")
+        if len(normalized_segments) < 2:
+            flash(request, "O multitrecho exige pelo menos 2 trechos válidos.", "error")
             target = f"/calculations/new?group_id={group_id}&edit_base=1" if group_id else "/calculations/new?clean=1"
             return RedirectResponse(target, status_code=303)
         # No multitrecho, a rota principal é derivada dos segmentos.
@@ -3306,8 +3306,8 @@ async def save_group_variant(group_id: int, request: Request, db: Session = Depe
             "date": _clean_date_value(segment.get("date")),
         })
     if travel_type == "multi_city":
-        if not normalized_segments:
-            flash(request, "Adicione pelo menos um trecho na subcotação multitrecho.", "error")
+        if len(normalized_segments) < 2:
+            flash(request, "A subcotação multitrecho exige pelo menos 2 trechos válidos.", "error")
             target = f"/calculations/group/{group.id}/variant/{variant_key}/edit" if existing else f"/calculations/group/{group.id}/variant/new"
             return RedirectResponse(target, status_code=303)
         origin_code = normalized_segments[0]["origin"]

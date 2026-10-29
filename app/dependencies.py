@@ -17,11 +17,15 @@ def current_user(request: Request, db: Session) -> WebUser | None:
         return None
 
     session_version = request.session.get("auth_version")
-    if session_version is not None and int(session_version) != int(user.auth_version or 1):
+    # Sessões sem versão são consideradas antigas e exigem novo login.
+    # Nunca promover silenciosamente um cookie antigo a uma sessão válida.
+    try:
+        valid_session = session_version is not None and int(session_version) == int(user.auth_version or 1)
+    except (TypeError, ValueError):
+        valid_session = False
+    if not valid_session:
         request.session.clear()
         return None
-    if session_version is None:
-        request.session["auth_version"] = int(user.auth_version or 1)
 
     # Primeiro acesso criado pelo Google: enquanto o usuário ainda não definir
     # uma senha local, nenhuma área autenticada do DBMILESX pode ser aberta.

@@ -22,24 +22,39 @@
     segments = rows.map((row) => {
       const inputs = row.querySelectorAll('input');
       return { origin: inputs[0].value.trim(), destination: inputs[1].value.trim(), date: inputs[2].value };
-    }).filter((item) => item.origin || item.destination || item.date);
+    });
     segmentsJson.value = JSON.stringify(segments);
     rows.forEach((row, index) => row.querySelector('.segment-number').textContent = `Trecho ${index + 1}`);
+  };
+
+  const updateRemoveButtons = () => {
+    const rows = [...(segmentRows?.querySelectorAll('.segment-row') || [])];
+    rows.forEach(row => {
+      const button = row.querySelector('.field-remove');
+      button.disabled = rows.length <= 2;
+      button.title = rows.length <= 2 ? 'Multitrecho exige pelo menos 2 trechos' : 'Remover trecho';
+    });
   };
 
   const renderSegments = () => {
     if (!segmentRows) return;
     segmentRows.innerHTML = '';
-    if (!segments.length) segments = [{origin:'', destination:'', date:''}, {origin:'', destination:'', date:''}];
+    while (segments.length < 2) segments.push({origin:'', destination:'', date:''});
     segments.forEach((item) => {
       const row = document.createElement('div');
       row.className = 'segment-row';
       row.innerHTML = `<span class="segment-number"></span><label>Origem${field(item.origin,'IATA de 3 letras','text','multi-iata-input')}</label><label>Destino${field(item.destination,'IATA de 3 letras','text','multi-iata-input')}</label><label>Data${field(item.date,'','date')}</label><button type="button" class="field-remove" aria-label="Remover trecho">×</button>`;
       row.querySelectorAll('input').forEach((input) => input.addEventListener('input', syncSegments));
-      row.querySelector('.field-remove').addEventListener('click', () => { row.remove(); syncSegments(); });
+      row.querySelector('.field-remove').addEventListener('click', () => {
+        if (segmentRows.querySelectorAll('.segment-row').length <= 2) return;
+        row.remove();
+        syncSegments();
+        updateRemoveButtons();
+      });
       segmentRows.appendChild(row);
     });
     syncSegments();
+    updateRemoveButtons();
   };
 
   const updateTravelMode = () => {
