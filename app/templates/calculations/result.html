@@ -60,6 +60,7 @@
   <a class="secondary-button" href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
   {% if not shared_view|default(false) %}
   <a class="secondary-button" href="/calculations/history">Abrir cotações no histórico</a>
+  <a class="secondary-button button-profit" href="/calculations/history?profit_quote_id={{ quote.id }}">{{ "Editar lucro" if quote.commercial else "Adicionar lucro" }}</a>
   <a class="secondary-button" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
   {% endif %}
 </nav>
@@ -287,8 +288,8 @@
 </script>
 {% endif %}
 
-<section class="card-panel top-gap-xl">
-  <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO</span><h2>Campos usados no cálculo</h2></div></div>
+<section class="card-panel top-gap-xl dbm-result-input-detail" id="detalhamentoCalculo">
+  <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO DO CÁLCULO</span><h2>Valores e informações utilizados</h2><p>Confira os valores informados para esta opção. Os campos abaixo são dados internos.</p></div></div>
   <div class="history-meta-grid">
     {% if quote.is_skip_record %}
       <div><small>Tipo de registro</small><strong>Skip simplificado</strong></div>

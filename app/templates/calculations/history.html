@@ -1540,6 +1540,14 @@ html[data-theme="light"] .compact-history-option .option-select-actions a {color
   }
 
   document.querySelectorAll('.js-profit-open').forEach(btn => btn.addEventListener('click', () => showProfitDialog(btn)));
+  // Quando o agente chega pela tela de resultado, abre o lucro da opção solicitada.
+  const requestedProfitId = new URLSearchParams(window.location.search).get('profit_quote_id');
+  if (requestedProfitId && /^\d+$/.test(requestedProfitId)) {
+    const matchingButton = Array.from(document.querySelectorAll('.js-profit-open[data-quote-id]'))
+      .find(btn => btn.dataset.quoteId === requestedProfitId && btn.dataset.applyAll !== '1');
+    if (matchingButton) { showProfitDialog(matchingButton); }
+  }
+
   valueInput?.addEventListener('input', fromValue);
   percentInput?.addEventListener('input', fromPercent);
   valueInput?.addEventListener('focus', () => sourceInput.value = 'value');

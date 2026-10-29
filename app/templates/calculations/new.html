@@ -403,7 +403,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
       <h2>{{ base.quote_name }}{% if selected_variant_key != 'primary' %} • {{ selected_variant_name }}{% endif %}</h2>
       <p>Os cálculos abaixo serão salvos dentro de <b>{{ selected_variant_name }}</b>.</p>
     </div>
-    {% if selected_variant_key == 'primary' %}<a class="secondary-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_base=1&variant_key=primary"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cotação principal</a>{% else %}<a class="secondary-button button-edit" href="/calculations/group/{{ group.id }}/variant/{{ selected_variant_key }}/edit"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar subcotação</a>{% endif %}
+    {% if selected_variant_key == 'primary' %}<a class="secondary-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_base=1&variant_key=primary"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cotação principal</a> <a class="secondary-button button-open" href="/calculations/group/{{ group.id }}">Abrir cotação • opções salvas</a>{% else %}<a class="secondary-button button-edit" href="/calculations/group/{{ group.id }}/variant/{{ selected_variant_key }}/edit"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar subcotação</a>{% endif %}
   </div>
   <div class="summary-grid">
     <div><small>Rota</small><strong>{{ base.origin or '---' }} → {{ base.destination or '---' }}</strong></div>
