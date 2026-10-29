@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} | DBMILESX{% endblock %}
+{% block eyebrow %}ACOMPANHAMENTO{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block head %}
+<style>
+.track-header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.track-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.track-tabs a{padding:9px 13px;border:1px solid var(--line,#264862);border-radius:12px;text-decoration:none;color:inherit}
+.track-tabs a[aria-current=page]{background:#0d7ac3;color:#fff}
+.track-filter{display:flex;gap:8px;margin-bottom:17px}.track-filter input{flex:1;min-width:0}
+.track-list{display:grid;gap:10px}.track-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:16px;border:1px solid #2a516e;background:#0e263d;border-radius:16px}
+.track-card h3{margin:0 0 4px}.track-card p{margin:0;color:#b5ccdb;overflow-wrap:anywhere}.track-card small{display:block;margin-top:8px;color:#94b6cf}.track-card .primary-button{white-space:nowrap}
+html[data-theme="light"] .track-card{background:#fff;border-color:#d0deea;color:#153047}html[data-theme="light"] .track-card p,html[data-theme="light"] .track-card small{color:#435f72}
+@media(max-width:650px){.track-card{grid-template-columns:1fr}.track-card .primary-button{width:100%;text-align:center}}
+</style>
+{% endblock %}
+{% block content %}
+<section class="page-heading track-header"><div><span class="eyebrow">ACOMPANHAMENTOS DA EMPRESA</span><h1>{{ title }}</h1><p>Registros já cadastrados nas cotações aceitas. O lápis abre os dados da cotação original.</p></div></section>
+<nav class="track-tabs" aria-label="Tipos de acompanhamento">
+{% for code, entry in kinds.items() %}<a href="/acompanhamentos/{{ code }}" {% if code == kind %}aria-current="page"{% endif %}>{{ entry[1] }}</a>{% endfor %}
+</nav>
+<form class="track-filter" action="/acompanhamentos/{{ kind }}" method="get"><input name="q" value="{{ search }}" placeholder="Pesquisar cliente ou descrição"><button class="primary-button" type="submit">Buscar</button></form>
+{% if scan_limited %}<p class="muted">Exibindo os cadastros mais recentes. Use a pesquisa para localizar os demais registros.</p>{% endif %}
+<div class="track-list">
+{% for item in items %}
+<article class="track-card"><div><h3>{{ item.client }}</h3><p>{{ item.summary }}</p><small>Cadastrado por {{ item.creator }} • Cotação #{{ item.group_id }}</small></div>
+<a class="primary-button" href="/cadastros/cotacoes/{{ item.group_id }}?origem={{ kind }}" aria-label="Editar cotação de {{ item.client }}" title="Editar dados da cotação">✎ Editar cotação</a></article>
+{% else %}<section class="card-panel"><div class="empty-state"><h3>Nenhum acompanhamento encontrado</h3><p>Cadastre primeiro esse serviço dentro de uma cotação aceita.</p></div></section>{% endfor %}
+</div>
+<div class="history-pager" style="display:flex;justify-content:center;gap:12px;margin:20px 0">
+{% if page > 1 %}<a class="secondary-button" href="?page={{ page - 1 }}&q={{ search|urlencode }}">← Anterior</a>{% endif %}
+<span>Página {{ page }}</span>
+{% if has_more %}<a class="secondary-button" href="?page={{ page + 1 }}&q={{ search|urlencode }}">Carregar mais →</a>{% endif %}
+</div>
+{% endblock %}

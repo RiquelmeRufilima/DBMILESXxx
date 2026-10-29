@@ -2,6 +2,7 @@
 {% block title %}{{ 'Nova subcotação' if is_new else 'Editar subcotação' }} | DBMILESX{% endblock %}
 {% block eyebrow %}SUBCOTAÇÃO{% endblock %}
 {% block page_title %}{{ 'Nova subcotação' if is_new else 'Editar subcotação' }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/quote-new-ux.css?v=20261029">{% endblock %}
 {% block content %}
 <section class="page-heading inline">
   <div>
@@ -55,8 +56,13 @@
       <div id="segmentRows"></div>
     </div>
 
+    <label>Observações desta subcotação
+      <textarea name="notes" rows="3" maxlength="4000" placeholder="Detalhes para esta rota: horários, bagagens, condições...">{{ variant.notes|default('', true) }}</textarea>
+      <small>Essas observações pertencem somente a esta subcotação. As da cotação principal continuam preservadas.</small>
+    </label>
+
     <div class="notice-card muted compact-note">
-      <strong>O cliente e as observações continuam compartilhados.</strong><br>
+      <strong>O cadastro do cliente continua compartilhado.</strong><br>
       A quantidade de passageiros desta subcotação é independente da cotação principal. Os cálculos desta rota ficarão separados no histórico.
     </div>
 
@@ -67,4 +73,5 @@
   </form>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/quote-form.js?v=5.10.41" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/quote-range-calendar.js?v=20261029" defer></script>
+<script src="/static/js/quote-form.js?v=5.10.41" defer></script>{% endblock %}

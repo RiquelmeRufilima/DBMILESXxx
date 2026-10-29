@@ -3,6 +3,7 @@
 {% block page_title %}{{ 'Calcular companhias da cotação' if group and not edit_base else 'Nova cotação principal' }}{% endblock %}
 {% block eyebrow %}MOTOR DE CÁLCULO{% endblock %}
 {% block head %}
+<link rel="stylesheet" href="/static/css/quote-new-ux.css?v=20261029">
 <style>
 /* V5.9.5 - botões bonitos de escopo, forçado nesta tela para evitar cache antigo */
 .segment-scope-panel{border:1px solid rgba(93,188,255,.18)!important;background:linear-gradient(135deg,rgba(44,118,255,.08),rgba(19,197,144,.055))!important;border-radius:24px!important;}
@@ -433,15 +434,23 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
       <svg class="ui-icon"><use href="#icon-search"></use></svg>
       <input type="search" id="airlineCalcSearch" placeholder="Pesquisar companhia..." autocomplete="off">
     </div>
+    <label class="calc-catalog-filter-label" for="calcCatalogFilter">Categoria do catálogo
+      <select id="calcCatalogFilter" aria-label="Filtrar tipo de fornecedor">
+        <option value="all">Todas as categorias</option>
+        <option value="airlines">Companhias</option>
+        <option value="systems">Sistemas</option>
+        <option value="consolidators">Consolidadoras e operadoras</option>
+      </select>
+    </label>
     <div class="airline-mini-list" id="airlineCalcList">
       {% if national_airlines %}<div class="airline-list-section-title">NACIONAIS</div>{% endif %}
       {% for airline in national_airlines %}
-      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini national-priority {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini national-priority {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline.catalog_category|default('airlines', true) }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
         {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</small></span><em class="airline-national-badge">Prioridade</em>
       </a>{% endfor %}
       {% if other_airlines %}<div class="airline-list-section-title">INTERNACIONAIS E OUTRAS</div>{% endif %}
       {% for airline in other_airlines %}
-      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline.catalog_category|default('airlines', true) }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
         {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
       </a>{% endfor %}
     </div>
@@ -899,7 +908,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
       A quantidade de bagagens fica editável em cada companhia/opção, sem alterar os dados fixos da cotação.
     </div>
 
-    <details class="inline-details" {% if base.client_name or base.notes %}open{% endif %}><summary>Dados do cliente e observações</summary>
+    <details class="inline-details" open><summary>Dados do cliente e observações</summary>
       <div class="form-grid cols-3 compact top-gap">
         <label class="person-search-wrapper">Nome do cliente
           <input class="person-search" name="client_name" value="{{ base.client_name }}" placeholder="Digite para filtrar os clientes" autocomplete="off" data-person-type="cliente,passageiro" data-require-selection="1">
@@ -926,6 +935,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
 {% include 'calculations/_smart_back.html' %}
 {% endblock %}
 {% block scripts %}
+<script src="/static/js/quote-range-calendar.js?v=20261029" defer></script>
 <script src="/static/js/quote-form.js?v=5.10.41" defer></script>
 <link rel="stylesheet" href="/static/css/calc-mobile-steps.css?v=1">
 <script src="/static/js/calc-mobile-steps.js?v=1" defer></script>
@@ -1374,13 +1384,24 @@ document.addEventListener('person-selected', function(event) {
   const input = document.getElementById('airlineCalcSearch');
   const items = Array.from(document.querySelectorAll('[data-airline-item]'));
   if(!input || !items.length) return;
-  input.addEventListener('input', () => {
+  const filter = document.getElementById('calcCatalogFilter');
+  function updateCatalog(){
     const q = input.value.trim().toLowerCase();
+    const category = filter?.value || 'all';
     items.forEach(item => {
       const text = (item.dataset.airlineName || item.textContent || '').toLowerCase();
-      item.style.display = !q || text.includes(q) ? '' : 'none';
+      const type = item.dataset.catalogCategory || 'airlines';
+      item.hidden = (Boolean(q) && !text.includes(q)) || (category !== 'all' && type !== category);
     });
-  });
+    document.querySelectorAll('.airline-list-section-title').forEach(header => {
+      let sibling=header.nextElementSibling, hasVisible=false;
+      while(sibling && !sibling.classList.contains('airline-list-section-title')){if(sibling.matches('[data-airline-item]')&&!sibling.hidden)hasVisible=true;sibling=sibling.nextElementSibling;}
+      header.hidden=!hasVisible;
+    });
+  }
+  input.addEventListener('input',updateCatalog);
+  filter?.addEventListener('change',updateCatalog);
+  updateCatalog();
 })();
 
 

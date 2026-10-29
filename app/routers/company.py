@@ -1483,6 +1483,37 @@ async def chat_quote_forward_api(request: Request, db: Session = Depends(get_db)
     return {"ok": True, "quote_id": quote.id}
 
 
+@router.post("/chat/messages/{message_key}/edit")
+async def chat_edit_message_api(message_key: str, request: Request, db: Session = Depends(get_db)):
+    """Edição de texto original, restrita ao autor (grupo ou privado)."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    keys = _parse_message_keys([message_key])
+    if len(keys) != 1:
+        return JSONResponse({"ok": False, "message": "Mensagem inválida."}, status_code=400)
+    kind, ident = keys[0]
+    item = _load_allowed_message(db, user, kind, ident)
+    if not item:
+        return JSONResponse({"ok": False, "message": "Mensagem indisponível."}, status_code=404)
+    if _message_owner_id(kind, item) != user.id:
+        return JSONResponse({"ok": False, "message": "Só é permitido editar mensagens que você enviou."}, status_code=403)
+    message = str(payload.get("message") or "").strip()
+    if not message or len(message) > 2000:
+        return JSONResponse({"ok": False, "message": "Digite de 1 a 2000 caracteres."}, status_code=400)
+    attachments = db.scalar(select(ChatAttachment.id).where(ChatAttachment.kind == kind, ChatAttachment.message_id == item.id))
+    if attachments or getattr(item, "attachment_path", None):
+        return JSONResponse({"ok": False, "message": "Mensagens com anexos não podem ser editadas."}, status_code=400)
+    if "[DBM_QUOTE:" in str(item.message or "") or "/calculations/result/" in str(item.message or ""):
+        return JSONResponse({"ok": False, "message": "O vínculo de cotações compartilhadas não pode ser editado."}, status_code=400)
+    item.message = message
+    db.commit()
+    return {"ok": True, "id": message_key, "message": message}
+
+
 @router.post("/chat/messages/action")
 async def chat_message_action_api(request: Request, db: Session = Depends(get_db)):
     """Fixar/desafixar, favoritar/desfavoritar, denunciar ou apagar mensagens."""

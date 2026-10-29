@@ -43,6 +43,60 @@ def _catalog_category(raw: str) -> str:
 
 
 
+def _visible_partner_airlines(db: Session, user, *, exclude_id: int | None = None) -> list[Airline]:
+    """Show only active partners visible to the current tenant."""
+    query = select(Airline).where(Airline.active.is_(True), _visibility(user))
+    if exclude_id is not None:
+        query = query.where(Airline.id != exclude_id)
+    return list(db.scalars(query.order_by(Airline.name.asc())).all())
+
+
+def _saved_partner_names(airline: Airline) -> list[str]:
+    try:
+        values = json.loads(str(airline.partner_airlines_json or "[]"))
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(values, list):
+        return []
+    return [name.strip() for name in values if isinstance(name, str) and name.strip()][:100]
+
+
+def _parse_partner_names(form, visible_airlines: list[Airline]) -> list[str]:
+    """Normalize selected and manual partners, protecting cross-tenant choices."""
+    allowed = {a.name.strip().casefold(): a.name.strip() for a in visible_airlines if a.name.strip()}
+    selected = form.getlist("partner_airlines")
+    if len(selected) > 100:
+        raise ValueError("Selecione no máximo 100 companhias parceiras.")
+    names: list[str] = []
+    seen: set[str] = set()
+
+    def add_name(value: str) -> None:
+        value = " ".join(value.split()).strip()
+        if not value:
+            return
+        if len(value) > 180:
+            raise ValueError("Uma companhia parceira excede o limite de 180 caracteres.")
+        key = value.casefold()
+        if key not in seen:
+            if len(names) >= 100:
+                raise ValueError("Informe no máximo 100 companhias parceiras.")
+            seen.add(key)
+            names.append(value)
+
+    for raw in selected:
+        key = str(raw).strip().casefold()
+        if key not in allowed:
+            raise ValueError("Uma parceira selecionada não está disponível para sua empresa.")
+        add_name(allowed[key])
+
+    manual = str(form.get("partner_airlines_extra") or "")
+    if len(manual) > 18000:
+        raise ValueError("A lista de parceiras é muito longa.")
+    for value in re.split(r"[,;\n\r]+", manual):
+        add_name(value)
+    return names
+
+
 def slugify(value: str) -> str:
     text = value.strip().lower()
     replacements = {
@@ -254,7 +308,8 @@ def new_airline_page(request: Request, db: Session = Depends(get_db)):
     if user.company_id and user.role not in {"admin", "gerente"}:
         flash(request, "Somente administradores e gerentes podem criar companhias para a empresa.", "error")
         return RedirectResponse("/airlines", status_code=303)
-    return templates.TemplateResponse(request, "airlines/form.html", context(request, user=user, catalog_categories=CATALOG_CATEGORIES))
+    partner_airlines = _visible_partner_airlines(db, user)
+    return templates.TemplateResponse(request, "airlines/form.html", context(request, user=user, catalog_categories=CATALOG_CATEGORIES, partner_airlines=partner_airlines))
 
 
 @router.post("/new")
@@ -283,6 +338,16 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/airlines/new", status_code=303)
     if len(name) < 2:
         flash(request, "O nome da companhia é obrigatório.", "error")
+        return RedirectResponse("/airlines/new", status_code=303)
+
+    market_scope = str(form.get("market_scope") or "both").strip().lower()
+    if market_scope not in {"national", "international", "both"}:
+        flash(request, "Atuação da companhia inválida.", "error")
+        return RedirectResponse("/airlines/new", status_code=303)
+    try:
+        partner_names = _parse_partner_names(form, _visible_partner_airlines(db, user))
+    except ValueError as exc:
+        flash(request, str(exc), "error")
         return RedirectResponse("/airlines/new", status_code=303)
 
     try:
@@ -321,6 +386,8 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
         color=color if re.match(r"^#[0-9A-Fa-f]{6}$", color) else "#24b7d3",
         engine_type="formula",
         catalog_category=catalog_category,
+        market_scope=market_scope,
+        partner_airlines_json=json.dumps(partner_names, ensure_ascii=False),
         active=True,
         builtin=False,
     )
@@ -389,9 +456,55 @@ def manage_airline(airline_id: int, request: Request, db: Session = Depends(get_
     if airline is None:
         flash(request, "Companhia não encontrada.", "error")
         return RedirectResponse("/airlines", status_code=303)
+    partner_airlines = _visible_partner_airlines(db, user, exclude_id=airline.id)
+    saved_names = _saved_partner_names(airline)
+    available_names = {partner.name.strip().casefold() for partner in partner_airlines}
+    selected_partner_names = [name for name in saved_names if name.casefold() in available_names]
+    manual_partner_names = [name for name in saved_names if name.casefold() not in available_names]
     return templates.TemplateResponse(request, "airlines/manage.html",
-        context(request, user=user, airline=airline, can_manage=_can_manage(user, airline), catalog_categories=CATALOG_CATEGORIES),
+        context(
+            request, user=user, airline=airline, can_manage=_can_manage(user, airline),
+            catalog_categories=CATALOG_CATEGORIES,
+            partner_airlines=partner_airlines,
+            selected_partner_names=selected_partner_names,
+            manual_partner_names=manual_partner_names,
+        ),
     )
+
+
+@router.post("/{airline_id}/profile")
+async def update_airline_profile(airline_id: int, request: Request, db: Session = Depends(get_db)):
+    """Persist the operation scope and partner choices for custom airlines."""
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    airline = db.get(Airline, airline_id)
+    if airline is None or not _can_manage(user, airline):
+        flash(request, "Você não tem permissão para alterar esta companhia.", "error")
+        return RedirectResponse("/airlines", status_code=303)
+
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        flash(request, "Sessão expirada. Atualize a página e tente novamente.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+    market_scope = str(form.get("market_scope") or "").strip().lower()
+    if market_scope not in {"national", "international", "both"}:
+        flash(request, "Selecione uma atuação válida.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+    try:
+        partners = _parse_partner_names(
+            form, _visible_partner_airlines(db, user, exclude_id=airline.id)
+        )
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+    airline.market_scope = market_scope
+    airline.partner_airlines_json = json.dumps(partners, ensure_ascii=False)
+    db.commit()
+    flash(request, "Operação e parcerias salvas com sucesso.", "success")
+    return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
 
 @router.post("/{airline_id}/category")

@@ -112,6 +112,16 @@
   .dbm-chat-side{border-right:0}.dbm-chat-main{display:none}.dbm-chat-v2.mobile-open .dbm-chat-side{display:none}.dbm-chat-v2.mobile-open .dbm-chat-main{display:flex}.dbm-chat-back{display:inline-grid;place-items:center}
   .dbm-chat-messages{padding:13px}.dbm-msg-bubble{max-width:86%}.dbm-chat-list{padding-bottom:84px}
 }
+
+/* Menu de ações refinado: contraste e hierarquia, apenas interface. */
+.dbm-msg-menu{border-radius:16px!important;background:linear-gradient(155deg,#112c41,#0b1d31)!important;border:1px solid #285672!important;padding:7px!important;min-width:225px!important;box-shadow:0 18px 42px rgba(0,0,0,.42)!important}
+.dbm-msg-menu button{border-radius:9px!important;color:#e7f6ff!important;font-size:.86rem!important;padding:11px 12px!important;gap:10px!important}
+.dbm-msg-menu button:hover,.dbm-msg-menu button:focus-visible{background:#174e75!important}
+.dbm-msg-menu button.danger{color:#ff8794!important}.dbm-msg-menu hr{border-color:#2c506c!important}
+.dbm-edit-inline{margin:10px 0 0;display:grid;gap:8px}.dbm-edit-inline textarea{min-height:70px;max-width:100%;width:100%;border-radius:11px;padding:10px;background:#0b2236;border:1px solid #4c87aa;color:#fff;resize:vertical}
+.dbm-edit-inline-actions{display:flex;justify-content:flex-end;gap:8px}.dbm-edit-inline-actions button{border:1px solid #416e89;padding:8px 12px;border-radius:8px;background:#173952;color:#e2f4ff;cursor:pointer}.dbm-edit-inline-actions button:last-child{background:#176cb7;color:white}
+html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c4dbea!important}html[data-theme="light"] .dbm-msg-menu button{color:#173951!important}html[data-theme="light"] .dbm-msg-menu button:hover{background:#e6f3ff!important}html[data-theme="light"] .dbm-msg-menu button.danger{color:#bd2949!important}html[data-theme="light"] .dbm-edit-inline textarea{background:#fff;color:#143650}
+
 </style>
 {% endblock %}
 
@@ -237,5 +247,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/chat.js?v=4.0" defer></script>
+<script src="/static/js/chat.js?v=20261029-edit" defer></script>
 {% endblock %}

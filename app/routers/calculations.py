@@ -475,7 +475,7 @@ def _base_from_group(group: QuoteGroup, variant_key: str | None = None) -> dict[
         "client_name": trip.client_name if trip else "",
         "client_email": trip.client_email if trip else "",
         "client_phone": trip.client_phone if trip else "",
-        "notes": trip.notes if trip else "",
+        "notes": (selected.get("notes") if not selected.get("is_primary") and selected.get("notes") is not None else (trip.notes if trip else "")),
         "source_request_id": group.source_request_id,
         "mode": "group",
         "variant_key": selected.get("key") or "primary",
@@ -2977,8 +2977,6 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
         submitted_segments = []
 
     normalized_segments: list[dict[str, Any]] = []
-    # Trechos ocultos podem permanecer preenchidos ou vazios ao alternar
-    # entre Ida, Ida e volta e Multitrecho. Só valide os segmentos no multitrecho.
     if travel_type == "multi_city":
         for segment in submitted_segments[:12]:
             if not isinstance(segment, dict):
@@ -2997,7 +2995,7 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
 
     if travel_type == "multi_city":
         if len(normalized_segments) < 2:
-            flash(request, "O multitrecho precisa de pelo menos dois trechos válidos.", "error")
+            flash(request, "Adicione pelo menos dois trechos válidos no multitrecho.", "error")
             target = f"/calculations/new?group_id={group_id}&edit_base=1" if group_id else "/calculations/new?clean=1"
             return RedirectResponse(target, status_code=303)
         # No multitrecho, a rota principal é derivada dos segmentos.
@@ -3218,6 +3216,7 @@ def new_group_variant(group_id: int, request: Request, db: Session = Depends(get
         "return_date": trip.return_date or "",
         "flexibility_days": max(0, int(getattr(trip, "flexibility_days", 0) or 0)),
         "segments": _safe_json(trip.segments_json, []),
+        "notes": "",
     }
     return templates.TemplateResponse(request, "calculations/variant_form.html", context(request, user=user, group=group, variant=variant, is_new=True, airport_map=BR_AIRPORTS))
 
@@ -3294,23 +3293,24 @@ async def save_group_variant(group_id: int, request: Request, db: Session = Depe
     if not isinstance(raw_segments, list):
         raw_segments = []
     normalized_segments: list[dict[str, Any]] = []
-    for segment in raw_segments[:12]:
-        if not isinstance(segment, dict):
-            continue
-        segment_origin = _iata_list_value(segment.get("origin"))
-        segment_destination = _iata_list_value(segment.get("destination"))
-        if not segment_origin or not segment_destination:
-            flash(request, "Há um trecho da subcotação com origem ou destino inválido. Use um ou vários IATAs de 3 letras.", "error")
-            target = f"/calculations/group/{group.id}/variant/{variant_key}/edit" if existing else f"/calculations/group/{group.id}/variant/new"
-            return RedirectResponse(target, status_code=303)
-        normalized_segments.append({
-            "origin": segment_origin,
-            "destination": segment_destination,
-            "date": _clean_date_value(segment.get("date")),
-        })
     if travel_type == "multi_city":
-        if not normalized_segments:
-            flash(request, "Adicione pelo menos um trecho na subcotação multitrecho.", "error")
+        for segment in raw_segments[:12]:
+            if not isinstance(segment, dict):
+                continue
+            segment_origin = _iata_list_value(segment.get("origin"))
+            segment_destination = _iata_list_value(segment.get("destination"))
+            if not segment_origin or not segment_destination:
+                flash(request, "Há um trecho da subcotação com origem ou destino inválido. Use um ou vários IATAs de 3 letras.", "error")
+                target = f"/calculations/group/{group.id}/variant/{variant_key}/edit" if existing else f"/calculations/group/{group.id}/variant/new"
+                return RedirectResponse(target, status_code=303)
+            normalized_segments.append({
+                "origin": segment_origin,
+                "destination": segment_destination,
+                "date": _clean_date_value(segment.get("date")),
+            })
+    if travel_type == "multi_city":
+        if len(normalized_segments) < 2:
+            flash(request, "Adicione pelo menos dois trechos válidos na subcotação multitrecho.", "error")
             target = f"/calculations/group/{group.id}/variant/{variant_key}/edit" if existing else f"/calculations/group/{group.id}/variant/new"
             return RedirectResponse(target, status_code=303)
         origin_code = normalized_segments[0]["origin"]
@@ -3336,6 +3336,7 @@ async def save_group_variant(group_id: int, request: Request, db: Session = Depe
         "return_date": "" if travel_type == "one_way" else _clean_date_value(form.get("return_date")),
         "flexibility_days": max(0, min(30, int(form.get("flexibility_days") or 0))) if str(form.get("flexibility_days") or "0").lstrip("-").isdigit() else 0,
         "segments": normalized_segments,
+        "notes": str(form.get("notes") or "").strip()[:4000],
     }
     if existing is None:
         variants.append(payload)
@@ -3968,6 +3969,8 @@ async def save_result_observations(quote_id: int, request: Request, db: Session 
 def history(
     request: Request,
     q: str = "",
+    user_id: str = "",
+    stage: str = "all",
     page: int = 1,
     sort: str = "modified_desc",
     date_field: str = "modified",
@@ -4030,6 +4033,21 @@ def history(
 
     group_filter = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
     group_conditions = [group_filter]
+    # Filtrar sempre depois de restringir por empresa; não confiar no id do usuário da URL.
+    # Select "Todos" envia string vazia; não permitir erro HTTP 422.
+    raw_user_id = str(user_id or "").strip().lower()
+    requested_user_id = int(raw_user_id) if raw_user_id.isdecimal() else None
+    team_ids = {member.id for member in _team_users(db, user)} | {user.id}
+    chosen_user_id = requested_user_id if requested_user_id in team_ids else None
+    stage = stage if stage in {"all", "cadastradas", "calculadas", "lancadas"} else "all"
+    if chosen_user_id is not None:
+        group_conditions.append(QuoteGroup.user_id == chosen_user_id)
+    if stage == "calculadas":
+        group_conditions.append(QuoteGroup.id.in_(select(QuoteOptionIndex.group_id)))
+    elif stage == "lancadas":
+        group_conditions.append(QuoteGroup.id.in_(select(AcceptedQuote.group_id)))
+    elif stage == "cadastradas":
+        group_conditions.append(QuoteGroup.id.notin_(select(QuoteOptionIndex.group_id)))
     if q:
         pattern = f"%{q}%"
         group_search = [
@@ -4052,6 +4070,12 @@ def history(
     linked_ids = select(QuoteOptionIndex.quote_id)
     access_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
     legacy_conditions = [access_filter, WebQuote.id.notin_(linked_ids)]
+    if chosen_user_id is not None:
+        legacy_conditions.append(WebQuote.user_id == chosen_user_id)
+    if stage == "lancadas":
+        legacy_conditions.append(WebQuote.id.in_(select(AcceptedQuote.quote_id).where(AcceptedQuote.quote_id.is_not(None))))
+    elif stage == "cadastradas":
+        legacy_conditions.append(False)
     if q:
         pattern = f"%{q}%"
         legacy_search = [
@@ -4215,6 +4239,8 @@ def history(
             total_pages=total_pages,
             has_previous=page > 1,
             has_next=page < total_pages,
+            history_user_id=chosen_user_id,
+            history_stage=stage,
             history_sort=sort,
             history_date_field=date_field,
             history_date_from=date_from,

@@ -446,6 +446,7 @@
     reply: '<svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v4"/></svg>',
     replyPrivate: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 9.5-3.8"/><path d="m16 13-3 3 3 3"/><path d="M13 16h5a3 3 0 0 1 3 3"/></svg>',
     chat: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>',
+    edit: '<svg viewBox="0 0 24 24"><path d="M12 20h9M4 17l-1 4 4-1L19 8l-4-4z"/></svg>',
     copy: '<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
     forward: '<svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0-6 6v4"/></svg>',
     pin: '<svg viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/></svg>',
@@ -465,6 +466,7 @@
     const items = [
       ['reply', 'Responder'],
       ...(team && !m.mine && m.contactId ? [['replyPrivate', 'Responder em particular'], ['chat', `Conversar com ${firstName}`]] : []),
+      ...(m.mine && !m.attachment && !m.message.includes('/calculations/result/') ? [['edit', 'Editar mensagem']] : []),
       ['copy', 'Copiar'],
       ['forward', 'Encaminhar'],
       [pinnedKeys().has(key) ? 'unpin' : 'pin', pinnedKeys().has(key) ? 'Desafixar' : 'Fixar'],
@@ -646,10 +648,36 @@
     } catch (err) { $('dbmForwardNotice').textContent = err.message || 'Erro ao encaminhar'; button.disabled = false; }
   });
 
+  function openInlineEdit(key) {
+    const m=info(key);if(!m||!m.mine||m.attachment)return;
+    const article=list.querySelector(`[data-message-id="${CSS.escape(key)}"]`);
+    const bubble=article?.querySelector('.dbm-msg-bubble');if(!bubble)return;
+    if (bubble.querySelector('.dbm-edit-inline')) return;
+    const old=bubble.querySelector('p');if(!old)return;
+    const block=document.createElement('div');block.className='dbm-edit-inline';
+    const area=document.createElement('textarea');area.maxLength=2000;area.value=m.message;
+    const actions=document.createElement('div');actions.className='dbm-edit-inline-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';
+    const save=document.createElement('button');save.type='button';save.textContent='Salvar edição';
+    actions.append(cancel,save);block.append(area,actions);bubble.append(block);area.focus();
+    cancel.onclick=()=>block.remove();
+    save.onclick=async()=>{
+      const value=area.value.trim();if(!value){setStatus('A mensagem não pode ficar vazia');return;}
+      save.disabled=true;
+      try{
+        const data=await postJSON(`/company/chat/messages/${encodeURIComponent(key)}/edit`,{message:value});
+        m.message=data.message;old.textContent=data.message;
+        let small=bubble.querySelector('small');if(small&&!small.textContent.includes('editada'))small.textContent+=' • editada';
+        block.remove();setStatus('Mensagem editada');
+      }catch(e){setStatus(e.message||'Erro ao editar');save.disabled=false;}
+    };
+  }
+
   async function runAction(action, key) {
     const m = info(key);
     if (!m) return;
-    if (action === 'reply') setReply(m);
+    if (action === 'edit') openInlineEdit(key);
+    else if (action === 'reply') setReply(m);
     else if (action === 'replyPrivate' || action === 'chat') {
       const reply = action === 'replyPrivate' ? m : null;
       openPrivate(m.contactId);
