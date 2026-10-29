@@ -4,7 +4,27 @@
 {% block page_title %}Opção calculada{% endblock %}
 {% block content %}
 {% if shared_view|default(false) %}
-<style>.result-grid > .card-panel:nth-child(2),.page-actions form,.result-grid .button-delete,.result-grid .button-edit,.result-grid .button-fare,.result-grid .button-duplicate,.result-grid .button-accept,.result-grid .button-open,.result-grid .quote-actions-panel{display:none!important}</style>
+<style>.result-grid > .card-panel:nth-child(2),.page-actions form,.result-grid .button-delete,.result-grid .button-edit,.result-grid .button-fare,.result-grid .button-duplicate,.result-grid .button-accept,.result-grid .button-open,.result-grid .quote-actions-panel{display:none!important}
+  .dbm-result-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:0 0 15px}
+  .result-hero{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:22px!important;align-items:start!important;padding:22px!important;min-width:0}
+  .result-hero>div:first-child{min-width:0!important;max-width:none!important}
+  .result-hero h1{font-size:clamp(1.5rem,2.2vw,2.3rem)!important;line-height:1.2!important;overflow-wrap:break-word;word-break:normal;max-width:100%!important}
+  .result-hero .page-actions{position:static!important;display:flex!important;max-width:620px!important;justify-content:flex-end!important;flex-wrap:wrap!important;gap:8px!important;align-self:start!important}
+  .result-hero .page-actions>*{margin:0!important;flex:0 1 auto!important}
+  .dbm-result-financial{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 17px}
+  .dbm-finance-card{background:linear-gradient(150deg,#0e304c,#0b2339);border:1px solid #2a597a;border-radius:15px;padding:15px 18px;min-width:0;display:grid;gap:6px}
+  .dbm-finance-card small{color:#a7c9de;font-weight:700}.dbm-finance-card strong{color:#fff;font-size:clamp(1.2rem,2vw,1.85rem);overflow-wrap:anywhere}
+  .dbm-result-financial .dbm-finance-card:nth-child(2) strong{color:#87ebbc}
+  .result-grid{display:grid!important;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr)!important;align-items:start!important;gap:16px!important}
+  .result-grid>.card-panel{min-width:0!important}
+  .selected-company-bar img{width:74px!important;height:74px!important;max-width:74px!important;max-height:74px!important;object-fit:contain!important;background:white!important;border-radius:12px!important}
+  .dbm-baggage-detail{padding:13px 15px;margin:12px 0!important;background:rgba(20,113,139,.12);border:1px solid rgba(70,173,200,.35);border-radius:12px;color:#d5eff8;font-size:.87rem;line-height:1.65}
+  .dbm-bag-title{display:block;color:#e8fbff;margin-bottom:4px}
+  .dbm-bag-cost{display:grid;gap:3px;margin-top:7px;font-size:.8rem;color:#b5dce8}
+  html[data-theme="light"] .dbm-finance-card{background:#f2f8fd;border-color:#c9dce9}html[data-theme="light"] .dbm-finance-card small{color:#355c77}html[data-theme="light"] .dbm-finance-card strong{color:#103b58}html[data-theme="light"] .dbm-result-financial .dbm-finance-card:nth-child(2) strong{color:#087d57}html[data-theme="light"] .dbm-baggage-detail{background:#eaf8fb;color:#13465e;border-color:#a4d7e4}html[data-theme="light"] .dbm-bag-title{color:#0d455b}html[data-theme="light"] .dbm-bag-cost{color:#24566a}
+  @media(max-width:1000px){.result-hero{grid-template-columns:1fr!important}.result-hero .page-actions{justify-content:flex-start!important}.result-grid{grid-template-columns:1fr!important}}
+  @media(max-width:630px){.dbm-result-financial{grid-template-columns:1fr 1fr}.dbm-finance-card:last-child{grid-column:1/-1}.result-hero{padding:16px!important}.dbm-result-toolbar>a{flex:1 1 auto;text-align:center}.result-hero .page-actions>*{flex:1 1 auto!important;text-align:center}.result-hero h1{font-size:1.48rem!important}}
+</style>
 <script>document.addEventListener('DOMContentLoaded',()=>{document.getElementById('saveSharedQuote')?.addEventListener('click',async e=>{const b=e.currentTarget;b.disabled=true;try{const r=await fetch('/chat/quotes/{{ quote.id }}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message||'Falha');b.textContent='Abrir cópia salva';b.disabled=false;b.onclick=()=>location.href=j.url;}catch(err){alert(err.message);b.disabled=false;}});});</script>
 {% endif %}
 {% set flight_chips = quote.flight_detail_chips|default([], true) %}
@@ -36,6 +56,13 @@
   }
 </style>
 
+<nav class="dbm-result-toolbar" aria-label="Navegação da cotação">
+  <a class="secondary-button" href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
+  {% if not shared_view|default(false) %}
+  <a class="secondary-button" href="/calculations/history">Abrir cotações no histórico</a>
+  <a class="secondary-button" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
+  {% endif %}
+</nav>
 <section class="page-hero result-hero">
   <div>
     <span class="eyebrow">OPÇÃO DA COTAÇÃO</span>
@@ -53,28 +80,42 @@
 </section>
 {% endif %}
 
+<section class="dbm-result-financial" aria-label="Resumo financeiro">
+ <div class="dbm-finance-card"><small>Custo calculado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+ <div class="dbm-finance-card"><small>Lucro</small><strong>{% if quote.commercial %}{{ (quote.commercial.profit_value or 0)|money(quote.currency) }}{% else %}Não adicionado{% endif %}</strong></div>
+ <div class="dbm-finance-card"><small>Venda ao cliente</small><strong>{% if quote.commercial %}{{ (quote.commercial.sale_value or quote.total)|money(quote.currency) }}{% else %}Não definida{% endif %}</strong></div>
+</section>
 <section class="result-grid">
   <div class="card-panel">
     <div class="selected-company-bar">
       {% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path }}" alt="{{ quote.airline.name }}">{% endif %}
       <div><span class="eyebrow">COMPANHIA</span><h2>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }}</h2><p>{{ quote.calculation_type.name if quote.calculation_type else 'Cálculo' }}</p></div>
     </div>
-    <div class="result-total-card"><small>{{ 'Valor registrado' if quote.is_skip_record else 'Custo calculado' }}</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
-    {% if quote.commercial and (quote.commercial.profit_value or 0) > 0 %}
-    <div class="result-total-card"><small>Lucro / margem</small><strong>{{ quote.commercial.profit_value|money(quote.currency) }} • {{ '%.2f'|format(quote.commercial.profit_percent or 0) }}%</strong></div>
-    <div class="result-total-card"><small>Venda à vista</small><strong>{{ quote.commercial.sale_value|money(quote.currency) }}</strong>{% if quote.commercial.sent_to_client_at %}<small>Marcada como enviada</small>{% endif %}</div>
-    {% if (quote.commercial.card_installments or 1) > 1 %}<div class="result-total-card"><small>Cartão</small><strong>{{ quote.commercial.card_installments }}x de {{ (quote.commercial.card_installment_value or 0)|money(quote.currency) }}</strong><small>{% if quote.commercial.card_interest_mode == 'with_interest' %}Total {{ (quote.commercial.card_total_value or quote.commercial.sale_value)|money(quote.currency) }} • diferença {{ (quote.commercial.card_difference_value or 0)|money(quote.currency) }}{% else %}Sem juros{% endif %}</small></div>{% endif %}
-    {% endif %}
     <div class="history-meta-grid top-gap">
       <div><small>Passageiros</small><strong>{{ quote.passengers }}</strong></div>
       <div><small>Bebês</small><strong>{{ quote.babies }}</strong></div>
-      {% set fare_bags_value = quote.included_bags_per_passenger if quote.included_bags_per_passenger is defined else (inputs.get('_meta', {}).get('included_bags_per_passenger') if inputs.get('_meta') is mapping else none) %}
+      {% set fare_bags_value = inputs.get('_meta', {}).get('included_bags_per_passenger') if inputs.get('_meta') is mapping else none %}
       {% set fare_bags_known = fare_bags_value is not none and fare_bags_value|string != '' %}
       {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
       {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
       {% set extra_bags_total = quote.bags|default(0, true)|int %}
-      <div><small>Bagagens</small><strong>{{ fare_bags_total + extra_bags_total }} bagagem(ns)</strong><span style="display:block;margin-top:5px;color:#8fe8d0;font-size:.78rem;font-weight:600">{% if not fare_bags_known %}{% if extra_bags_total %}{{ extra_bags_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif extra_bags_total and fare_bags_total %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa{% elif extra_bags_total %}{{ extra_bags_total }} bagagem(ns) adicional(is){% elif fare_bags_total %}{{ fare_bags_total }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span></div>
+      <div><small>Bagagens{% if not fare_bags_known %} adicionais{% endif %}</small><strong>{{ fare_bags_total + extra_bags_total }}{% if not fare_bags_known %} <small>+ franquia a confirmar</small>{% endif %}</strong></div>
       <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
+    </div>
+    <div class="result-baggage-total-breakdown dbm-baggage-detail" aria-label="Detalhamento de bagagens">
+      <strong class="dbm-bag-title">Franquia e bagagens adicionais</strong>
+      {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong>{% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) • franquia da tarifa ainda não informada{% endif %}
+      <div class="dbm-bag-cost">
+        {% if extra_bags_total > 0 %}
+          {% set extra_unit_cost = inputs.get('bagagem_unitaria', none) %}
+          {% if extra_unit_cost is not none and extra_unit_cost|string|trim not in ('', '0', '0.0', '0.00') %}
+            <span>Valor unitário registrado da bagagem adicional: <b>R$ {{ extra_unit_cost }}</b>.</span>
+          {% else %}
+            <span>Bagagem adicional: sem custo unitário informado no cálculo.</span>
+          {% endif %}
+        {% else %}<span>Nenhuma bagagem adicional cobrada.</span>{% endif %}
+        {% if fare_bags_known and fare_bags_total > 0 %}<span>Bagagem da tarifa: já incluída, sem cobrança adicional.</span>{% endif %}
+      </div>
     </div>
     {% if route_items or flight_chips or quote.flown_segment|default(None) or quote.operation_scope_label or quote.partner_airline %}
     <div class="result-flight-chips">
@@ -136,43 +177,16 @@
  <div class="dbm-quote-dialog"><div class="dbm-quote-head"><strong>Encaminhar cotação para</strong><button type="button" id="dbmQuoteClose">✕</button></div>
  <input id="dbmQuoteSearch" type="search" placeholder="Pesquisar contato ou grupo" aria-label="Pesquisar contato">
  <div id="dbmQuoteTargets">Carregando contatos...</div><p id="dbmQuoteNotice" role="status"></p></div></div>
-<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}.dbm-quote-target strong{display:block}.dbm-quote-target small{display:block;color:#9fb8cc;font-size:.78rem;margin-top:3px}</style>
+<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}</style>
 <script>
-(()=>{const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');
- let contacts=[],groupName='Grupo da empresa',hasCompany=true,loaded=false,loading=null;
+(()=>{const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');let contacts=[];
  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const when=iso=>{if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});};
- const render=()=>{
-  const q=search.value.toLowerCase().trim();
-  const list=[];
-  if(hasCompany) list.push({contact_id:'group',name:'👥 '+groupName,sub:'Chat da empresa'});
-  contacts.forEach(c=>list.push({contact_id:c.contact_id,name:c.name,sub:(c.last_at?'Última mensagem '+when(c.last_at)+' • ':'')+'ID '+c.contact_id}));
-  const rows=list.filter(c=>(c.name+' '+c.contact_id).toLowerCase().includes(q));
-  targets.innerHTML=rows.map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.contact_id)}"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></button>`).join('')||'Nenhum contato encontrado.';
- };
- async function load(){
-  if(loaded) return render();
-  if(loading) return loading;
-  targets.textContent='Carregando contatos...';notice.textContent='';
-  loading=(async()=>{try{
-   const r=await fetch('/company/chat/sidebar?limit=50',{credentials:'same-origin',headers:{'Accept':'application/json'}});
-   if(!r.ok) throw Error('HTTP '+r.status);
-   const d=await r.json();
-   groupName=(d.group&&d.group.name)||groupName; hasCompany=d.has_company!==false;
-   // Primeiro quem mandou mensagem mais recentemente; depois os contatos salvos.
-   const recent=(d.conversations||[]).slice().sort((a,b)=>String(b.last_at||'').localeCompare(String(a.last_at||'')));
-   const seen=new Set();contacts=[];
-   [...recent,...(d.contacts||[])].forEach(c=>{if(!c||!c.contact_id||c.is_me||c.active===false||seen.has(c.contact_id))return;seen.add(c.contact_id);contacts.push(c);});
-   loaded=true;render();
-  }catch(e){targets.textContent='';notice.textContent='Erro ao carregar os contatos. Tente novamente.';}finally{loading=null;}})();
-  return loading;
- }
- window.dbmOpenQuoteForward=()=>{box.hidden=false;search.value='';load();setTimeout(()=>search.focus(),50);};
+ const render=()=>{const q=search.value.toLowerCase();targets.innerHTML=[{contact_id:'group',name:'👥 Grupo da empresa'},...contacts].filter(c=>(c.name+' '+c.contact_id).toLowerCase().includes(q)).map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.contact_id)}">${esc(c.name)}</button>`).join('')||'Nenhum contato encontrado.';};
  document.getElementById('dbmQuoteClose').onclick=()=>box.hidden=true;
- box.addEventListener('click',e=>{if(e.target===box)box.hidden=true;});
  search.oninput=render;
- targets.addEventListener('click',async e=>{const b=e.target.closest('[data-target]');if(!b)return;b.disabled=true;notice.textContent='Encaminhando cotação...';try{const r=await fetch('/company/chat/quotes/forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message);notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);}catch(err){notice.textContent=err.message||'Erro ao encaminhar';}finally{b.disabled=false;}});
-})()
+ document.querySelectorAll('#forwardQuoteMessage,#forwardQuoteInternal').forEach(b=>b.addEventListener('click',async()=>{if(!contacts.length){try{let r=await fetch('/chat/sidebar');let d=await r.json();contacts=[...(d.contacts||[]),...(d.conversations||[])].filter((c,i,a)=>c.contact_id&&a.findIndex(x=>x.contact_id===c.contact_id)===i);contacts=contacts.filter(c=>c.active);render();}catch(e){notice.textContent='Erro ao carregar os contatos';}}}));
+ targets.addEventListener('click',async e=>{const b=e.target.closest('[data-target]');if(!b)return;b.disabled=true;notice.textContent='Encaminhando cotação...';try{const r=await fetch('/chat/quotes/forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message);notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);}catch(err){notice.textContent=err.message||'Erro ao encaminhar';}finally{b.disabled=false;}});
+})();
 </script>
 
 {% if not shared_view|default(false) %}<section class="card-panel top-gap-xl" id="quoteSharePanel">
@@ -221,7 +235,6 @@
  const includedBags = {{ (quote.input_json|default('{}', true))|tojson }};
  let fareIncluded = '';
  try {fareIncluded = JSON.parse(includedBags)._meta?.included_bags_per_passenger ?? ''}catch(_){}
- if (fareIncluded === '') fareIncluded = {{ (quote.included_bags_per_passenger if quote.included_bags_per_passenger is defined else '')|string|tojson }};
  const baggage = {{ quote.bags|tojson }};
  const passengers = {{ quote.passengers|tojson }};
  const babies = {{ quote.babies|tojson }};
@@ -262,7 +275,7 @@
   try {await navigator.clipboard.writeText(internalEditor.value);status.textContent='Resumo interno copiado'}
   catch(_){internalEditor.focus();internalEditor.select();status.textContent='Selecione e copie o texto'}
  });
- function openQuoteForwardPicker(){if(window.dbmOpenQuoteForward)window.dbmOpenQuoteForward();else document.getElementById('dbmQuoteForwardModal').hidden=false;}
+ function openQuoteForwardPicker(){document.getElementById('dbmQuoteForwardModal').hidden=false;}
  document.getElementById('forwardQuoteInternal').addEventListener('click',()=>{
   if(!confirm('Este resumo inclui custo e lucro. Enviar para o chat interno?')) return;
   openQuoteForwardPicker();
