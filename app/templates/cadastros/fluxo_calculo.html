@@ -95,7 +95,7 @@
         </div>
         <footer>
           <small>Última atividade: {% if row.last_activity %}{{ row.last_activity|brt('%d/%m/%Y %H:%M') }}{% else %}sem atividade no período{% endif %}</small>
-          <a class="secondary-button small-button" href="/calculations/history?user_id={{ member.id if member else '' }}&date_field=created&date_from={{ filters.from }}&date_to={{ filters.to }}">Ver cotações</a>
+          <a class="secondary-button small-button" href="/calculations/history{% if member %}?user_id={{ member.id }}{% endif %}">Ver cotações</a>
         </footer>
       </article>
     {% else %}

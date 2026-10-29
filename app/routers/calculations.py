@@ -3965,7 +3965,7 @@ async def save_result_observations(quote_id: int, request: Request, db: Session 
 def history(
     request: Request,
     q: str = "",
-    user_id: int | None = None,
+    user_id: str = "",
     stage: str = "all",
     page: int = 1,
     sort: str = "modified_desc",
@@ -4030,8 +4030,11 @@ def history(
     group_filter = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
     group_conditions = [group_filter]
     # Filtrar sempre depois de restringir por empresa; não confiar no id do usuário da URL.
+    # Select "Todos" envia string vazia; não permitir erro HTTP 422.
+    raw_user_id = str(user_id or "").strip().lower()
+    requested_user_id = int(raw_user_id) if raw_user_id.isdecimal() else None
     team_ids = {member.id for member in _team_users(db, user)} | {user.id}
-    chosen_user_id = user_id if user_id in team_ids else None
+    chosen_user_id = requested_user_id if requested_user_id in team_ids else None
     stage = stage if stage in {"all", "cadastradas", "calculadas", "lancadas"} else "all"
     if chosen_user_id is not None:
         group_conditions.append(QuoteGroup.user_id == chosen_user_id)
