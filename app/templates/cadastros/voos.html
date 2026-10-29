@@ -9,7 +9,7 @@
   <div>
     <span class="eyebrow">VOOS</span>
     <h1>Agenda de voos</h1>
-    <p>Voos das cotações aceitas, organizados por data de embarque. Cada voo continua ligado à cotação que o originou.</p>
+    <p>Voos das cotações aceitas, organizados por data de embarque. Exibe os voos das cotações aceitas de todos os membros da empresa. O lápis abre o editor completo da cotação.</p>
   </div>
   <div class="action-cluster">
     <a class="secondary-button" href="/cadastros">← Cadastros</a>
@@ -77,7 +77,7 @@
     <a class="voo-code" href="{{ item.links.edit_quote }}" title="Abrir cotação {{ item.quote_code }}">{{ item.quote_code }}</a>
     <div class="voo-client">
       <strong>{{ item.client_name }}{% if item.whatsapp %} <a class="voo-whats" href="{{ item.whatsapp }}" target="_blank" rel="noopener" title="Chamar no WhatsApp"><svg class="ui-icon"><use href="#icon-whatsapp"></use></svg></a>{% endif %}</strong>
-      <small>{{ group.passengers }} passageiro{{ 's' if group.passengers != 1 else '' }}{% if row.user %} • {{ row.user.name.split(' ')[0] }}{% endif %}</small>
+      <small>{{ group.passengers }} passageiro{{ 's' if group.passengers != 1 else '' }} • Cadastrado por: <strong>{{ item.created_by }}</strong></small>
     </div>
     <div class="voo-airline-logo" title="{{ item.airline.name or 'Companhia não definida' }}">
       {% if item.airline.logo_url %}<img src="{{ item.airline.logo_url }}" alt="{{ item.airline.name }}" loading="lazy">{% else %}<span style="--logo:{{ item.airline.color }}">{{ item.airline.initials }}</span>{% endif %}
@@ -95,7 +95,7 @@
       <span class="voo-checkin {{ 'is-done' if 'realiz' in checkin or 'confirm' in checkin else '' }}">{{ 'Check-in feito' if 'realiz' in checkin or 'confirm' in checkin else 'Check-in pendente' }}</span>
       {% if fl.checkin_link or row.checkin_link %}<a class="voo-checkin-link" href="{{ fl.checkin_link or row.checkin_link }}" target="_blank" rel="noopener">Abrir check-in ↗</a>{% endif %}
       <div class="voo-actions">
-        <a class="voo-icon" href="{{ item.links.edit_flight }}" title="Editar voo" aria-label="Editar voo"><svg class="ui-icon"><use href="#icon-edit"></use></svg></a>
+        <a class="voo-icon" href="{{ item.links.edit_flight }}" title="Editar cotação e dados do voo" aria-label="Editar cotação"><svg class="ui-icon"><use href="#icon-edit"></use></svg></a>
         <a class="voo-icon" href="{{ item.links.preview }}" title="Visualizar reserva / PDF" aria-label="Visualizar reserva"><svg class="ui-icon"><use href="#icon-eye"></use></svg></a>
       </div>
     </div>

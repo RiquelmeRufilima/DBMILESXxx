@@ -2586,9 +2586,10 @@ def voos(request: Request, db: Session = Depends(get_db)):
             "flight_index": flight_index,
             "client_name": client_name,
             "accepted": accepted,
+            "created_by": (group.user.name if group.user else "Não identificado"),
             "quote_code": quote_code,
             "links": {
-                "edit_flight": f"/cadastros/voos/{group.id}/editar?flight_index={int(flight_index or 0)}",
+                "edit_flight": f"/cadastros/cotacoes/{group.id}?origem=voos&codigo={quote_code}",
                 "edit_quote": f"/cadastros/cotacoes/{group.id}?origem=voos&codigo={quote_code}",
                 "preview": f"/cadastros/cotacoes/{group.id}/visualizar?origem=voos&codigo={quote_code}",
             },
