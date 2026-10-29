@@ -102,6 +102,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
     airline_cols = {
         "market_scope": "VARCHAR(20) DEFAULT 'both' NOT NULL",
         "partner_airlines_json": "TEXT DEFAULT '[]' NOT NULL",
+        "catalog_category": "VARCHAR(32) DEFAULT 'airlines' NOT NULL",
     }
     _add_columns(engine, "web_airlines", airline_cols)
 

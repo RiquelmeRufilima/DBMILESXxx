@@ -7,6 +7,13 @@
 <style>
 @media(min-width:980px){.clean-option-row .option-actions{display:flex!important;justify-content:flex-end!important;flex-wrap:wrap!important;gap:7px!important;margin-left:auto!important;max-width:100%!important}.clean-option-row .option-actions>*{flex:0 0 auto!important}}
 @media(max-width:700px){.clean-option-row .option-actions{display:flex!important;gap:7px!important;flex-wrap:wrap!important}}
+.quote-commercial-summary{display:grid;gap:3px;min-width:135px;justify-items:start}
+.quote-commercial-summary .quote-profit-label,.quote-commercial-summary .quote-sale-label{margin-top:5px;color:#9bbfc7!important}
+.quote-commercial-summary .quote-profit-value{color:#4be4ac!important;font-size:.95rem}
+.quote-commercial-summary .quote-sale-value{color:#7ed6ff!important;font-size:1rem}
+.quote-commercial-summary .quote-profit-pending{color:#a8bccc!important;font-size:.7rem}
+html[data-theme="light"] .quote-commercial-summary .quote-profit-value{color:#06764e!important}
+html[data-theme="light"] .quote-commercial-summary .quote-sale-value{color:#075d90!important}
 </style>
 
 <section class="page-hero">
@@ -103,7 +110,15 @@
               <div class="history-logo-seal">{% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path.lstrip('/') }}" alt="{{ quote.airline.name }}">{% else %}<span>{{ (quote.airline.name[:1] if quote.airline else 'C')|upper }}</span>{% endif %}</div>
               <div><strong>{{ quote.airline.name if quote.airline else 'Companhia' }}</strong><small>{{ quote.method_label or (quote.calculation_type.name if quote.calculation_type else 'Cálculo') }}</small><small class="quote-option-author">Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong></small><div class="history-chip-row">{% if quote.fare_brand %}<span class="history-chip fare-chip">{{ quote.fare_brand }}</span>{% endif %}{% if quote.cabin_class %}<span class="history-chip class-chip">{{ quote.cabin_class }}</span>{% endif %}<span class="history-chip scope-chip">{{ quote.scope_label }}</span><span class="history-chip">{{ quote.passengers }} passageiro(s)</span>{% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% endif %}{% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}{% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}{% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}{% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}</div><div class="history-segment-list">{% for row in quote.segment_rows %}<div class="history-segment-row {% if row.status == 'flown' %}segment-flown{% elif row.status == 'not_flown' %}segment-unflown{% endif %}"><div class="history-segment-route"><span class="segment-number">Trecho {{ row.segment }}</span><strong>{{ row.route }}</strong>{% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}{% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}</div><div class="history-segment-schedule">{% if row.schedules %}{% for schedule in row.schedules %}<span>{{ schedule }}</span>{% endfor %}{% elif row.status == 'not_flown' %}<span class="schedule-muted">Sem horário — trecho não utilizado</span>{% else %}<span class="schedule-muted">Data e horário não informados</span>{% endif %}</div></div>{% endfor %}</div></div>
             </div>
-            <div class="option-value"><small>Preço de custo</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+            <div class="option-value quote-commercial-summary">
+              <small>Preço de custo</small><strong>{{ quote.total|money(quote.currency) }}</strong>
+              {% if quote.commercial and quote.commercial.profit_value is not none %}
+                <small class="quote-profit-label">Lucro</small>
+                <strong class="quote-profit-value">{{ quote.commercial.profit_value|money(quote.currency) }}</strong>
+                <small class="quote-sale-label">Valor de venda</small>
+                <strong class="quote-sale-value">{{ (quote.commercial.sale_value if quote.commercial.sale_value is not none else (quote.total + quote.commercial.profit_value))|money(quote.currency) }}</strong>
+              {% else %}<small class="quote-profit-pending">Lucro ainda não definido</small>{% endif %}
+            </div>
             <div class="option-actions">
               <a class="ghost-button small-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a>
               <button class="secondary-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ "Editar lucro" if quote.commercial and (quote.commercial.profit_value or 0) > 0 else "Adicionar lucro" }}</button>

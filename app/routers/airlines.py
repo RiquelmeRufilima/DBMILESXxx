@@ -27,6 +27,21 @@ router = APIRouter(prefix="/airlines", tags=["airlines"])
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+CATALOG_CATEGORIES = (
+    ("airlines", "Companhias"),
+    ("systems", "Sistemas"),
+    ("consolidators", "Consolidadoras e Operadoras"),
+)
+_VALID_CATALOG_CATEGORIES = {key for key, _ in CATALOG_CATEGORIES}
+
+
+def _catalog_category(raw: str) -> str:
+    value = str(raw or "airlines").strip().lower()
+    if value not in _VALID_CATALOG_CATEGORIES:
+        raise ValueError("Selecione uma categoria válida.")
+    return value
+
+
 
 def slugify(value: str) -> str:
     text = value.strip().lower()
@@ -228,7 +243,7 @@ def airline_list(request: Request, db: Session = Depends(get_db)):
         .options(selectinload(Airline.calculation_types))
         .order_by(Airline.builtin.desc(), Airline.name)
     ).all()
-    return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines))
+    return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines, catalog_categories=CATALOG_CATEGORIES))
 
 
 @router.get("/new")
@@ -239,7 +254,7 @@ def new_airline_page(request: Request, db: Session = Depends(get_db)):
     if user.company_id and user.role not in {"admin", "gerente"}:
         flash(request, "Somente administradores e gerentes podem criar companhias para a empresa.", "error")
         return RedirectResponse("/airlines", status_code=303)
-    return templates.TemplateResponse(request, "airlines/form.html", context(request, user=user))
+    return templates.TemplateResponse(request, "airlines/form.html", context(request, user=user, catalog_categories=CATALOG_CATEGORIES))
 
 
 @router.post("/new")
@@ -261,6 +276,11 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
     formula = str(form.get("formula") or "(milhas * milheiro) + taxa").strip()
     apply_mode = str(form.get("apply_mode") or "total")
     color = str(form.get("color") or "#24b7d3")
+    try:
+        catalog_category = _catalog_category(form.get("catalog_category"))
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse("/airlines/new", status_code=303)
     if len(name) < 2:
         flash(request, "O nome da companhia é obrigatório.", "error")
         return RedirectResponse("/airlines/new", status_code=303)
@@ -300,6 +320,7 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
         logo_path=logo_path,
         color=color if re.match(r"^#[0-9A-Fa-f]{6}$", color) else "#24b7d3",
         engine_type="formula",
+        catalog_category=catalog_category,
         active=True,
         builtin=False,
     )
@@ -369,8 +390,32 @@ def manage_airline(airline_id: int, request: Request, db: Session = Depends(get_
         flash(request, "Companhia não encontrada.", "error")
         return RedirectResponse("/airlines", status_code=303)
     return templates.TemplateResponse(request, "airlines/manage.html",
-        context(request, user=user, airline=airline, can_manage=_can_manage(user, airline)),
+        context(request, user=user, airline=airline, can_manage=_can_manage(user, airline), catalog_categories=CATALOG_CATEGORIES),
     )
+
+
+@router.post("/{airline_id}/category")
+async def update_catalog_category(airline_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    airline = db.get(Airline, airline_id)
+    if airline is None or not _can_manage(user, airline):
+        flash(request, "A categoria das companhias originais não pode ser alterada.", "error")
+        return RedirectResponse("/airlines", status_code=303)
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        flash(request, "Sessão expirada. Atualize a página e tente novamente.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+    try:
+        category = _catalog_category(form.get("catalog_category"))
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+    airline.catalog_category = category
+    db.commit()
+    flash(request, "Categoria atualizada com sucesso.", "success")
+    return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
 
 @router.post("/{airline_id}/logo")

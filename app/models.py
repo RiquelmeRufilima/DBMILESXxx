@@ -91,6 +91,8 @@ class Airline(Base):
     logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     color: Mapped[str] = mapped_column(String(20), default="#24b7d3", nullable=False)
     engine_type: Mapped[str] = mapped_column(String(30), default="formula", nullable=False)
+    # Categoria visual do catálogo. A categoria dos motores originais é sempre "airlines".
+    catalog_category: Mapped[str] = mapped_column(String(32), default="airlines", server_default="airlines", nullable=False)
     legacy_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     builtin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
