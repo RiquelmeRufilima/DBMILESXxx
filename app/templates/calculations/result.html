@@ -1,9 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Resultado | DBMILESX{% endblock %}
+{% block title %}Resultado | DBMILESX{% if not shared_view|default(false) %}{% include 'calculations/_profit_modal_shared.html' %}{% endif %}
+{% endblock %}
 {% block eyebrow %}RESULTADO{% endblock %}
 {% block page_title %}Opção calculada{% endblock %}
 {% block content %}
 {% if shared_view|default(false) %}
+
+<script>document.addEventListener('DOMContentLoaded',()=>{document.getElementById('saveSharedQuote')?.addEventListener('click',async e=>{const b=e.currentTarget;b.disabled=true;try{const r=await fetch('/chat/quotes/{{ quote.id }}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message||'Falha');b.textContent='Abrir cópia salva';b.disabled=false;b.onclick=()=>location.href=j.url;}catch(err){alert(err.message);b.disabled=false;}});});</script>
+{% endif %}
 <style>.result-grid > .card-panel:nth-child(2),.page-actions form,.result-grid .button-delete,.result-grid .button-edit,.result-grid .button-fare,.result-grid .button-duplicate,.result-grid .button-accept,.result-grid .button-open,.result-grid .quote-actions-panel{display:none!important}
   .dbm-result-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:0 0 15px}
   .result-hero{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:22px!important;align-items:start!important;padding:22px!important;min-width:0}
@@ -24,9 +28,16 @@
   html[data-theme="light"] .dbm-finance-card{background:#f2f8fd;border-color:#c9dce9}html[data-theme="light"] .dbm-finance-card small{color:#355c77}html[data-theme="light"] .dbm-finance-card strong{color:#103b58}html[data-theme="light"] .dbm-result-financial .dbm-finance-card:nth-child(2) strong{color:#087d57}html[data-theme="light"] .dbm-baggage-detail{background:#eaf8fb;color:#13465e;border-color:#a4d7e4}html[data-theme="light"] .dbm-bag-title{color:#0d455b}html[data-theme="light"] .dbm-bag-cost{color:#24566a}
   @media(max-width:1000px){.result-hero{grid-template-columns:1fr!important}.result-hero .page-actions{justify-content:flex-start!important}.result-grid{grid-template-columns:1fr!important}}
   @media(max-width:630px){.dbm-result-financial{grid-template-columns:1fr 1fr}.dbm-finance-card:last-child{grid-column:1/-1}.result-hero{padding:16px!important}.dbm-result-toolbar>a{flex:1 1 auto;text-align:center}.result-hero .page-actions>*{flex:1 1 auto!important;text-align:center}.result-hero h1{font-size:1.48rem!important}}
+
+  .result-hero{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(330px,auto)!important;gap:24px!important;align-items:start!important}
+  .result-hero>div:first-child{width:auto!important;min-width:0!important;max-width:100%!important}
+  .result-hero h1{font-size:clamp(1.35rem,2vw,2.1rem)!important;line-height:1.24!important;max-width:100%!important;white-space:normal!important;overflow-wrap:break-word!important}
+  .result-hero .page-actions{position:static!important;display:flex!important;justify-content:flex-end!important;align-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;min-width:0!important;max-width:590px!important}
+  .result-hero .page-actions>*{margin:0!important;width:auto!important}
+  .dbm-result-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 16px}
+  .dbm-result-toolbar .button-profit{background:#087451!important;border:1px solid #21b785!important;color:#fff!important}
+  @media(max-width:900px){.result-hero{grid-template-columns:minmax(0,1fr)!important}.result-hero .page-actions{justify-content:flex-start!important}}
 </style>
-<script>document.addEventListener('DOMContentLoaded',()=>{document.getElementById('saveSharedQuote')?.addEventListener('click',async e=>{const b=e.currentTarget;b.disabled=true;try{const r=await fetch('/chat/quotes/{{ quote.id }}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message||'Falha');b.textContent='Abrir cópia salva';b.disabled=false;b.onclick=()=>location.href=j.url;}catch(err){alert(err.message);b.disabled=false;}});});</script>
-{% endif %}
 {% set flight_chips = quote.flight_detail_chips|default([], true) %}
 {% set flexible_schedule = quote.has_flexible_schedule|default(false) %}
 {% set route_items = quote.scope_route_items|default([], true) %}
@@ -60,7 +71,7 @@
   <a class="secondary-button" href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
   {% if not shared_view|default(false) %}
   <a class="secondary-button" href="/calculations/history">Abrir cotações no histórico</a>
-  <a class="secondary-button button-profit" href="/calculations/history?profit_quote_id={{ quote.id }}">{{ "Editar lucro" if quote.commercial else "Adicionar lucro" }}</a>
+  <button class="secondary-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ "Editar lucro" if quote.commercial and (quote.commercial.profit_value or 0) > 0 else "Adicionar lucro" }}</button>
   <a class="secondary-button" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
   {% endif %}
 </nav>
@@ -197,6 +208,19 @@
   <textarea id="quoteObservations" rows="3" maxlength="3000" placeholder="Ex.: Tarifa Standard • 1 bagagem de 23 kg">{{ quote.trip.notes if quote.trip and quote.trip.notes else '' }}</textarea>
   <div class="quote-share-actions"><button class="secondary-button" type="button" id="saveQuoteObservation">Salvar observação</button><span id="quoteShareStatus" role="status"></span></div>
   <p class="quote-share-muted"><strong>Tipo exato do cálculo:</strong> {{ quote.calculation_type.name if quote.calculation_type else 'Não informado' }} • <strong>Tarifa:</strong> {{ quote.fare_brand or 'Não informada' }}</p>
+<section class="card-panel top-gap-xl dbm-result-input-detail" id="detalhamentoCalculo">
+  <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO DO CÁLCULO</span><h2>Valores e informações utilizados</h2><p>Confira os valores informados para esta opção. Os campos abaixo são dados internos.</p></div></div>
+  <div class="history-meta-grid">
+    {% if quote.is_skip_record %}
+      <div><small>Tipo de registro</small><strong>Skip simplificado</strong></div>
+      <div><small>Valor registrado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+      <div><small>Comissão</small><strong>{{ quote.skip_commission_value|money('BRL') if quote.skip_commission_value else 'Não informada' }}</strong></div>
+      <div><small>Trecho utilizado</small><strong>Trecho {{ quote.flown_segment }}</strong></div>
+    {% else %}
+      {% for key, value in inputs.items() %}{% if not key.startswith('_') %}<div><small>{{ key }}</small><strong class="editable-preview-field" data-field-key="{{ key }}">{{ value }}</strong></div>{% endif %}{% endfor %}
+    {% endif %}
+  </div>
+</section>
   <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
   <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
   <label for="quoteInternalMessage"><strong>Resumo interno — custo, lucro e origem da cotação</strong></label>
@@ -288,19 +312,7 @@
 </script>
 {% endif %}
 
-<section class="card-panel top-gap-xl dbm-result-input-detail" id="detalhamentoCalculo">
-  <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO DO CÁLCULO</span><h2>Valores e informações utilizados</h2><p>Confira os valores informados para esta opção. Os campos abaixo são dados internos.</p></div></div>
-  <div class="history-meta-grid">
-    {% if quote.is_skip_record %}
-      <div><small>Tipo de registro</small><strong>Skip simplificado</strong></div>
-      <div><small>Valor registrado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
-      <div><small>Comissão</small><strong>{{ quote.skip_commission_value|money('BRL') if quote.skip_commission_value else 'Não informada' }}</strong></div>
-      <div><small>Trecho utilizado</small><strong>Trecho {{ quote.flown_segment }}</strong></div>
-    {% else %}
-      {% for key, value in inputs.items() %}{% if not key.startswith('_') %}<div><small>{{ key }}</small><strong class="editable-preview-field" data-field-key="{{ key }}">{{ value }}</strong></div>{% endif %}{% endfor %}
-    {% endif %}
-  </div>
-</section>
+
 
 <script>
   // Função do Olhinho para ocultar ou reexibir o trecho instantaneamente
