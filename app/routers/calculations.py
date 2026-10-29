@@ -440,6 +440,18 @@ def _recover_group_route_from_options(db: Session, user: WebUser, group: QuoteGr
     return False
 
 
+def _optional_client_text(value: Any) -> str:
+    """Converte campos opcionais ausentes e valores legados 'None' em vazio.
+
+    Evita que um NULL do PostgreSQL vire texto em inputs HTML e que esse texto
+    acabe persistido ao salvar uma cotação sem dados de contato.
+    """
+    if value is None:
+        return ""
+    cleaned = str(value).strip()
+    return "" if cleaned.lower() in {"none", "null", "undefined"} else cleaned
+
+
 def _base_from_group(group: QuoteGroup, variant_key: str | None = None) -> dict[str, Any]:
     trip = group.trip
     variants = _group_variant_cards(group)
@@ -472,10 +484,10 @@ def _base_from_group(group: QuoteGroup, variant_key: str | None = None) -> dict[
         "flexibility_days": max(0, int(selected.get("flexibility_days") or 0)),
         "segments": selected_segments,
         "client_person_id": trip.client_person_id if trip else None,
-        "client_name": trip.client_name if trip else "",
-        "client_email": trip.client_email if trip else "",
-        "client_phone": trip.client_phone if trip else "",
-        "notes": (selected.get("notes") if not selected.get("is_primary") and selected.get("notes") is not None else (trip.notes if trip else "")),
+        "client_name": _optional_client_text(trip.client_name if trip else None),
+        "client_email": _optional_client_text(trip.client_email if trip else None),
+        "client_phone": _optional_client_text(trip.client_phone if trip else None),
+        "notes": (selected.get("notes") if not selected.get("is_primary") and selected.get("notes") is not None else (trip.notes if trip else "")) or "",
         "source_request_id": group.source_request_id,
         "mode": "group",
         "variant_key": selected.get("key") or "primary",
@@ -504,10 +516,10 @@ def _base_from_quote(quote: WebQuote) -> dict[str, Any]:
         "return_date": trip.return_date if trip else "",
         "segments": _safe_json(trip.segments_json, []) if trip else [],
         "client_person_id": trip.client_person_id if trip else None,
-        "client_name": trip.client_name if trip else "",
-        "client_email": trip.client_email if trip else "",
-        "client_phone": trip.client_phone if trip else "",
-        "notes": trip.notes if trip else "",
+        "client_name": _optional_client_text(trip.client_name if trip else None),
+        "client_email": _optional_client_text(trip.client_email if trip else None),
+        "client_phone": _optional_client_text(trip.client_phone if trip else None),
+        "notes": (trip.notes if trip else "") or "",
         "source_request_id": None,
         "mode": "from_quote",
     }
@@ -2610,7 +2622,7 @@ def _new_calculation_impl(
                     "segments": _safe_json(item.segments_json, []),
                     "client_name": item.client_name,
                     "client_email": item.email or "",
-                    "client_phone": item.phone,
+                    "client_phone": _optional_client_text(item.phone),
                     "notes": item.notes or "",
                     "source_request_id": item.id,
                     "mode": "request_base",
@@ -3068,7 +3080,7 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
         trip.flexibility_days = 0
     trip.segments_json = json.dumps(normalized_segments, ensure_ascii=False)
 
-    client_name_typed = str(form.get("client_name") or "").strip()[:180]
+    client_name_typed = _optional_client_text(form.get("client_name"))[:180]
     try:
         client_person_id = int(form.get("client_person_id") or 0) or None
     except (TypeError, ValueError):
@@ -3083,13 +3095,13 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
     if client_person is not None:
         trip.client_person_id = client_person.id
         trip.client_name = client_person.name
-        trip.client_email = str(form.get("client_email") or client_person.email or "").strip()[:180] or None
-        trip.client_phone = str(form.get("client_phone") or client_person.phone or client_person.mobile or "").strip()[:60] or None
+        trip.client_email = (_optional_client_text(form.get("client_email")) or _optional_client_text(client_person.email))[:180] or None
+        trip.client_phone = (_optional_client_text(form.get("client_phone")) or _optional_client_text(client_person.phone) or _optional_client_text(client_person.mobile))[:60] or None
     else:
         trip.client_person_id = None
         trip.client_name = None
-        trip.client_email = str(form.get("client_email") or "").strip()[:180] or None
-        trip.client_phone = str(form.get("client_phone") or "").strip()[:60] or None
+        trip.client_email = _optional_client_text(form.get("client_email"))[:180] or None
+        trip.client_phone = _optional_client_text(form.get("client_phone"))[:60] or None
     trip.notes = str(form.get("notes") or "").strip()[:4000] or None
 
     if group.source_request_id:

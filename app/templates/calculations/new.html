@@ -911,18 +911,18 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
     <details class="inline-details" open><summary>Dados do cliente e observações</summary>
       <div class="form-grid cols-3 compact top-gap">
         <label class="person-search-wrapper">Nome do cliente
-          <input class="person-search" name="client_name" value="{{ base.client_name }}" placeholder="Digite para filtrar os clientes" autocomplete="off" data-person-type="cliente,passageiro" data-require-selection="1">
+          <input class="person-search" name="client_name" value="{{ base.client_name or '' }}" placeholder="Digite para filtrar os clientes" autocomplete="off" data-person-type="cliente,passageiro" data-require-selection="1">
           <input type="hidden" name="client_person_id" class="person-id" value="{{ base.client_person_id or '' }}">
           <small>Selecione um cadastro existente. Se não aparecer, cadastre o cliente antes de continuar.</small>
         </label>
-        <label>E-mail<input type="email" name="client_email" value="{{ base.client_email }}" placeholder="Opcional"></label>
-        <label>Telefone<input name="client_phone" value="{{ base.client_phone }}" placeholder="Opcional"></label>
+        <label>E-mail<input type="email" name="client_email" value="{{ base.client_email or '' }}" placeholder="Opcional"></label>
+        <label>Telefone<input name="client_phone" value="{{ base.client_phone or '' }}" placeholder="Opcional"></label>
       </div>
       <div class="action-cluster top-gap">
         <a class="secondary-button small-button" href="/persons/new?quick=1&person_type=cliente" target="_blank"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Cadastrar pessoa</a>
         <a class="ghost-button small-button" href="/persons" target="_blank">Ver cadastros</a>
       </div>
-      <label class="top-gap">Observações<textarea name="notes" rows="3" placeholder="Informações importantes para a proposta">{{ base.notes }}</textarea></label>
+      <label class="top-gap">Observações<textarea name="notes" rows="3" placeholder="Informações importantes para a proposta">{{ base.notes or '' }}</textarea></label>
     </details>
 
     <div class="sticky-form-actions">
