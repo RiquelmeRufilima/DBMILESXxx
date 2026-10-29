@@ -348,6 +348,74 @@
 .optional-bottom-stack{display:grid;gap:10px;margin-top:16px}.optional-bottom-card{border:1px solid var(--border);border-radius:16px;background:var(--panel);overflow:hidden;box-shadow:var(--shadow)}.optional-bottom-card>summary{list-style:none;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:14px 16px;cursor:pointer}.optional-bottom-card>summary::-webkit-details-marker{display:none}.optional-summary-step{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;font-weight:950}.optional-bottom-card summary strong,.optional-bottom-card summary small{display:block}.optional-bottom-card summary small{color:var(--muted);margin-top:2px;font-size:.72rem}.optional-summary-pill{padding:4px 8px;border-radius:999px;background:rgba(44,151,255,.12);border:1px solid rgba(70,165,255,.18);color:var(--cyan-2);font-size:.66rem;font-weight:900}.optional-bottom-content{padding:0 14px 14px}.optional-bottom-content>.form-section{margin:0;box-shadow:none}.optional-bottom-card .section-title{display:none}.optional-bottom-card[open]>summary{border-bottom:1px solid var(--border)}
 html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-section,html[data-theme="light"] .optional-bottom-card{background:#fff!important;border-color:#d9e7f5!important;box-shadow:0 8px 28px rgba(30,75,120,.07)!important}html[data-theme="light"] .calc-scope-card{background:#fff!important;color:#0c2a52!important;border-color:#d7e5f4!important;box-shadow:0 6px 20px rgba(32,79,130,.06)!important}html[data-theme="light"] .calc-scope-card.active{background:linear-gradient(135deg,#eef8ff,#f7fbff)!important;border-color:#2f8ef8!important;box-shadow:0 0 0 3px rgba(47,142,248,.10)!important}html[data-theme="light"] .scope-copy-soft strong{color:#0c2a52!important}html[data-theme="light"] .scope-copy-soft small{color:#66809c!important}html[data-theme="light"] .operation-profile-panel-visible{background:#fff!important;border-color:#d9e7f5!important}html[data-theme="light"] .operation-main-field>span,html[data-theme="light"] .partner-segment-field>span>b{color:#163a63!important}html[data-theme="light"] .operation-main-field select,html[data-theme="light"] .operation-main-field input,html[data-theme="light"] .partner-segment-field input{background:#fff!important;color:#0c2a52!important;border-color:#cfdff0!important}html[data-theme="light"] .partner-segment-field{background:#f8fbff!important;border-color:#dce9f6!important}
 @media(max-width:620px){.optional-bottom-card>summary{grid-template-columns:auto 1fr;padding:12px}.optional-summary-pill{display:none}.optional-bottom-content{padding:0 8px 8px}}
+/* DBMILESX — somente modo claro: cartões da rota e subcotações.
+   Mantém o tema escuro e as cores de ações sem alteração. */
+html[data-theme="light"] .variant-switcher,
+html[data-theme="light"] .quote-base-summary.card-panel {
+  background:#ffffff!important;
+  border:1px solid #cfdfeb!important;
+  color:#17334c!important;
+  box-shadow:0 6px 20px rgba(25,72,108,.07)!important;
+}
+html[data-theme="light"] .variant-switcher .panel-heading,
+html[data-theme="light"] .variant-switcher .panel-heading > div,
+html[data-theme="light"] .quote-base-summary .panel-heading,
+html[data-theme="light"] .quote-base-summary .panel-heading > div {
+  background:transparent!important;
+  border-color:transparent!important;
+  box-shadow:none!important;
+}
+html[data-theme="light"] .variant-switcher h3,
+html[data-theme="light"] .quote-base-summary h2,
+html[data-theme="light"] .quote-base-summary .panel-heading strong {
+  color:#102f48!important;
+}
+html[data-theme="light"] .variant-switcher p,
+html[data-theme="light"] .variant-switcher .panel-heading p,
+html[data-theme="light"] .quote-base-summary .panel-heading p,
+html[data-theme="light"] .quote-base-summary .panel-heading p b {
+  color:#45657c!important;
+}
+html[data-theme="light"] .variant-switcher .eyebrow,
+html[data-theme="light"] .quote-base-summary .eyebrow {
+  color:#215c83!important;
+}
+html[data-theme="light"] .variant-switcher .variant-tab {
+  background:#f3f8fc!important;
+  border:1px solid #ccdfec!important;
+  color:#173c58!important;
+}
+html[data-theme="light"] .variant-switcher .variant-tab.active {
+  background:#e8faf4!important;
+  border-color:#27a885!important;
+  color:#075c43!important;
+}
+html[data-theme="light"] .variant-switcher .variant-tab small {
+  color:#4c6b83!important;
+}
+html[data-theme="light"] .quote-base-summary .summary-grid,
+html[data-theme="light"] .quote-base-summary .summary-grid > div {
+  background:transparent;
+  box-shadow:none!important;
+}
+html[data-theme="light"] .quote-base-summary .summary-grid > div {
+  background:#f5f9fd!important;
+  border:1px solid #cadfeb!important;
+  border-radius:13px!important;
+}
+html[data-theme="light"] .quote-base-summary .summary-grid > div small {
+  color:#456b87!important;
+  opacity:1!important;
+}
+html[data-theme="light"] .quote-base-summary .summary-grid > div strong {
+  color:#102f4a!important;
+  opacity:1!important;
+}
+html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
+  background:#eaf5fb!important;
+  border-color:#a9cce2!important;
+}
+
 </style>
 {% endblock %}
 {% block content %}

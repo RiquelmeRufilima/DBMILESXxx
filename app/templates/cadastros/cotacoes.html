@@ -20,6 +20,77 @@
 .quotes-board-page .board-filter,.quotes-board-page .custom-status-maker{background:var(--panel)!important}
 html[data-theme="light"] .quotes-board-page .quote-kanban-card{box-shadow:0 3px 12px rgba(13,42,72,.07)!important}
 
+/* Contraste do quadro em modo claro. Não altera o modo escuro nem o tom escolhido no perfil. */
+html[data-theme="light"] .quotes-board-page .quote-area-tabs a:not(.active){
+  background:#ffffff!important;border-color:#c6deeb!important;color:#234c68!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-area-tabs a.active{
+  background:#e9f7fd!important;border-color:#4b9dc4!important;color:#093f63!important;
+}
+html[data-theme="light"] .quotes-board-page .board-filter,
+html[data-theme="light"] .quotes-board-page .custom-status-maker{
+  background:#fff!important;border-color:#d1e2ed!important;color:#193e56!important;
+}
+html[data-theme="light"] .quotes-board-page .board-filter input,
+html[data-theme="light"] .quotes-board-page .board-filter select,
+html[data-theme="light"] .quotes-board-page .custom-status-maker input:not([type="color"]){
+  background:#f7fbfd!important;border-color:#c9dcea!important;color:#17364c!important;
+}
+html[data-theme="light"] .quotes-board-page .board-filter input::placeholder,
+html[data-theme="light"] .quotes-board-page .custom-status-maker input::placeholder{color:#617e93!important}
+html[data-theme="light"] .quotes-board-page .kanban-column {
+  background:#f3f8fb!important;
+  border:1px solid #c9dfea!important;
+}
+html[data-theme="light"] .quotes-board-page .kanban-column > header {
+  background:color-mix(in srgb,var(--status-color) 23%,white)!important;
+  border-bottom:3px solid var(--status-color)!important;
+  color:#0d2d43!important;
+}
+html[data-theme="light"] .quotes-board-page .kanban-column > header strong,
+html[data-theme="light"] .quotes-board-page .kanban-column > header small,
+html[data-theme="light"] .quotes-board-page .kanban-column > header b {color:#0d2d43!important}
+html[data-theme="light"] .quotes-board-page .kanban-dropzone {
+  background:#f4f9fc!important;
+}
+html[data-theme="light"] .quotes-board-page .kanban-dropzone.drag-over {
+  background:#e3f5fb!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card {
+  background:#fff!important;
+  border:1px solid #c6dce9!important;
+  box-shadow:0 3px 11px rgba(23,71,103,.09)!important;
+  opacity:1!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-client,
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-footer strong {
+  color:#102f46!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-top,
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-route,
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-user-line,
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-method-line {
+  color:#4c6b80!important;
+  opacity:1!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-tag {
+  background:#dceeff!important;color:#134e7c!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-assignee-form select,
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-assignee-form button {
+  background:#f5fafd!important;color:#133c57!important;border-color:#b6d5e7!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .mini-actions a {
+  background:#eaf6fc!important;color:#135d87!important;border-color:#bedce9!important;
+}
+html[data-theme="light"] .quotes-board-page .empty-kanban{
+  color:#43647d!important;background:#fff!important;border-color:#bed5e5!important;
+}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card .quote-card-client:focus-visible,
+html[data-theme="light"] .quotes-board-page .quote-kanban-card a:focus-visible {
+  outline:2px solid #1673c1!important;outline-offset:3px!important;
+}
+
 </style>
 {% endblock %}
 {% block content %}

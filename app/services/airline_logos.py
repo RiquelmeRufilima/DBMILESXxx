@@ -32,6 +32,7 @@ _ALIASES: dict[str, str] = {
     "royalairmaroc": "royalairmaroc.png", "singapore": "singapore.png", "sky": "sky.png", "skyairline": "sky.png",
     "southafrican": "southafrican.png", "swiss": "swiss.png", "taag": "taag.jpg", "turkish": "turkish.png",
     "turkishairlines": "turkish.png", "united": "united.png",
+    "voepass": "voepass.png", "passaredo": "voepass.png",
 }
 _NOISE = re.compile(r"\b(linhas aereas|linhas aéreas|airlines|airline|airways|air lines|s\.?a\.?|ltda|inteligentes)\b")
 _PALETTE = ["#e11d48", "#2563eb", "#059669", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#4f46e5"]
