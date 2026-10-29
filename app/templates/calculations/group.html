@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ group.quote_name }} | DBMILESX{% include 'calculations/_profit_modal_shared.html' %}
+{% block title %}{{ group.quote_name }} | DBMILESX
 {% endblock %}
 {% block eyebrow %}COTAÇÃO PRINCIPAL{% endblock %}
 {% block page_title %}Opções por companhia{% endblock %}
@@ -17,6 +17,7 @@
     <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else 'Não definido' }}</strong></small>
   </div>
   <div class="page-actions">
+    <a class="secondary-button" data-dbm-smart-back href="/calculations/history">← Voltar</a>
     <a class="primary-button button-create" href="/calculations/new?group_id={{ group.id }}&calc=1"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Calcular outra companhia</a>
     <a class="secondary-button button-create" href="/calculations/group/{{ group.id }}/variant/new"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Nova subcotação</a>
     <a class="secondary-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
@@ -75,7 +76,7 @@
   </aside>
 
   <main class="card-panel">
-    <a class="secondary-button small-button" href="/calculations/new?group_id={{ group.id }}&calc=1">← Voltar à calculadora</a>
+    <a class="secondary-button small-button button-open" href="/calculations/new?group_id={{ group.id }}&calc=1">Aba calculadora</a>
     <div class="panel-heading">
       <div><span class="eyebrow">OPÇÕES CALCULADAS</span><h2>Companhias dentro desta cotação</h2><p>Estas opções pertencem à mesma cotação principal e estão organizadas por preço de custo, do menor para o maior.</p></div>
       <a class="primary-button button-create" href="/calculations/new?group_id={{ group.id }}&calc=1"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Adicionar opção</a>
@@ -126,4 +127,6 @@
     {% endif %}
   </main>
 </section>
+{% include 'calculations/_profit_modal_shared.html' %}
+{% include 'calculations/_smart_back.html' %}
 {% endblock %}

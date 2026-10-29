@@ -1,0 +1,28 @@
+{# Reusable navigation: return to the actual previous same-origin page, preserving filters. #}
+<script>
+(() => {
+  const here = window.location.href;
+  const resolvePrevious = (ref) => {
+    if (!ref) return null;
+    try {
+      const url = new URL(ref, here);
+      if (url.origin !== window.location.origin) return null;
+      // Reloads, logins and logouts must not produce a misleading back action.
+      if (url.href === here || /^\/(?:login|logout)(?:\/|$)/.test(url.pathname)) return null;
+      return url.pathname + url.search + url.hash;
+    } catch (_) { return null; }
+  };
+  const previous = resolvePrevious(document.referrer);
+  document.querySelectorAll('[data-dbm-smart-back]').forEach((link) => {
+    const fallback = resolvePrevious(link.getAttribute('href')) || '/calculations/history';
+    link.href = previous || fallback;
+    link.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (!previous || window.history.length < 2) return; // direct URLs and new tabs: safe fallback
+      event.preventDefault();
+      // Real browser back restores history filters, calculator form state and scroll.
+      window.history.back();
+    });
+  });
+})();
+</script>

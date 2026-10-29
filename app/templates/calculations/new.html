@@ -362,6 +362,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
     {% endif %}
   </div>
   <div class="action-cluster">
+    <a class="secondary-button" data-dbm-smart-back href="{% if group %}/calculations/group/{{ group.id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
     <a class="secondary-button" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg><span class="icon-label">Nova cotação limpa</span></a>
     <a class="ghost-button" href="/calculations/history">Abrir cotações</a>
   </div>
@@ -922,6 +923,7 @@ html[data-theme="light"] .segment-scope-panel,html[data-theme="light"] .form-sec
   </form>
 </section>
 {% endif %}
+{% include 'calculations/_smart_back.html' %}
 {% endblock %}
 {% block scripts %}
 <script src="/static/js/quote-form.js?v=5.10.41" defer></script>

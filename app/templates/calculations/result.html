@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Resultado | DBMILESX{% if not shared_view|default(false) %}{% include 'calculations/_profit_modal_shared.html' %}{% endif %}
+{% block title %}Resultado | DBMILESX
 {% endblock %}
 {% block eyebrow %}RESULTADO{% endblock %}
 {% block page_title %}Opção calculada{% endblock %}
@@ -68,7 +68,7 @@
 </style>
 
 <nav class="dbm-result-toolbar" aria-label="Navegação da cotação">
-  <a class="secondary-button" href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
+  <a class="secondary-button" data-dbm-smart-back href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
   {% if not shared_view|default(false) %}
   <a class="secondary-button" href="/calculations/history">Abrir cotações no histórico</a>
   <button class="secondary-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ "Editar lucro" if quote.commercial and (quote.commercial.profit_value or 0) > 0 else "Adicionar lucro" }}</button>
@@ -348,4 +348,6 @@
     });
   });
 </script>
+{% if not shared_view|default(false) %}{% include 'calculations/_profit_modal_shared.html' %}{% endif %}
+{% include 'calculations/_smart_back.html' %}
 {% endblock %}
