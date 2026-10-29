@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Cotação {{ data.quote_code or group.id }} | DBMILESX{% endblock %}
 {% block content %}
+<style>
+.status-draft-note{margin:0 0 14px;padding:10px 13px;border-radius:10px;border:1px solid color-mix(in srgb,var(--cyan) 40%,var(--border));background:color-mix(in srgb,var(--cyan) 8%,var(--panel));color:var(--text);font-size:.78rem}
+</style>
 <form class="accepted-editor" method="post" action="/cadastros/cotacoes/{{ group.id }}/salvar" id="quoteEditForm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="status" id="statusField" value="{{ item.status or 'aguardando' }}">
@@ -33,11 +36,12 @@
 
     <div class="status-rail" id="statusRail">
       {% for key,label,color in statuses %}
-        <button class="status-step {% if item.status == key or (item.status == 'aceita' and key == 'aguardando') %}active{% endif %}" type="button" data-status="{{ key }}" style="--status-color: {{ color }}" title="Clique duas vezes para enviar para {{ label }}">
+        <button class="status-step {% if item.status == key or (item.status == 'aceita' and key == 'aguardando') %}active{% endif %}" type="button" data-status="{{ key }}" style="--status-color: {{ color }}" title="Selecionar {{ label }}. Clique em Salvar para confirmar, sem perder os dados preenchidos.">
           <b>{{ loop.index }}</b><span>{{ label }}</span>
         </button>
       {% endfor %}
     </div>
+    <p id="statusDraftNote" class="status-draft-note" role="status" hidden>Fase alterada nesta tela. Clique em <strong>Salvar</strong> para confirmar sem perder os dados preenchidos.</p>
 
     <div class="quote-main-grid">
       <div class="field-with-button client-field-block person-search-wrapper">
@@ -766,7 +770,20 @@ async function deleteQuoteAttachment(id){
 }
 
 document.querySelectorAll('.quote-tabs button').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.quote-tabs button').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+btn.dataset.tab)?.classList.add('active');}));
-document.querySelectorAll('.status-step').forEach(btn=>btn.addEventListener('dblclick',async()=>{document.getElementById('statusField').value=btn.dataset.status;document.querySelectorAll('.status-step').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const fd=new FormData();const csrf=document.querySelector('input[name=\"csrf_token\"]')?.value||'';const groupId=(location.pathname.match(/\/cadastros\/cotacoes\/(\d+)/)||[])[1]||'';fd.append('csrf_token',csrf);fd.append('status',btn.dataset.status);try{const r=await fetch(`/cadastros/cotacoes/${groupId}/status`,{method:'POST',body:fd,headers:{'X-Requested-With':'fetch'}});if(btn.dataset.status==='venda_cadastrada'||btn.dataset.status==='aprovado'||btn.dataset.status==='lancada') location.reload();}catch(e){console.warn(e);}}));
+// Trocar fase não envia o formulário nem recarrega a página: mantém todo o rascunho
+// (cliente, serviços, passageiros, financeiro, anexos e observações) em memória.
+const statusRail = document.getElementById('statusRail');
+const statusDraftNote = document.getElementById('statusDraftNote');
+document.querySelectorAll('.status-step').forEach(btn => btn.addEventListener('click', () => {
+  const field = document.getElementById('statusField');
+  if (!field || field.value === btn.dataset.status) return;
+  field.value = btn.dataset.status;
+  document.querySelectorAll('.status-step').forEach(step => {
+    step.classList.toggle('active', step === btn);
+    step.setAttribute('aria-pressed', step === btn ? 'true' : 'false');
+  });
+  if (statusDraftNote) statusDraftNote.hidden = false;
+}));
 document.getElementById('clientName')?.addEventListener('person-selected',event=>{
   const person=event.detail?.person;
   if(person) setPersonField('clientName','clientPersonId',person.name||'',person.id||'');
@@ -782,6 +799,21 @@ document.getElementById('quoteAttachmentInput')?.addEventListener('change',event
 document.getElementById('quoteEditForm').addEventListener('submit',syncHidden);
 document.getElementById('launchForm')?.addEventListener('submit',syncHidden);
 renderAll();
+// Acessos vindos de Hospedagens/Transportes/Seguros/etc abrem o serviço
+// correspondente na cotação original, sem criar ou copiar dados.
+const trackingQuery = new URLSearchParams(window.location.search);
+if (trackingQuery.get('tab') === 'orcamento') {
+  document.querySelector('.quote-tabs button[data-tab="orcamento"]')?.click();
+  const serviceKey = trackingQuery.get('service');
+  const indexRaw = trackingQuery.get('service_index');
+  const allowedServices = ['hotel','transport','cruise','experiences','insurance','additional'];
+  if (allowedServices.includes(serviceKey) && /^\d+$/.test(indexRaw || '')) {
+    const index = Number(indexRaw);
+    if (Array.isArray(services[serviceKey]) && services[serviceKey][index]) {
+      requestAnimationFrame(() => openServiceModal(serviceKey, index));
+    }
+  }
+}
 </script>
 
 <dialog id="locatorModal" class="dark-dialog locator-dialog">

@@ -4,32 +4,68 @@
 {% block page_title %}{{ title }}{% endblock %}
 {% block head %}
 <style>
-.track-header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
-.track-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}.track-tabs a{padding:9px 13px;border:1px solid var(--line,#264862);border-radius:12px;text-decoration:none;color:inherit}
-.track-tabs a[aria-current=page]{background:#0d7ac3;color:#fff}
-.track-filter{display:flex;gap:8px;margin-bottom:17px}.track-filter input{flex:1;min-width:0}
-.track-list{display:grid;gap:10px}.track-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:16px;border:1px solid #2a516e;background:#0e263d;border-radius:16px}
-.track-card h3{margin:0 0 4px}.track-card p{margin:0;color:#b5ccdb;overflow-wrap:anywhere}.track-card small{display:block;margin-top:8px;color:#94b6cf}.track-card .primary-button{white-space:nowrap}
-html[data-theme="light"] .track-card{background:#fff;border-color:#d0deea;color:#153047}html[data-theme="light"] .track-card p,html[data-theme="light"] .track-card small{color:#435f72}
-@media(max-width:650px){.track-card{grid-template-columns:1fr}.track-card .primary-button{width:100%;text-align:center}}
+.tracking-shell{max-width:1700px;margin:0 auto;padding:20px 4px}
+.tracking-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:19px}
+.tracking-heading h1{margin:4px 0;font-size:clamp(1.55rem,2.6vw,2.3rem)}
+.tracking-heading p{margin:5px 0;color:var(--muted);font-size:.84rem;line-height:1.5}
+.tracking-types{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.tracking-types a{display:inline-flex;align-items:center;gap:8px;text-decoration:none;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);font-weight:800;font-size:.78rem}
+.tracking-types a[aria-current="page"]{background:color-mix(in srgb,var(--cyan) 16%,var(--panel));border-color:var(--cyan);color:var(--text)}
+.tracking-search{display:flex;gap:9px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:14px}
+.tracking-search label{flex:1;min-width:0;display:grid;gap:6px;color:var(--muted);font-size:.7rem;font-weight:800}
+.tracking-search input{width:100%;min-width:0;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:9px;padding:11px}
+.tracking-count{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;color:var(--muted);font-size:.76rem}
+.tracking-list{display:grid;gap:9px}
+.tracking-entry{display:grid;grid-template-columns:minmax(95px,.55fr) minmax(175px,1.4fr) minmax(215px,1.6fr) auto;gap:14px;align-items:center;padding:15px 18px;border:1px solid var(--border);border-left:3px solid var(--cyan);background:var(--panel);border-radius:13px}
+.tracking-entry>div{min-width:0}
+.tracking-entry small{display:block;color:var(--muted);font-size:.69rem;line-height:1.45;margin:4px 0 0}
+.tracking-entry strong{color:var(--text);font-size:.85rem;overflow-wrap:anywhere}
+.tracking-entry .tracking-date{font-size:.77rem;font-weight:900}
+.tracking-entry .tracking-service{display:grid;gap:3px}
+.tracking-entry .tracking-service span{overflow-wrap:anywhere;color:var(--muted);font-size:.75rem}
+.tracking-entry .tracking-edit{display:inline-flex;gap:7px;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:10px;padding:10px 13px;text-decoration:none;font-size:.77rem;font-weight:900;white-space:nowrap}
+.tracking-entry .tracking-edit:hover{border-color:var(--cyan);background:color-mix(in srgb,var(--cyan) 10%,var(--panel))}
+.tracking-empty{padding:34px 18px;text-align:center;border:1px dashed var(--border);border-radius:16px;background:var(--panel)}
+.tracking-pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin:24px 0;color:var(--muted);font-size:.83rem}
+@media(max-width:950px){.tracking-entry{grid-template-columns:100px minmax(0,1fr) auto}.tracking-entry .tracking-service{grid-column:2}.tracking-entry .tracking-edit{grid-column:3;grid-row:1/3}}
+@media(max-width:680px){.tracking-search{align-items:stretch;flex-direction:column}.tracking-entry{grid-template-columns:1fr 1fr;gap:10px}.tracking-entry .tracking-date{grid-column:1}.tracking-entry .tracking-client{grid-column:1/-1;grid-row:2}.tracking-entry .tracking-service{grid-column:1/-1;grid-row:3}.tracking-entry .tracking-edit{grid-column:2;grid-row:1;justify-self:end}.tracking-types a{flex:1;justify-content:center;font-size:.71rem}}
 </style>
 {% endblock %}
 {% block content %}
-<section class="page-heading track-header"><div><span class="eyebrow">ACOMPANHAMENTOS DA EMPRESA</span><h1>{{ title }}</h1><p>Registros já cadastrados nas cotações aceitas. O lápis abre os dados da cotação original.</p></div></section>
-<nav class="track-tabs" aria-label="Tipos de acompanhamento">
-{% for code, entry in kinds.items() %}<a href="/acompanhamentos/{{ code }}" {% if code == kind %}aria-current="page"{% endif %}>{{ entry[1] }}</a>{% endfor %}
-</nav>
-<form class="track-filter" action="/acompanhamentos/{{ kind }}" method="get"><input name="q" value="{{ search }}" placeholder="Pesquisar cliente ou descrição"><button class="primary-button" type="submit">Buscar</button></form>
-{% if scan_limited %}<p class="muted">Exibindo os cadastros mais recentes. Use a pesquisa para localizar os demais registros.</p>{% endif %}
-<div class="track-list">
-{% for item in items %}
-<article class="track-card"><div><h3>{{ item.client }}</h3><p>{{ item.summary }}</p><small>Cadastrado por {{ item.creator }} • Cotação #{{ item.group_id }}</small></div>
-<a class="primary-button" href="/cadastros/cotacoes/{{ item.group_id }}?origem={{ kind }}" aria-label="Editar cotação de {{ item.client }}" title="Editar dados da cotação">✎ Editar cotação</a></article>
-{% else %}<section class="card-panel"><div class="empty-state"><h3>Nenhum acompanhamento encontrado</h3><p>Cadastre primeiro esse serviço dentro de uma cotação aceita.</p></div></section>{% endfor %}
-</div>
-<div class="history-pager" style="display:flex;justify-content:center;gap:12px;margin:20px 0">
-{% if page > 1 %}<a class="secondary-button" href="?page={{ page - 1 }}&q={{ search|urlencode }}">← Anterior</a>{% endif %}
-<span>Página {{ page }}</span>
-{% if has_more %}<a class="secondary-button" href="?page={{ page + 1 }}&q={{ search|urlencode }}">Carregar mais →</a>{% endif %}
+<div class="tracking-shell">
+  <header class="tracking-heading">
+    <div><span class="eyebrow">ACOMPANHAMENTO DA EQUIPE</span><h1>{{ title }}</h1><p>Registros das cotações da sua empresa. Use o lápis para editar o serviço diretamente na cotação de origem.</p></div>
+  </header>
+  <nav class="tracking-types" aria-label="Tipos de acompanhamento">
+    {% for code, entry in kinds.items() %}<a href="/acompanhamentos/{{ code }}" {% if code == kind %}aria-current="page"{% endif %}>{{ entry[1] }}</a>{% endfor %}
+  </nav>
+  <form class="tracking-search" action="/acompanhamentos/{{ kind }}" method="get">
+    <label>Pesquisar por cliente, serviço ou reserva<input name="q" value="{{ search }}" placeholder="Nome, hotel, rota, localizador..."></label>
+    <button class="primary-button" type="submit">Buscar</button>
+  </form>
+  {% if scan_limited %}<p class="muted">Exibindo os cadastros mais recentes. Use a pesquisa para localizar os demais.</p>{% endif %}
+  <div class="tracking-count"><strong>{{ title }} · Página {{ page }}</strong><span>Registros vinculados às cotações • por atualização recente</span></div>
+  <div class="tracking-list">
+    {% for item in items %}
+      {% set service = item.service %}
+      <article class="tracking-entry">
+        <div class="tracking-date"><strong>{{ (service.get('start_date') or 'Data não informada') }}</strong><small>{{ service.get('start_time') or '' }}{% if service.get('end_date') %} até {{ service.get('end_date') }}{% endif %}</small></div>
+        <div class="tracking-client"><strong>{{ item.client }}</strong><small>Cotação #{{ item.group_id }} • Cadastrada por {{ item.creator }}</small></div>
+        <div class="tracking-service">
+          <strong>{{ service.get('name') or service.get('type') or title }}</strong>
+          <span>{% if service.get('origin') or service.get('destination') %}{{ service.get('origin') or '?' }} → {{ service.get('destination') or '?' }} • {% endif %}{{ service.get('address') or service.get('description') or service.get('reservation_number') or item.summary or 'Serviço cadastrado' }}</span>
+          {% if service.get('reservation_number') %}<small>Reserva: {{ service.get('reservation_number') }}</small>{% endif %}
+        </div>
+        <a class="tracking-edit" href="/cadastros/cotacoes/{{ item.group_id }}?origem={{ kind }}&amp;tab=orcamento&amp;service={{ kinds[kind][0] }}&amp;service_index={{ item.index }}" aria-label="Editar {{ title }} da cotação de {{ item.client }}" title="Abrir o serviço na cotação original">✎ Editar</a>
+      </article>
+    {% else %}
+      <section class="tracking-empty"><h3>Nenhum acompanhamento encontrado</h3><p class="muted">Cadastre um serviço dentro da cotação aceita para acompanhar aqui.</p></section>
+    {% endfor %}
+  </div>
+  <nav class="tracking-pagination" aria-label="Páginas de acompanhamentos">
+    {% if page > 1 %}<a class="secondary-button" href="?page={{ page - 1 }}&q={{ search|urlencode }}">← Anterior</a>{% endif %}
+    <span>Página {{ page }}</span>
+    {% if has_more %}<a class="secondary-button" href="?page={{ page + 1 }}&q={{ search|urlencode }}">Carregar mais →</a>{% endif %}
+  </nav>
 </div>
 {% endblock %}

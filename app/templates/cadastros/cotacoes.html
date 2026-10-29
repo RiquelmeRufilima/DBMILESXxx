@@ -10,6 +10,16 @@
 .kanban-scrollbar-top::-webkit-scrollbar{height:12px}
 .kanban-scrollbar-top::-webkit-scrollbar-track{background:#10263c;border-radius:999px}
 .kanban-scrollbar-top::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#248fd0,#39c6c8);border:2px solid #10263c;border-radius:999px}
+/* Os status dão cor aos cabeçalhos, não ao fundo da tela. O fundo respeita o tema global. */
+.quotes-board-page .kanban-column{background:var(--panel)!important;border-color:var(--border)!important}
+.quotes-board-page .kanban-dropzone{background:var(--panel)!important;transition:background-color .12s ease}
+.quotes-board-page .kanban-dropzone.drag-over{background:color-mix(in srgb,var(--cyan) 8%,var(--panel))!important}
+.quotes-board-page .quote-kanban-card{background:var(--panel-2)!important;border-color:var(--border)!important}
+.quotes-board-page .quote-card-footer strong{color:var(--text)!important}
+.quotes-board-page .quote-kanban-card.saving-status{opacity:.8;outline:2px solid var(--cyan);outline-offset:1px}
+.quotes-board-page .board-filter,.quotes-board-page .custom-status-maker{background:var(--panel)!important}
+html[data-theme="light"] .quotes-board-page .quote-kanban-card{box-shadow:0 3px 12px rgba(13,42,72,.07)!important}
+
 </style>
 {% endblock %}
 {% block content %}
@@ -21,7 +31,7 @@
       <p class="muted">Quadro de acompanhamento das cotações aceitas e manuais. Arraste os cards entre as fases ou abra para editar.</p>
     </div>
     <div class="button-row compact-actions">
-      <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico de cotações</a>
+      <a class="secondary-button" href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
       <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Histórico de cálculos</a>
       <a class="secondary-button" href="/requests/links"><svg class="ui-icon"><use href="#icon-link"></use></svg> Links</a>
       <form method="post" action="/cadastros/cotacoes/nova" class="inline-new-quote-form">
@@ -33,7 +43,7 @@
 
   <nav class="quote-area-tabs" aria-label="Áreas de cotações">
     <a class="active" href="/cadastros/cotacoes"><svg class="ui-icon"><use href="#icon-check"></use></svg> Quadro de controle</a>
-    <a href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico de cotações</a>
+    <a href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
     <a href="/cadastros/fluxo-calculo"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Fluxo de cálculo</a>
     <a href="/cadastros/voos"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Voos</a>
   </nav>
@@ -81,13 +91,13 @@
     {% for key,label,color in statuses %}
       <section class="kanban-column" data-status="{{ key }}" style="--status-color: {{ color }}">
         <header>
-          <strong>{{ label }} <small>({{ counts[key] }})</small></strong>
-          <b>{{ totals[key]|money }}</b>
+          <strong>{{ label }} <small data-lane-count>({{ counts[key] }})</small></strong>
+          <b data-lane-total>{{ totals[key]|money }}</b>
         </header>
         <div class="kanban-dropzone" data-status="{{ key }}">
           {% for card in grouped[key] %}
             {% set maker = card.maker %}
-            <article class="quote-kanban-card {% if not card.accepted %}calculation-only{% endif %}" draggable="{{ 'true' if card.accepted else 'false' }}" data-group-id="{{ card.group.id }}">
+            <article class="quote-kanban-card {% if not card.accepted %}calculation-only{% endif %}" draggable="{{ 'true' if card.accepted else 'false' }}" data-group-id="{{ card.group.id }}" data-price="{{ card.total or 0 }}">
               <div class="quote-card-top">
                 <span class="quote-tag">{{ card.code }}</span>
                 <span>{% if card.item %}{{ card.item.selected_at|date_br }}{% else %}Cálculo{% endif %}</span>
@@ -165,25 +175,80 @@
   }
 
   let dragged = null;
+  const currency = new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'});
+  const updateLane = (zone) => {
+    const column = zone.closest('.kanban-column');
+    if (!column) return;
+    const cards = Array.from(zone.querySelectorAll('.quote-kanban-card'));
+    const count = column.querySelector('[data-lane-count]');
+    const total = column.querySelector('[data-lane-total]');
+    if (count) count.textContent = `(${cards.length})`;
+    if (total) total.textContent = currency.format(cards.reduce((sum, card) => sum + (Number(card.dataset.price) || 0), 0));
+    const empty = zone.querySelector('.empty-kanban');
+    if (empty && cards.length) empty.remove();
+    if (!cards.length && !empty) {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'empty-kanban';
+      placeholder.textContent = 'Nenhuma cotação.';
+      zone.appendChild(placeholder);
+    }
+  };
   document.querySelectorAll('.quote-kanban-card').forEach(card => {
-    card.addEventListener('dragstart', () => { dragged = card; card.classList.add('dragging'); });
-    card.addEventListener('dragend', () => { card.classList.remove('dragging'); dragged = null; });
+    card.addEventListener('dragstart', (event) => {
+      if (card.getAttribute('draggable') === 'false' || card.dataset.saving === '1') {event.preventDefault();return;}
+      dragged = card;
+      event.dataTransfer?.setData('text/plain', card.dataset.groupId || '');
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => {card.classList.remove('dragging');dragged = null;});
   });
   document.querySelectorAll('.kanban-dropzone').forEach(zone => {
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', async e => {
-      e.preventDefault(); zone.classList.remove('drag-over');
-      if(!dragged) return;
-      if(dragged.getAttribute('draggable') === 'false') return;
-      const status = zone.dataset.status;
-      const groupId = dragged.dataset.groupId;
+    zone.addEventListener('dragover', event => {
+      if (!dragged || dragged.dataset.saving === '1') return;
+      event.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', event => {
+      if (!zone.contains(event.relatedTarget)) zone.classList.remove('drag-over');
+    });
+    zone.addEventListener('drop', async event => {
+      event.preventDefault();
+      zone.classList.remove('drag-over');
+      const card = dragged;
+      if (!card || card.dataset.saving === '1' || card.getAttribute('draggable') === 'false') return;
+      const source = card.closest('.kanban-dropzone');
+      if (!source || source === zone) return;
+      const sibling = card.nextSibling;
+      const targetStatus = zone.dataset.status;
+      card.dataset.saving = '1';
+      card.classList.add('saving-status');
+      // Atualização otimista: o card muda de faixa instantaneamente, sem reload.
+      zone.appendChild(card);
+      updateLane(source);
+      updateLane(zone);
       const form = new FormData();
       form.append('csrf_token', board.dataset.csrf);
-      form.append('status', status);
-      const res = await fetch(`/cadastros/cotacoes/${groupId}/status`, {method:'POST', body:form, headers:{'X-Requested-With':'fetch'}});
-      if(res.ok){ zone.appendChild(dragged); setTimeout(()=>location.reload(), 250); }
-      else alert('Não foi possível alterar o status.');
+      form.append('status', targetStatus);
+      try {
+        const response = await fetch(`/cadastros/cotacoes/${encodeURIComponent(card.dataset.groupId)}/status`, {
+          method:'POST', body:form, credentials:'same-origin', headers:{'X-Requested-With':'fetch'}
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.ok !== true) throw Error(result.message || 'Não foi possível alterar o status.');
+        card.dataset.status = targetStatus;
+      } catch (error) {
+        // Reverte sem perder a posição original quando o servidor recusar.
+        if (sibling && sibling.parentNode === source) source.insertBefore(card, sibling);
+        else source.appendChild(card);
+        updateLane(source);
+        updateLane(zone);
+        alert(error.message || 'Não foi possível mover a cotação.');
+      } finally {
+        delete card.dataset.saving;
+        card.classList.remove('saving-status');
+        refreshTopScrollbar();
+      }
     });
   });
 })();
