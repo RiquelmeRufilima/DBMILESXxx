@@ -11,8 +11,8 @@
       <p class="muted">Veja quantas cotações, cálculos, opções aceitas e lançamentos cada membro da empresa fez no período.</p>
     </div>
     <div class="button-row compact-actions">
-      <a class="secondary-button" href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
-      <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Histórico antigo</a>
+      <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico de cotações</a>
+      <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Histórico de cotações</a>
       <form method="post" action="/cadastros/cotacoes/nova" class="inline-new-quote-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button class="primary-button" type="submit"><svg class="ui-icon"><use href="#icon-plus"></use></svg> Nova Cotação</button>
@@ -22,7 +22,7 @@
 
   <nav class="quote-area-tabs" aria-label="Áreas de cotações">
     <a href="/cadastros/cotacoes"><svg class="ui-icon"><use href="#icon-check"></use></svg> Quadro de controle</a>
-    <a href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
+    <a href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico de cotações</a>
     <a class="active" href="/cadastros/fluxo-calculo"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Fluxo de cálculo</a>
     <a href="/cadastros/voos"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Voos</a>
   </nav>
@@ -95,7 +95,7 @@
         </div>
         <footer>
           <small>Última atividade: {% if row.last_activity %}{{ row.last_activity|brt('%d/%m/%Y %H:%M') }}{% else %}sem atividade no período{% endif %}</small>
-          <a class="secondary-button small-button" href="/cadastros/cotacoes-feitas?user_id={{ member.id if member else '' }}&from={{ filters.from }}&to={{ filters.to }}">Ver cotações</a>
+          <a class="secondary-button small-button" href="/calculations/history?user_id={{ member.id if member else '' }}&date_field=created&date_from={{ filters.from }}&date_to={{ filters.to }}">Ver cotações</a>
         </footer>
       </article>
     {% else %}

@@ -1368,6 +1368,11 @@ def cotacoes_feitas(request: Request, db: Session = Depends(get_db)):
     com filtro por usuário e avatar de quem criou a cotação.
     """
     user = require_user(request, db)
+    # Link legado: reaproveitar o histórico único, com filtros por usuário e datas.
+    from urllib.parse import urlencode
+    qp = request.query_params
+    params = {"user_id": qp.get("user_id", ""), "date_from": qp.get("from", ""), "date_to": qp.get("to", ""), "q": qp.get("q", ""), "date_field": "created"}
+    return RedirectResponse("/calculations/history?" + urlencode(params), status_code=303)
     qp = request.query_params
     q = (qp.get("q") or "").strip().lower()
     client_filter = (qp.get("client") or "").strip().lower()

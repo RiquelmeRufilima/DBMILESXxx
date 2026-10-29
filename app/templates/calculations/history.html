@@ -892,7 +892,13 @@ html[data-theme="light"] .compact-history-option .option-select-actions a {color
   </div>
 </section>
 
-<form class="history-filter-form card-panel" method="get" action="/calculations/history">
+<div class="history-team-filters card-panel" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px;padding:12px">
+  <div class="history-filter-field"><label for="historyUser">Agente</label><select id="historyUser" form="historyFilterForm" name="user_id"><option value="">Todos da empresa</option>{% for member in team_users %}<option value="{{ member.id }}" {% if history_user_id == member.id %}selected{% endif %}>{{ member.name }}</option>{% endfor %}</select></div>
+  <div class="history-filter-field"><label for="historyStage">Tipo de cotação</label><select id="historyStage" form="historyFilterForm" name="stage"><option value="all" {% if history_stage == 'all' %}selected{% endif %}>Todas</option><option value="cadastradas" {% if history_stage == 'cadastradas' %}selected{% endif %}>Cadastradas (sem cálculo)</option><option value="calculadas" {% if history_stage == 'calculadas' %}selected{% endif %}>Calculadas</option><option value="lancadas" {% if history_stage == 'lancadas' %}selected{% endif %}>Lançadas / aceitas</option></select></div>
+  <button type="submit" form="historyFilterForm" class="secondary-button">Filtrar</button>
+</div>
+
+<form id="historyFilterForm" class="history-filter-form card-panel" method="get" action="/calculations/history">
   <div class="history-filter-search">
     <label for="historySearch">Buscar</label>
     <div class="history-filter-search-input"><svg class="ui-icon"><use href="#icon-search"></use></svg><input id="historySearch" name="q" value="{{ search_query }}" placeholder="Cliente, cotação, origem ou destino"></div>
@@ -1227,9 +1233,9 @@ html[data-theme="light"] .compact-history-option .option-select-actions a {color
   {% endif %}
   {% if total_pages > 1 %}
   <nav class="history-pager" aria-label="Paginação do histórico">
-    {% if has_previous %}<a class="secondary-button small-button" href="/calculations/history?page={{ page - 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">← Anterior</a>{% endif %}
+    {% if has_previous %}<a class="secondary-button small-button" href="/calculations/history?user_id={{ history_user_id or '' }}&stage={{ history_stage }}&page={{ page - 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">← Anterior</a>{% endif %}
     <strong>Página {{ page }} de {{ total_pages }}</strong>
-    {% if has_next %}<a class="secondary-button small-button" href="/calculations/history?page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">Próxima →</a>{% endif %}
+    {% if has_next %}<a class="secondary-button small-button" href="/calculations/history?user_id={{ history_user_id or '' }}&stage={{ history_stage }}&page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">Próxima →</a>{% endif %}
   </nav>
   {% endif %}
 </div>
