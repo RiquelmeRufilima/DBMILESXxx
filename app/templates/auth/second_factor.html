@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Verificação em duas etapas | DBMILESX{% endblock %}
+{% block content %}
+<section class="auth-shell auth-shell-branded"><div class="auth-card" style="max-width:480px;margin:auto">
+<h1>Verificação em duas etapas</h1><p>Digite o código do aplicativo autenticador, ou um código de recuperação.</p>
+<form method="post" action="/login/2fa" class="form-stack">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label>Código de segurança<input name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="12" required autofocus></label>
+<button type="submit" class="primary-button">Confirmar acesso</button>
+</form><p><a href="/login">Voltar ao login</a></p></div></section>
+{% endblock %}

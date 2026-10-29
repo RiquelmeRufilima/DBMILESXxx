@@ -635,6 +635,158 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
  .compact-history-option .professional-option-details{grid-template-columns:1fr!important}
  .compact-history-option>.option-select-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+/* ============================================================
+   V5.29 — CONTRASTE DO HISTÓRICO NO MODO CLARO
+   ============================================================ */
+html[data-theme="light"] .history-group-card,
+html[data-theme="light"] .subquote-history-block{
+  background:linear-gradient(180deg,#ffffff,#f7fbff)!important;
+  border-color:#cfddea!important;
+  box-shadow:0 8px 22px rgba(16,57,92,.08)!important;
+}
+html[data-theme="light"] .history-group-card > .history-card-head{
+  background:linear-gradient(180deg,#f7fbff,#eef6fc)!important;
+  border-color:#cfddea!important;
+}
+html[data-theme="light"] .history-group-card,
+html[data-theme="light"] .history-group-card *:not(.primary-button):not(.secondary-button),
+html[data-theme="light"] .subquote-history-block,
+html[data-theme="light"] .subquote-history-block *:not(.primary-button):not(.secondary-button){
+  color:#16364f!important;
+}
+html[data-theme="light"] .history-card-head h3,
+html[data-theme="light"] .subquote-history-title h3,
+html[data-theme="light"] .option-select-copy strong,
+html[data-theme="light"] .history-scope-title > span,
+html[data-theme="light"] .history-segment-route strong,
+html[data-theme="light"] .profit-cost-line strong,
+html[data-theme="light"] .profit-sale-line strong{
+  color:#0c2f4a!important;
+}
+html[data-theme="light"] .history-card-head small,
+html[data-theme="light"] .subquote-history-route,
+html[data-theme="light"] .history-result-count,
+html[data-theme="light"] .history-order-note,
+html[data-theme="light"] .quote-change-item small,
+html[data-theme="light"] .option-select-copy .muted,
+html[data-theme="light"] .compact-history-option .muted,
+html[data-theme="light"] .history-scope-title > small{
+  color:#4f6f87!important;
+}
+html[data-theme="light"] .compact-history-option,
+html[data-theme="light"] .history-segment-row,
+html[data-theme="light"] .quote-change-log,
+html[data-theme="light"] .quote-summary,
+html[data-theme="light"] .history-summary,
+html[data-theme="light"] .history-detail-card,
+html[data-theme="light"] .history-inline-card{
+  background:#ffffff!important;
+  border-color:#d5e2ee!important;
+}
+html[data-theme="light"] .history-segment-row,
+html[data-theme="light"] .quote-change-log,
+html[data-theme="light"] .subquote-empty-state{
+  background:#f8fbfe!important;
+}
+html[data-theme="light"] .history-segment-schedule span,
+html[data-theme="light"] .history-date-badge,
+html[data-theme="light"] .skip-date-chip{
+  background:#eaf4ff!important;
+  border-color:#bfdbf2!important;
+  color:#1e567e!important;
+}
+html[data-theme="light"] .segment-flown{
+  background:#ebfaf2!important;
+  border-color:#bde7ce!important;
+}
+html[data-theme="light"] .segment-unflown{
+  background:#fff1f3!important;
+  border-color:#f1c3cb!important;
+}
+html[data-theme="light"] .quote-change-dot{background:#1f78b4!important}
+html[data-theme="light"] .subquote-kind-badge,
+html[data-theme="light"] .scope-best-badge{
+  color:#106346!important;
+}
+html[data-theme="light"] .is-primary .subquote-kind-badge{
+  background:#e7fbf2!important;
+  border-color:#bcead1!important;
+}
+html[data-theme="light"] .is-subquote .subquote-kind-badge{
+  background:#edf4ff!important;
+  border-color:#c5daf7!important;
+  color:#214f85!important;
+}
+html[data-theme="light"] .history-scope-title{
+  background:linear-gradient(90deg,#eef8ff,transparent)!important;
+  border-left-color:#4aa0d8!important;
+}
+html[data-theme="light"] .history-tag,
+html[data-theme="light"] .tag,
+html[data-theme="light"] .badge,
+html[data-theme="light"] .pill,
+html[data-theme="light"] .compact-history-option .chip,
+html[data-theme="light"] .combined-component,
+html[data-theme="light"] .profit-margin-chip,
+html[data-theme="light"] .profit-card-chip,
+html[data-theme="light"] .profit-sent-chip{
+  background:#eef4f8!important;
+  border-color:#cfdee9!important;
+  color:#244862!important;
+}
+html[data-theme="light"] .combined-component{
+  background:#f5f0ff!important;
+  border-color:#dccff7!important;
+  color:#523c85!important;
+}
+html[data-theme="light"] .profit-margin-chip{
+  background:#e8fbf2!important;
+  border-color:#bdeacc!important;
+  color:#146c4d!important;
+}
+html[data-theme="light"] .profit-card-chip{
+  background:#f3edff!important;
+  border-color:#dbcdf8!important;
+  color:#68479a!important;
+}
+html[data-theme="light"] .profit-sent-chip{
+  background:#edf5ff!important;
+  border-color:#cdddf7!important;
+  color:#1f5d93!important;
+}
+html[data-theme="light"] .profit-payment-card{
+  background:linear-gradient(90deg,#f6f1ff,#eef8ff)!important;
+  border-color:#d6c8f0!important;
+}
+html[data-theme="light"] .profit-payment-main strong,
+html[data-theme="light"] .profit-payment-total strong{color:#2f4260!important}
+html[data-theme="light"] .profit-payment-main small,
+html[data-theme="light"] .profit-payment-total small{color:#5f748e!important}
+html[data-theme="light"] .history-logo-image{background:#fff!important}
+
+
+/* V5.30: force strong light-theme contrast for summary cards and header */
+html[data-theme="light"] .history-group-card > .history-card-head,
+html[data-theme="light"] .subquote-history-block,
+html[data-theme="light"] .subquote-history-head,
+html[data-theme="light"] .history-group-card .history-meta-row,
+html[data-theme="light"] .history-group-card .history-details-row {
+  background:#f0f6fc!important;
+  color:#173c57!important;
+}
+html[data-theme="light"] .subquote-history-block {background:#fff!important}
+html[data-theme="light"] .history-group-card :is(h1,h2,h3,h4,strong,b,summary),
+html[data-theme="light"] .subquote-history-block :is(h1,h2,h3,h4,strong,b,summary) {color:#10334e!important}
+html[data-theme="light"] .history-group-card :is(p,small,span,label),
+html[data-theme="light"] .subquote-history-block :is(p,small,span,label) {color:#31546e!important}
+html[data-theme="light"] .history-group-card :is(input,select,textarea) {color:#173c57!important;background:#fff!important;border-color:#bfd3e4!important}
+html[data-theme="light"] .history-group-card .history-summary-row,
+html[data-theme="light"] .history-group-card .history-summary-cell {background:#edf4fa!important;color:#153a57!important;border-color:#c9d9e8!important}
+html[data-theme="light"] .history-group-card .history-card-head a,
+html[data-theme="light"] .history-group-card .history-card-head button,
+html[data-theme="light"] .compact-history-option .option-select-actions button,
+html[data-theme="light"] .compact-history-option .option-select-actions a {color:#fff!important}
+
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
@@ -1694,133 +1846,3 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
 {% if tags_ready|default(false) %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
 {% endblock %}
 {% block scripts %}<script src="/static/js/history-bulk.js?v=5.10.34" defer></script>{% endblock %}
-
-
-/* ============================================================
-   V5.29 — CONTRASTE DO HISTÓRICO NO MODO CLARO
-   ============================================================ */
-html[data-theme="light"] .history-group-card,
-html[data-theme="light"] .subquote-history-block{
-  background:linear-gradient(180deg,#ffffff,#f7fbff)!important;
-  border-color:#cfddea!important;
-  box-shadow:0 8px 22px rgba(16,57,92,.08)!important;
-}
-html[data-theme="light"] .history-group-card > .history-card-head{
-  background:linear-gradient(180deg,#f7fbff,#eef6fc)!important;
-  border-color:#cfddea!important;
-}
-html[data-theme="light"] .history-group-card,
-html[data-theme="light"] .history-group-card *:not(.primary-button):not(.secondary-button),
-html[data-theme="light"] .subquote-history-block,
-html[data-theme="light"] .subquote-history-block *:not(.primary-button):not(.secondary-button){
-  color:#16364f!important;
-}
-html[data-theme="light"] .history-card-head h3,
-html[data-theme="light"] .subquote-history-title h3,
-html[data-theme="light"] .option-select-copy strong,
-html[data-theme="light"] .history-scope-title > span,
-html[data-theme="light"] .history-segment-route strong,
-html[data-theme="light"] .profit-cost-line strong,
-html[data-theme="light"] .profit-sale-line strong{
-  color:#0c2f4a!important;
-}
-html[data-theme="light"] .history-card-head small,
-html[data-theme="light"] .subquote-history-route,
-html[data-theme="light"] .history-result-count,
-html[data-theme="light"] .history-order-note,
-html[data-theme="light"] .quote-change-item small,
-html[data-theme="light"] .option-select-copy .muted,
-html[data-theme="light"] .compact-history-option .muted,
-html[data-theme="light"] .history-scope-title > small{
-  color:#4f6f87!important;
-}
-html[data-theme="light"] .compact-history-option,
-html[data-theme="light"] .history-segment-row,
-html[data-theme="light"] .quote-change-log,
-html[data-theme="light"] .quote-summary,
-html[data-theme="light"] .history-summary,
-html[data-theme="light"] .history-detail-card,
-html[data-theme="light"] .history-inline-card{
-  background:#ffffff!important;
-  border-color:#d5e2ee!important;
-}
-html[data-theme="light"] .history-segment-row,
-html[data-theme="light"] .quote-change-log,
-html[data-theme="light"] .subquote-empty-state{
-  background:#f8fbfe!important;
-}
-html[data-theme="light"] .history-segment-schedule span,
-html[data-theme="light"] .history-date-badge,
-html[data-theme="light"] .skip-date-chip{
-  background:#eaf4ff!important;
-  border-color:#bfdbf2!important;
-  color:#1e567e!important;
-}
-html[data-theme="light"] .segment-flown{
-  background:#ebfaf2!important;
-  border-color:#bde7ce!important;
-}
-html[data-theme="light"] .segment-unflown{
-  background:#fff1f3!important;
-  border-color:#f1c3cb!important;
-}
-html[data-theme="light"] .quote-change-dot{background:#1f78b4!important}
-html[data-theme="light"] .subquote-kind-badge,
-html[data-theme="light"] .scope-best-badge{
-  color:#106346!important;
-}
-html[data-theme="light"] .is-primary .subquote-kind-badge{
-  background:#e7fbf2!important;
-  border-color:#bcead1!important;
-}
-html[data-theme="light"] .is-subquote .subquote-kind-badge{
-  background:#edf4ff!important;
-  border-color:#c5daf7!important;
-  color:#214f85!important;
-}
-html[data-theme="light"] .history-scope-title{
-  background:linear-gradient(90deg,#eef8ff,transparent)!important;
-  border-left-color:#4aa0d8!important;
-}
-html[data-theme="light"] .history-tag,
-html[data-theme="light"] .tag,
-html[data-theme="light"] .badge,
-html[data-theme="light"] .pill,
-html[data-theme="light"] .compact-history-option .chip,
-html[data-theme="light"] .combined-component,
-html[data-theme="light"] .profit-margin-chip,
-html[data-theme="light"] .profit-card-chip,
-html[data-theme="light"] .profit-sent-chip{
-  background:#eef4f8!important;
-  border-color:#cfdee9!important;
-  color:#244862!important;
-}
-html[data-theme="light"] .combined-component{
-  background:#f5f0ff!important;
-  border-color:#dccff7!important;
-  color:#523c85!important;
-}
-html[data-theme="light"] .profit-margin-chip{
-  background:#e8fbf2!important;
-  border-color:#bdeacc!important;
-  color:#146c4d!important;
-}
-html[data-theme="light"] .profit-card-chip{
-  background:#f3edff!important;
-  border-color:#dbcdf8!important;
-  color:#68479a!important;
-}
-html[data-theme="light"] .profit-sent-chip{
-  background:#edf5ff!important;
-  border-color:#cdddf7!important;
-  color:#1f5d93!important;
-}
-html[data-theme="light"] .profit-payment-card{
-  background:linear-gradient(90deg,#f6f1ff,#eef8ff)!important;
-  border-color:#d6c8f0!important;
-}
-html[data-theme="light"] .profit-payment-main strong,
-html[data-theme="light"] .profit-payment-total strong{color:#2f4260!important}
-html[data-theme="light"] .profit-payment-main small,
-html[data-theme="light"] .profit-payment-total small{color:#5f748e!important}
-html[data-theme="light"] .history-logo-image{background:#fff!important}

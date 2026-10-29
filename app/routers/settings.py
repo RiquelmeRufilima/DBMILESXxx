@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..dependencies import current_user
 from ..models import QuoteGroup, WebQuote, Person
-from ..security import validate_csrf_token
+from ..security import validate_csrf_token, verify_password
+from ..services import mfa
+from ..services.protection import register_attempt, seconds_until_allowed, client_ip
 from ..services.storage import storage_status
 from ..web import THEME_PRESETS, context, flash, templates
 
@@ -58,7 +60,7 @@ def settings_page(request: Request, tab: str = "appearance", db: Session = Depen
     active_tab = tab if tab in valid_tabs else "appearance"
     return templates.TemplateResponse(
         request, "settings/index.html",
-        context(request, user=user, active_settings_tab=active_tab, storage=storage_status().as_dict(), settings_stats=_stats(db,user)),
+        context(request, user=user, active_settings_tab=active_tab, storage=storage_status().as_dict(), settings_stats=_stats(db,user), mfa_enabled=mfa.enabled(user), mfa_pending_secret=mfa.pending_secret(user), mfa_recovery_codes=request.session.pop("new_mfa_recovery_codes", [])),
     )
 
 
@@ -208,3 +210,62 @@ def export_settings_backup(request: Request, db: Session=Depends(get_db)):
     }
     filename=f"dbmilesx-backup-config-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.json"
     return JSONResponse(payload, headers={"Content-Disposition":f'attachment; filename="{filename}"'})
+
+
+@router.post('/settings/security/mfa/setup')
+def mfa_setup(request: Request, password: str=Form(...), csrf_token: str=Form(...), db: Session=Depends(get_db)):
+    user = current_user(request,db)
+    if user is None: return RedirectResponse('/login',status_code=303)
+    if not validate_csrf_token(request.session,csrf_token):
+        flash(request,'Sessão expirada.','error'); return RedirectResponse('/settings?tab=security',status_code=303)
+    if mfa.enabled(user):
+        flash(request,'2FA já está ativo.','info'); return RedirectResponse('/settings?tab=security',status_code=303)
+    if not verify_password(password,user.password_hash):
+        flash(request,'Senha incorreta.','error'); return RedirectResponse('/settings?tab=security',status_code=303)
+    d=mfa.data(user);d['mfa_pending_encrypted']=mfa.encrypt(mfa.generate());mfa.save(user,d)
+    db.commit();return RedirectResponse('/settings?tab=security',status_code=303)
+
+
+@router.post('/settings/security/mfa/enable')
+def mfa_enable(request: Request, code: str=Form(...), csrf_token: str=Form(...), db: Session=Depends(get_db)):
+    user=current_user(request,db)
+    if user is None:return RedirectResponse('/login',status_code=303)
+    if not validate_csrf_token(request.session,csrf_token):
+        flash(request,'Sessão expirada.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    if mfa.enabled(user) or not mfa.pending_secret(user):
+        flash(request,'Inicie a configuração do 2FA.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    wait=seconds_until_allowed(db,'mfa_setup',str(user.id))
+    if wait:
+        flash(request,'Muitas tentativas. Tente novamente mais tarde.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    if not mfa.verify(user,code):
+        register_attempt(db,'mfa_setup',str(user.id))
+        flash(request,'Código inválido.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    d=mfa.data(user);d['mfa_secret_encrypted']=d.pop('mfa_pending_encrypted');d['mfa_enabled']=True
+    plain,hashed=mfa.recovery_codes();d['mfa_recovery_hashes']=hashed
+    mfa.save(user,d);user.auth_version=int(user.auth_version or 1)+1;db.commit()
+    request.session['auth_version']=int(user.auth_version)
+    # Show once, not persisted as plaintext in the database.
+    request.session['new_mfa_recovery_codes']=plain
+    flash(request,'2FA ativado. Guarde seus códigos de recuperação.','success')
+    return RedirectResponse('/settings?tab=security',status_code=303)
+
+
+@router.post('/settings/security/mfa/disable')
+def mfa_disable(request: Request,password: str=Form(...),code: str=Form(...),csrf_token: str=Form(...),db: Session=Depends(get_db)):
+    user=current_user(request,db)
+    if user is None:return RedirectResponse('/login',status_code=303)
+    if not validate_csrf_token(request.session,csrf_token):
+        flash(request,'Sessão expirada.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    wait=seconds_until_allowed(db,'mfa_disable',str(user.id))
+    if wait:
+        flash(request,'Muitas tentativas. Tente mais tarde.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    if not verify_password(password,user.password_hash) or not (mfa.verify(user,code,consume=True) or mfa.verify_recovery(user,code)):
+        register_attempt(db,'mfa_disable',str(user.id))
+        flash(request,'Senha ou código inválido.','error');return RedirectResponse('/settings?tab=security',status_code=303)
+    d=mfa.data(user)
+    for key in ('mfa_enabled','mfa_secret_encrypted','mfa_pending_encrypted','mfa_recovery_hashes','mfa_last_window'):
+        d.pop(key,None)
+    mfa.save(user,d);user.auth_version=int(user.auth_version or 1)+1;db.commit()
+    request.session['auth_version']=int(user.auth_version)
+    flash(request,'2FA desativado nesta conta.','success')
+    return RedirectResponse('/settings?tab=security',status_code=303)

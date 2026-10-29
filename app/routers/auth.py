@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import UserProfile, WebUser
 from ..security import hash_password, validate_csrf_token, validate_password, verify_password
+from ..services import mfa
 from ..services.auth_email import EmailDeliveryError, issue_email_code, send_auth_code, verify_email_code
 from ..services.protection import (
     clear_attempts,
@@ -281,6 +282,13 @@ def google_callback(
             flash(request, "Conclua seu primeiro acesso criando uma senha.", "info")
         return RedirectResponse("/auth/google/create-password", status_code=303)
 
+    if mfa.enabled(user):
+        request.session.clear()
+        request.session['mfa_pending_user_id'] = user.id
+        request.session['mfa_pending_auth_version'] = int(user.auth_version or 1)
+        request.session['mfa_auth_provider'] = 'google'
+        return RedirectResponse('/login/2fa', status_code=303)
+
     flash(request, f"Bem-vindo, {user.name}! Login realizado com Google.", "success")
     return RedirectResponse("/dashboard", status_code=303)
 
@@ -392,6 +400,10 @@ def login(
         return RedirectResponse(_verify_url(email), status_code=303)
 
     request.session.clear()
+    if mfa.enabled(user):
+        request.session['mfa_pending_user_id'] = user.id
+        request.session['mfa_pending_auth_version'] = int(user.auth_version or 1)
+        return RedirectResponse('/login/2fa', status_code=303)
     request.session["user_id"] = user.id
     request.session["auth_version"] = int(user.auth_version or 1)
     flash(request, f"Bem-vindo, {user.name}!", "success")
@@ -557,6 +569,10 @@ def verify_email(
     db.commit()
 
     request.session.clear()
+    if mfa.enabled(user):
+        request.session['mfa_pending_user_id'] = user.id
+        request.session['mfa_pending_auth_version'] = int(user.auth_version or 1)
+        return RedirectResponse('/login/2fa', status_code=303)
     request.session["user_id"] = user.id
     request.session["auth_version"] = int(user.auth_version or 1)
     flash(request, "E-mail confirmado. Sua conta está pronta!", "success")
@@ -748,3 +764,39 @@ def logout(request: Request, csrf_token: str = Form(...)):
         return RedirectResponse("/dashboard", status_code=303)
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
+
+
+@router.get('/login/2fa')
+def second_factor_page(request: Request, db: Session=Depends(get_db)):
+    uid = request.session.get('mfa_pending_user_id')
+    user = db.get(WebUser,int(uid)) if uid else None
+    if not user or not user.active or not mfa.enabled(user) or request.session.get('mfa_pending_auth_version') != int(user.auth_version or 1):
+        request.session.clear()
+        return RedirectResponse('/login',status_code=303)
+    return templates.TemplateResponse(request,'auth/second_factor.html',context(request, email=user.email))
+
+
+@router.post('/login/2fa')
+def second_factor_login(request: Request, code: str=Form(...), csrf_token: str=Form(...), db: Session=Depends(get_db)):
+    uid = request.session.get('mfa_pending_user_id')
+    user = db.get(WebUser,int(uid)) if uid else None
+    if not user or not user.active or not mfa.enabled(user) or request.session.get('mfa_pending_auth_version') != int(user.auth_version or 1):
+        request.session.clear()
+        return RedirectResponse('/login',status_code=303)
+    if not validate_csrf_token(request.session,csrf_token):
+        flash(request,'Sessão expirada.','error');return RedirectResponse('/login/2fa',status_code=303)
+    wait=max(seconds_until_allowed(db,'mfa_login',str(user.id)),seconds_until_allowed(db,'mfa_ip',client_ip(request)))
+    if wait:
+        flash(request,wait_message(wait),'error');return RedirectResponse('/login/2fa',status_code=303)
+    if not mfa.verify(user,code,consume=True) and not mfa.verify_recovery(user,code):
+        register_attempt(db,'mfa_login',str(user.id),commit=False)
+        register_attempt(db,'mfa_ip',client_ip(request),commit=True)
+        flash(request,'Código inválido.','error');return RedirectResponse('/login/2fa',status_code=303)
+    db.commit()
+    provider = request.session.get('mfa_auth_provider')
+    request.session.clear()
+    request.session['user_id'] = user.id
+    request.session['auth_version'] = int(user.auth_version or 1)
+    if provider == 'google':request.session['auth_provider']='google'
+    flash(request,'Autenticação concluída.','success')
+    return RedirectResponse('/dashboard',status_code=303)

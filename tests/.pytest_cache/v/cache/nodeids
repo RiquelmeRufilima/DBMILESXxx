@@ -1,0 +1,4 @@
+[
+  "test_mfa_optional.py::test_single_use_recovery_codes",
+  "test_mfa_optional.py::test_totp_encrypted_roundtrip_and_replay_prevention"
+]

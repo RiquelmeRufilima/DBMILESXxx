@@ -47,6 +47,40 @@
 {% elif active_settings_tab=='security' %}
 <section class="settings-page-grid"><article class="panel settings-main-card"><div class="panel-heading"><div><span class="eyebrow">SEGURANÇA</span><h2>Sessão e privacidade</h2></div><svg class="panel-icon"><use href="#icon-shield"></use></svg></div>
 <form method="post" action="/settings/security" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="switch-row"><span><strong>Ocultar valores sensíveis</strong><small>Preparado para esconder valores financeiros em áreas públicas/compartilhadas.</small></span><input type="checkbox" name="hide_sensitive_values" {% if preference_settings.get('hide_sensitive_values',False) %}checked{% endif %}></label><label>Bloqueio automático por inatividade<select name="auto_lock_minutes"><option value="0">Desativado</option>{% for n in [15,30,60,120,240,480] %}<option value="{{n}}" {% if preference_settings.get('auto_lock_minutes',0)|int == n %}selected{% endif %}>{{n}} minutos</option>{% endfor %}</select></label><button class="primary-button" type="submit">Salvar segurança</button></form>
+
+<div class="panel" style="padding:20px;margin:14px 0">
+<h3>Autenticação em dois fatores (2FA) — opcional</h3>
+<p class="muted">Proteja sua conta com um aplicativo autenticador. Desativado por padrão; cada usuário decide se quer ativar.</p>
+{% if mfa_enabled %}
+<p style="color:#22a46c;font-weight:850">2FA ativado nesta conta</p>
+<form class="form-stack" method="post" action="/settings/security/mfa/disable">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label>Confirme sua senha<input type="password" name="password" required autocomplete="current-password"></label>
+<label>Código do aplicativo ou de recuperação<input name="code" required autocomplete="one-time-code"></label>
+<button type="submit" class="secondary-button">Desativar 2FA</button>
+</form>
+{% elif mfa_pending_secret %}
+<p class="muted">No Google Authenticator, Microsoft Authenticator ou similar, escolha adicionar conta manualmente.</p>
+<label>Chave de configuração (não compartilhe)<input readonly value="{{ mfa_pending_secret }}" style="font-family:monospace"></label>
+<p class="muted">Tipo: baseado em tempo (TOTP), 6 dígitos, 30 segundos. A proteção só será ativada após confirmar o código.</p>
+<form class="form-stack" method="post" action="/settings/security/mfa/enable">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Código gerado no aplicativo<input name="code" required inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code"></label>
+<button type="submit" class="primary-button">Confirmar e ativar 2FA</button>
+</form>
+{% else %}
+<form class="form-stack" method="post" action="/settings/security/mfa/setup">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>Confirme sua senha para começar<input name="password" type="password" required autocomplete="current-password"></label>
+<button class="secondary-button" type="submit">Configurar 2FA (opcional)</button>
+</form>
+{% endif %}
+{% if mfa_recovery_codes %}
+<div style="padding:14px;background:#e7faf1;color:#123b2d;border:1px solid #b7e2c9;border-radius:12px;margin:10px 0">
+<strong>Guarde estes códigos de recuperação — serão exibidos apenas uma vez:</strong>
+<pre style="white-space:pre-wrap;font-weight:900">{{ mfa_recovery_codes|join('  ') }}</pre>
+<p>Não compartilhe. Cada código funciona apenas uma vez.</p>
+</div>
+{% endif %}
+</div>
 <div class="settings-danger-zone"><div><strong>Sessões conectadas</strong><small>Encerre qualquer sessão antiga sem sair deste dispositivo.</small></div><form method="post" action="/settings/security/revoke-sessions"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary-button" type="submit">Encerrar outras sessões</button></form></div>
 <div class="settings-link-grid"><a class="settings-action-card" href="/forgot-password"><svg class="ui-icon"><use href="#icon-key"></use></svg><span><strong>Alterar senha</strong><small>Use a recuperação segura por código.</small></span></a><a class="settings-action-card" href="/profile"><svg class="ui-icon"><use href="#icon-user"></use></svg><span><strong>Dados da conta</strong><small>Revise nome, contato e avatar.</small></span></a></div>
 </article></section>
