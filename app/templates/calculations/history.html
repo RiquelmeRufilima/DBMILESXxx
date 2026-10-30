@@ -666,10 +666,146 @@ html[data-theme="light"] .history-group-card>.history-card-head .quote-author-li
  .history-group-card>.history-card-head .history-expand-toggle:after{content:"Abrir detalhes"!important;font-size:.67rem!important;font-weight:800!important;white-space:nowrap!important}
  .history-group-card.is-history-expanded>.history-card-head .history-expand-toggle:after{content:"Fechar detalhes"!important}
 }
-/* Evita recalcular o layout de cartões que estão fora da tela. */
-@supports (content-visibility:auto) {
-  .history-group-card {content-visibility:auto;contain-intrinsic-size:auto 260px}
+/* Correção pontual do contraste no HISTÓRICO, exclusivamente no modo claro.
+   Não altera temas, layout, botões, badges de status nem lógica de velocidade. */
+html[data-theme="light"] body .quote-history-stack .history-group-card {
+  background:#ffffff!important;
+  border-color:#d0e0ed!important;
+  color:#17324b!important;
 }
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head {
+  background:#f3f8fd!important;
+  border-color:#cbddea!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .history-main-copy > p,
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .quote-author-line,
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .quote-author-line strong {
+  color:#355771!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .history-main-copy h2 {
+  color:#123450!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .history-main-copy .eyebrow {
+  color:#086c5e!important;
+  background:#def5ef!important;
+  border-color:#a9ddce!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid {
+  background:#f6fafd!important;
+  border-color:#d2e2ef!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid > div {
+  background:#f6fafd!important;
+  border-color:#d2e2ef!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid small {
+  color:#486882!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid strong {
+  color:#173b58!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .subquote-history-block {
+  background:#f7fbfe!important;
+  border-color:#c4ddeb!important;
+  color:#163952!important;
+  box-shadow:0 7px 20px rgba(22,58,91,.07)!important;
+}
+html[data-theme="light"] body .quote-history-stack .subquote-history-block.is-primary {border-color:#8dcfc1!important}
+html[data-theme="light"] body .quote-history-stack .subquote-history-block.is-subquote {border-color:#9dbce6!important}
+html[data-theme="light"] body .quote-history-stack .subquote-history-title h3,
+html[data-theme="light"] body .quote-history-stack .subquote-history-route,
+html[data-theme="light"] body .quote-history-stack .subquote-history-route strong,
+html[data-theme="light"] body .quote-history-stack .history-scope-title > span {
+  color:#173d5b!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .subquote-history-route span,
+html[data-theme="light"] body .quote-history-stack .history-scope-title > small {
+  color:#496d87!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .is-primary .subquote-kind-badge {
+  background:#dff5ee!important;
+  border-color:#9bd9c6!important;
+  color:#08644f!important;
+}
+html[data-theme="light"] body .quote-history-stack .is-subquote .subquote-kind-badge {
+  background:#e8f0fc!important;
+  border-color:#aecbef!important;
+  color:#174d8c!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-scope-block,
+html[data-theme="light"] body .quote-history-stack .compact-history-option {
+  background:#ffffff!important;
+  border-color:#cddfec!important;
+  color:#183b55!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-scope-title {
+  background:#edf7fd!important;
+  border-color:#cddfec!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .option-select-copy > strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details b,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .history-segment-route strong {
+  color:#173b58!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details small,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details span,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .history-calc-type,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .option-select-copy > small {
+  color:#4b6b81!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details > div,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .history-segment-row {
+  background:#f2f8fc!important;
+  border-color:#cfdfeb!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-card {
+  background:#f1edfb!important;
+  border-color:#d5c6f0!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-main strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-total strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-icon {
+  color:#603e93!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-main small,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-total small {
+  color:#634b7a!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-margin-chip {
+  background:#e7f8f0!important;
+  color:#0c7052!important;
+  border-color:#a5dcc6!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-sent-chip {
+  background:#eaf2ff!important;
+  color:#225eae!important;
+  border-color:#bdd5fb!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-card-chip {
+  background:#f1ebfa!important;
+  color:#6a438f!important;
+  border-color:#d9c6ec!important;
+}
+html[data-theme="light"] body .quote-history-stack .quote-change-log {
+  background:#f3f8fc!important;
+  border-color:#ccdeeb!important;
+  color:#173b58!important;
+}
+html[data-theme="light"] body .quote-history-stack .quote-change-log summary,
+html[data-theme="light"] body .quote-history-stack .quote-change-item small {
+  color:#3a5d77!important;
+}
+html[data-theme="light"] body .history-filter-form label {color:#41647f!important}
+html[data-theme="light"] body .history-pager strong {color:#183b59!important}
+
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
