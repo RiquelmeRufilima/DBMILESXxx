@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Cotação {{ data.quote_code or group.id }} | DBMILESX{% endblock %}
+{% from "partials/tags.html" import tag_row, tag_assets %}
 {% block content %}
 <style>
 .status-draft-note{margin:0 0 14px;padding:10px 13px;border-radius:10px;border:1px solid color-mix(in srgb,var(--cyan) 40%,var(--border));background:color-mix(in srgb,var(--cyan) 8%,var(--panel));color:var(--text);font-size:.78rem}
@@ -27,6 +28,11 @@
     </div>
   </div>
 
+  <div class="quote-edit-tags" aria-label="Etiquetas da cotação">
+    <span class="eyebrow">ETIQUETAS</span>
+    {{ tag_row('group', group.id, assigned_group_tags, '/calculations/history') }}
+    <a href="/tags?tipo=cotacao" class="ghost-button tiny">Gerenciar etiquetas</a>
+  </div>
   <section class="quote-process-panel panel">
     <div class="quote-code-row">
       <label class="mini-code"><span>Código</span><input name="quote_code" value="{{ data.quote_code or ('q%04d' % group.id) }}"></label>
@@ -359,10 +365,20 @@
       <label>Endereço / localização<input id="svc_address" placeholder="Endereço do hotel ou serviço"></label>
     </div>
     <div class="form-grid cols-4">
-      <label>Diárias<input id="svc_nights" type="number" min="0" value="0"></label>
+      <label>Diárias <small class="svc-auto-label">Calculadas a partir da entrada e saída</small><input id="svc_nights" type="number" min="0" value="0" readonly><small id="svc_nights_hint">Informe as datas para calcular.</small></label>
       <label>Quartos<input id="svc_rooms" type="number" min="0" value="0"></label>
       <label>Tipo/Cabine<input id="svc_type" placeholder="Opcional"></label>
-      <label>Estrelas/Categoria<input id="svc_stars" placeholder="Opcional"></label>
+      <label>Estrelas/Categoria
+        <select id="svc_stars" aria-label="Categoria de hospedagem em estrelas">
+          <option value="">Não classificado</option>
+          <option value="1">★☆☆☆☆ · 1 estrela</option>
+          <option value="2">★★☆☆☆ · 2 estrelas</option>
+          <option value="3">★★★☆☆ · 3 estrelas</option>
+          <option value="4">★★★★☆ · 4 estrelas</option>
+          <option value="5">★★★★★ · 5 estrelas</option>
+        </select>
+        <span class="svc-stars-preview" id="svcStarsPreview" aria-live="polite"></span>
+      </label>
     </div>
     <div class="form-grid cols-2">
       <div class="field-with-button person-search-wrapper"><div class="field-label-line"><label for="svc_supplier">Fornecedor</label><a class="secondary-button tiny" href="/persons/new?quick=1&person_type=fornecedor" target="_blank" rel="noopener">+ Cadastrar</a></div><input id="svc_supplier" class="person-search" placeholder="Digite para filtrar fornecedores" autocomplete="off" data-person-type="fornecedor" data-require-selection="1"><input type="hidden" id="svc_supplier_id" class="person-id"></div>
@@ -667,19 +683,64 @@ function openServiceModal(key,index=null){
   ['name','link','reservation_number','start_date','start_time','end_date','end_time','origin','destination','address','nights','rooms','type','stars','value','description'].forEach(k=>setVal('svc_'+k,s[k]));
   setPersonField('svc_supplier','svc_supplier_id',s.supplier||'',s.supplier_person_id||'');
   if(s.value) setVal('svc_value',brMoney(s.value));
+  updateServiceFieldVisibility(key);
+  updateStayDuration();
+  updateHotelStars();
   document.getElementById('serviceModal').showModal();
 }
+function updateServiceFieldVisibility(key){
+  const isHotel=key==='hotel';
+  const stars=document.getElementById('svc_stars')?.closest('label');
+  const nights=document.getElementById('svc_nights')?.closest('label');
+  if(stars) stars.hidden=!isHotel;
+  if(nights) nights.hidden=!['hotel','cruise'].includes(key);
+  const nightsInput=document.getElementById('svc_nights');
+  if(nightsInput) nightsInput.readOnly=isHotel;
+}
+function updateHotelStars(){
+  const preview=document.getElementById('svcStarsPreview');
+  const count=Math.min(5,Math.max(0,Number(val('svc_stars')||0)));
+  if(preview) preview.textContent=count ? '★'.repeat(count)+'☆'.repeat(5-count) : 'Sem classificação informada';
+}
+function calculateStayNights(startDate,startTime,endDate,endTime){
+  if(!startDate||!endDate)return null;
+  // Data civil de hospedagem. Horários conhecidos determinam o número de períodos de 24h.
+  const start=Date.parse(`${startDate}T${startTime||'00:00'}:00Z`);
+  const end=Date.parse(`${endDate}T${endTime||'00:00'}:00Z`);
+  if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start)return null;
+  return Math.max(1,Math.ceil((end-start)/(24*60*60*1000)));
+}
+function updateStayDuration(){
+  if(val('svc_key')!=='hotel')return;
+  const nights=calculateStayNights(val('svc_start_date'),val('svc_start_time'),val('svc_end_date'),val('svc_end_time'));
+  const field=document.getElementById('svc_nights');
+  const hint=document.getElementById('svc_nights_hint');
+  if(field && nights!==null) field.value=nights;
+  if(hint) hint.textContent=nights===null?'Informe entrada e saída válidas para calcular.':`${nights} diária(s) calculada(s) pelas datas e horários.`;
+}
+['svc_start_date','svc_start_time','svc_end_date','svc_end_time'].forEach(id=>{
+  const input=document.getElementById(id);
+  ['input','change'].forEach(event=>input?.addEventListener(event,updateStayDuration));
+});
+document.getElementById('svc_stars')?.addEventListener('change',updateHotelStars);
 function saveServiceFromModal(){
   // A verificação de aeroporto é exclusiva dos voos. Não bloqueie hotéis
   // por não terem IATA, nem rejeite cidades em transportes ou cruzeiros.
   if(!requireRegisteredName('svc_supplier','svc_supplier_id','o fornecedor')) return;
   const key=val('svc_key')||editServiceKey||'additional';
+  if(key==='hotel'){
+    updateStayDuration();
+    if(val('svc_start_date') && val('svc_end_date') && !Number(val('svc_nights'))){
+      alert('A data de saída deve ser posterior à entrada.');return;
+    }
+  }
+
   const s={name:val('svc_name'),link:val('svc_link'),reservation_number:val('svc_reservation_number'),start_date:val('svc_start_date'),start_time:val('svc_start_time'),end_date:val('svc_end_date'),end_time:val('svc_end_time'),origin:val('svc_origin'),destination:val('svc_destination'),address:val('svc_address'),nights:Number(val('svc_nights')||0),rooms:Number(val('svc_rooms')||0),type:val('svc_type'),stars:val('svc_stars'),supplier:val('svc_supplier'),supplier_person_id:val('svc_supplier_id')||null,value:parseMoney(val('svc_value')),description:val('svc_description')};
   if(!Array.isArray(services[key]))services[key]=[];
   if(editServiceIndex!==null)services[key][editServiceIndex]=s; else services[key].push(s);
   closeDialog('serviceModal'); renderAll();
 }
-function serviceSummary(s){const parts=[]; if(s.origin||s.destination)parts.push(`${s.origin||''}${s.origin||s.destination?' → ':''}${s.destination||''}`); if(s.start_date||s.start_time||s.end_date||s.end_time){const start=formatDateTime(s.start_date,s.start_time,'');const end=formatDateTime(s.end_date,s.end_time,'');parts.push([start,end].filter(Boolean).join(' até '));} if(s.address)parts.push(s.address); if(s.reservation_number)parts.push('Reserva '+s.reservation_number); if(s.value)parts.push(brMoney(s.value)); return parts.filter(Boolean).join(' • ');}
+function serviceSummary(s){const parts=[];if(s.stars && Number(s.stars)>=1 && Number(s.stars)<=5)parts.push('★'.repeat(Number(s.stars))+'☆'.repeat(5-Number(s.stars)));if(s.nights)parts.push(s.nights+' diária(s)'); if(s.origin||s.destination)parts.push(`${s.origin||''}${s.origin||s.destination?' → ':''}${s.destination||''}`); if(s.start_date||s.start_time||s.end_date||s.end_time){const start=formatDateTime(s.start_date,s.start_time,'');const end=formatDateTime(s.end_date,s.end_time,'');parts.push([start,end].filter(Boolean).join(' até '));} if(s.address)parts.push(s.address); if(s.reservation_number)parts.push('Reserva '+s.reservation_number); if(s.value)parts.push(brMoney(s.value)); return parts.filter(Boolean).join(' • ');}
 function renderServices(){['hotel','transport','cruise','experiences','insurance','additional'].forEach(key=>{const box=document.getElementById(key+'List'); if(!box)return; const arr=Array.isArray(services[key])?services[key]:[]; box.innerHTML=arr.map((s,i)=>`<div class="service-row rich"><div><strong>${s.name||serviceLabels[key]||'Serviço'}</strong><small>${serviceSummary(s)||'Sem detalhes adicionais'}</small>${s.description?`<p>${s.description}</p>`:''}</div><div class="button-row"><button type="button" class="ghost-button tiny" onclick="openServiceModal('${key}',${i})">Editar</button><button type="button" class="ghost-button danger tiny" onclick="services['${key}'].splice(${i},1);renderAll()">Excluir</button></div></div>`).join('')||'<div class="empty-strip">Nenhum item incluído.</div>';});}
 function openCommissionModal(type,index=null){
   editCommissionType=type; editCommissionIndex=index;
@@ -798,7 +859,30 @@ document.getElementById('saleDate')?.addEventListener('change',()=>{sale.date=va
 document.getElementById('saleNotes')?.addEventListener('input',()=>{sale.notes=val('saleNotes');syncHidden();});
 document.getElementById('commissionExtra')?.addEventListener('input',()=>{commission.extra=parseMoney(val('commissionExtra'));renderValues();syncHidden();});
 document.getElementById('quoteAttachmentInput')?.addEventListener('change',event=>uploadQuoteAttachments(event.target.files));
-document.getElementById('quoteEditForm').addEventListener('submit',syncHidden);
+// Ação Salvar preserva a aba e posição atual após o redirecionamento ao próprio editor.
+// Salvar e Fechar mantém o redirecionamento para o quadro.
+const quoteForm = document.getElementById('quoteEditForm');
+const quoteEditorStorageKey = 'dbm:quote-editor:' + location.pathname;
+quoteForm.addEventListener('submit', event => {
+  syncHidden();
+  const closing = event.submitter?.name === 'save_close';
+  try {
+    if(closing) sessionStorage.removeItem(quoteEditorStorageKey);
+    else sessionStorage.setItem(quoteEditorStorageKey, JSON.stringify({
+      tab:document.querySelector('.quote-tabs button.active')?.dataset.tab || 'solicitacao',
+      scroll:window.scrollY || 0, at:Date.now()
+    }));
+  } catch(_) {}
+});
+try {
+  const stored = JSON.parse(sessionStorage.getItem(quoteEditorStorageKey) || 'null');
+  if(stored && Date.now()-Number(stored.at||0)<90000){
+    const btn=Array.from(document.querySelectorAll('.quote-tabs button')).find(button=>button.dataset.tab===stored.tab);
+    if(btn) btn.click();
+    requestAnimationFrame(()=>window.scrollTo({top:Number(stored.scroll||0),behavior:'instant'}));
+  }
+  sessionStorage.removeItem(quoteEditorStorageKey);
+} catch(_) {}
 document.getElementById('launchForm')?.addEventListener('submit',syncHidden);
 renderAll();
 // Acessos vindos de Hospedagens/Transportes/Seguros/etc abrem o serviço
@@ -915,4 +999,6 @@ if (trackingQuery.get('tab') === 'orcamento') {
   };
 })();
 </script>
+{{ tag_assets(internal_tags, csrf_token) }}
+<script src="/static/js/quote-consistent-dates-20261030.js?v=20261030.5" defer></script>
 {% endblock %}

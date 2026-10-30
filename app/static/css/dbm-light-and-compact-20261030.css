@@ -221,3 +221,114 @@ html[data-theme="light"] input[type="datetime-local"]{
   color-scheme:light;background:#f3f8fc!important;border:1px solid #c8ddec!important;
   color:#173954!important;border-radius:11px!important;
 }
+
+/* 2026-10-30 — revisão integrada: preserva dark mode e temas de destaque personalizados. */
+html[data-theme="light"] .accepted-editor,
+html[data-theme="light"] .accepted-editor .panel,
+html[data-theme="light"] .accepted-editor .quote-section-panel,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel,
+html[data-theme="light"] .accepted-editor .premium-services-stack,
+html[data-theme="light"] .accepted-editor .itinerary-flight-card,
+html[data-theme="light"] .accepted-editor .accordion,
+html[data-theme="light"] .accepted-editor .accordion-panel,
+html[data-theme="light"] .accepted-editor .service-command-card,
+html[data-theme="light"] .accepted-editor .service-row,
+html[data-theme="light"] .accepted-editor .empty-strip {
+  background:#fff!important;color:#163654!important;border-color:#cedfea!important;
+}
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel,
+html[data-theme="light"] .accepted-editor .quote-process-panel {box-shadow:0 9px 26px rgba(17,62,99,.07)!important}
+html[data-theme="light"] .accepted-editor .itinerary-flight-stack,
+html[data-theme="light"] .accepted-editor .commercial-seed-panel,
+html[data-theme="light"] .accepted-editor .flight-summary-card,
+html[data-theme="light"] .accepted-editor .flight-summary-strip,
+html[data-theme="light"] .accepted-editor .flight-leg-card,
+html[data-theme="light"] .accepted-editor .service-list,
+html[data-theme="light"] .accepted-editor .service-list-item,
+html[data-theme="light"] .accepted-editor .service-list-header {
+  background:#f2f8fc!important;color:#143954!important;border-color:#cbdfea!important;
+}
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel h1,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel h2,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel h3,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel strong,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel p,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel small,
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel span,
+html[data-theme="light"] .accepted-editor .service-command-card b,
+html[data-theme="light"] .accepted-editor .service-command-card small,
+html[data-theme="light"] .accepted-editor .service-command-card em,
+html[data-theme="light"] .accepted-editor .premium-services-stack strong,
+html[data-theme="light"] .accepted-editor .premium-services-stack small,
+html[data-theme="light"] .accepted-editor .quote-section-panel h2,
+html[data-theme="light"] .accepted-editor .quote-section-panel label,
+html[data-theme="light"] .accepted-editor .quote-section-panel p {color:#1e4768!important}
+html[data-theme="light"] .accepted-editor .service-command-card:hover {background:#eaf5fb!important;border-color:#84b9d9!important}
+html[data-theme="light"] .accepted-editor .itinerary-flight-card button:not(.primary-button),
+html[data-theme="light"] .accepted-editor .service-row button:not(.primary-button) {color:#144c73!important}
+html[data-theme="light"] .accepted-editor .service-row small,
+html[data-theme="light"] .accepted-editor .service-row p {color:#54718c!important}
+html[data-theme="light"] .accepted-editor .dark-dialog,
+html[data-theme="light"] .dark-dialog,
+html[data-theme="light"] .dark-dialog .dialog-head,
+html[data-theme="light"] .dark-dialog .dialog-body,
+html[data-theme="light"] .dark-dialog .dialog-actions,
+html[data-theme="light"] .dark-dialog .dialog-fields {background:#fff!important;color:#183954!important;border-color:#d2e1ed!important}
+html[data-theme="light"] .dark-dialog label,
+html[data-theme="light"] .dark-dialog .dialog-head h2,
+html[data-theme="light"] .dark-dialog .dialog-head button,
+html[data-theme="light"] .dark-dialog .muted,
+html[data-theme="light"] .dark-dialog small,
+html[data-theme="light"] .dark-dialog .hint {color:#244868!important}
+html[data-theme="light"] .dark-dialog input,
+html[data-theme="light"] .dark-dialog select,
+html[data-theme="light"] .dark-dialog textarea {background:#f4f9fc!important;color:#183954!important;border-color:#bcd3e6!important;accent-color:#1483b8}
+html[data-theme="light"] .dark-dialog input::placeholder,
+html[data-theme="light"] .dark-dialog textarea::placeholder {color:#59748a!important}
+html[data-theme="light"] .dark-dialog .dialog-actions {border-top:1px solid #d6e2ec!important}
+html[data-theme="light"] .quote-group-layout .quote-base-panel,
+html[data-theme="light"] .quote-group-layout .card-panel {background:#fff!important;border:1px solid #d2e2ed!important}
+html[data-theme="light"] .quote-group-layout .quote-base-summary > div {background:#f3f8fc!important;color:#173b59!important}
+html[data-theme="light"] .quote-group-layout .quote-base-summary small,
+html[data-theme="light"] .quote-group-layout .quote-base-summary strong {color:#234965!important}
+html[data-theme="light"] .quote-option-row .quote-baggage-brief {background:#eaf7f2!important;border-color:#b9decf!important;color:#185746!important}
+.quote-baggage-brief {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:7px 0;padding:6px 9px;border-radius:10px;border:1px solid var(--border);background:var(--panel-2);font-size:.7rem}
+.quote-baggage-brief strong {color:inherit;font-size:.73rem}
+.quote-baggage-brief small {color:inherit;opacity:.85;font-size:.67rem}
+html[data-theme="light"] .page-actions .button-create,
+html[data-theme="light"] .quote-group-layout .button-create,
+html[data-theme="light"] .variant-switcher .button-create {background:#bbf3e2!important;color:#064d40!important;border:1px solid #57c4aa!important;text-shadow:none!important;box-shadow:none!important;font-weight:800!important}
+html[data-theme="light"] .page-actions .button-create .ui-icon,
+html[data-theme="light"] .quote-group-layout .button-create .ui-icon{color:#075847!important;stroke:#075847!important}
+html[data-theme="light"] .page-actions .button-create:hover,
+html[data-theme="light"] .quote-group-layout .button-create:hover {background:#a3e9d6!important}
+html[data-theme="light"] .quote-edit-tags {background:#fff!important;color:#193954!important;border-color:#cee1ed!important}
+.quote-edit-tags{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:13px;background:var(--panel);padding:9px 12px;margin:0 0 12px}
+.quote-edit-tags .history-tag-row {display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:160px}
+.quote-edit-tags .dbm-tag-add {min-height:35px}
+.svc-stars-preview{font-size:1.12rem!important;letter-spacing:.10em;color:#c48d11!important}
+.svc-auto-label{font-weight:400;opacity:.75;display:block}
+#svc_nights[readonly]{background:color-mix(in srgb,var(--cyan) 6%,var(--panel));color:var(--text);opacity:1}
+html[data-theme="light"] .tracking-entry,
+html[data-theme="light"] .tracking-search,
+html[data-theme="light"] .tracking-types a {background:#fff!important;color:#193b57!important;border-color:#cde0ec!important}
+html[data-theme="light"] .tracking-entry small,
+html[data-theme="light"] .tracking-entry span {color:#486981!important}
+@media(max-width:760px){
+ .accepted-editor .quote-process-panel{padding:12px!important}
+ .accepted-editor .quote-main-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+ .accepted-editor .quote-main-grid > *{min-width:0!important}
+ .accepted-editor .quote-main-grid > .client-field-block {grid-column:1/-1!important}
+ .accepted-editor .accepted-topbar {display:grid!important;gap:10px!important}
+ .accepted-editor .accepted-topbar .button-row {display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
+ .accepted-editor .accepted-topbar .button-row > * {min-width:0!important;width:100%!important;min-height:38px!important;padding:7px 5px!important;font-size:.68rem!important;white-space:normal!important}
+ .accepted-editor .service-command-grid {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+ .accepted-editor .service-command-card {min-height:84px!important;padding:10px!important}
+ .accepted-editor .quote-tabs {display:flex!important;overflow-x:auto!important;scrollbar-width:thin!important}
+ .accepted-editor .quote-tabs button {flex:0 0 auto!important}
+ .accepted-editor .quote-process-panel .status-rail {overflow-x:auto!important;min-width:0!important}
+ .accepted-editor .form-grid,.accepted-editor .form-grid.cols-4,.accepted-editor .form-grid.cols-3 {grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+ .accepted-editor .form-grid > label {min-width:0!important}
+ .quote-baggage-brief {font-size:.68rem}
+}
+@media(max-width:430px){.accepted-editor .form-grid,.accepted-editor .form-grid.cols-4,.accepted-editor .form-grid.cols-3 {grid-template-columns:minmax(0,1fr)!important}}

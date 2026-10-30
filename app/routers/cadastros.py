@@ -1942,6 +1942,8 @@ def editar_cotacao(group_id: int, request: Request, db: Session = Depends(get_db
             airline_logo_map=_airline_logo_map(db, user),
             airport_map=BR_AIRPORTS,
             sale_unlocked=(item.status == SALE_UNLOCK_STATUS or item.status in {"aprovado", "lancada"}),
+            internal_tags=list_tags(db, user, kind="cotacao"),
+            assigned_group_tags=tags_for_targets(db, user, "group", [group_id]).get(group_id, []),
         ),
     )
 

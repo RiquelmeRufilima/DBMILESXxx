@@ -3,7 +3,7 @@
 (() => {
   'use strict';
   const root = document.querySelector('main.main-content') || document.querySelector('.main-content') || document;
-  if (!document.querySelector('#quoteBaseForm, #quoteVariantForm, .wizard-grid, #optionMetadataSection')) return;
+  if (!document.querySelector('#quoteBaseForm, #quoteVariantForm, .wizard-grid, #optionMetadataSection, #quoteEditForm')) return;
   const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const weekdays = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
   const pad = n => String(n).padStart(2,'0');
@@ -37,10 +37,12 @@
     }
     overlay.querySelector('[data-days]').innerHTML = html;
   }
-  function close() { overlay.hidden = true; active?.dataset?.triggerId && document.getElementById(active.dataset.triggerId)?.focus(); active = null; }
+  function close() { overlay.hidden = true; active?.dataset?.triggerId && document.getElementById(active.dataset.triggerId)?.focus(); active = null; if(overlay.parentNode!==document.body)document.body.appendChild(overlay); }
   function open(input) {
     active = input;
     if (input.value) {const date = input.value.split('-').map(Number); if (date.length === 3 && date[0]) visibleMonth = new Date(date[0],date[1]-1,1);}
+    const parentDialog=input.closest('dialog[open]');
+    if(parentDialog) parentDialog.appendChild(overlay); else document.body.appendChild(overlay);
     overlay.hidden=false; render();overlay.querySelector('[data-close]').focus();
   }
   function setDate(value) {
