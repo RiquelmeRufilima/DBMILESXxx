@@ -38,6 +38,8 @@
       html += `<button type="button" data-day="${date}" class="${date === active.value ? 'selected':''}" aria-pressed="${date===active.value}" ${past?'disabled aria-disabled="true" title="Data anterior a hoje"':''}>${d}</button>`;
     }
     overlay.querySelector('[data-days]').innerHTML = html;
+    const minimum = active?.min;
+    overlay.querySelector('[data-prev]').disabled = Boolean(minimum && new Date(year, month, 1) <= new Date(Number(minimum.slice(0,4)),Number(minimum.slice(5,7))-1,1));
   }
   function close() { overlay.hidden = true; active?.dataset?.triggerId && document.getElementById(active.dataset.triggerId)?.focus(); active = null; if(overlay.parentNode!==document.body)document.body.appendChild(overlay); }
   function open(input) {

@@ -388,3 +388,18 @@ html[data-theme="light"] .accepted-editor .service-row.rich button{background:#f
 
 /* A data real continua no formulário, mas só o calendário visual fica visível. */
 #standardDates.range-original-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important}
+
+/* Datas passadas desabilitadas — contraste consistente nos temas escuro e claro. */
+.quote-date-days button:disabled,.range-days button:disabled{
+  opacity:.28!important;filter:grayscale(1)!important;color:#8794a4!important;
+  background:transparent!important;border-color:transparent!important;
+  text-decoration:line-through!important;pointer-events:none!important;cursor:not-allowed!important;
+  box-shadow:none!important;
+}
+html[data-theme="light"] .quote-date-days button:disabled,
+html[data-theme="light"] .range-days button:disabled{
+  color:#8998a8!important;opacity:.32!important;background:#edf1f5!important;
+}
+.quote-date-nav button:disabled,.range-nav button:disabled{opacity:.32!important;cursor:not-allowed!important}
+.quote-date-native-input{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;border:0!important;padding:0!important}
+.range-original-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;border:0!important;padding:0!important}

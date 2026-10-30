@@ -650,3 +650,129 @@ async def add_calculation_type(airline_id: int, request: Request, db: Session = 
     db.commit()
     flash(request, "Novo tipo de cálculo criado.", "success")
     return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+
+# Editor de programas customizados anteriormente ausente do roteador ativo.
+def _field_to_payload(field: CalculationField) -> dict:
+    options = None
+    if field.options_json:
+        try:
+            parsed = json.loads(field.options_json)
+            if isinstance(parsed, list):
+                options = parsed
+        except Exception:
+            options = None
+    return {
+        "key": field.key,
+        "label": field.label,
+        "field_type": field.field_type,
+        "default_value": field.default_value or "0",
+        "required": bool(field.required),
+        "min_value": field.min_value,
+        "max_value": field.max_value,
+        "step": field.step,
+        "help_text": field.help_text or "",
+        "options": options,
+    }
+
+
+
+
+@router.get("/{airline_id}/types/{type_id}/edit")
+def edit_calculation_type_page(airline_id: int, type_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    airline = db.scalar(
+        select(Airline)
+        .where(Airline.id == airline_id, _visibility(user))
+        .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
+    )
+    if airline is None or not _can_manage(user, airline):
+        flash(request, "Você não pode alterar essa companhia.", "error")
+        return RedirectResponse("/airlines", status_code=303)
+
+    calc_type = next((item for item in airline.calculation_types if item.id == type_id and item.active), None)
+    if calc_type is None or calc_type.legacy_key:
+        flash(request, "Essa lógica não pode ser editada.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+    initial_fields = [_field_to_payload(field) for field in calc_type.fields]
+    return templates.TemplateResponse(
+        request,
+        "airlines/type_edit.html",
+        context(
+            request,
+            user=user,
+            airline=airline,
+            calc_type=calc_type,
+            initial_fields=initial_fields,
+            formula_value=calc_type.formula or "(milhas * milheiro) + taxa",
+            converting_legacy=False,
+        ),
+    )
+
+
+@router.post("/{airline_id}/types/{type_id}/edit")
+async def update_calculation_type(airline_id: int, type_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    airline = db.scalar(
+        select(Airline)
+        .where(Airline.id == airline_id, _visibility(user))
+        .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
+    )
+    if airline is None or not _can_manage(user, airline):
+        flash(request, "Você não pode alterar essa companhia.", "error")
+        return RedirectResponse("/airlines", status_code=303)
+
+    calc_type = next((item for item in airline.calculation_types if item.id == type_id and item.active), None)
+    if calc_type is None or calc_type.legacy_key:
+        flash(request, "Essa lógica não pode ser editada.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        flash(request, "Sessão expirada. Tente novamente.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}/types/{type_id}/edit", status_code=303)
+
+    name = str(form.get("calculation_name") or "").strip()
+    formula = str(form.get("formula") or "").strip()
+    apply_mode = str(form.get("apply_mode") or "total")
+    description = str(form.get("description") or "").strip() or None
+
+    try:
+        fields = _parse_fields(str(form.get("fields_json") or "[]"))
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse(f"/airlines/{airline_id}/types/{type_id}/edit", status_code=303)
+
+    if not name or not formula or not fields:
+        flash(request, "Informe o nome, a fórmula e ao menos um campo.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}/types/{type_id}/edit", status_code=303)
+
+    allowed_variables = {item["key"] for item in fields} | {"passageiros", "bebes", "bagagens"}
+    valid, message = validate_formula(formula, allowed_variables)
+    if not valid:
+        flash(request, f"Fórmula inválida: {message}", "error")
+        return RedirectResponse(f"/airlines/{airline_id}/types/{type_id}/edit", status_code=303)
+
+    calc_type.name = name
+    calc_type.description = description
+    calc_type.formula = formula
+    calc_type.apply_mode = "per_passenger" if apply_mode == "per_passenger" else "total"
+
+    for old_field in list(calc_type.fields):
+        db.delete(old_field)
+    db.flush()
+    _add_fields(db, calc_type, fields)
+    db.commit()
+
+    flash(request, "Lógica de cálculo atualizada com sucesso.", "success")
+    return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+
+

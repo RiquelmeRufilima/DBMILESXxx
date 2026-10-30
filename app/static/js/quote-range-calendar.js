@@ -43,6 +43,8 @@
     overlay.querySelector('.range-heading').textContent=selectedTrip()==='round_trip'?'Ida e volta':'Data de ida';
     const second=new Date(Date.UTC(monthView.getUTCFullYear(),monthView.getUTCMonth()+1,1));
     months.innerHTML=monthHtml(monthView)+monthHtml(second);
+    const now=new Date();const firstMonth=new Date(Date.UTC(now.getFullYear(),now.getMonth(),1));
+    overlay.querySelector('.range-prev').disabled = monthView <= firstMonth;
     overlay.querySelector('.range-summary').textContent=`Ida: ${departure.value||'Selecione'}${selectedTrip()==='round_trip'?' • Volta: '+(returning.value||'Selecione'):''}`;
     display();
   }

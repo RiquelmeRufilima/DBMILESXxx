@@ -865,23 +865,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
 {%- endmacro %}
 
 {% macro option_saved_details(quote) -%}
-  <div class="history-option-detail-grid professional-option-details">
-    <div><small>Tarifa</small><strong>{{ quote.fare_brand or 'Não informada' }}</strong></div>
-    <div><small>Tipo de cálculo</small><strong>{{ quote.exact_calculation_type or 'Não informado' }}</strong></div>
-    {# quote.bags corresponde às bagagens ADICIONAIS da opção, não à franquia da tarifa. #}
-    {% set included_is_known = quote.included_bags_per_passenger is not none and quote.included_bags_per_passenger|string != '' %}
-    {% set bags_included_per_person = quote.included_bags_per_passenger|int if included_is_known else 0 %}
-    {% set bags_included_total = bags_included_per_person * (quote.passengers|int) %}
-    {% set bags_extra_total = quote.bags|default(0, true)|int %}
-    <div class="history-baggage-detail">
-      <small>Bagagens · 23 kg</small>
-      <strong>{{ bags_included_total + bags_extra_total }} bagagem(ns)</strong>
-      <span class="history-bag-extra">{% if not included_is_known %}{% if bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bags_extra_total and bags_included_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + {{ bags_included_total }} bagagem(ns) da tarifa{% elif bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is){% elif bags_included_total %}{{ bags_included_total }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
-    </div>
-    <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
-    <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
-    <div><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
-  </div>
+  {# Informações detalhadas permanecem na tela da opção calculada, não no histórico. #}
   <div class="history-segment-list">
     {% if quote.segment_rows %}
       {% for row in quote.segment_rows %}

@@ -330,8 +330,29 @@ html[data-theme="light"] .quote-share-muted{color:#47677d}
      const all=sections(false).join('\n\n').replaceAll('*VOADO*','VOADO');
      skip=`\n\n${kind}\n\n${all}`;
    }
+   // Leia os dados que de fato geraram o cálculo; não invente milhas ou tarifas.
+   let inputs={};try{inputs=JSON.parse(includedBags)||{}}catch(_){inputs={}}
+   const visibleInputs=inputs.values && typeof inputs.values==='object'?inputs.values:inputs;
+   const inputNumber = key => {
+      const raw=visibleInputs[key];if(raw===undefined||raw===null||raw==='')return null;
+      const value=String(raw).replace(/\s/g,'').replace('R$','');
+      const normalized=value.includes(',')?value.replace(/\./g,'').replace(',','.'):value;
+      const number=Number(normalized);return Number.isFinite(number)?number:null;
+   };
+   const isMiles= /milhas|smiles|pass|pontos|aadvantage|avios/i.test(method) ||
+      (inputNumber('milhas')!==null && inputNumber('milheiro')!==null);
+   let mileageInfo='';
+   if(isMiles){
+      // O motor interno armazena milhas em milhares (ex.: 12.500 = 12.500 milhas).
+      const miles=inputNumber('milhas'); const unit=inputNumber('milheiro');
+      const fees=['taxa','taxas_impostos','taxa_embarque','taxa_resgate','taxa_adicional'].filter(key=>inputNumber(key)!==null);
+      if(miles!==null)mileageInfo+=`\n✈️ Milhas: ${(miles*1000).toLocaleString('pt-BR',{maximumFractionDigits:0})}`;
+      if(unit!==null)mileageInfo+=`\n💠 Milheiro: ${formatMoney(unit)}`;
+      if(fees.length)mileageInfo+=fees.map(key=>`\n🧾 ${key.replaceAll('_',' ')}: ${formatMoney(inputNumber(key))}`).join('');
+      if(mileageInfo)mileageInfo='\n'+mileageInfo;
+   }
    const marginText=Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${marginText}%${discount}${skip}\n\n📝 Observações: ${obs||'—'}`;
+   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${marginText}%${mileageInfo}${discount}${skip}\n\n📝 Observações: ${obs||'—'}`;
  }
  editor.value=template();
  internalEditor.value=internalTemplate();
