@@ -20,8 +20,8 @@ from sqlalchemy.orm import Session
 from ..models import Person, QuoteGroup, QuoteTag, QuoteTagLink, WebQuote, WebUser
 from .protection import ensure_protection_schema
 
-TAG_KINDS: dict[str, str] = {"cotacao": "Cotação", "voo": "Voo", "pessoa": "Pessoa"}
-TARGET_TAG_KIND: dict[str, str] = {"group": "cotacao", "quote": "cotacao", "flight": "voo", "person": "pessoa"}
+TAG_KINDS: dict[str, str] = {"cotacao": "Cotação", "voo": "Voo", "pessoa": "Pessoa", "acompanhamento": "Acompanhamento"}
+TARGET_TAG_KIND: dict[str, str] = {"group": "cotacao", "quote": "cotacao", "flight": "voo", "person": "pessoa", "service": "acompanhamento"}
 TARGET_KINDS = set(TARGET_TAG_KIND)
 FLIGHT_FACTOR = 1000
 MAX_TAGS_PER_SCOPE = 300
@@ -146,8 +146,8 @@ def create_tag(db: Session, user: WebUser, name: str, color: str | None = None, 
 def target_allowed(db: Session, user: WebUser, target_kind: str, target_id: int) -> bool:
     """Confere se o item pertence à empresa/usuário."""
     target_id = int(target_id)
-    if target_kind in {"group", "flight"}:
-        group_id = target_id // FLIGHT_FACTOR if target_kind == "flight" else target_id
+    if target_kind in {"group", "flight", "service"}:
+        group_id = target_id // FLIGHT_FACTOR if target_kind in {"flight", "service"} else target_id
         access = QuoteGroup.company_id == user.company_id if user.company_id else QuoteGroup.user_id == user.id
         return db.scalar(select(QuoteGroup.id).where(QuoteGroup.id == group_id, access)) is not None
     if target_kind == "quote":

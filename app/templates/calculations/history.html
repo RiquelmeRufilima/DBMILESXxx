@@ -806,7 +806,21 @@ html[data-theme="light"] body .quote-history-stack .quote-change-item small {
 html[data-theme="light"] body .history-filter-form label {color:#41647f!important}
 html[data-theme="light"] body .history-pager strong {color:#183b59!important}
 
-</style>{% endblock %}
+</style>/* Logotipos de companhias maiores, sem alteração de cores dos temas */
+@media(min-width:761px){
+ .compact-history-option>.history-logo-seal,
+ .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{width:96px!important;height:76px!important;min-width:96px!important;max-width:96px!important}
+ .compact-history-option{grid-template-columns:28px 104px minmax(0,1fr)!important}
+ .compact-history-option:not(:has(.combine-option-toggle)){grid-template-columns:104px minmax(0,1fr)!important}
+ .compact-history-option>.history-logo-seal img,.history-logo-image{width:90px!important;height:66px!important;max-width:90px!important;max-height:66px!important;object-fit:contain!important}
+}
+@media(max-width:760px){
+ .compact-history-option>.history-logo-seal,
+ .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{width:72px!important;height:60px!important;max-width:72px!important}
+ .compact-history-option{grid-template-columns:74px minmax(0,1fr)!important}
+ .compact-history-option .history-logo-image{width:67px!important;height:54px!important;max-width:67px!important;max-height:54px!important}
+}
+{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
   {% set c = quote.commercial %}
@@ -1129,7 +1143,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
                   <a class="secondary-button tiny-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1">Editar cálculo</a>
                   <a class="secondary-button tiny-button button-fare" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1#optionMetadataSection">Alterar tarifa</a>
                   {% endif %}
-                  <button class="ghost-button tiny-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button>
+                  <button class="ghost-button tiny-button button-profit js-profit-open" data-commercial-button="1" data-commercial-meta="{{ quote.commercial.observations if quote.commercial and quote.commercial.observations else '{}' }}" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button>
                   {% if not quote.is_combined %}
                   <form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button tiny-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>
                   {% endif %}
@@ -1192,7 +1206,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
                 {{ option_saved_details(quote) }}
                 <small>{{ quote.method_label|default('Cálculo', true) }}</small>
               </div>
-              <div class="option-select-actions"><a class="ghost-button tiny-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a><a class="secondary-button tiny-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1">Editar</a><a class="secondary-button tiny-button button-fare" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1#optionMetadataSection">Alterar tarifa</a><button class="ghost-button tiny-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button><form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button tiny-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form><form method="post" action="/calculations/option/{{ quote.id }}/delete" onsubmit="return confirm('Excluir somente esta opção de voo/cálculo? A cotação principal será mantida.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger tiny-button button-delete" type="submit">Excluir</button></form></div>
+              <div class="option-select-actions"><a class="ghost-button tiny-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a><a class="secondary-button tiny-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1">Editar</a><a class="secondary-button tiny-button button-fare" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1#optionMetadataSection">Alterar tarifa</a><button class="ghost-button tiny-button button-profit js-profit-open" data-commercial-button="1" data-commercial-meta="{{ quote.commercial.observations if quote.commercial and quote.commercial.observations else '{}' }}" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button><form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button tiny-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form><form method="post" action="/calculations/option/{{ quote.id }}/delete" onsubmit="return confirm('Excluir somente esta opção de voo/cálculo? A cotação principal será mantida.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger tiny-button button-delete" type="submit">Excluir</button></form></div>
             </div>
             {% endfor %}
           </div>
@@ -1235,7 +1249,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
       <div class="history-actions">
         <a class="primary-button small-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a>
         <a class="secondary-button small-button button-duplicate" href="/calculations/new?clone_id={{ quote.id }}">Duplicar como cotação principal</a>
-        <a class="ghost-button small-button button-edit" href="/calculations/new?edit_id={{ quote.id }}">Alterar</a><button class="ghost-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button>
+        <a class="ghost-button small-button button-edit" href="/calculations/new?edit_id={{ quote.id }}">Alterar</a><button class="ghost-button small-button button-profit js-profit-open" data-commercial-button="1" data-commercial-meta="{{ quote.commercial.observations if quote.commercial and quote.commercial.observations else '{}' }}" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button>
       </div>
     </article>
     {% endif %}
@@ -1254,52 +1268,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
   {% endif %}
 </div>
 
-<dialog id="profitDialog" class="profit-dialog">
-  <form method="post" id="profitForm" data-no-loader="1">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <input type="hidden" name="return_to" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
-    <input type="hidden" name="profit_source" id="profitSource" value="value">
-    <input type="hidden" name="commercial_action" id="commercialAction" value="save">
-    <input type="hidden" name="card_value_source" id="cardValueSource" value="total">
-    <div class="profit-dialog-head"><div><span class="eyebrow">COMERCIAL</span><h3 id="profitDialogTitle">Adicionar lucro</h3><p>Lucro, venda à vista e simulação simples do cartão.</p></div><button class="profit-dialog-close" type="button" data-confirm-ignore="1" id="profitClose">✕</button></div>
-    <div class="profit-dialog-body">
-      <div class="profit-cost-box"><div class="profit-kpi"><small>Custo calculado</small><strong id="profitCostLabel">R$ 0,00</strong></div><div class="profit-kpi"><small>Aplicação</small><strong id="profitAirlineLabel">—</strong></div></div>
-      <div class="profit-grid"><label>Lucro em R$<input type="text" inputmode="decimal" name="profit_value" id="profitValue" value="0,00"></label><label>Margem sobre o custo (%)<input type="text" inputmode="decimal" name="profit_percent" id="profitPercent" value="0,00"></label></div>
-      <div class="profit-preview-box">
-        <div><small>Venda à vista (custo + lucro)</small><strong id="profitSaleLabel">R$ 0,00</strong></div>
-        <div><small>Total no cartão</small><strong id="profitCardTotalLabel">R$ 0,00</strong></div>
-        <div><small>Juros / diferença</small><strong id="profitDifferenceLabel">R$ 0,00</strong><span class="profit-interest-percent" id="profitDifferencePercent">0,00%</span></div>
-      </div>
-      <div class="profit-grid">
-        <label>Condição<select name="card_interest_mode" id="cardInterestMode"><option value="cash">À vista</option><option value="no_interest">Cartão sem juros</option><option value="with_interest">Cartão com juros</option></select></label>
-        <label>Vezes no cartão<input type="number" min="1" max="24" step="1" name="card_installments" id="cardInstallments" value="1"></label>
-      </div>
-      <div class="profit-finance-grid">
-        <label>Total cobrado no cartão
-          <input type="text" inputmode="decimal" name="card_total_value" id="cardTotalValue" value="0,00">
-        </label>
-        <label>Juros / diferença em R$
-          <input type="text" inputmode="decimal" name="card_difference_value" id="cardDifferenceValue" value="0,00">
-        </label>
-      </div>
-      <div class="profit-live-helper">
-        <span>Digite normalmente em qualquer um dos dois campos.</span>
-        <strong>Total = venda à vista + juros</strong>
-      </div>
-      <div class="profit-installment-preview">
-        <span class="profit-installment-badge" id="profitInstallmentBadge">1x</span>
-        <span class="profit-installment-copy">
-          <strong id="profitInstallmentLabel">Pagamento à vista</strong>
-          <small id="profitInstallmentDetail">Sem juros de parcelamento.</small>
-        </span>
-      </div>
-      <div class="profit-card-note">O <strong>valor de venda à vista</strong> é custo + lucro. O campo <strong>Juros / diferença</strong> é somado ao valor à vista para formar o total no cartão. Você pode editar tanto o total quanto a diferença; o outro campo é recalculado automaticamente.</div>
-      <div class="profit-checks"><label><input type="checkbox" name="apply_all" value="1" id="profitApplyAll"> Aplicar a mesma margem percentual proporcionalmente a todos os voos/opções desta cotação.</label><label><input type="checkbox" name="sent_to_client" value="1" id="profitSent" checked> Marcar como cotação enviada ao cliente para a futura base de dashboard de lucros.</label></div>
-      <div class="profit-dialog-actions"><button type="button" class="ghost-button danger" data-confirm-ignore="1" id="profitRemove" hidden>Remover lucro</button><button type="button" class="ghost-button" data-confirm-ignore="1" id="profitCancel">Cancelar</button><button type="button" class="primary-button" data-confirm-ignore="1" id="profitSave">Salvar condição comercial</button></div>
-    </div>
-  </form>
-</dialog>
-<div id="commercialToast" class="commercial-toast" aria-live="polite"></div>
+{% include 'calculations/_profit_modal_shared.html' %}
 
 <script>
 (() => {
@@ -1391,413 +1360,6 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
     });
     update();
   });
-})();
-</script>
-
-<script>
-(() => {
-  const dialog = document.getElementById('profitDialog');
-  const form = document.getElementById('profitForm');
-  const costLabel = document.getElementById('profitCostLabel');
-  const airlineLabel = document.getElementById('profitAirlineLabel');
-  const saleLabel = document.getElementById('profitSaleLabel');
-  const cardLabel = document.getElementById('profitCardTotalLabel');
-  const diffLabel = document.getElementById('profitDifferenceLabel');
-  const diffPercentLabel = document.getElementById('profitDifferencePercent');
-  const instLabel = document.getElementById('profitInstallmentLabel');
-  const instDetail = document.getElementById('profitInstallmentDetail');
-  const instBadge = document.getElementById('profitInstallmentBadge');
-  const valueInput = document.getElementById('profitValue');
-  const percentInput = document.getElementById('profitPercent');
-  const sourceInput = document.getElementById('profitSource');
-  const actionInput = document.getElementById('commercialAction');
-  const cardValueSource = document.getElementById('cardValueSource');
-  const removeBtn = document.getElementById('profitRemove');
-  const mode = document.getElementById('cardInterestMode');
-  const inst = document.getElementById('cardInstallments');
-  const cardTotal = document.getElementById('cardTotalValue');
-  const cardDifference = document.getElementById('cardDifferenceValue');
-  const applyAll = document.getElementById('profitApplyAll');
-  const sent = document.getElementById('profitSent');
-  const title = document.getElementById('profitDialogTitle');
-  const toast = document.getElementById('commercialToast');
-  let cost = 0;
-  let syncing = false;
-  let directSubmit = false;
-
-  const num = (raw) => {
-    let value = String(raw ?? '').trim().replace(/[R$\s]/g, '');
-    if (value.includes(',') && value.includes('.')) {
-      value = value.lastIndexOf(',') > value.lastIndexOf('.')
-        ? value.replace(/\./g, '').replace(',', '.')
-        : value.replace(/,/g, '');
-    } else if (value.includes(',')) value = value.replace(',', '.');
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-  const money = (value) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
-  const dec = (value, digits=2) => (Number(value)||0).toLocaleString('pt-BR',{minimumFractionDigits:digits,maximumFractionDigits:digits});
-  const cashSale = () => cost + Math.max(0, num(valueInput.value));
-
-  function financeState(source='auto', format=false) {
-    const sale = cashSale();
-    let times = Math.max(1, Math.min(24, Number(inst.value) || 1));
-    let total = Math.max(0, num(cardTotal.value));
-    let difference = Math.max(0, num(cardDifference.value));
-
-    if (mode.value === 'cash' && times > 1) mode.value = difference > 0 ? 'with_interest' : 'no_interest';
-
-    if (mode.value === 'cash') {
-      times = 1;
-      inst.value = 1;
-      total = sale;
-      difference = 0;
-      cardValueSource.value = 'total';
-    } else if (source === 'difference') {
-      total = sale + difference;
-      cardValueSource.value = 'difference';
-      mode.value = difference > 0 ? 'with_interest' : 'no_interest';
-    } else if (source === 'total') {
-      // Durante a digitação NÃO reescrevemos o próprio campo.
-      // Assim "1200" pode ser digitado normalmente, sem o cursor pular.
-      difference = Math.max(0, total - sale);
-      cardValueSource.value = 'total';
-      mode.value = difference > 0 ? 'with_interest' : 'no_interest';
-    } else if (mode.value === 'no_interest') {
-      total = sale;
-      difference = 0;
-    } else if (mode.value === 'with_interest') {
-      if (cardValueSource.value === 'difference') total = sale + difference;
-      else difference = Math.max(0, total - sale);
-    } else {
-      total = sale;
-      difference = 0;
-    }
-
-    const active = document.activeElement;
-    const totalIsSource = source === 'total' && active === cardTotal;
-    const differenceIsSource = source === 'difference' && active === cardDifference;
-
-    if (!totalIsSource || format) cardTotal.value = dec(Math.max(sale, total));
-    if (!differenceIsSource || format) cardDifference.value = dec(Math.max(0, difference));
-
-    const normalizedTotal = Math.max(sale, source === 'difference' ? sale + difference : total || sale);
-    const normalizedDifference = Math.max(0, source === 'difference' ? difference : normalizedTotal - sale);
-    const diffPercent = sale > 0 ? normalizedDifference / sale * 100 : 0;
-
-    saleLabel.textContent = money(sale);
-    cardLabel.textContent = money(normalizedTotal);
-    diffLabel.textContent = money(normalizedDifference);
-    diffPercentLabel.textContent = `${dec(diffPercent)}%`;
-
-    instBadge.textContent = `${times}x`;
-    if (mode.value === 'cash') {
-      instLabel.textContent = 'Pagamento à vista';
-      instDetail.textContent = `${money(sale)} • sem juros`;
-    } else {
-      const installmentValue = normalizedTotal / times;
-      instLabel.textContent = `${times}x de ${money(installmentValue)}${normalizedDifference <= 0 ? ' sem juros' : ''}`;
-      instDetail.textContent = normalizedDifference > 0
-        ? `Total ${money(normalizedTotal)} • juros ${money(normalizedDifference)} (${dec(diffPercent)}%)`
-        : `Total ${money(normalizedTotal)} • mesmo valor da venda à vista`;
-    }
-
-    return {
-      sale,
-      total: normalizedTotal,
-      difference: normalizedDifference,
-      differencePercent: diffPercent,
-      times
-    };
-  }
-
-  function syncCard(source='auto', format=false) {
-    return financeState(source, format);
-  }
-
-  function fromValue() {
-    if (syncing) return; syncing = true;
-    const profit = Math.max(0, num(valueInput.value));
-    percentInput.value = dec(cost > 0 ? profit / cost * 100 : 0);
-    sourceInput.value = 'value'; syncing = false; syncCard(cardValueSource.value || 'auto', false);
-  }
-  function fromPercent() {
-    if (syncing) return; syncing = true;
-    const percent = Math.max(0, num(percentInput.value));
-    valueInput.value = dec(cost * percent / 100);
-    sourceInput.value = 'percent'; syncing = false; syncCard(cardValueSource.value || 'auto', false);
-  }
-
-  function showProfitDialog(btn) {
-    cost = Math.max(0, num(btn.dataset.cost));
-    const profit = Math.max(0, num(btn.dataset.profit));
-    const percent = Math.max(0, num(btn.dataset.percent));
-    form.action = `/calculations/option/${btn.dataset.quoteId}/profit`;
-    costLabel.textContent = money(cost);
-    airlineLabel.textContent = btn.dataset.airline || 'Companhia';
-    valueInput.value = dec(profit);
-    percentInput.value = dec(percent || (cost > 0 ? profit / cost * 100 : 0));
-    mode.value = btn.dataset.cardMode || 'cash';
-    inst.value = Math.max(1, Number(btn.dataset.cardInstallments) || 1);
-    cardTotal.value = dec(Math.max(0, num(btn.dataset.cardTotal)) || cost + profit);
-    cardDifference.value = dec(Math.max(0, num(btn.dataset.cardDifference)) || Math.max(0, num(btn.dataset.cardTotal) - (cost + profit)));
-    applyAll.checked = btn.dataset.applyAll === '1';
-    sent.checked = btn.dataset.sent === '1' || btn.dataset.sent === '';
-    title.textContent = btn.dataset.applyAll === '1' ? 'Lucro em todos os voos' : (profit > 0 ? 'Editar lucro' : 'Adicionar lucro');
-    actionInput.value = 'save';
-    cardValueSource.value = 'total';
-    removeBtn.hidden = !(profit > 0);
-    directSubmit = false;
-    syncCard('auto');
-    dialog.showModal();
-    setTimeout(() => valueInput.focus(), 30);
-  }
-
-  document.querySelectorAll('.js-profit-open').forEach(btn => btn.addEventListener('click', () => showProfitDialog(btn)));
-  valueInput?.addEventListener('input', fromValue);
-  percentInput?.addEventListener('input', fromPercent);
-  valueInput?.addEventListener('focus', () => sourceInput.value = 'value');
-  percentInput?.addEventListener('focus', () => sourceInput.value = 'percent');
-  mode?.addEventListener('change', () => syncCard('mode', true));
-  inst?.addEventListener('input', () => syncCard('installments', false));
-  inst?.addEventListener('blur', () => syncCard('installments', true));
-
-  cardTotal?.addEventListener('focus', () => {
-    cardValueSource.value = 'total';
-    cardTotal.select?.();
-  });
-  cardTotal?.addEventListener('input', () => syncCard('total', false));
-  cardTotal?.addEventListener('blur', () => syncCard('total', true));
-
-  cardDifference?.addEventListener('focus', () => {
-    cardValueSource.value = 'difference';
-    cardDifference.select?.();
-  });
-  cardDifference?.addEventListener('input', () => syncCard('difference', false));
-  cardDifference?.addEventListener('blur', () => syncCard('difference', true));
-
-  function esc(value){
-    return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
-  }
-
-  function showToast(message, error=false){
-    if(!toast) return;
-    toast.textContent = message || (error ? 'Não foi possível salvar.' : 'Salvo.');
-    toast.classList.toggle('error', Boolean(error));
-    toast.classList.add('show');
-    window.clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(() => toast.classList.remove('show'), 3200);
-  }
-
-  function summaryHtml(item){
-    const cost = Number(item.cost || 0);
-    if(item.removed || Number(item.profit_value || 0) <= 0){
-      return `<span class="profit-cost-line"><span>Custo</span> <strong>${money(cost)}</strong></span>`;
-    }
-
-    const sale = Number(item.sale_value || cost);
-    const profit = Number(item.profit_value || 0);
-    const percent = Number(item.profit_percent || 0);
-    const times = Math.max(1, Number(item.card_installments || 1));
-    const total = Number(item.card_total_value || sale);
-    const installment = Number(item.card_installment_value || (total / times));
-    const difference = Math.max(0, Number(item.card_difference_value || 0));
-    const differencePercent = sale > 0 ? (difference / sale * 100) : 0;
-    const sent = item.sent_to_client ? `<span class="profit-sent-chip">Enviada ao cliente</span>` : '';
-
-    let payment;
-    if(times > 1 || difference > 0){
-      payment = `<span class="profit-payment-card">
-        <span class="profit-payment-icon">${times}x</span>
-        <span class="profit-payment-main">
-          <strong>${times}x de ${money(installment)}</strong>
-          <small>${difference > 0 ? 'Cartão com juros' : 'Cartão sem juros'}</small>
-        </span>
-        <span class="profit-payment-total">
-          <strong>${money(total)}</strong>
-          <small>${difference > 0 ? `+${money(difference)} de juros <span class="profit-interest-percent">${dec(differencePercent)}%</span>` : 'mesmo valor do à vista'}</small>
-        </span>
-      </span>`;
-    } else {
-      payment = `<span class="profit-payment-card profit-payment-cash">
-        <span class="profit-payment-icon">1x</span>
-        <span class="profit-payment-main"><strong>Pagamento à vista</strong><small>Sem diferença de parcelamento</small></span>
-        <span class="profit-payment-total"><strong>${money(sale)}</strong><small>valor final</small></span>
-      </span>`;
-    }
-
-    return `<span class="profit-cost-line"><span>Custo</span> <strong>${money(cost)}</strong></span>
-      <span class="profit-sale-line"><span>Venda à vista</span> <strong>${money(sale)}</strong></span>
-      <span><span class="profit-margin-chip">Lucro ${money(profit)} • ${dec(percent)}%</span>${sent}</span>
-      ${payment}`;
-  }
-
-  function applyCommercialItem(item){
-    const summary = document.querySelector(`[data-commercial-summary][data-quote-id="${item.quote_id}"]`);
-    if(summary) {
-      summary.dataset.cost = String(item.cost || 0);
-      summary.innerHTML = summaryHtml(item);
-    }
-
-    document.querySelectorAll(`[data-commercial-button="1"][data-quote-id="${item.quote_id}"]`).forEach((btn) => {
-      btn.dataset.cost = String(item.cost || 0);
-      btn.dataset.profit = String(item.profit_value || 0);
-      btn.dataset.percent = String(item.profit_percent || 0);
-      btn.dataset.sent = item.sent_to_client ? '1' : '0';
-      btn.dataset.cardInstallments = String(item.card_installments || 1);
-      btn.dataset.cardMode = item.card_interest_mode || 'cash';
-      btn.dataset.cardTotal = String(item.card_total_value || item.sale_value || item.cost || 0);
-      btn.dataset.cardDifference = String(item.card_difference_value || 0);
-      btn.textContent = item.removed || Number(item.profit_value || 0) <= 0 ? 'Adicionar lucro' : 'Editar lucro';
-    });
-  }
-
-  async function postCommercialForm(data){
-    const response = await fetch(form.action, {
-      method:'POST',
-      body:data,
-      credentials:'same-origin',
-      headers:{
-        'X-Requested-With':'XMLHttpRequest',
-        'Accept':'application/json'
-      }
-    });
-    let payload = null;
-    try { payload = await response.json(); } catch (_) {}
-    if(!response.ok || !payload?.ok) throw new Error(payload?.message || 'Não foi possível salvar a condição comercial.');
-    (payload.items || []).forEach(applyCommercialItem);
-    return payload;
-  }
-
-  const saveButton = document.getElementById('profitSave');
-
-  saveButton?.addEventListener('click', async () => {
-    actionInput.value = 'save';
-
-    // Calcula os valores antes da confirmação.
-    const finance = syncCard(cardValueSource.value || 'auto', true);
-
-    // IMPORTANTE:
-    // fecha primeiro a janela de lucro para a confirmação aparecer SOZINHA,
-    // sem ficar atrás/por cima do formulário de lucro.
-    if (dialog.open) dialog.close();
-    window.dbmHideLoader?.();
-
-    const ok = window.dbmDialogConfirm
-      ? await window.dbmDialogConfirm({
-          tone:'save',
-          title:'Confirmar condição comercial',
-          message:'Confira os dados abaixo. Está tudo certo para salvar?',
-          accept:'Salvar', cancel:'Voltar', icon:'💾',
-          tips:[
-            `Venda à vista: ${money(finance.sale)}`,
-            finance.times <= 1 && finance.difference <= 0
-              ? 'Pagamento à vista'
-              : `${finance.times}x de ${money(finance.total / finance.times)} • total ${money(finance.total)}`,
-            finance.difference > 0
-              ? `Juros: ${money(finance.difference)} (${dec(finance.differencePercent)}%)`
-              : 'Sem juros'
-          ]
-        })
-      : window.confirm('Está tudo certo para salvar esta condição comercial?');
-
-    // Se clicar VOLTAR, abre novamente o formulário de lucro
-    // para poder corrigir os valores.
-    if (!ok) {
-      dialog.showModal();
-      return;
-    }
-
-    // Se clicar SALVAR na confirmação, salva de verdade e mantém tudo fechado.
-    window.dbmHideLoader?.();
-
-    saveButton.disabled = true;
-    const originalText = saveButton.textContent;
-    saveButton.textContent = 'Salvando...';
-
-    try {
-      const data = new FormData(form);
-      data.set('card_total_value', String(finance.total));
-      data.set('card_difference_value', String(finance.difference));
-      data.set('card_installments', String(finance.times));
-      data.set('card_value_source', cardValueSource.value || 'total');
-
-      // Evita requisição presa indefinidamente.
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      try {
-        const response = await fetch(form.action, {
-          method:'POST',
-          body:data,
-          credentials:'same-origin',
-          headers:{
-            'X-Requested-With':'XMLHttpRequest',
-            'Accept':'application/json'
-          },
-          signal:controller.signal
-        });
-        let payload = null;
-        try { payload = await response.json(); } catch (_) {}
-        if(!response.ok || !payload?.ok) throw new Error(payload?.message || 'Não foi possível salvar a condição comercial.');
-        (payload.items || []).forEach(applyCommercialItem);
-        showToast(payload.message || 'Condição comercial salva.');
-      } finally {
-        clearTimeout(timeout);
-      }
-    } catch (error) {
-      window.dbmHideLoader?.();
-      if (error?.name === 'AbortError') {
-        showToast('O salvamento demorou mais que o esperado. Tente novamente.', true);
-      } else {
-        showToast(error?.message || 'Não foi possível salvar.', true);
-      }
-      dialog.showModal();
-    } finally {
-      window.dbmHideLoader?.();
-      saveButton.disabled = false;
-      saveButton.textContent = originalText || 'Salvar condição comercial';
-    }
-  });
-
-  removeBtn?.addEventListener('click', async () => {
-    if (dialog.open) dialog.close();
-    const ok = window.dbmDialogConfirm
-      ? await window.dbmDialogConfirm({
-          tone:'danger', title:'Remover lucro',
-          message:'Remover o lucro e voltar exatamente ao custo calculado?',
-          accept:'Remover lucro', cancel:'Voltar', icon:'🗑️',
-          tips:['Lucro e margem serão zerados.','Venda, cartão e juros serão removidos.','O cálculo original será preservado.']
-        })
-      : window.confirm('Remover o lucro desta opção?');
-
-    if (!ok) { dialog.showModal(); return; }
-
-    actionInput.value = 'remove';
-    const data = new FormData(form);
-    data.set('commercial_action', 'remove');
-    data.set('profit_value', '0');
-    data.set('profit_percent', '0');
-    data.set('card_interest_mode', 'cash');
-    data.set('card_installments', '1');
-    data.set('card_total_value', String(cost));
-    data.set('card_difference_value', '0');
-    data.set('card_value_source', 'difference');
-    data.delete('sent_to_client');
-
-    try {
-      const payload = await postCommercialForm(data);
-      showToast(payload.message || 'Lucro removido.');
-    } catch (error) {
-      showToast(error?.message || 'Não foi possível remover o lucro.', true);
-      dialog.showModal();
-    } finally {
-      actionInput.value = 'save';
-    }
-  });
-
-  document.getElementById('profitClose')?.addEventListener('click', () => dialog.close());
-  document.getElementById('profitCancel')?.addEventListener('click', () => dialog.close());
-  dialog?.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
 })();
 </script>
 

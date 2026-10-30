@@ -221,6 +221,11 @@
     {% endif %}
   </div>
 </section>
+  <div class="dbm-share-options" aria-label="Opções da mensagem de cotação">
+    <fieldset><legend>Exibir valor</legend><label><input type="radio" name="dbmMessagePriceMode" value="total" checked> Total da cotação</label><label><input type="radio" name="dbmMessagePriceMode" value="per_person"> Por passageiro</label></fieldset>
+    <label><input type="checkbox" id="dbmMessageShowTimes"> Informar datas e horários dos voos, quando cadastrados</label>
+    <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
+  </div>
   <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
   <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
   <label for="quoteInternalMessage"><strong>Resumo interno — custo, lucro e origem da cotação</strong></label>
@@ -236,6 +241,15 @@
   </div>
 </section>
 <style>
+ .dbm-share-options{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid var(--border,#315273);border-radius:12px;background:var(--panel,#0a2034);color:var(--text,#fff)}
+.dbm-share-options fieldset{border:0;padding:0;margin:0;display:flex;gap:14px;flex-wrap:wrap}
+.dbm-share-options legend{font-size:.75rem;font-weight:900;margin:0 0 8px}
+.dbm-share-options label{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:750}
+.dbm-share-options input{accent-color:#16a1ed}
+.dbm-share-options small{color:var(--muted,#96b0ca);font-size:.71rem}
+html[data-theme="light"] #quoteSharePanel textarea{background:#fff!important;color:#17304b!important;border-color:#c4d7e6!important}
+html[data-theme="light"] .dbm-share-options{background:#fff;color:#17304b;border-color:#c4d7e6}
+html[data-theme="light"] .quote-share-muted{color:#47677d}
 #quoteSharePanel textarea{width:100%;max-width:100%;box-sizing:border-box;margin:10px 0 16px;padding:13px;border:1px solid #315273;border-radius:12px;background:#081e32;color:#f4f9ff;resize:vertical;line-height:1.55}
 .quote-share-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
 .quote-share-actions button{min-height:42px}.quote-share-muted{color:#a9c2d7}
@@ -266,18 +280,58 @@
  const name = {{ (quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name)|tojson }};
  const route = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
  const scope = {{ (quote.scope_label or '')|tojson }};
+ const segments = {{ (quote.segment_rows or [])|tojson }};
+ const commercialMeta = {{ (commercial_meta or {})|tojson }};
+ const skipRecord = {{ (quote.is_skip_record or false)|tojson }};
+ const priceSwitches = document.querySelectorAll('[name="dbmMessagePriceMode"]');
+ const showTimes = document.getElementById('dbmMessageShowTimes');
+ const plural = (n, singular, pluralWord) => `${n} ${Number(n)===1?singular:pluralWord}`;
+ const dateBR = value => /^\d{4}-\d{2}-\d{2}/.test(value||'') ? value.slice(0,10).split('-').reverse().join('/') : (value||'');
+
+ function selectedPriceMode(){return document.querySelector('[name="dbmMessagePriceMode"]:checked')?.value||'total'}
+ function sections(onlyFlown=false){
+   const rows = Array.isArray(segments)?segments:[];
+   return rows.filter(row => !onlyFlown || row.status==='flown').map(row=>{
+     const routeString=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
+     const pieces=[`Trecho ${row.segment}`, routeString];
+     if(row.status==='flown')pieces.push('*VOADO*');
+     if(row.status==='not_flown')pieces.push('NÃO VOADO');
+     if((showTimes.checked || skipRecord) && Array.isArray(row.schedules) && row.schedules.length){
+       pieces.push(...row.schedules);
+     } else if((showTimes.checked || skipRecord) && row.display_date)pieces.push(row.display_date);
+     return pieces.join('\n');
+   });
+ }
  function template(){
-  const roundtrip = /volta|round/i.test(scope);
-  const people = `${passengers} passageiro(s)${babies?` e ${babies} bebê(s)`:''}`;
-  const bag = fareIncluded !== '' ? (Number(fareIncluded)>0?`✅ +${fareIncluded} bagagem(ns) despachada(s) incluída(s) por passageiro\n`:'') : '';
-  const bagExtra = baggage>0?`✅ ${baggage} bagagem(ns) adicional(is) comprada(s)\n`:'';
-  const obs=note.value.trim();
-  return `✈️ COTAÇÃO - ${name}\n\n🛫 ${route}\n✈️ Voos de ${roundtrip?'IDA e VOLTA':'IDA'}\n\n✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${bagExtra}${obs?`✅ ${obs}\n`:''}\n👥 Valor total para ${people}.\n\n💰 Por: ${formatMoney(sale)}\n\n⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea.`;
+   const paid=Math.max(1,Number(passengers)||1);
+   const perPerson=selectedPriceMode()==='per_person';
+   const displaySale=perPerson?sale/paid:sale;
+   const compare=Number(commercialMeta.anchor_value||0);
+   const displayCompare=perPerson?compare/paid:compare;
+   const discount=displayCompare>displaySale?`De: ~${formatMoney(displayCompare)}~\n`:'';
+   const saving=displayCompare>displaySale ? displayCompare-displaySale : 0;
+   const savingText=saving>0?`🎯 Economize *${formatMoney(saving)}* (${(saving/displayCompare*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%) com a nossa cotação.\n`:'';
+   const people=plural(passengers,'passageiro','passageiros') + (Number(babies)>0?` e ${plural(babies,'bebê','bebês')}`:'');
+   const bagCount=Number(fareIncluded)||0;
+   const bag=bagCount>0?`✅ +${plural(bagCount,'bagagem despachada incluída','bagagens despachadas incluídas')}\n`:'';
+   const extra=Number(baggage)>0?`✅ ${plural(baggage,'bagagem adicional','bagagens adicionais')}\n`:'';
+   const obs=note.value.trim();
+   const title = scope.match(/volta|round/i)?'IDA e VOLTA':'IDA';
+   const selectedFlights=sections(skipRecord);
+   const flightInfo=selectedFlights.length && (skipRecord||showTimes.checked)?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
+   return `✈️ COTAÇÃO - *${name}*\n\n🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}\n✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${extra}${obs?`✅ ${obs}\n`:''}\n👥 ${perPerson?'Valor por passageiro':'Valor total para '+people}.\n\n${discount}💰 Por: R$ *${displaySale.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}*\n${savingText?'\n'+savingText:''}\n_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
  }
  function internalTemplate(){
    const obs=note.value.trim();
    const discount = (()=>{try {const input=JSON.parse(includedBags); return ['valor_gol','desagio'].every(k=>input[k]!==undefined)?`\n🧮 Deságio GOL: ${formatMoney(input.valor_gol)} - ${input.desagio}%`:''}catch(_){return ''}})();
-   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n✈️ Companhia: ${airline}\n📍 Rota: ${route}\n🏢 Cotado por: ${agency}\n👤 Responsável: ${responsible}\n🧮 Tipo do cálculo: ${method}\n🎫 Tarifa: ${fare}\n🧳 Franquia despachada: ${fareIncluded===''?'Confirmar':fareIncluded+' por passageiro'}\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${Number(margin||0).toFixed(2)}%${discount}\n\n📝 Observações: ${obs || '—'}`;
+   let skip='';
+   if(skipRecord){
+     const kind=/inverse|invertido/i.test(scope)?'SKIP INVERTIDO':'SKIP NORMAL';
+     const all=sections(false).join('\n\n').replaceAll('*VOADO*','VOADO');
+     skip=`\n\n${kind}\n\n${all}`;
+   }
+   const marginText=Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${marginText}%${discount}${skip}\n\n📝 Observações: ${obs||'—'}`;
  }
  editor.value=template();
  internalEditor.value=internalTemplate();
@@ -290,6 +344,8 @@
   }catch(err){status.textContent=err.message||'Erro ao salvar';}
  });
  note.addEventListener('input',()=>{if(!editor.dataset.edited)editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();});
+ priceSwitches.forEach(input=>input.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()}));
+ showTimes.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
  internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
  editor.addEventListener('input',()=>editor.dataset.edited='1');
  document.getElementById('copyQuoteMessage').addEventListener('click',async()=>{

@@ -1,7 +1,7 @@
 """Acompanhamentos vinculados às cotações aceitas; não duplica os dados."""
 from __future__ import annotations
 import json
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from sqlalchemy import select, func, desc, case, cast, or_
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, selectinload
@@ -9,8 +9,15 @@ from ..database import get_db
 from ..dependencies import require_user
 from ..models import AcceptedQuote, QuoteGroup, WebUser
 from ..web import templates, context
+from ..services.tags import list_tags, tags_for_targets
 
 router = APIRouter(prefix="/acompanhamentos", tags=["acompanhamentos"])
+# Cada tipo possui sua própria faixa de 200 índices (evita repetir etiquetas
+# de hospedagem em transportes, por exemplo), mantendo o ID dentro do grupo.
+def _service_tag_id(group_id: int, kind: str, index: int) -> int:
+    family = {"hospedagens": 0, "transportes": 1, "experiencias": 2, "cruzeiros": 3, "seguros": 4}.get(kind, 0)
+    return int(group_id)*1000 + family*200 + max(0, min(199, int(index)))
+
 KINDS = {
     "hospedagens": ("hotel", "Hospedagens"),
     "transportes": ("transport", "Transportes"),
@@ -38,7 +45,7 @@ def _visible_filter(user):
     return AcceptedQuote.company_id == user.company_id if user.company_id else AcceptedQuote.user_id == user.id
 
 @router.get("/{kind}")
-def list_tracking(kind: str, request: Request, page: int = 1, q: str = "", db: Session = Depends(get_db)):
+def list_tracking(kind: str, request: Request, page: int = 1, q: str = "", tag: list[int] | None = Query(None), db: Session = Depends(get_db)):
     user = require_user(request, db)
     if kind not in KINDS:
         raise HTTPException(status_code=404, detail="Acompanhamento não encontrado")
@@ -94,10 +101,25 @@ def list_tracking(kind: str, request: Request, page: int = 1, q: str = "", db: S
                             "address": _service_val(service, "address", "hotel_address", "location"),
                             "status": str(accepted.status or ""),
                             "updated_at": accepted.updated_at, "index": index})
+    tags_ready = True
+    try:
+        tag_map = tags_for_targets(db, user, "service", [_service_tag_id(x["group_id"], kind, x["index"]) for x in results])
+        all_tags = list_tags(db, user, kind="acompanhamento")
+    except Exception:
+        tags_ready = False
+        tag_map, all_tags = {}, []
+    for row in results:
+        row["tag_target_id"] = _service_tag_id(row["group_id"], kind, row["index"])
+        row["tags"] = tag_map.get(row["tag_target_id"], [])
+    selected_tags = sorted(set(tag or [])) if isinstance(tag, list) else []
+    if selected_tags:
+        results = [row for row in results if set(selected_tags).issubset({int(t['id']) for t in row['tags']})]
     total = len(results)
     subset = results if backend == 'postgresql' else results[(page-1)*20:page*20]
     has_more = has_more if backend == 'postgresql' else total > page*20
     return templates.TemplateResponse(request, "cadastros/service_tracking.html", context(
         request, user=user, kind=kind, title=title, kinds=KINDS, items=subset,
         page=page, total=total, has_more=has_more, search=q[:90],
+        tags_ready=tags_ready, all_tags=all_tags, selected_tags=selected_tags,
+        tag_query=''.join(f'&tag={i}' for i in selected_tags),
         scan_limited=(backend != 'postgresql' and len(candidates) == 2000)))

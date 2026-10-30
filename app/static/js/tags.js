@@ -8,8 +8,8 @@
   try { state = JSON.parse(dataNode.textContent || '{}'); } catch (_) {}
   let allTags = Array.isArray(state.tags) ? state.tags : [];
   const csrf = state.csrf || document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const TARGET_TAG_KIND = {group: 'cotacao', quote: 'cotacao', flight: 'voo', person: 'pessoa'};
-  const TITLES = {cotacao: 'Etiquetar cotação', voo: 'Etiquetar voo', pessoa: 'Etiquetar pessoa'};
+  const TARGET_TAG_KIND = {group: 'cotacao', quote: 'cotacao', flight: 'voo', person: 'pessoa', service: 'acompanhamento'};
+  const TITLES = {cotacao: 'Etiquetar cotação', voo: 'Etiquetar voo', pessoa: 'Etiquetar pessoa', acompanhamento: 'Etiquetar acompanhamento'};
 
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[c]));
   const safeColor = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? v : '#26c5e6');

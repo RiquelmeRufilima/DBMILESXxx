@@ -18,6 +18,26 @@
 
 
 
+
+/* Novos controles comerciais — respeitam o tema e não modificam as páginas externas */
+.dbm-machine-panel,.dbm-anchor-panel{display:grid;gap:10px;padding:15px;border:1px solid var(--border,#315273);border-radius:14px;background:color-mix(in srgb,var(--panel,#10273c) 92%,#2a8bcb 8%)}
+.dbm-machine-title{display:flex;align-items:baseline;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.dbm-machine-title small,.dbm-machine-notice,.dbm-anchor-panel small{color:var(--muted,#91acc1);font-size:.73rem}
+.dbm-machine-switch{display:flex;gap:9px;align-items:center;font-size:.81rem;cursor:pointer}
+.dbm-machine-switch input{width:17px;height:17px;flex:none}
+.dbm-machine-manager{border-top:1px solid var(--border,#315273);padding-top:9px}
+.dbm-machine-manager summary{cursor:pointer;font-weight:850;padding:6px 0}
+.dbm-machine-manager .profit-grid{margin:9px 0}
+.dbm-machine-manager input,.dbm-anchor-panel input{width:100%;padding:10px;border:1px solid var(--border,#315273);border-radius:10px;background:var(--panel-2,#081e32);color:var(--text,#fff)}
+.dbm-machine-actions{display:flex;gap:7px;flex-wrap:wrap}
+.dbm-machine-actions button{font-size:.72rem;padding:8px 10px}
+.dbm-anchor-results{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.78rem}
+.dbm-anchor-results strong,.dbm-anchor-results>span:last-child{font-weight:950;color:#43c994}
+.profit-dialog{max-height:calc(100dvh - 24px);overflow-y:auto}
+html[data-theme="light"] .dbm-machine-panel,html[data-theme="light"] .dbm-anchor-panel{background:#f3f8fc;color:#19334a;border-color:#c7dce9}
+html[data-theme="light"] .dbm-machine-panel :is(label,small),html[data-theme="light"] .dbm-anchor-panel :is(label,small){color:#35546b}
+html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){background:#fff;color:#17344c;border-color:#bdd6e7}
+@media(max-width:640px){.dbm-machine-title{display:grid}}
 </style>
 <dialog id="profitDialog" class="profit-dialog">
   <form method="post" id="profitForm" data-no-loader="1">
@@ -38,6 +58,27 @@
       <div class="profit-grid">
         <label>Condição<select name="card_interest_mode" id="cardInterestMode"><option value="cash">À vista</option><option value="no_interest">Cartão sem juros</option><option value="with_interest">Cartão com juros</option></select></label>
         <label>Vezes no cartão<input type="number" min="1" max="24" step="1" name="card_installments" id="cardInstallments" value="1"></label>
+      </div>
+      <div class="dbm-machine-panel" id="machinePanel">
+        <div class="dbm-machine-title"><strong>Juros da máquina</strong><small>Taxas iniciais do Mercado Pago • editáveis</small></div>
+        <div class="profit-grid">
+          <label>Tabela da máquina<select name="machine_name" id="profitMachineName"></select></label>
+          <label>Taxa selecionada (%)<input type="text" id="profitMachineRate" inputmode="decimal" readonly value="0,00"></label>
+        </div>
+        <label class="dbm-machine-switch"><input type="checkbox" id="profitMachineEnabled"> Usar a taxa da máquina na simulação</label>
+        <label class="dbm-machine-switch"><input type="checkbox" id="profitPassFees" checked> Repassar a taxa ao cliente</label>
+        <small id="profitMachineNotice" class="dbm-machine-notice">Se não repassar, o valor líquido recebido é reduzido pela taxa.</small>
+        <details class="dbm-machine-manager"><summary>Editar taxas / criar outra máquina</summary>
+          <div class="profit-grid"><label>Nome da tabela<input type="text" maxlength="48" id="profitMachineEditName" placeholder="Ex.: Mercado Pago"></label><label>Parcela<input type="number" min="1" max="24" id="profitRateInstallment" value="1"></label></div>
+          <div class="profit-grid"><label>Taxa (%)<input type="text" inputmode="decimal" id="profitMachineEditRate" placeholder="Ex.: 3,29"></label><label>Gerenciar<button class="secondary-button" type="button" id="profitRateUpdate">Atualizar taxa</button></label></div>
+          <div class="dbm-machine-actions"><button type="button" class="ghost-button" id="profitMachineCreate">Nova tabela</button><button type="button" class="ghost-button danger" id="profitMachineDelete">Excluir tabela</button><button class="primary-button" type="button" id="profitMachineSave">Salvar tabelas</button></div>
+          <small id="profitMachineSaveStatus" role="status"></small>
+        </details>
+      </div>
+      <div class="dbm-anchor-panel">
+        <label>Valor de comparação / ancoragem (R$)<input name="anchor_value" id="profitAnchorValue" inputmode="decimal" type="text" placeholder="Ex.: 8.698,00"></label>
+        <div class="dbm-anchor-results"><span>Economia para o cliente: <strong id="profitAnchorSaving">—</strong></span><span id="profitAnchorPercent">0,00%</span></div>
+        <small>Opcional. Só aparece na mensagem quando for maior que o preço de venda.</small>
       </div>
       <div class="profit-finance-grid">
         <label>Total cobrado no cartão
@@ -90,6 +131,74 @@
   const inst = document.getElementById('cardInstallments');
   const cardTotal = document.getElementById('cardTotalValue');
   const cardDifference = document.getElementById('cardDifferenceValue');
+  const machineSelect = document.getElementById('profitMachineName');
+  const machineEnabled = document.getElementById('profitMachineEnabled');
+  const passFees = document.getElementById('profitPassFees');
+  const machineRate = document.getElementById('profitMachineRate');
+  const machineNotice = document.getElementById('profitMachineNotice');
+  const anchorInput = document.getElementById('profitAnchorValue');
+  const anchorSaving = document.getElementById('profitAnchorSaving');
+  const anchorPercent = document.getElementById('profitAnchorPercent');
+  const machineEditName = document.getElementById('profitMachineEditName');
+  const machineEditRate = document.getElementById('profitMachineEditRate');
+  const machineRateInstallment = document.getElementById('profitRateInstallment');
+  const machineSaveStatus = document.getElementById('profitMachineSaveStatus');
+  const machineDefault = [{name:'Mercado Pago', rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26}}];
+  let machines = structuredClone(machineDefault);
+  let machinesLoaded = false;
+  const currentMachine = () => machines.find(t=>t.name===machineSelect?.value) || machines[0];
+  const selectedRate = () => Number(currentMachine()?.rates?.[String(Math.max(1, Number(inst.value)||1))] ?? 0);
+  function updateMachineInputs(){
+    const machine=currentMachine();
+    if(machineEditName) machineEditName.value=machine?.name||'';
+    if(machineEditRate) machineEditRate.value=dec(Number(machine?.rates?.[String(machineRateInstallment?.value||1)]??0));
+    if(machineRate) machineRate.value=dec(selectedRate());
+  }
+  function refreshMachines(name){
+    if(!machineSelect)return;
+    machineSelect.replaceChildren();
+    machines.forEach(entry=>{const opt=document.createElement('option');opt.value=entry.name;opt.textContent=entry.name;machineSelect.append(opt)});
+    if(name && machines.some(item=>item.name===name)) machineSelect.value=name;
+    updateMachineInputs();
+  }
+  async function loadMachines(){
+    if(machinesLoaded)return;
+    try{
+      const res=await fetch('/calculations/machine-fees',{credentials:'same-origin'});
+      const data=await res.json();
+      if(res.ok && data.ok && Array.isArray(data.tables) && data.tables.length){
+        const last=machineSelect?.value;machines=data.tables;refreshMachines(last);
+      }
+      machinesLoaded=true;
+    }catch(_){machineSaveStatus.textContent='Sem conexão: exibindo taxas iniciais até conseguir salvar.'}
+  }
+  function simulateMachine(){
+    if(!machineEnabled?.checked)return false;
+    const rate=selectedRate();
+    if(!currentMachine()?.rates?.hasOwnProperty(String(Math.max(1,Number(inst.value)||1)))){
+      machineNotice.textContent='Não há taxa cadastrada para esta quantidade de parcelas.';
+      return false;
+    }
+    const sale=cashSale();
+    const total=passFees.checked ? Math.round(sale/(1-rate/100)*100)/100 : sale;
+    const difference=Math.max(0,total-sale);
+    if(machineRate)machineRate.value=dec(rate);
+    cardValueSource.value='total';
+    cardTotal.value=dec(total);
+    cardDifference.value=dec(difference);
+    mode.value=difference>0?'with_interest':(Number(inst.value)>1?'no_interest':'cash');
+    machineNotice.textContent=passFees.checked
+      ? `Taxa de ${dec(rate)}% repassada • líquido aproximado: ${money(total*(1-rate/100))}`
+      : `Agência absorve ${money(sale*rate/100)} • líquido aproximado: ${money(sale*(1-rate/100))}`;
+    return true;
+  }
+  function previewAnchor(){
+    const price=Math.max(0,num(anchorInput?.value));const sale=cashSale();
+    const saving=Math.max(0,price-sale);
+    anchorSaving.textContent=price>sale ? money(saving) : '—';
+    anchorPercent.textContent=price>sale && price>0 ? `${dec(saving/price*100)}%` : '0,00%';
+  }
+
   const applyAll = document.getElementById('profitApplyAll');
   const sent = document.getElementById('profitSent');
   const title = document.getElementById('profitDialogTitle');
@@ -158,6 +267,8 @@
     const normalizedDifference = Math.max(0, source === 'difference' ? difference : normalizedTotal - sale);
     const diffPercent = sale > 0 ? normalizedDifference / sale * 100 : 0;
 
+    previewAnchor();
+    if(machineRate) machineRate.value=dec(selectedRate());
     saleLabel.textContent = money(sale);
     cardLabel.textContent = money(normalizedTotal);
     diffLabel.textContent = money(normalizedDifference);
@@ -192,13 +303,13 @@
     if (syncing) return; syncing = true;
     const profit = Math.max(0, num(valueInput.value));
     percentInput.value = dec(cost > 0 ? profit / cost * 100 : 0);
-    sourceInput.value = 'value'; syncing = false; syncCard(cardValueSource.value || 'auto', false);
+    sourceInput.value = 'value'; syncing = false; if(machineEnabled.checked)simulateMachine(); syncCard(cardValueSource.value || 'auto', false);
   }
   function fromPercent() {
     if (syncing) return; syncing = true;
     const percent = Math.max(0, num(percentInput.value));
     valueInput.value = dec(cost * percent / 100);
-    sourceInput.value = 'percent'; syncing = false; syncCard(cardValueSource.value || 'auto', false);
+    sourceInput.value = 'percent'; syncing = false; if(machineEnabled.checked)simulateMachine(); syncCard(cardValueSource.value || 'auto', false);
   }
 
   function showProfitDialog(btn) {
@@ -221,11 +332,19 @@
     cardValueSource.value = 'total';
     removeBtn.hidden = !(profit > 0);
     directSubmit = false;
+    // Dados de ancoragem por cotação, salvos no campo de metadados comerciais.
+    let metadata={};try{metadata=JSON.parse(btn.dataset.commercialMeta||'{}')}catch(_){}
+    anchorInput.value=Number(metadata.anchor_value||0)>0?dec(metadata.anchor_value):'';
+    refreshMachines(metadata.machine_name||'Mercado Pago');
+    machineEnabled.checked=false;
+    passFees.checked=true;
     syncCard('auto');
+    loadMachines().then(()=>{refreshMachines(metadata.machine_name||machineSelect.value)});
     dialog.showModal();
     setTimeout(() => valueInput.focus(), 30);
   }
 
+  refreshMachines('Mercado Pago');
   document.querySelectorAll('.js-profit-open').forEach(btn => btn.addEventListener('click', () => showProfitDialog(btn)));
   // Quando o agente chega pela tela de resultado, abre o lucro da opção solicitada.
   const requestedProfitId = new URLSearchParams(window.location.search).get('profit_quote_id');
@@ -242,19 +361,52 @@
   mode?.addEventListener('change', () => syncCard('mode', true));
   inst?.addEventListener('input', () => syncCard('installments', false));
   inst?.addEventListener('blur', () => syncCard('installments', true));
+  const recalcMachine = () => {if(simulateMachine())syncCard('total',true);else syncCard('auto',true)};
+  machineEnabled?.addEventListener('change',recalcMachine);
+  passFees?.addEventListener('change',recalcMachine);
+  machineSelect?.addEventListener('change',()=>{updateMachineInputs();recalcMachine()});
+  inst?.addEventListener('change',recalcMachine);
+  anchorInput?.addEventListener('input',previewAnchor);
+  machineRateInstallment?.addEventListener('input',updateMachineInputs);
+  document.getElementById('profitRateUpdate')?.addEventListener('click',()=>{
+    const table=currentMachine();const installment=Number(machineRateInstallment.value);const rate=num(machineEditRate.value);
+    if(!table||!Number.isInteger(installment)||installment<1||installment>24||rate<0||rate>=60){machineSaveStatus.textContent='Revise a parcela (1 a 24) e a taxa (0 a 60%).';return;}
+    const newName=machineEditName.value.trim();
+    if(newName && newName!==table.name && !machines.some(entry=>entry!==table&&entry.name.toLowerCase()===newName.toLowerCase()))table.name=newName;
+    table.rates[String(installment)]=rate;refreshMachines(table.name);machineSaveStatus.textContent='Taxa atualizada. Clique em Salvar tabelas.';recalcMachine();
+  });
+  document.getElementById('profitMachineCreate')?.addEventListener('click',()=>{
+    if(machines.length>=20){machineSaveStatus.textContent='Limite de 20 máquinas.';return;}
+    const name=window.prompt('Nome da nova máquina:');if(!name?.trim())return;
+    if(machines.some(t=>t.name.toLowerCase()===name.trim().toLowerCase())){machineSaveStatus.textContent='Já existe uma tabela com esse nome.';return;}
+    machines.push({name:name.trim().slice(0,48),rates:{1:0}});refreshMachines(name.trim().slice(0,48));machineSaveStatus.textContent='Preencha as taxas e salve.';
+  });
+  document.getElementById('profitMachineDelete')?.addEventListener('click',()=>{
+    if(machines.length<=1){machineSaveStatus.textContent='Mantenha pelo menos uma tabela.';return;}
+    if(window.confirm(`Excluir a tabela ${machineSelect.value}?`)){machines=machines.filter(t=>t.name!==machineSelect.value);refreshMachines();}
+  });
+  document.getElementById('profitMachineSave')?.addEventListener('click',async()=>{
+    machineSaveStatus.textContent='Salvando...';
+    try{
+      const res=await fetch('/calculations/machine-fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({tables:machines,csrf_token:form.querySelector('[name="csrf_token"]').value})});
+      const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Não foi possível salvar.');
+      machines=data.tables;refreshMachines(machineSelect.value);machineSaveStatus.textContent='Tabelas salvas no seu usuário.';
+    }catch(e){machineSaveStatus.textContent=e.message||'Erro ao salvar.'}
+  });
+
 
   cardTotal?.addEventListener('focus', () => {
     cardValueSource.value = 'total';
     cardTotal.select?.();
   });
-  cardTotal?.addEventListener('input', () => syncCard('total', false));
+  cardTotal?.addEventListener('input', () => {machineEnabled.checked=false;syncCard('total', false)});
   cardTotal?.addEventListener('blur', () => syncCard('total', true));
 
   cardDifference?.addEventListener('focus', () => {
     cardValueSource.value = 'difference';
     cardDifference.select?.();
   });
-  cardDifference?.addEventListener('input', () => syncCard('difference', false));
+  cardDifference?.addEventListener('input', () => {machineEnabled.checked=false;syncCard('difference', false)});
   cardDifference?.addEventListener('blur', () => syncCard('difference', true));
 
   function esc(value){
@@ -329,6 +481,7 @@
       btn.dataset.cardMode = item.card_interest_mode || 'cash';
       btn.dataset.cardTotal = String(item.card_total_value || item.sale_value || item.cost || 0);
       btn.dataset.cardDifference = String(item.card_difference_value || 0);
+      btn.dataset.commercialMeta = JSON.stringify({anchor_value:item.anchor_value||0,machine_name:item.machine_name||''});
       btn.textContent = item.removed || Number(item.profit_value || 0) <= 0 ? 'Adicionar lucro' : 'Editar lucro';
     });
   }
@@ -356,6 +509,7 @@
     actionInput.value = 'save';
 
     // Calcula os valores antes da confirmação.
+    if(machineEnabled.checked)simulateMachine();
     const finance = syncCard(cardValueSource.value || 'auto', true);
 
     // IMPORTANTE:
@@ -402,6 +556,8 @@
       data.set('card_difference_value', String(finance.difference));
       data.set('card_installments', String(finance.times));
       data.set('card_value_source', cardValueSource.value || 'total');
+      data.set('anchor_value', String(num(anchorInput.value)));
+      data.set('machine_name', machineSelect.value || '');
 
       // Evita requisição presa indefinidamente.
       const controller = new AbortController();

@@ -3,11 +3,12 @@
 (() => {
   'use strict';
   const root = document.querySelector('main.main-content') || document.querySelector('.main-content') || document;
-  if (!document.querySelector('#quoteBaseForm, #quoteVariantForm, .wizard-grid, #optionMetadataSection, #quoteEditForm')) return;
+  if (!document.querySelector('#quoteBaseForm, #quoteVariantForm, .wizard-grid, #optionMetadataSection, #quoteEditForm, .manual-quote-form')) return;
   const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const weekdays = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
   const pad = n => String(n).padStart(2,'0');
   const iso = (y,m,d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const today = () => {const now=new Date();return iso(now.getFullYear(), now.getMonth(), now.getDate());};
   const br = date => /^\d{4}-\d\d-\d\d$/.test(date || '') ? date.split('-').reverse().join('/') : 'Escolher data';
   let active = null;
   let visibleMonth = new Date();
@@ -33,20 +34,23 @@
     let html = weekdaysMarkup + Array(first).fill('<span></span>').join('');
     for (let d=1; d<=count; d++) {
       const date = iso(year, month, d);
-      html += `<button type="button" data-day="${date}" class="${date === active.value ? 'selected':''}" aria-pressed="${date===active.value}">${d}</button>`;
+      const past = active.min && date < active.min;
+      html += `<button type="button" data-day="${date}" class="${date === active.value ? 'selected':''}" aria-pressed="${date===active.value}" ${past?'disabled aria-disabled="true" title="Data anterior a hoje"':''}>${d}</button>`;
     }
     overlay.querySelector('[data-days]').innerHTML = html;
   }
   function close() { overlay.hidden = true; active?.dataset?.triggerId && document.getElementById(active.dataset.triggerId)?.focus(); active = null; if(overlay.parentNode!==document.body)document.body.appendChild(overlay); }
   function open(input) {
     active = input;
-    if (input.value) {const date = input.value.split('-').map(Number); if (date.length === 3 && date[0]) visibleMonth = new Date(date[0],date[1]-1,1);}
+    if (input.value && (!input.min || input.value >= input.min)) {const date = input.value.split('-').map(Number); if (date.length === 3 && date[0]) visibleMonth = new Date(date[0],date[1]-1,1);}
+    else {const now=new Date();visibleMonth=new Date(now.getFullYear(), now.getMonth(),1)}
     const parentDialog=input.closest('dialog[open]');
     if(parentDialog) parentDialog.appendChild(overlay); else document.body.appendChild(overlay);
     overlay.hidden=false; render();overlay.querySelector('[data-close]').focus();
   }
   function setDate(value) {
     if (!active) return;
+    if(value && active.min && value < active.min)return;
     active.value = value;
     active.dispatchEvent(new Event('input',{bubbles:true}));
     active.dispatchEvent(new Event('change',{bubbles:true}));
@@ -56,6 +60,10 @@
   }
   function enhance(input) {
     if (input.dataset.dbmDateEnhanced || input.closest('#standardDates') || input.disabled) return;
+    // Os filtros são históricos: precisam continuar aceitando datas passadas.
+    const isFilter = input.closest('form[method="get"], .history-filter, .voos-filter, .date-filter') ||
+      /^(from|to|date_from|date_to|filter_from|filter_to)$/.test(input.name||'');
+    if(!isFilter) input.min = today();
     if (input.type !== 'date') return;
     input.dataset.dbmDateEnhanced='1';
     const button = document.createElement('button');
@@ -78,7 +86,12 @@
   discover();
   const obs = new MutationObserver(discover);
   obs.observe(root,{childList:true,subtree:true});
-  overlay.querySelector('[data-prev]').addEventListener('click',()=>{visibleMonth = new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()-1,1);render();});
+  overlay.querySelector('[data-prev]').addEventListener('click',()=>{
+    const target = new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()-1,1);
+    const firstAllowed = active?.min?new Date(active.min+'T12:00:00'):null;
+    if(firstAllowed && target < new Date(firstAllowed.getFullYear(),firstAllowed.getMonth(),1))return;
+    visibleMonth=target;render();
+  });
   overlay.querySelector('[data-next]').addEventListener('click',()=>{visibleMonth = new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()+1,1);render();});
   overlay.querySelector('[data-days]').addEventListener('click',e=>{const day=e.target.closest('[data-day]')?.dataset.day;if(day)setDate(day);});
   overlay.querySelector('[data-clear]').addEventListener('click',()=>setDate(''));

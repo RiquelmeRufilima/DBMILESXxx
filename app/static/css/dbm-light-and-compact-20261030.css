@@ -381,3 +381,10 @@ html[data-theme="light"] .accepted-editor .pro-empty{
 html[data-theme="light"] .accepted-editor .service-command-card :is(b,em,small),
 html[data-theme="light"] .accepted-editor .service-row.rich :is(strong,small,p){color:#234864!important}
 html[data-theme="light"] .accepted-editor .service-row.rich button{background:#fff!important;color:#155b91!important;border-color:#cbdceb!important}
+
+/* Datas anteriores a hoje: inativas no seletor visual do sistema. */
+.quote-date-days button:disabled,.range-days button:disabled{opacity:.22;cursor:not-allowed;pointer-events:none;text-decoration:line-through}
+.quote-date-inline-trigger:focus-visible,.range-trigger:focus-visible{outline:2px solid var(--cyan,#189ed2);outline-offset:3px}
+
+/* A data real continua no formulário, mas só o calendário visual fica visível. */
+#standardDates.range-original-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important}

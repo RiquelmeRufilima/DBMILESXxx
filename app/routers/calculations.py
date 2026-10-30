@@ -32,6 +32,7 @@ from ..models import (
     QuoteTripDetail,
     WebQuote,
     WebUser,
+    UserPreference,
 )
 from ..security import validate_csrf_token
 from ..services.calculator import CalculationResult, calculate
@@ -3949,7 +3950,8 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     inputs = _safe_json(quote.input_json, {})
     breakdown = _safe_json(quote.breakdown_json, {})
     segments = _safe_json(quote.trip.segments_json, []) if quote.trip else []
-    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments))
+    commercial_meta = _safe_json(quote.commercial.observations, {}) if quote.commercial else {}
+    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta))
 
 
 @router.post('/result/{quote_id}/observations')
@@ -4331,6 +4333,87 @@ def _commercial_number(raw: Any) -> float:
         return 0.0
 
 
+# Taxas de máquina — valores iniciais fornecidos pelo usuário, não consultados em tempo real.
+# O catálogo é salvo por usuário nas preferências já existentes do banco.
+MERCADO_PAGO_FEES = {"1": 3.29, "2": 2.08, "3": 2.75, "4": 3.48, "5": 4.15,
+    "6": 5.01, "7": 5.82, "8": 6.54, "9": 7.19, "10": 7.86, "11": 8.48,
+    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26}
+
+
+def _machine_tables(user):
+    try:
+        settings = json.loads(user.preference.settings_json or '{}') if user.preference else {}
+        entries = settings.get('machine_fee_tables')
+        if isinstance(entries, list) and entries:
+            return entries
+    except (TypeError, ValueError, AttributeError):
+        pass
+    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy()}]
+
+
+@router.get('/machine-fees')
+def list_machine_fee_tables(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    return {"ok": True, "tables": _machine_tables(user)}
+
+
+@router.post('/machine-fees')
+async def update_machine_fee_tables(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    try:
+        data = await request.json()
+    except (ValueError, TypeError):
+        data = {}
+    if not validate_csrf_token(request.session, str(data.get('csrf_token') or '')):
+        return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
+    proposed = data.get('tables')
+    if not isinstance(proposed, list) or not 1 <= len(proposed) <= 20:
+        return JSONResponse({"ok": False, "message": "Cadastre de 1 a 20 tabelas."}, status_code=400)
+    cleaned = []
+    seen = set()
+    for entry in proposed:
+        if not isinstance(entry, dict):
+            return JSONResponse({"ok": False, "message": "Tabela inválida."}, status_code=400)
+        name = ' '.join(str(entry.get('name') or '').split())[:48]
+        if not name or name.casefold() in seen:
+            return JSONResponse({"ok": False, "message": "Informe nomes diferentes para as máquinas."}, status_code=400)
+        seen.add(name.casefold())
+        rates = entry.get('rates')
+        if not isinstance(rates, dict):
+            return JSONResponse({"ok": False, "message": "Preencha as taxas de parcelamento."}, status_code=400)
+        valid_rates = {}
+        for key, value in rates.items():
+            if not str(key).isdigit() or not 1 <= int(key) <= 24:
+                return JSONResponse({"ok": False, "message": "Parcelas permitidas: 1 a 24."}, status_code=400)
+            try:
+                value = float(value)
+            except (ValueError, TypeError):
+                return JSONResponse({"ok": False, "message": "Taxa inválida."}, status_code=400)
+            if not 0 <= value < 60 or value != value:
+                return JSONResponse({"ok": False, "message": "A taxa deve ficar entre 0 e 60%."}, status_code=400)
+            valid_rates[str(int(key))] = round(value, 4)
+        if not valid_rates:
+            return JSONResponse({"ok": False, "message": "Cadastre uma taxa para cada tabela."}, status_code=400)
+        cleaned.append({"name": name, "rates": valid_rates})
+    preference = user.preference
+    if preference is None:
+        preference = UserPreference(user_id=user.id)
+        db.add(preference)
+    try:
+        settings = json.loads(preference.settings_json or '{}')
+        if not isinstance(settings, dict): settings = {}
+    except (TypeError, ValueError):
+        settings = {}
+    settings['machine_fee_tables'] = cleaned
+    preference.settings_json = json.dumps(settings, ensure_ascii=False)
+    db.commit()
+    return {"ok": True, "tables": cleaned}
+
+
 @router.post("/option/{quote_id}/profit")
 async def save_option_profit(
     quote_id: int,
@@ -4496,6 +4579,11 @@ async def save_option_profit(
             profit_percent,
             4,
         )
+
+        anchor_value = round(max(0, _commercial_number(form.get("anchor_value"))), 2)
+        if anchor_value > 1000000000:
+            raise ValueError("Valor de comparação muito elevado.")
+        machine_name = str(form.get("machine_name") or "")[:48].strip()
 
         # REMOVER = exatamente o mesmo que lucro zero
 
@@ -4783,6 +4871,11 @@ async def save_option_profit(
                 commercial.card_total_value = None
                 commercial.card_installment_value = None
                 commercial.card_difference_value = None
+                previous_meta = _safe_json(commercial.observations, {})
+                if isinstance(previous_meta, dict):
+                    previous_meta.pop("anchor_value", None)
+                    previous_meta.pop("machine_name", None)
+                    commercial.observations = json.dumps(previous_meta, ensure_ascii=False) if previous_meta else None
 
             # -------------------------------------------------
             # SALVAR
@@ -4893,6 +4986,15 @@ async def save_option_profit(
                 commercial.card_difference_value = (
                     target_difference
                 )
+                previous_meta = _safe_json(commercial.observations, {})
+                if not isinstance(previous_meta, dict):
+                    previous_meta = {}
+                previous_meta.update({
+                    "anchor_value": (round(anchor_value * target_sale / cash_sale, 2)
+                                     if apply_all and cash_sale > 0 else anchor_value),
+                    "machine_name": machine_name,
+                })
+                commercial.observations = json.dumps(previous_meta, ensure_ascii=False)
 
             # -------------------------------------------------
             # COTAÇÃO ACEITA
@@ -5051,6 +5153,11 @@ async def save_option_profit(
                         if remove_commercial
                         else target_difference,
 
+                    "anchor_value": 0 if remove_commercial else (
+                        round(anchor_value * target_sale / cash_sale, 2)
+                        if apply_all and cash_sale > 0 else anchor_value
+                    ),
+                    "machine_name": "" if remove_commercial else machine_name,
                     "card_difference_percent":
                         (
                             0

@@ -8,11 +8,14 @@
   const selectedTrip = () => form.querySelector('input[name="travel_type"]:checked')?.value || 'round_trip';
   const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const weekdays = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const today = () => {const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+  departure.min=today();returning.min=today();
   const trigger = document.createElement('button');
   trigger.type = 'button'; trigger.className = 'secondary-button range-trigger';
   trigger.setAttribute('aria-haspopup','dialog');
   const display = () => {trigger.textContent = departure.value ? ('📅 Ida: '+departure.value.split('-').reverse().join('/') + (selectedTrip()==='round_trip' && returning.value ? '  •  Volta: '+returning.value.split('-').reverse().join('/') : '')) : '📅 Selecionar datas da viagem';};
   dates.parentElement.insertBefore(trigger,dates);
+  dates.classList.add("range-original-hidden"); // evita calendário nativo duplicado
   display();
   const overlay=document.createElement('div'); overlay.className='range-overlay';overlay.hidden=true;
   overlay.innerHTML=`<section class="range-dialog" role="dialog" aria-modal="true" aria-label="Datas da viagem"><header><strong>Selecione as datas</strong><button type="button" class="range-close" aria-label="Fechar">×</button></header><div class="range-nav"><button type="button" class="range-prev">‹ Anterior</button><strong class="range-heading"></strong><button type="button" class="range-next">Próximo ›</button></div><div class="range-months"></div><footer><div class="range-summary"></div><button type="button" class="range-done">Continuar</button></footer></section>`;
@@ -31,7 +34,8 @@
       const value=iso(new Date(Date.UTC(y,m,n)));
       const first=departure.value, last=returning.value;
       const inRange=selectedTrip()==='round_trip' && first && last && value>=first && value<=last;
-      markup+=`<button type="button" data-day="${value}" class="${value===first||value===last?'range-selected':''} ${inRange?'range-between':''}" aria-label="${n} de ${names[m]}">${n}</button>`;
+      const disabled=value<today();
+      markup+=`<button type="button" data-day="${value}" class="${value===first||value===last?'range-selected':''} ${inRange?'range-between':''}" aria-label="${n} de ${names[m]}" ${disabled?'disabled aria-disabled="true"':''}>${n}</button>`;
     }
     return markup+'</div></div>';
   }
@@ -43,23 +47,29 @@
     display();
   }
   const open=()=>{
-    if (departure.value){let date=new Date(departure.value+'T00:00:00Z');if(!isNaN(date)) monthView=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1));}
+    if (departure.value && departure.value>=today()){let date=new Date(departure.value+'T00:00:00Z');if(!isNaN(date)) monthView=new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1));}
+    else {const d=new Date();monthView=new Date(Date.UTC(d.getFullYear(),d.getMonth(),1));}
     phase='departure';overlay.hidden=false;render();overlay.querySelector('.range-close').focus();
   };
   const close=()=>{overlay.hidden=true;display();trigger.focus();};
   trigger.addEventListener('click',open);
   overlay.querySelector('.range-close').addEventListener('click',close);
   overlay.querySelector('.range-done').addEventListener('click',()=>{
-    if (!departure.value || (selectedTrip()==='round_trip' && !returning.value)){
+    if (!departure.value || departure.value<today() || (selectedTrip()==='round_trip' && (!returning.value || returning.value<today()))){
       alert('Escolha a data de ida'+(selectedTrip()==='round_trip'?' e a de volta':'')+'.');return;
     }
     if(selectedTrip()==='round_trip' && returning.value < departure.value){alert('A volta não pode ser antes da ida.');return;}
     close();
   });
-  overlay.querySelector('.range-prev').addEventListener('click',()=>{monthView=new Date(Date.UTC(monthView.getUTCFullYear(),monthView.getUTCMonth()-1,1));render();});
+  overlay.querySelector('.range-prev').addEventListener('click',()=>{
+    const prev=new Date(Date.UTC(monthView.getUTCFullYear(),monthView.getUTCMonth()-1,1));
+    const now=new Date();const currentMonth=new Date(Date.UTC(now.getFullYear(),now.getMonth(),1));
+    if(prev<currentMonth)return;
+    monthView=prev;render();
+  });
   overlay.querySelector('.range-next').addEventListener('click',()=>{monthView=new Date(Date.UTC(monthView.getUTCFullYear(),monthView.getUTCMonth()+1,1));render();});
   months.addEventListener('click',e=>{
-    const value=e.target.closest('[data-day]')?.dataset.day;if(!value)return;
+    const value=e.target.closest('[data-day]')?.dataset.day;if(!value || value<today())return;
     if(selectedTrip()!=='round_trip') {departure.value=value;returning.value='';phase='departure';}
     else if(phase==='departure' || !departure.value || value < departure.value){departure.value=value; returning.value='';phase='return';}
     else {returning.value=value;phase='departure';}

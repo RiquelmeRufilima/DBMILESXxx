@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/tags.html" import tag_row, tag_assets, tag_filter %}
 {% block title %}{{ title }} | DBMILESX{% endblock %}
 {% block eyebrow %}ACOMPANHAMENTO{% endblock %}
 {% block page_title %}{{ title }}{% endblock %}
@@ -11,7 +12,7 @@
 .tracking-types{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .tracking-types a{display:inline-flex;align-items:center;gap:8px;text-decoration:none;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text);font-weight:800;font-size:.78rem}
 .tracking-types a[aria-current="page"]{background:color-mix(in srgb,var(--cyan) 16%,var(--panel));border-color:var(--cyan);color:var(--text)}
-.tracking-search{display:flex;gap:9px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:14px}
+.tracking-search{display:flex;flex-wrap:wrap;gap:9px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:13px;margin-bottom:14px}
 .tracking-search label{flex:1;min-width:0;display:grid;gap:6px;color:var(--muted);font-size:.7rem;font-weight:800}
 .tracking-search input{width:100%;min-width:0;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:9px;padding:11px}
 .tracking-count{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;color:var(--muted);font-size:.76rem}
@@ -53,6 +54,7 @@ html[data-theme="light"] .tracking-entry .tracking-hotel-stars{color:#b67c06!imp
   <form class="tracking-search" action="/acompanhamentos/{{ kind }}" method="get">
     <label>Pesquisar por cliente, serviço ou reserva<input name="q" value="{{ search }}" placeholder="Nome, hotel, rota, localizador..."></label>
     <button class="primary-button" type="submit">Buscar</button>
+    {% if tags_ready %}<div style="width:100%">{{ tag_filter(all_tags, selected_tags, 'acompanhamento') }}</div>{% endif %}
   </form>
   {% if scan_limited %}<p class="muted">Exibindo os cadastros mais recentes. Use a pesquisa para localizar os demais.</p>{% endif %}
   <div class="tracking-count"><strong>{{ title }} · Página {{ page }}</strong><span>Registros vinculados às cotações • por atualização recente</span></div>
@@ -68,6 +70,7 @@ html[data-theme="light"] .tracking-entry .tracking-hotel-stars{color:#b67c06!imp
           <small class="tracking-code">{{ item.code }}</small>
           <strong>{{ item.client }}</strong>
           <small>Cadastrada por {{ item.creator }}</small>
+          {% if tags_ready %}{{ tag_row("service", item.tag_target_id, item.tags, "/acompanhamentos/" ~ kind) }}{% endif %}
         </div>
         <div class="tracking-service">
           <strong>{{ item.hotel_name or title }}</strong>
@@ -92,9 +95,10 @@ html[data-theme="light"] .tracking-entry .tracking-hotel-stars{color:#b67c06!imp
     {% endfor %}
   </div>
   <nav class="tracking-pagination" aria-label="Páginas de acompanhamentos">
-    {% if page > 1 %}<a class="secondary-button" href="?page={{ page - 1 }}&q={{ search|urlencode }}">← Anterior</a>{% endif %}
+    {% if page > 1 %}<a class="secondary-button" href="?page={{ page - 1 }}&q={{ search|urlencode }}{{ tag_query }}">← Anterior</a>{% endif %}
     <span>Página {{ page }}</span>
-    {% if has_more %}<a class="secondary-button" href="?page={{ page + 1 }}&q={{ search|urlencode }}">Carregar mais →</a>{% endif %}
+    {% if has_more %}<a class="secondary-button" href="?page={{ page + 1 }}&q={{ search|urlencode }}{{ tag_query }}">Carregar mais →</a>{% endif %}
   </nav>
 </div>
+{% if tags_ready %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
 {% endblock %}

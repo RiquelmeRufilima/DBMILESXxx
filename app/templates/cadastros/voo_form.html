@@ -18,7 +18,7 @@
   </div>
 </section>
 
-<form method="post" action="/cadastros/voos/{{ group.id }}/editar" class="panel manual-quote-form">
+<form method="post" action="/cadastros/voos/{{ group.id }}/editar" class="panel manual-quote-form" id="operationalFlightForm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="flight_index" value="{{ flight_index or 0 }}">
   <div class="panel-heading"><div><span class="eyebrow">DADOS DO VOO · {{ quote_code }}</span><h2>Rota, datas, horários e controle operacional</h2><p>Este voo pertence à cotação {{ quote_code }}. Alterações salvas aqui também atualizam os dados da cotação aceita.</p></div></div>
@@ -73,3 +73,4 @@
   </div>
 </form>
 {% endblock %}
+{% block scripts %}<script src="/static/js/quote-consistent-dates-20261030.js?v=20261030.6" defer></script>{% endblock %}
