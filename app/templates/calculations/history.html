@@ -824,6 +824,83 @@ html[data-theme="light"] .history-expand-toggle{background:#fff!important;border
   }
 }
 
+
+/* 30/10: remover informações repetidas; manter apenas a parceira no painel de detalhes. */
+.professional-option-details.partner-only-details{
+  display:flex!important;flex-wrap:wrap!important;gap:0!important;
+  margin:8px 0!important;padding:0!important;
+  background:transparent!important;border:0!important;box-shadow:none!important;
+}
+.professional-option-details.partner-only-details > .history-partner-detail{
+  display:flex!important;align-items:baseline!important;flex-wrap:wrap!important;gap:7px!important;
+  width:auto!important;max-width:100%!important;min-height:0!important;
+  padding:7px 10px!important;border-radius:10px!important;
+}
+.professional-option-details.partner-only-details .history-partner-detail small{
+  font-size:.66rem!important;text-transform:uppercase!important;letter-spacing:.035em!important;
+}
+.professional-option-details.partner-only-details .history-partner-detail strong{
+  font-size:.77rem!important;overflow-wrap:anywhere!important;
+}
+/* Este quadro era cinza-escuro em modo claro; não interfere no modo escuro. */
+html[data-theme="light"] .combine-builder{
+  background:#f2f7fd!important;
+  border:1px solid #cbdfef!important;
+  color:#173a57!important;
+  box-shadow:none!important;
+}
+html[data-theme="light"] .combine-builder-title strong,
+html[data-theme="light"] .combine-live strong,
+html[data-theme="light"] .combine-status{
+  color:#153653!important;
+}
+html[data-theme="light"] .combine-builder-copy small,
+html[data-theme="light"] .combine-live,
+html[data-theme="light"] .combine-status:not(.valid):not(.invalid){
+  color:#506d85!important;
+}
+html[data-theme="light"] .combine-builder-title span{
+  background:#e4effb!important;border-color:#c9dfef!important;color:#315b7d!important;
+}
+html[data-theme="light"] .combine-status.valid{color:#057a54!important}
+html[data-theme="light"] .combine-status.invalid{color:#a53b43!important}
+html[data-theme="light"] .button-combine:disabled{
+  background:#e0eaf5!important;border:1px solid #c8daea!important;
+  color:#667f94!important;opacity:1!important;box-shadow:none!important;
+}
+html[data-theme="light"] .history-actions{
+  background:#fbfdff!important;border:1px solid #dce8f2!important;
+  border-radius:14px!important;padding:11px!important;
+}
+html[data-theme="light"] .history-option-detail-grid.partner-only-details .history-partner-detail{
+  background:#f4f8fd!important;border:1px solid #d3e3f0!important;
+}
+html[data-theme="light"] .history-option-detail-grid.partner-only-details .history-partner-detail small{
+  color:#597890!important;
+}
+html[data-theme="light"] .history-option-detail-grid.partner-only-details .history-partner-detail strong{
+  color:#123b5b!important;
+}
+/* Contraste das ações coloridas preservando a identidade de cada botão. */
+html[data-theme="light"] .history-options-strip .option-select-actions .button-open,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-edit,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-fare,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-profit,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-duplicate,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-accept,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-flight,
+html[data-theme="light"] .history-options-strip .option-select-actions .button-delete{
+  color:#fff!important;
+}
+@media(max-width:760px){
+  .professional-option-details.partner-only-details{
+    display:flex!important;grid-template-columns:none!important;
+  }
+  .professional-option-details.partner-only-details > .history-partner-detail{
+    padding:7px 9px!important;font-size:.7rem!important;
+  }
+}
+
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
@@ -869,22 +946,10 @@ html[data-theme="light"] .history-expand-toggle{background:#fff!important;border
 {%- endmacro %}
 
 {% macro option_saved_details(quote) -%}
-  <div class="history-option-detail-grid professional-option-details">
-    <div><small>Tarifa</small><strong>{{ quote.fare_brand or 'Não informada' }}</strong></div>
-    <div><small>Tipo de cálculo</small><strong>{{ quote.exact_calculation_type or 'Não informado' }}</strong></div>
-    {# quote.bags corresponde às bagagens ADICIONAIS da opção, não à franquia da tarifa. #}
-    {% set included_is_known = quote.included_bags_per_passenger is not none and quote.included_bags_per_passenger|string != '' %}
-    {% set bags_included_per_person = quote.included_bags_per_passenger|int if included_is_known else 0 %}
-    {% set bags_included_total = bags_included_per_person * (quote.passengers|int) %}
-    {% set bags_extra_total = quote.bags|default(0, true)|int %}
-    <div class="history-baggage-detail">
-      <small>Bagagens · 23 kg</small>
-      <strong>{{ bags_included_total + bags_extra_total }} bagagem(ns)</strong>
-      <span class="history-bag-extra">{% if not included_is_known %}{% if bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bags_extra_total and bags_included_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + {{ bags_included_total }} bagagem(ns) da tarifa{% elif bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is){% elif bags_included_total %}{{ bags_included_total }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
-    </div>
-    <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
-    <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
-    <div><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
+  {# Tarifa, cálculo, classe, operação e bagagens já aparecem nos chips,
+     no resumo do cálculo e no quadro de bagagens abaixo. Evita duplicação. #}
+  <div class="history-option-detail-grid professional-option-details partner-only-details">
+    <div class="history-partner-detail"><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
   </div>
   <div class="history-segment-list">
     {% if quote.segment_rows %}
@@ -1115,7 +1180,6 @@ html[data-theme="light"] .history-expand-toggle{background:#fff!important;border
                     {% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% if quote.skip_display_date %}<span class="history-chip skip-date-chip">Data Skip: {{ quote.skip_display_date|date_br }}</span>{% endif %}{% endif %}
                     {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}
                     {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}
-                    {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}
                     {% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}
                   </div>
                   {% if quote.is_combined and quote.combined_components %}
