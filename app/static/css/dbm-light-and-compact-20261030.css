@@ -1,0 +1,223 @@
+/* DBMILESX — polimento do modo claro e densidade responsiva. Sem alterar o modo escuro. */
+html[data-theme="light"] {
+  --dbm-ink:#112e4b;
+  --dbm-label:#49647d;
+  --dbm-line:#c9dbea;
+  --dbm-soft:#f2f7fb;
+}
+/* Navegação lateral: borda e contraste, preservando cor do tema nos estados ativos. */
+html[data-theme="light"] .sidebar {background:#fff!important;border:1px solid #cedfee!important;border-left:0!important;box-shadow:5px 0 22px rgba(19,57,92,.08)!important}
+html[data-theme="light"] .sidebar .nav-link {color:#345773!important}
+html[data-theme="light"] .sidebar .nav-link.active {color:#07538d!important}
+html[data-theme="light"] .sidebar .nav-group-label {color:#3a678c!important}
+/* Chat: fundo da conversa visivelmente separado de seus balões. */
+html[data-theme="light"] #dbmChatV2 .dbm-chat-main {background:#fff!important}
+html[data-theme="light"] #dbmChatV2 #dbmChatMessages.dbm-chat-messages {
+  background-color:#dfe7f3!important;
+  background-image:linear-gradient(150deg,#e0e8f4 0%,#e9edf6 58%,#dce6f3 100%)!important;
+  border-top:1px solid #c7d9ea!important;
+  box-shadow:inset 0 3px 9px rgba(23,58,96,.05)!important;
+}
+html[data-theme="light"] #dbmChatV2 .dbm-msg:not(.mine) .dbm-msg-bubble {background:#fff!important;border-color:#c4d5e8!important}
+html[data-theme="light"] #dbmChatV2 .dbm-msg.mine .dbm-msg-bubble {background:#e9dcfa!important;border-color:#bba1e4!important}
+html[data-theme="light"] #dbmChatV2 .dbm-msg-bubble p {color:#102a46!important}
+html[data-theme="light"] #dbmChatV2 .dbm-chat-header {background:#fff!important;border-bottom-color:#cadae9!important}
+/* Cotação / calculadora: nenhum cartão cinza fixo e nenhuma escrita clara sobre fundo claro. */
+html[data-theme="light"] .quote-base-summary.card-panel,
+html[data-theme="light"] .quote-base-panel,
+html[data-theme="light"] .quote-base-panel .quote-base-summary,
+html[data-theme="light"] .quote-group-layout > main,
+html[data-theme="light"] .variant-option-block,
+html[data-theme="light"] .quote-option-row.clean-option-row,
+html[data-theme="light"] .variant-switcher,
+html[data-theme="light"] .segment-scope-panel,
+html[data-theme="light"] .operation-profile-panel-visible {background:#fff!important;border-color:#d2e1ee!important;color:var(--dbm-ink)!important;box-shadow:0 5px 18px rgba(28,71,104,.04)!important}
+html[data-theme="light"] .quote-group-layout .card-panel h2,
+html[data-theme="light"] .quote-group-layout .card-panel h3,
+html[data-theme="light"] .quote-group-layout .card-panel strong,
+html[data-theme="light"] .quote-group-layout .card-panel b,
+html[data-theme="light"] .quote-option-row .option-airline strong,
+html[data-theme="light"] .quote-base-summary.card-panel strong,
+html[data-theme="light"] .quote-base-summary.card-panel b,
+html[data-theme="light"] .quote-base-summary.card-panel h2,
+html[data-theme="light"] .quote-base-summary.card-panel h3,
+html[data-theme="light"] .quote-base-summary.card-panel .panel-heading h2,
+html[data-theme="light"] .quote-base-panel .quote-base-summary strong {color:var(--dbm-ink)!important}
+html[data-theme="light"] .quote-base-summary.card-panel small,
+html[data-theme="light"] .quote-base-summary.card-panel p,
+html[data-theme="light"] .quote-base-panel .quote-base-summary small,
+html[data-theme="light"] .quote-group-layout .card-panel .panel-heading p,
+html[data-theme="light"] .quote-option-row .option-airline small,
+html[data-theme="light"] .quote-option-row .history-chip,
+html[data-theme="light"] .quote-group-layout .eyebrow,
+html[data-theme="light"] .quote-base-summary .summary-grid small,
+html[data-theme="light"] .quote-base-summary .summary-grid > div small {color:var(--dbm-label)!important;opacity:1!important}
+/* Resumo da rota: linhas compactas em vez de uma pilha de cartões. */
+.quote-base-summary.card-panel .summary-grid,
+.quote-base-panel .quote-base-summary {display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:0!important;overflow:hidden!important;border:1px solid var(--border)!important;border-radius:14px!important;background:var(--panel)!important}
+.quote-base-summary.card-panel .summary-grid > div,
+.quote-base-panel .quote-base-summary > div {
+  min-width:0!important;flex:1 1 170px!important;display:flex!important;flex-direction:column!important;
+  justify-content:center!important;gap:3px!important;padding:9px 12px!important;
+  border:0!important;border-right:1px solid var(--border)!important;border-bottom:1px solid var(--border)!important;
+  border-radius:0!important;background:transparent!important;box-shadow:none!important;
+}
+.quote-base-summary.card-panel .summary-grid > div strong,
+.quote-base-panel .quote-base-summary > div strong {font-size:.87rem!important;line-height:1.25!important;overflow-wrap:anywhere!important}
+.quote-base-summary.card-panel .summary-grid > div small,
+.quote-base-panel .quote-base-summary > div small {font-size:.65rem!important;line-height:1.1!important;text-transform:uppercase!important;font-weight:750!important;letter-spacing:.035em!important}
+.quote-base-panel .quote-base-summary > div.span-all {flex-basis:100%!important}
+html[data-theme="light"] .quote-base-summary.card-panel .summary-grid,
+html[data-theme="light"] .quote-base-panel .quote-base-summary {background:#f7fafc!important;border-color:var(--dbm-line)!important}
+html[data-theme="light"] .quote-base-summary.card-panel .summary-grid > div,
+html[data-theme="light"] .quote-base-panel .quote-base-summary > div {background:transparent!important;border-color:#d9e5ef!important;color:var(--dbm-ink)!important}
+/* Datas exibidas da rota não devem sair como ISO quando podem ser mostradas em pt-BR. */
+.quote-base-summary .summary-grid strong[data-display-date] {font-variant-numeric:tabular-nums}
+/* Cotação calculada: destaque correto em nome, data, trecho, parceria e tags no modo claro. */
+html[data-theme="light"] .quote-option-row .history-segment-row,
+html[data-theme="light"] .history-segment-row {background:#f1f7fc!important;border-color:#cfdfed!important}
+html[data-theme="light"] .quote-option-row .history-segment-row *,
+html[data-theme="light"] .history-segment-row .history-segment-route,
+html[data-theme="light"] .history-segment-row .history-segment-route strong,
+html[data-theme="light"] .history-segment-row .segment-number,
+html[data-theme="light"] .history-segment-row .history-segment-schedule,
+html[data-theme="light"] .history-segment-row .history-segment-schedule span {color:#1d4567!important}
+html[data-theme="light"] .quote-option-row .history-chip-row .history-chip,
+html[data-theme="light"] .quote-option-row .partner-chip,
+html[data-theme="light"] .history-options-strip .history-chip,
+html[data-theme="light"] .history-options-strip .history-segment-route,
+html[data-theme="light"] .history-options-strip .history-segment-route strong,
+html[data-theme="light"] .history-options-strip .history-segment-schedule,
+html[data-theme="light"] .history-options-strip .history-segment-schedule span {color:#24496b!important;opacity:1!important}
+html[data-theme="light"] .history-options-strip .history-segment-row,
+html[data-theme="light"] .quote-option-row .history-segment-row {background:#f3f8fc!important;border:1px solid #d0e0ee!important}
+html[data-theme="light"] .history-options-strip .segment-number,
+html[data-theme="light"] .quote-option-row .segment-number {color:#326185!important}
+/* Botões pálidos ficam com texto escuro e legível no modo claro. */
+html[data-theme="light"] .button-create:not(.primary-button),
+html[data-theme="light"] .variant-tab,
+html[data-theme="light"] .calc-scope-card,
+html[data-theme="light"] .variant-switcher .variant-tab,
+html[data-theme="light"] .scope-copy-soft strong,
+html[data-theme="light"] .scope-copy-soft small,
+
+html[data-theme="light"] .button-create:not(.primary-button) {background:#dff5ed!important;border-color:#8ddac0!important;color:#07583f!important}
+html[data-theme="light"] .button-create:not(.primary-button) .ui-icon {stroke:#07583f!important}
+/* Variáveis e descrições claras da calculadora. */
+html[data-theme="light"] .operation-panel-copy h3,
+html[data-theme="light"] .operation-pro-label,
+html[data-theme="light"] .operation-pro-field>small,
+html[data-theme="light"] .operation-panel-copy p,
+html[data-theme="light"] .operation-panel-header strong,
+html[data-theme="light"] .operation-current-profile small,
+html[data-theme="light"] .calc-scope-card strong,
+html[data-theme="light"] .calc-scope-card small {color:#214663!important}
+html[data-theme="light"] .operation-pro-field input,
+html[data-theme="light"] .operation-pro-field select,
+html[data-theme="light"] .operation-select-wrap select {color:#163b5c!important;background:#fff!important;border-color:#bed6e8!important}
+/* Histórico: corrigir baixa legibilidade de rótulos e resumo da bagagem. */
+html[data-theme="light"] .history-options-strip .history-segment-list,
+html[data-theme="light"] .history-options-strip .history-segment-list *,
+html[data-theme="light"] .history-options-strip .history-baggage-note,
+html[data-theme="light"] .history-options-strip .baggage-detail,
+html[data-theme="light"] .history-options-strip .option-calculation-label,
+html[data-theme="light"] .history-options-strip .option-calculation-label * {color:#244766!important}
+html[data-theme="light"] .history-options-strip .history-baggage-note,
+html[data-theme="light"] .history-options-strip .baggage-detail {background:#e5f2f1!important;border-color:#b6dedd!important}
+/* Layout mobile: legível, sem colunas apertadas nem grandes cards de informação. */
+@media(max-width:760px){
+  .quote-group-layout {display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+  .quote-base-panel,
+  .quote-base-summary.card-panel {padding:12px!important;border-radius:16px!important;min-width:0!important}
+  .quote-base-panel .panel-heading,
+  .quote-base-summary.card-panel .panel-heading {margin-bottom:10px!important;gap:8px!important;align-items:flex-start!important;flex-wrap:wrap!important}
+  .quote-base-panel .panel-heading h2,
+  .quote-base-summary.card-panel .panel-heading h2 {font-size:1rem!important}
+  .quote-base-panel .quote-base-summary > div,
+  .quote-base-summary.card-panel .summary-grid > div {flex:1 1 46%!important;padding:7px 9px!important}
+  .quote-base-panel .quote-base-summary > div strong,
+  .quote-base-summary.card-panel .summary-grid > div strong {font-size:.8rem!important}
+  .quote-group-layout .page-actions,
+  .quote-group-layout .button-row,
+  .quote-base-panel .button-row {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+  .quote-group-layout .button-row > *,
+  .quote-base-panel .button-row > * {width:100%!important;min-width:0!important}
+  .quote-group-layout .button-row a,
+  .quote-base-panel .button-row a,
+  .quote-group-layout .button-row button,
+  .quote-base-panel .button-row button {min-height:38px!important;width:100%!important;font-size:.73rem!important;padding:8px 5px!important;white-space:normal!important;text-align:center!important;justify-content:center!important}
+  .quote-group-layout .page-actions a {font-size:.74rem!important;min-height:38px!important}
+  .quote-option-row.clean-option-row {display:grid!important;grid-template-columns:23px minmax(0,1fr)!important;gap:9px!important;padding:11px!important}
+  .quote-option-row.clean-option-row > .option-airline {grid-column:2!important;min-width:0!important}
+  .quote-option-row.clean-option-row > .option-value {grid-column:2!important;min-width:0!important}
+  .quote-option-row.clean-option-row > .option-actions {grid-column:1/-1!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;margin:0!important}
+  .quote-option-row.clean-option-row > .option-actions > * {display:block!important;width:100%!important;max-width:none!important;min-width:0!important}
+  .quote-option-row.clean-option-row > .option-actions a,
+  .quote-option-row.clean-option-row > .option-actions button {display:flex!important;align-items:center!important;justify-content:center!important;width:100%!important;min-height:38px!important;white-space:normal!important;font-size:.73rem!important;padding:8px 5px!important;text-align:center!important}
+  .quote-option-row .history-segment-row {grid-template-columns:1fr!important;padding:8px!important}
+  .quote-option-row .history-segment-list {gap:5px!important;margin-top:6px!important}
+  .variant-switcher .variant-tabs {display:flex!important;flex-wrap:nowrap!important;overflow-x:auto!important;gap:6px!important}
+  .variant-switcher .variant-tab {flex:0 0 auto!important;padding:8px!important;font-size:.7rem!important}
+  .quote-management-grid {grid-template-columns:1fr!important;gap:8px!important}
+  .quote-management-card {padding:10px!important}
+  .page-actions {gap:8px!important}
+  .page-actions .button-create {min-height:38px!important}
+  .scope-copy-soft strong {font-size:.86rem!important}
+  .calc-scope-card {min-height:72px!important;padding:9px!important}
+  .option-actions {gap:6px!important}
+  .quote-base-panel .quote-base-summary .span-all {flex-basis:100%!important}
+}
+/* Datários extras seguem o mesmo calendário usado na cotação. */
+.quote-date-inline-trigger {display:flex!important;align-items:center!important;gap:8px!important;width:100%!important;border:1px solid var(--border)!important;background:var(--panel-2)!important;color:var(--text)!important;border-radius:12px!important;padding:10px 12px!important;text-align:left!important;min-height:44px!important}
+html[data-theme="light"] .quote-date-inline-trigger {background:#f3f8fc!important;color:#173954!important;border-color:#c8ddec!important}
+.quote-date-overlay {position:fixed;inset:0;z-index:8000;display:grid;place-items:center;padding:12px;background:rgba(7,21,39,.72)}
+.quote-date-overlay[hidden] {display:none!important}
+.quote-date-modal {width:min(470px,100%);max-height:calc(100dvh - 30px);overflow:auto;border-radius:18px;background:var(--panel);border:1px solid var(--border);padding:18px;color:var(--text);box-shadow:0 30px 80px rgba(0,0,0,.28)}
+.quote-date-head,.quote-date-nav {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.quote-date-nav button,.quote-date-head button {border:1px solid var(--border);background:var(--panel-2);border-radius:10px;padding:7px 11px;color:var(--text)}
+.quote-date-days {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.quote-date-days button {border:1px solid transparent;background:transparent;color:var(--text);border-radius:9px;min-height:39px;padding:0;font-weight:650}
+.quote-date-days button:hover,.quote-date-days button.selected {background:color-mix(in srgb,var(--cyan) 18%,var(--panel));border-color:var(--cyan)}
+.quote-date-days .weekday {color:var(--muted);font-size:.72rem;text-align:center;display:grid;place-items:center;padding:9px 0}
+.quote-date-footer {display:flex;gap:8px;justify-content:space-between;margin-top:15px}
+.quote-date-footer button {padding:10px 15px;border-radius:10px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-weight:700}
+.quote-date-footer button:last-child {background:#1266bd;border-color:#1266bd;color:#fff}
+@media(max-width:500px){.quote-date-modal{padding:12px}.quote-date-days button{min-height:44px}}
+/* Calendário unificado de ida/volta: tratamento visual consistente com os seletores adicionais. */
+.range-overlay{position:fixed;inset:0;z-index:8000;display:grid;place-items:center;padding:12px;background:rgba(5,20,36,.70)}
+.range-overlay[hidden]{display:none!important}
+.range-dialog{width:min(740px,100%);max-height:calc(100dvh - 24px);overflow-y:auto;border-radius:18px;padding:18px;background:var(--panel);color:var(--text);border:1px solid var(--border);box-shadow:0 30px 80px rgba(0,0,0,.25)}
+.range-dialog header,.range-nav,.range-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.range-dialog header strong{font-size:1.12rem}
+.range-dialog button{font:inherit;cursor:pointer}
+.range-dialog header button,.range-nav button{padding:7px 12px;border:1px solid var(--border);border-radius:10px;background:var(--panel-2);color:var(--text)}
+.range-months{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.range-month h3{text-align:center;font-size:.96rem;margin:0 0 12px;color:var(--text)}
+.range-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.range-weekday{display:grid;place-items:center;padding:9px 0;color:var(--muted);font-size:.72rem}
+.range-days button{border:1px solid transparent;background:transparent;color:var(--text);border-radius:9px;padding:0;min-height:38px}
+.range-days button.range-selected{color:#fff!important;background:#1266bd!important}
+.range-days button.range-between{background:color-mix(in srgb,var(--cyan) 17%,var(--panel));border-color:color-mix(in srgb,var(--cyan) 26%,var(--border))}
+.range-dialog footer{margin:16px 0 0}.range-dialog footer .range-summary{font-size:.8rem;color:var(--muted)}
+.range-dialog footer .range-done{background:#1266bd;color:#fff;border:0;border-radius:10px;padding:10px 17px;font-weight:800}
+.range-trigger{min-height:43px;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:560px){.range-dialog{padding:12px}.range-months{grid-template-columns:1fr}.range-months .range-month:nth-child(2){display:none}.range-days button{min-height:44px}.range-dialog header{padding:3px}.range-dialog footer{flex-direction:column;align-items:stretch}.range-dialog footer .range-done{width:100%}}
+
+/* Keep native date fields focusable for validation and assistive technology. */
+.quote-date-native-input{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;overflow:hidden!important;pointer-events:none!important}
+html[data-theme="light"] .history-options-strip .history-bag-summary{background:#e6f4f3!important;border-color:#afd6d5!important;color:#173d54!important}
+html[data-theme="light"] .history-options-strip .history-bag-summary strong,
+html[data-theme="light"] .history-options-strip .history-bag-summary span,
+html[data-theme="light"] .history-options-strip .history-calc-type,
+html[data-theme="light"] .history-options-strip .quote-option-author,
+html[data-theme="light"] .history-options-strip .quote-option-author strong{color:#214565!important}
+html[data-theme="light"] .history-options-strip .history-segment-row .history-segment-schedule span {color:#214565!important;background:#e5f2ff!important;border-color:#bcd8f0!important}
+html[data-theme="light"] .history-options-strip .professional-option-details > div,
+html[data-theme="light"] .history-options-strip .professional-option-details > span{color:#214565!important}
+/* Campos de data das outras páginas: aparência consistente com a cotação no modo claro.
+   O calendário nativo de cada plataforma permanece disponível fora da calculadora. */
+html[data-theme="light"] input[type="date"]:not(.quote-date-native-input),
+html[data-theme="light"] input[type="datetime-local"]{
+  color-scheme:light;background:#f3f8fc!important;border:1px solid #c8ddec!important;
+  color:#173954!important;border-radius:11px!important;
+}
