@@ -2467,3 +2467,36 @@ body.mobile-menu-open{overflow:hidden}
   .stats-grid{grid-template-columns:1fr!important}
   .mobile-nav a small{font-size:.57rem!important}
 }
+
+
+/* V5.29.1 — refinamentos de modo claro (barra lateral, contraste e navegação) */
+html[data-theme="light"] .sidebar{
+  border:1px solid #d8e5f0!important;
+  border-right:1px solid #d8e5f0!important;
+  box-shadow:12px 0 34px rgba(37,77,115,.06),0 0 0 1px rgba(216,229,240,.8)!important;
+}
+html[data-theme="light"] .sidebar-nav,
+html[data-theme="light"] .sidebar-footer{
+  background:transparent;
+}
+html[data-theme="light"] .sidebar .nav-group-label{
+  color:#4f7aa1!important;
+}
+html[data-theme="light"] .nav-link{
+  color:#5f7690!important;
+}
+html[data-theme="light"] .nav-link:hover{
+  background:color-mix(in srgb,var(--cyan) 9%,#fff)!important;
+  color:#0f5db7!important;
+}
+html[data-theme="light"] .nav-link.active{
+  background:linear-gradient(90deg,color-mix(in srgb,var(--cyan) 12%,#fff),#f8fbff)!important;
+  color:#0f5db7!important;
+  border-color:color-mix(in srgb,var(--cyan) 26%,#d7e6f2)!important;
+}
+@media(max-width:920px){
+  html[data-theme="light"] .sidebar{
+    border-radius:0 20px 20px 0!important;
+    background:linear-gradient(180deg,#ffffff,#f8fbff)!important;
+  }
+}

@@ -14,6 +14,26 @@
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[c]));
   const safeColor = (v) => (/^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? v : '#26c5e6');
 
+  function currentTagIds() {
+    try {
+      return [...new Set(new URLSearchParams(location.search).getAll('tag').map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0))];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function buildFilterHref(base, tagId) {
+    const url = new URL(base || location.pathname, location.origin);
+    const params = new URLSearchParams(location.search || '');
+    params.delete('page');
+    const ids = new Set(params.getAll('tag').map((v) => Number(v)).filter((v) => Number.isFinite(v) && v > 0));
+    if (tagId) ids.add(Number(tagId));
+    params.delete('tag');
+    [...ids].sort((a, b) => a - b).forEach((id) => params.append('tag', String(id)));
+    url.search = params.toString();
+    return `${url.pathname}${url.search ? `?${url.search}` : ''}`;
+  }
+
   async function post(url, body) {
     const res = await fetch(url, {
       method: 'POST',
@@ -82,7 +102,8 @@
       const chip = document.createElement('a');
       chip.className = 'dbm-tag-chip';
       chip.style.setProperty('--tag', safeColor(t.color));
-      chip.href = `${base}?tag=${Number(t.id)}`;
+      chip.dataset.tagId = String(Number(t.id));
+      chip.href = buildFilterHref(base, Number(t.id));
       chip.textContent = t.name;
       row.insertBefore(chip, button);
     });
@@ -141,6 +162,15 @@
       event.stopPropagation();
       const row = editButton.closest('[data-tag-target]');
       if (row) openEditor(row);
+      return;
+    }
+    const tagChip = event.target.closest('.history-tag-row .dbm-tag-chip[data-tag-id]');
+    if (tagChip) {
+      event.preventDefault();
+      event.stopPropagation();
+      const row = tagChip.closest('[data-tag-target]');
+      const base = row?.dataset?.filterUrl || tagChip.getAttribute('href') || location.pathname;
+      location.href = buildFilterHref(base, Number(tagChip.dataset.tagId || 0));
       return;
     }
     if (event.target.closest('.history-tag-row .dbm-tag-chip')) event.stopPropagation();
