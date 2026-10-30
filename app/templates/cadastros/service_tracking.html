@@ -34,6 +34,12 @@
 .tracking-pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin:24px 0;color:var(--muted);font-size:.83rem}
 @media(max-width:950px){.tracking-entry{grid-template-columns:100px minmax(0,1fr) auto}.tracking-entry .tracking-service{grid-column:2}.tracking-entry .tracking-actions{grid-column:3;grid-row:1/3}}
 @media(max-width:680px){.tracking-search{align-items:stretch;flex-direction:column}.tracking-entry{grid-template-columns:1fr 1fr;gap:10px}.tracking-entry .tracking-date{grid-column:1}.tracking-entry .tracking-client{grid-column:1/-1;grid-row:2}.tracking-entry .tracking-service{grid-column:1/-1;grid-row:3}.tracking-entry .tracking-actions{grid-column:2;grid-row:1;justify-self:end}.tracking-types a{flex:1;justify-content:center;font-size:.71rem}}
+
+.tracking-hotel-stars{display:inline-flex!important;align-items:center;gap:6px;color:#d49412!important;font-size:1rem;font-weight:900;letter-spacing:.07em}
+.tracking-hotel-stars small{color:var(--text-muted,#6c8099);font-size:.68rem;letter-spacing:0}
+html[data-theme="light"] .tracking-entry{background:#fff!important;color:#14304a!important;border-color:#d4e2ef!important}
+html[data-theme="light"] .tracking-entry :is(strong,b,span){color:inherit}
+html[data-theme="light"] .tracking-entry .tracking-hotel-stars{color:#b67c06!important}
 </style>
 {% endblock %}
 {% block content %}
@@ -66,6 +72,8 @@
         <div class="tracking-service">
           <strong>{{ item.hotel_name or title }}</strong>
           {% if kind == 'hospedagens' %}
+            {% set stars = (service.get('stars') or service.get('rating') or service.get('category') or 0)|int %}
+            {% if stars >= 1 and stars <= 5 %}<span class="tracking-hotel-stars" aria-label="{{ stars }} estrela(s)"><span aria-hidden="true">{% for n in range(stars) %}★{% endfor %}{% for n in range(5 - stars) %}☆{% endfor %}</span> <small>{{ stars }} estrela(s)</small></span>{% endif %}
             <span>{{ item.address or service.get('description') or 'Endereço não informado' }}</span>
             <small>Check-in: {{ item.start_date or 'A informar' }}{% if item.start_time %} às {{ item.start_time }}{% endif %} · Check-out: {{ item.end_date or 'A informar' }}{% if item.end_time %} às {{ item.end_time }}{% endif %}</small>
             <small>{% if service.get('rooms') %}{{ service.get('rooms') }} quarto(s) · {% endif %}{% if service.get('nights') %}{{ service.get('nights') }} noite(s) · {% endif %}Hospedagem</small>

@@ -1090,48 +1090,9 @@ def cotacoes(request: Request, db: Session = Depends(get_db)):
         totals[status] += total
         counts[status] += 1
 
-    # V5.9.3: a cotação de cálculo também aparece no quadro de Cotações,
-    # mesmo antes de virar cotação de emissão/reserva. Ela entra em
-    # Aguardando como "bancada de cálculo" e continua abrindo o motor de cálculo.
-    group_rows = db.scalars(
-        select(QuoteGroup)
-        .where(_group_filter(user))
-        .options(
-            selectinload(QuoteGroup.trip),
-            selectinload(QuoteGroup.user).selectinload(WebUser.profile),
-            selectinload(QuoteGroup.assigned_user).selectinload(WebUser.profile),
-            selectinload(QuoteGroup.option_links).selectinload(QuoteOptionIndex.quote).selectinload(WebQuote.airline),
-            selectinload(QuoteGroup.option_links).selectinload(QuoteOptionIndex.quote).selectinload(WebQuote.calculation_type),
-            selectinload(QuoteGroup.option_links).selectinload(QuoteOptionIndex.quote).selectinload(WebQuote.commercial),
-        )
-        .order_by(desc(QuoteGroup.updated_at), desc(QuoteGroup.created_at))
-        .limit(800)
-    ).all()
-    for group in group_rows:
-        if group.id in accepted_group_ids:
-            continue
-        options = [link.quote for link in (group.option_links or []) if getattr(link, "quote", None) is not None and _quote_allowed(user, link.quote)]
-        client = (group.trip.client_name if group.trip else "") or group.quote_name or "Não informado"
-        title = group.quote_name or "Cotação de cálculo"
-        code = f"calc{group.id:04d}"
-        total = max([float(opt.total or 0) for opt in options], default=0.0)
-        created = group.created_at.date() if group.created_at else date.today()
-        status = "aguardando"
-        if status_filter and status_filter != status:
-            continue
-        if user_filter and group.user_id != user_filter:
-            continue
-        if q and q not in " ".join([title, client, code, group.origin or "", group.destination or "", getattr(group.user, "name", "") or ""]).lower():
-            continue
-        if client_filter and client_filter not in client.lower():
-            continue
-        if date_from and created < date_from:
-            continue
-        if date_to and created > date_to:
-            continue
-        cards.append({"item": None, "accepted": False, "group": group, "data": {}, "status": status, "client": client, "title": title, "code": code, "total": total, "maker": group.user, "assigned": group.assigned_user, "options_count": len(options)})
-        totals[status] += total
-        counts[status] += 1
+    # Quadro comercial inclui somente cotações explicitamente aceitas/manuais.
+    # Cálculos ainda não aceitos continuam consultáveis no Histórico de cálculos.
+    # Evita carregar centenas de QuoteGroup com opções desnecessárias.
 
     grouped = {key: [] for key, _label, _color in board_statuses}
     for card in cards:
@@ -1919,6 +1880,16 @@ def editar_cotacao(group_id: int, request: Request, db: Session = Depends(get_db
         db.commit()
     people = _people_choices(db, user)
     board_statuses = _board_statuses(db, user)
+    # Falhas isoladas de etiquetas não devem impedir o usuário de reabrir a
+    # cotação após Salvar (Salvar e Fechar usa outra rota de destino).
+    try:
+        editor_tags = list_tags(db, user, kind="cotacao")
+        editor_group_tags = tags_for_targets(db, user, "group", [group_id]).get(group_id, [])
+    except Exception:
+        db.rollback()
+        _voos_logger.exception("Falha ao carregar etiquetas no editor da cotação %s", group_id)
+        editor_tags = []
+        editor_group_tags = []
     return templates.TemplateResponse(
         request,
         "cadastros/cotacao_form.html",
@@ -1942,8 +1913,8 @@ def editar_cotacao(group_id: int, request: Request, db: Session = Depends(get_db
             airline_logo_map=_airline_logo_map(db, user),
             airport_map=BR_AIRPORTS,
             sale_unlocked=(item.status == SALE_UNLOCK_STATUS or item.status in {"aprovado", "lancada"}),
-            internal_tags=list_tags(db, user, kind="cotacao"),
-            assigned_group_tags=tags_for_targets(db, user, "group", [group_id]).get(group_id, []),
+            internal_tags=editor_tags,
+            assigned_group_tags=editor_group_tags,
         ),
     )
 

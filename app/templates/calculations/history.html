@@ -636,271 +636,36 @@ html[data-theme="light"] .compact-history-option>.combine-option-toggle{backgrou
  .compact-history-option>.option-select-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
 
-/* Ajustes de modo claro e cards compactos no mobile */
-html[data-theme="light"] .history-group-card{background:#fff!important;border-color:#d8e4ee!important;box-shadow:0 12px 30px rgba(30,74,109,.05)!important}
-html[data-theme="light"] .history-group-card > .history-card-head,
-html[data-theme="light"] .history-group-card > .history-meta-grid,
-html[data-theme="light"] .subquote-history-block,
-html[data-theme="light"] .quote-change-log,
-html[data-theme="light"] .combine-builder{background:color-mix(in srgb,var(--cyan) 4%,#fff)!important;border-color:#dae7f0!important;color:#163654!important}
-html[data-theme="light"] .history-group-card > .history-card-head .history-main-copy > p,
-html[data-theme="light"] .subquote-history-route,
-html[data-theme="light"] .history-order-note,
-html[data-theme="light"] .quote-change-log summary,
-html[data-theme="light"] .combine-builder-copy small{color:#5d7890!important}
-html[data-theme="light"] .history-group-card > .history-card-head .history-main-copy h2,
-html[data-theme="light"] .history-group-card > .history-meta-grid strong,
-html[data-theme="light"] .subquote-history-title h3,
-html[data-theme="light"] .history-total-box strong{color:#123250!important}
-html[data-theme="light"] .history-group-card > .history-card-head .quote-author-line,
-html[data-theme="light"] .history-group-card > .history-card-head .quote-author-line strong{color:#385773!important}
-html[data-theme="light"] .history-total-box{background:color-mix(in srgb,var(--cyan) 9%,#fff)!important;border:1px solid color-mix(in srgb,var(--cyan) 22%,#dce8f3)!important;border-radius:14px!important;padding:10px 12px!important}
-html[data-theme="light"] .history-expand-toggle{background:#fff!important;border-color:#d3e0ea!important;color:#225987!important}
 @media(max-width:760px){
-  .history-group-card{padding:0!important;border-radius:18px!important;overflow:hidden!important}
-  .history-group-card > .history-card-head{display:grid!important;grid-template-columns:24px minmax(0,1fr)!important;gap:10px!important;padding:12px 12px 10px!important}
-  .history-group-card > .history-card-head .select-check{grid-column:1!important;grid-row:1!important;align-self:start!important}
-  .history-group-card > .history-card-head .history-main-copy{grid-column:2!important;grid-row:1!important;min-width:0!important}
-  .history-group-card > .history-card-head .history-main-copy .eyebrow{font-size:.54rem!important;padding:4px 7px!important;margin-bottom:4px!important}
-  .history-group-card > .history-card-head .history-main-copy h2{font-size:1rem!important;line-height:1.12!important;white-space:normal!important}
-  .history-group-card > .history-card-head .history-main-copy > p{font-size:.74rem!important;line-height:1.28!important;margin-top:4px!important}
-  .history-group-card > .history-card-head .quote-author-line{display:block!important;font-size:.66rem!important;line-height:1.32!important;margin-top:6px!important}
-  .history-group-card > .history-card-head .history-total-box{grid-column:1 / -1!important;display:grid!important;grid-template-columns:1fr auto auto!important;align-items:center!important;gap:8px!important;margin-top:2px!important;padding:10px 12px!important}
-  .history-group-card > .history-card-head .history-total-box small{font-size:.67rem!important}
-  .history-group-card > .history-card-head .history-total-box strong{font-size:1.05rem!important}
-  .history-group-card > .history-meta-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;padding:10px 12px 12px!important}
-  .history-group-card > .history-meta-grid > div{padding:10px 11px!important;border-radius:12px!important;min-height:auto!important}
-  .history-group-card > .history-meta-grid small{font-size:.62rem!important}
-  .history-group-card > .history-meta-grid strong{font-size:.9rem!important;line-height:1.2!important}
-  .history-group-card > .history-assignee-form,
-  .history-group-card > .quote-change-log,
-  .history-group-card > .history-scope-stack,
-  .history-group-card > .history-actions,
-  .history-group-card > .notice-card{padding-left:12px!important;padding-right:12px!important}
-  .history-group-card > .history-assignee-form{gap:8px!important;padding-top:0!important;padding-bottom:10px!important}
-  .history-group-card > .history-assignee-form label > span{font-size:.67rem!important}
-  .history-group-card > .history-assignee-form select{min-height:40px!important;font-size:.83rem!important}
-  .history-group-card > .history-assignee-form .button-assign{width:100%!important;min-height:40px!important;font-size:.78rem!important}
-  .subquote-history-block{padding:12px!important;margin:12px 0!important;border-radius:16px!important}
-  .subquote-history-head{display:grid!important;gap:10px!important}
-  .subquote-history-title h3{font-size:1rem!important}
-  .subquote-history-route{font-size:.72rem!important;gap:6px!important}
-  .subquote-history-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;width:100%!important}
-  .subquote-history-actions > *{width:100%!important;justify-content:center!important;min-height:38px!important;font-size:.75rem!important}
-  .history-scope-title{padding:8px 10px!important;gap:8px!important}
-  .history-scope-title > span{font-size:.72rem!important}
-  .history-scope-title > small{font-size:.63rem!important}
-  .compact-history-option, .compact-history-option:not(:has(.combine-option-toggle)){grid-template-columns:24px 48px minmax(0,1fr)!important;column-gap:9px!important;row-gap:7px!important;padding:10px 10px 12px!important;border-radius:15px!important}
-  .compact-history-option > .history-logo-seal{width:48px!important;height:40px!important;min-width:48px!important;border-radius:10px!important}
-  .history-logo-image{width:42px!important;height:30px!important;max-width:42px!important;max-height:30px!important}
-  .compact-history-option > .option-select-copy{font-size:.76rem!important}
-  .compact-history-option > .option-select-copy strong{font-size:.86rem!important;line-height:1.15!important}
-  .compact-history-option .history-chip{font-size:.56rem!important;padding:4px 6px!important}
-  .compact-history-option > .option-select-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:7px!important;width:100%!important}
-  .compact-history-option > .option-select-actions > *,
-  .history-actions > *,
-  .history-actions form > button,
-  .history-actions form > a{width:100%!important;min-height:38px!important;justify-content:center!important;font-size:.74rem!important;padding:9px 8px!important}
-  .history-actions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important;padding-top:4px!important;padding-bottom:12px!important}
-  .quote-change-item{gap:6px!important;padding:6px 0!important}
-  .quote-change-item span{font-size:.74rem!important;line-height:1.28!important}
-  .quote-change-item small{font-size:.63rem!important}
+ .history-group-card{margin:0 0 10px!important;padding:0!important;overflow:hidden!important;border-radius:14px!important}
+ .history-group-card>.history-card-head{display:grid!important;grid-template-columns:20px minmax(0,1fr)!important;gap:8px!important;padding:10px!important;min-height:0!important}
+ .history-group-card>.history-card-head .history-main-copy h2{font-size:.98rem!important;line-height:1.15!important;margin:3px 0!important}
+ .history-group-card>.history-card-head .history-main-copy>p{font-size:.72rem!important;line-height:1.2!important;margin:2px 0!important}
+ .history-group-card>.history-card-head .quote-author-line{font-size:.6rem!important;line-height:1.2!important;gap:4px!important;margin:4px 0!important}
+ .history-group-card>.history-card-head .history-total-box{grid-column:1/-1!important;display:flex!important;align-items:center!important;justify-content:space-between!important;margin:0!important;padding:7px 9px!important;min-height:36px!important;border:1px solid #b9d8ed!important;border-radius:9px!important}
+ .history-group-card>.history-card-head .history-total-box strong{font-size:1rem!important}
+ .history-group-card>.history-card-head .history-expand-toggle{width:auto!important;min-width:100px!important;min-height:34px!important;padding:6px 9px!important;font-size:.7rem!important}
+ .history-group-card>.history-meta-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:0!important;padding:5px 10px!important;margin:0!important}
+ .history-group-card>.history-meta-grid>div{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:3px!important;flex:1 1 auto!important;padding:6px!important;min-height:0!important;border-radius:0!important}
+ .history-group-card>.history-meta-grid small{font-size:.54rem!important;line-height:1!important}
+ .history-group-card>.history-meta-grid strong{font-size:.72rem!important;line-height:1.1!important}
+ .history-group-card>.history-assignee-form{margin:0 10px 8px!important;padding:7px!important}
+ .history-group-card:not(.is-history-expanded)>.history-meta-grid,
+ .history-group-card:not(.is-history-expanded)>.history-assignee-form,
+ .history-group-card:not(.is-history-expanded)>.quote-change-log,
+ .history-group-card:not(.is-history-expanded)>.history-scope-stack,
+ .history-group-card:not(.is-history-expanded)>.history-actions,
+ .history-group-card:not(.is-history-expanded)>.notice-card{display:none!important}
+ .history-group-card:not(.is-history-expanded)>.history-card-head{margin-bottom:0!important}
 }
-@media(max-width:430px){
-  .history-group-card > .history-meta-grid,
-  .subquote-history-actions,
-  .compact-history-option > .option-select-actions,
-  .history-actions{grid-template-columns:1fr!important}
-}
+html[data-theme="light"] .history-group-card>.history-card-head .history-main-copy :is(h2,strong){color:#163653!important}
+html[data-theme="light"] .history-group-card>.history-card-head .quote-author-line{color:#496983!important}
 
-
-.history-client-quick{display:none}
-
-/* 30/10/2026: cards do histórico fechados por padrão no mobile.
-   Só os detalhes operacionais são ocultados; resumo, rota e preço permanecem visíveis. */
-.history-expand-label{display:none!important}
-@media (min-width:921px){
-  .history-group-card.legacy-card .history-expand-toggle{display:none!important}
-}
-@media (max-width:920px){
-  .quote-history-stack > .history-group-card{
-    gap:0!important;
-    border-radius:17px!important;
-    overflow:hidden!important;
-    margin-bottom:10px!important;
-  }
-  .history-group-card > .history-card-head{
-    display:grid!important;
-    grid-template-columns:24px minmax(0,1fr)!important;
-    gap:10px!important;
-    cursor:pointer!important;
-    padding:12px!important;
-  }
-  .history-group-card > .history-card-head > .select-check{
-    grid-column:1!important;grid-row:1!important;
-  }
-  .history-group-card > .history-card-head > .history-main-copy{
-    grid-column:2!important;grid-row:1!important;min-width:0!important;
-  }
-  .history-client-quick{
-    display:block!important;
-    color:var(--muted)!important;
-    font-size:.68rem!important;
-    line-height:1.2!important;
-    margin-top:4px!important;
-  }
-  .history-group-card:not(.is-history-expanded) > .history-meta-grid,
-  .history-group-card:not(.is-history-expanded) > .history-assignee-form,
-  .history-group-card:not(.is-history-expanded) > .quote-change-log,
-  .history-group-card:not(.is-history-expanded) > .notice-card,
-  .history-group-card:not(.is-history-expanded) > .history-scope-stack,
-  .history-group-card:not(.is-history-expanded) > .history-actions,
-  .history-group-card.legacy-card:not(.is-history-expanded) > .history-option-detail-grid,
-  .history-group-card.legacy-card:not(.is-history-expanded) > .history-segment-list{display:none!important}
-  .history-group-card > .history-card-head .history-main-copy > .quote-author-line{
-    font-size:.65rem!important;
-    line-height:1.25!important;
-  }
-  .history-group-card > .history-card-head .history-total-box{
-    grid-column:1 / -1!important;
-    width:100%!important;
-    display:grid!important;
-    grid-template-columns:minmax(0,1fr) auto!important;
-    align-items:center!important;
-    gap:6px 10px!important;
-    padding:9px 10px!important;
-    margin:0!important;
-    min-width:0!important;
-  }
-  .history-group-card > .history-card-head .history-total-box small,
-  .history-group-card > .history-card-head .history-total-box > strong,
-  .history-group-card > .history-card-head .history-total-box > .profit-price-stack{
-    grid-column:1!important;
-    min-width:0!important;
-    margin-left:0!important;
-  }
-  .history-group-card:not(.is-history-expanded) .history-total-box .profit-card-chip,
-  .history-group-card:not(.is-history-expanded) .history-total-box .profit-margin-chip,
-  .history-group-card:not(.is-history-expanded) .history-total-box .profit-payment-card,
-  .history-group-card:not(.is-history-expanded) .history-total-box .profit-sent-chip{
-    display:none!important;
-  }
-  .history-group-card .history-expand-toggle{
-    grid-column:2!important;
-    grid-row:1 / span 3!important;
-    display:inline-flex!important;
-    align-items:center!important;
-    justify-content:center!important;
-    gap:7px!important;
-    width:auto!important;
-    min-width:110px!important;
-    max-width:145px!important;
-    height:38px!important;
-    padding:0 9px!important;
-    margin:0!important;
-    border-radius:11px!important;
-    font-size:.71rem!important;
-    font-weight:800!important;
-    white-space:nowrap!important;
-  }
-  .history-expand-label{display:inline!important}
-  .history-group-card > .history-card-head .history-total-box .profit-cost-line strong{
-    font-size:1.02rem!important;
-  }
-  .history-group-card > .history-card-head .history-total-box .profit-sale-line strong{
-    font-size:.86rem!important;
-  }
-  .history-group-card.is-history-expanded > .history-meta-grid,
-  .history-group-card.is-history-expanded > .history-assignee-form,
-  .history-group-card.is-history-expanded > .history-scope-stack,
-  .history-group-card.is-history-expanded > .history-actions,
-  .history-group-card.legacy-card.is-history-expanded > .history-option-detail-grid,
-  .history-group-card.legacy-card.is-history-expanded > .history-segment-list{
-    animation:historyMobileReveal .15s ease-out both;
-  }
-  @keyframes historyMobileReveal {
-    from{opacity:.7;transform:translateY(-3px)}
-    to{opacity:1;transform:translateY(0)}
-  }
-}
-
-
-/* 30/10: remover informações repetidas; manter apenas a parceira no painel de detalhes. */
-.professional-option-details.partner-only-details{
-  display:flex!important;flex-wrap:wrap!important;gap:0!important;
-  margin:8px 0!important;padding:0!important;
-  background:transparent!important;border:0!important;box-shadow:none!important;
-}
-.professional-option-details.partner-only-details > .history-partner-detail{
-  display:flex!important;align-items:baseline!important;flex-wrap:wrap!important;gap:7px!important;
-  width:auto!important;max-width:100%!important;min-height:0!important;
-  padding:7px 10px!important;border-radius:10px!important;
-}
-.professional-option-details.partner-only-details .history-partner-detail small{
-  font-size:.66rem!important;text-transform:uppercase!important;letter-spacing:.035em!important;
-}
-.professional-option-details.partner-only-details .history-partner-detail strong{
-  font-size:.77rem!important;overflow-wrap:anywhere!important;
-}
-/* Este quadro era cinza-escuro em modo claro; não interfere no modo escuro. */
-html[data-theme="light"] .combine-builder{
-  background:#f2f7fd!important;
-  border:1px solid #cbdfef!important;
-  color:#173a57!important;
-  box-shadow:none!important;
-}
-html[data-theme="light"] .combine-builder-title strong,
-html[data-theme="light"] .combine-live strong,
-html[data-theme="light"] .combine-status{
-  color:#153653!important;
-}
-html[data-theme="light"] .combine-builder-copy small,
-html[data-theme="light"] .combine-live,
-html[data-theme="light"] .combine-status:not(.valid):not(.invalid){
-  color:#506d85!important;
-}
-html[data-theme="light"] .combine-builder-title span{
-  background:#e4effb!important;border-color:#c9dfef!important;color:#315b7d!important;
-}
-html[data-theme="light"] .combine-status.valid{color:#057a54!important}
-html[data-theme="light"] .combine-status.invalid{color:#a53b43!important}
-html[data-theme="light"] .button-combine:disabled{
-  background:#e0eaf5!important;border:1px solid #c8daea!important;
-  color:#667f94!important;opacity:1!important;box-shadow:none!important;
-}
-html[data-theme="light"] .history-actions{
-  background:#fbfdff!important;border:1px solid #dce8f2!important;
-  border-radius:14px!important;padding:11px!important;
-}
-html[data-theme="light"] .history-option-detail-grid.partner-only-details .history-partner-detail{
-  background:#f4f8fd!important;border:1px solid #d3e3f0!important;
-}
-html[data-theme="light"] .history-option-detail-grid.partner-only-details .history-partner-detail small{
-  color:#597890!important;
-}
-html[data-theme="light"] .history-option-detail-grid.partner-only-details .history-partner-detail strong{
-  color:#123b5b!important;
-}
-/* Contraste das ações coloridas preservando a identidade de cada botão. */
-html[data-theme="light"] .history-options-strip .option-select-actions .button-open,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-edit,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-fare,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-profit,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-duplicate,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-accept,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-flight,
-html[data-theme="light"] .history-options-strip .option-select-actions .button-delete{
-  color:#fff!important;
-}
 @media(max-width:760px){
-  .professional-option-details.partner-only-details{
-    display:flex!important;grid-template-columns:none!important;
-  }
-  .professional-option-details.partner-only-details > .history-partner-detail{
-    padding:7px 9px!important;font-size:.7rem!important;
-  }
+ .history-group-card>.history-card-head .history-expand-toggle{display:inline-flex!important;gap:6px!important;align-items:center!important;justify-content:center!important;color:#164d7b!important;background:#fff!important;border-color:#caddec!important}
+ .history-group-card>.history-card-head .history-expand-toggle:after{content:"Abrir detalhes"!important;font-size:.67rem!important;font-weight:800!important;white-space:nowrap!important}
+ .history-group-card.is-history-expanded>.history-card-head .history-expand-toggle:after{content:"Fechar detalhes"!important}
 }
-
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
@@ -946,10 +711,22 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
 {%- endmacro %}
 
 {% macro option_saved_details(quote) -%}
-  {# Tarifa, cálculo, classe, operação e bagagens já aparecem nos chips,
-     no resumo do cálculo e no quadro de bagagens abaixo. Evita duplicação. #}
-  <div class="history-option-detail-grid professional-option-details partner-only-details">
-    <div class="history-partner-detail"><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
+  <div class="history-option-detail-grid professional-option-details">
+    <div><small>Tarifa</small><strong>{{ quote.fare_brand or 'Não informada' }}</strong></div>
+    <div><small>Tipo de cálculo</small><strong>{{ quote.exact_calculation_type or 'Não informado' }}</strong></div>
+    {# quote.bags corresponde às bagagens ADICIONAIS da opção, não à franquia da tarifa. #}
+    {% set included_is_known = quote.included_bags_per_passenger is not none and quote.included_bags_per_passenger|string != '' %}
+    {% set bags_included_per_person = quote.included_bags_per_passenger|int if included_is_known else 0 %}
+    {% set bags_included_total = bags_included_per_person * (quote.passengers|int) %}
+    {% set bags_extra_total = quote.bags|default(0, true)|int %}
+    <div class="history-baggage-detail">
+      <small>Bagagens · 23 kg</small>
+      <strong>{{ bags_included_total + bags_extra_total }} bagagem(ns)</strong>
+      <span class="history-bag-extra">{% if not included_is_known %}{% if bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bags_extra_total and bags_included_total %}{{ bags_extra_total }} bagagem(ns) adicional(is) + {{ bags_included_total }} bagagem(ns) da tarifa{% elif bags_extra_total %}{{ bags_extra_total }} bagagem(ns) adicional(is){% elif bags_included_total %}{{ bags_included_total }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
+    </div>
+    <div><small>Classe</small><strong>{{ quote.cabin_class or 'Não informada' }}</strong></div>
+    <div><small>Operação</small><strong>{{ quote.operation_scope_label or 'Não informada' }}</strong></div>
+    <div><small>Parceira</small><strong>{{ quote.partner_airline or 'Não informada' }}</strong></div>
   </div>
   <div class="history-segment-list">
     {% if quote.segment_rows %}
@@ -1052,7 +829,6 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
         <div class="history-main-copy">
           <span class="eyebrow">COTAÇÃO PRINCIPAL</span>
           <h2>{{ group.quote_name }}</h2>
-          <span class="history-client-quick">Cliente: {{ base.client_name or 'Não informado' }}</span>
           <p>{{ base.origin or '—' }} → {{ base.destination or '—' }} • {% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %} • {{ base.passengers }} passageiro(s)</p>
           <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at|brt('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Modificada em {{ group.updated_at|brt('%d/%m/%Y %H:%M') if group.updated_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
           {% if tags_ready|default(false) %}{{ tag_row("group", group.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
@@ -1060,8 +836,7 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
         <div class="history-total-box">
           <small>{{ options|length }} opção(ões)</small>
           <strong>{% if options %}{{ options[0].total|money(options[0].currency) }}{% else %}—{% endif %}</strong>
-          <button class="history-expand-toggle" type="button" aria-label="Abrir detalhes da cotação" aria-expanded="false" title="Abrir detalhes da cotação">
-            <span class="history-expand-label">Abrir detalhes</span>
+          <button class="history-expand-toggle" type="button" aria-label="Abrir voos calculados" aria-expanded="false" title="Abrir voos calculados">
             <svg class="ui-icon"><use href="#icon-chevron"></use></svg>
           </button>
         </div>
@@ -1180,6 +955,7 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
                     {% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% if quote.skip_display_date %}<span class="history-chip skip-date-chip">Data Skip: {{ quote.skip_display_date|date_br }}</span>{% endif %}{% endif %}
                     {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}
                     {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}
+                    {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}
                     {% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}
                   </div>
                   {% if quote.is_combined and quote.combined_components %}
@@ -1308,12 +1084,11 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
         <div class="history-main-copy">
           <span class="eyebrow">COTAÇÃO ANTIGA</span>
           <h2>{{ quote.quote_name }}</h2>
-          <span class="history-client-quick">Cliente: {{ quote.trip.client_name if quote.trip and quote.trip.client_name else 'Não informado' }}</span>
           <p>{{ quote.origin or '—' }} → {{ quote.destination or '—' }} • {{ quote.airline.name if quote.airline else 'Companhia' }}</p>
           <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at|brt('%d/%m/%Y %H:%M') if quote.created_at else '—' }}{% if quote.commercial and quote.commercial.updated_at %} • Modificada em {{ quote.commercial.updated_at|brt('%d/%m/%Y %H:%M') }}{% endif %}</small>
           {% if tags_ready|default(false) %}{{ tag_row("quote", quote.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
         </div>
-        <div class="history-total-box"><small>Comercial</small>{{ option_price(quote) }}<button class="history-expand-toggle" type="button" aria-label="Abrir detalhes da cotação" aria-expanded="false" title="Abrir detalhes da cotação"><span class="history-expand-label">Abrir detalhes</span><svg class="ui-icon"><use href="#icon-chevron"></use></svg></button></div>
+        <div class="history-total-box"><small>Comercial</small>{{ option_price(quote) }}</div>
       </div>
       {{ option_saved_details(quote) }}
       <div class="history-actions">
@@ -1888,7 +1663,7 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
 
 <script>
 (() => {
-  const cards = Array.from(document.querySelectorAll('.quote-history-stack > .history-group-card'));
+  const cards = Array.from(document.querySelectorAll('.history-group-card'));
 
   function setExpanded(card, expanded, scroll = false){
     if (!card) return;
@@ -1896,10 +1671,8 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
     const button = card.querySelector('.history-expand-toggle');
     if (button) {
       button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      button.setAttribute('aria-label', expanded ? 'Fechar detalhes da cotação' : 'Abrir detalhes da cotação');
-      button.title = expanded ? 'Fechar detalhes da cotação' : 'Abrir detalhes da cotação';
-      const label = button.querySelector('.history-expand-label');
-      if (label) label.textContent = expanded ? 'Fechar detalhes' : 'Abrir detalhes';
+      button.setAttribute('aria-label', expanded ? 'Fechar voos calculados' : 'Abrir voos calculados');
+      button.title = expanded ? 'Fechar voos calculados' : 'Abrir voos calculados';
     }
     if (expanded && scroll) {
       window.setTimeout(() => {
@@ -1916,12 +1689,12 @@ html[data-theme="light"] .history-options-strip .option-select-actions .button-d
   }
 
   cards.forEach(card => {
+    if (window.matchMedia('(max-width: 760px)').matches) setExpanded(card, false);
     const head = card.querySelector(':scope > .history-card-head');
     const meta = card.querySelector(':scope > .history-meta-grid');
     const toggle = card.querySelector('.history-expand-toggle');
 
     const handleAreaClick = (event) => {
-      if (card.classList.contains('legacy-card') && window.matchMedia('(min-width:921px)').matches) return;
       if (event.target.closest('a,button,input,select,textarea,label,form,details,summary')) return;
       const willOpen = !card.classList.contains('is-history-expanded');
       if (willOpen) openOnly(card);

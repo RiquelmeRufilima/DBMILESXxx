@@ -332,3 +332,52 @@ html[data-theme="light"] .tracking-entry span {color:#486981!important}
  .quote-baggage-brief {font-size:.68rem}
 }
 @media(max-width:430px){.accepted-editor .form-grid,.accepted-editor .form-grid.cols-4,.accepted-editor .form-grid.cols-3 {grid-template-columns:minmax(0,1fr)!important}}
+
+/* OCT30 HOTFIX — specific light surfaces; dark mode unchanged */
+html[data-theme="light"] .accepted-editor :is(.flight-card-pro,.flight-card-pro.schedule-selected,.flight-card-pro.schedule-unselected){background:#f7fbff!important;color:#173552!important;border:1px solid #caddeb!important;box-shadow:0 2px 10px rgba(17,55,86,.055)!important}
+html[data-theme="light"] .accepted-editor .flight-card-pro :is(h2,h3,h4,strong,b,.flight-place,.flight-route,.flight-time,.flight-airline){color:#123854!important}
+html[data-theme="light"] .accepted-editor .flight-card-pro :is(small,p,span,em,.flight-caption,.flight-hint){color:#52738d!important}
+html[data-theme="light"] .accepted-editor .flight-card-pro .ghost-button{background:#fff!important;color:#195a87!important;border-color:#cbdce9!important}
+html[data-theme="light"] .accepted-editor .flight-card-pro .danger{color:#9c2441!important}
+html[data-theme="light"] .calc-flow-page .flow-summary-card{background:#fff!important;border:1px solid #d5e4f1!important;color:#14314f!important;box-shadow:0 3px 16px rgba(16,55,83,.04)!important}
+html[data-theme="light"] .calc-flow-page .flow-summary-card :is(strong,small,span){color:#193d5b!important}
+html[data-theme="light"] .calc-flow-page .flow-summary-card small{color:#587795!important}
+html[data-theme="light"] .calc-flow-page .flow-user-card{background:#fff!important;color:#183957!important;border:1px solid #dce6ef!important}
+html[data-theme="light"] .calc-flow-page .flow-user-card :is(h2,strong,b){color:#173653!important}
+html[data-theme="light"] .calc-flow-page .flow-user-card :is(small,p){color:#577791!important}
+html[data-theme="light"] .accepted-editor .panel:has(.flight-card-pro){background:#fff!important;color:#163853!important;border-color:#d7e4ee!important}
+
+/* Editor de reservas: eliminar cores noturnas residuais apenas no tema claro. */
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel,
+html[data-theme="light"] .accepted-editor .premium-services-stack,
+html[data-theme="light"] .accepted-editor .service-detail-panel,
+html[data-theme="light"] .accepted-editor .service-detail-panel summary {
+  background:#ffffff!important;color:#153550!important;border-color:#d5e4ef!important;
+  box-shadow:0 4px 20px rgba(15,56,91,.045)!important;
+}
+html[data-theme="light"] .accepted-editor .itinerary-pro-panel::before{background:none!important}
+html[data-theme="light"] .accepted-editor .itinerary-pro-head :is(h2,p),
+html[data-theme="light"] .accepted-editor .flight-card-pro .route-line strong,
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-info-block b,
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-info-block strong,
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-route-block small,
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-note{
+  color:#183957!important;
+}
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-info-block small,
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-info-block span,
+html[data-theme="light"] .accepted-editor .flight-card-pro .schedule-chip{color:#486987!important}
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-type-pill{
+  background:#e8f2ff!important;color:#175d9d!important;border-color:#c8def4!important
+}
+html[data-theme="light"] .accepted-editor .flight-card-pro .flight-bag-badges span{
+  background:#f2f7fc!important;color:#164269!important;border:1px solid #d6e2ed!important;
+}
+html[data-theme="light"] .accepted-editor .service-command-card,
+html[data-theme="light"] .accepted-editor .service-row.rich,
+html[data-theme="light"] .accepted-editor .pro-empty{
+  background:#f5f9fd!important;border-color:#dce7f1!important;color:#173a55!important;
+}
+html[data-theme="light"] .accepted-editor .service-command-card :is(b,em,small),
+html[data-theme="light"] .accepted-editor .service-row.rich :is(strong,small,p){color:#234864!important}
+html[data-theme="light"] .accepted-editor .service-row.rich button{background:#fff!important;color:#155b91!important;border-color:#cbdceb!important}

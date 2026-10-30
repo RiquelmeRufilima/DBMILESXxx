@@ -25,11 +25,11 @@
   <div class="dbm-tag-dialog-body">
     <input type="search" id="tagEditSearch" placeholder="Pesquisar ou digitar nova etiqueta..." autocomplete="off" maxlength="40">
     <div class="dbm-tag-options" id="tagEditOptions"></div>
-    <div class="dbm-tag-new"><input type="color" id="tagNewColor" value="#26c5e6" aria-label="Cor da nova etiqueta"><button type="button" class="secondary-button small-button" id="tagCreateButton" data-confirm-ignore="1" hidden></button></div>
+    <div class="dbm-tag-new"><input type="color" id="tagNewColor" value="#26c5e6" aria-label="Cor da nova etiqueta"><button type="button" class="secondary-button small-button" id="tagCreateButton" data-confirm-ignore="1">+ Nova etiqueta</button></div>
     <p class="dbm-tag-error" id="tagEditError" hidden></p>
   </div>
   <div class="dbm-tag-dialog-actions"><a class="ghost-button" href="/tags">Gerenciar</a><span style="flex:1"></span><button type="button" class="ghost-button" data-tag-close data-confirm-ignore="1">Cancelar</button><button type="button" class="primary-button" id="tagEditSave" data-confirm-ignore="1">Salvar</button></div>
 </dialog>
 <script type="application/json" id="dbmTagsData">{{ {"tags": all_tags, "csrf": csrf_token}|tojson }}</script>
-<script src="/static/js/tags.js?v=2" defer></script>
+<script src="/static/js/tags.js?v=20261030.9" defer></script>
 {%- endmacro %}
