@@ -15,7 +15,7 @@
 {% endblock %}
 {% block content %}
 <section class="airline-detail-hero" style="--airline-color: {{ airline.color }}">
-  <div class="airline-detail-logo">{% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span>✈</span>{% endif %}</div>
+  <div class="airline-detail-logo">{% if catalog_logo_url %}<img src="{{ catalog_logo_url }}" alt="{{ airline.name }}">{% else %}<span>✈</span>{% endif %}</div>
   <div>
     <span class="badge {{ 'builtin' if airline.builtin else 'custom' }}">{{ 'Companhia original editável' if airline.builtin else 'Companhia personalizada' }}</span>
     <span class="airline-market-badge">{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</span>
@@ -90,7 +90,7 @@
 <section class="panel airline-logo-editor">
   <div class="panel-heading"><div><span class="eyebrow">IDENTIDADE VISUAL</span><h2>Logo da companhia</h2><p>A imagem fica salva em <code>uploads/airlines</code> e reaparece depois de reiniciar o sistema.</p></div><svg class="panel-icon"><use href="#icon-palette"></use></svg></div>
   <div class="brand-edit-row">
-    <div class="brand-image-preview">{% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span>✈</span>{% endif %}</div>
+    <div class="brand-image-preview">{% if catalog_logo_url %}<img src="{{ catalog_logo_url }}" alt="{{ airline.name }}">{% else %}<span>✈</span>{% endif %}</div>
     <form method="post" action="/airlines/{{ airline.id }}/logo" enctype="multipart/form-data" class="form-stack flex-one">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>Escolher nova imagem<input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" required><small>PNG, JPG, WEBP ou SVG. Até 4 MB.</small></label>

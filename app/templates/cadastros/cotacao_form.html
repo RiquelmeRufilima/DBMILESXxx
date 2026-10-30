@@ -354,9 +354,9 @@
       <label>Hora<input id="svc_end_time" type="time"></label>
     </div>
     <div class="form-grid cols-3">
-      <label>Origem/Retirada/Embarque<input id="svc_origin" class="iata-search" placeholder="IATA ou cidade" autocomplete="off"></label>
-      <label>Destino/Devolução/Desembarque<input id="svc_destination" class="iata-search" placeholder="IATA ou cidade" autocomplete="off"></label>
-      <label>Endereço<input id="svc_address" placeholder="Opcional"></label>
+      <label class="service-route-only">Origem/Retirada/Embarque<input id="svc_origin" placeholder="Cidade ou local de saída" autocomplete="off"></label>
+      <label class="service-route-only">Destino/Devolução/Desembarque<input id="svc_destination" placeholder="Cidade ou local de chegada" autocomplete="off"></label>
+      <label>Endereço / localização<input id="svc_address" placeholder="Endereço do hotel ou serviço"></label>
     </div>
     <div class="form-grid cols-4">
       <label>Diárias<input id="svc_nights" type="number" min="0" value="0"></label>
@@ -658,6 +658,11 @@ function openServiceModal(key,index=null){
   const arr=Array.isArray(services[key])?services[key]:[];
   const s=index!==null?arr[index]:defaultService(key);
   document.getElementById('serviceModalTitle').textContent=serviceLabels[key]||'Serviço';
+  // Hospedagem não tem aeroporto nem IATA. Transporte/cruzeiro aceitam cidades.
+  document.querySelectorAll('#serviceModal .service-route-only').forEach(el=>{
+    el.hidden=(key==='hotel'||key==='insurance'||key==='experiences');
+    el.style.display=el.hidden?'none':'';
+  });
   setVal('svc_key',key);
   ['name','link','reservation_number','start_date','start_time','end_date','end_time','origin','destination','address','nights','rooms','type','stars','value','description'].forEach(k=>setVal('svc_'+k,s[k]));
   setPersonField('svc_supplier','svc_supplier_id',s.supplier||'',s.supplier_person_id||'');
@@ -665,11 +670,8 @@ function openServiceModal(key,index=null){
   document.getElementById('serviceModal').showModal();
 }
 function saveServiceFromModal(){
-  if(window.validateAirportInput){
-    const originOk=window.validateAirportInput(document.getElementById('svc_origin'),true);
-    const destinationOk=window.validateAirportInput(document.getElementById('svc_destination'),true);
-    if(!originOk||!destinationOk)return;
-  }
+  // A verificação de aeroporto é exclusiva dos voos. Não bloqueie hotéis
+  // por não terem IATA, nem rejeite cidades em transportes ou cruzeiros.
   if(!requireRegisteredName('svc_supplier','svc_supplier_id','o fornecedor')) return;
   const key=val('svc_key')||editServiceKey||'additional';
   const s={name:val('svc_name'),link:val('svc_link'),reservation_number:val('svc_reservation_number'),start_date:val('svc_start_date'),start_time:val('svc_start_time'),end_date:val('svc_end_date'),end_time:val('svc_end_time'),origin:val('svc_origin'),destination:val('svc_destination'),address:val('svc_address'),nights:Number(val('svc_nights')||0),rooms:Number(val('svc_rooms')||0),type:val('svc_type'),stars:val('svc_stars'),supplier:val('svc_supplier'),supplier_person_id:val('svc_supplier_id')||null,value:parseMoney(val('svc_value')),description:val('svc_description')};

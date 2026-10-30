@@ -19,6 +19,7 @@ from ..dependencies import current_user
 from ..models import Airline, CalculationField, CalculationType
 from ..security import validate_csrf_token
 from ..services.formula_engine import validate_formula
+from ..services.airline_logos import logo_from_name
 from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
 from ..services.uploads import AIRLINE_IMAGE_EXTENSIONS, delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
@@ -114,6 +115,17 @@ def _visibility(user):
     if user.company_id:
         return or_(Airline.builtin.is_(True), Airline.owner_company_id == user.company_id)
     return or_(Airline.builtin.is_(True), Airline.owner_user_id == user.id)
+
+
+def _catalog_logo(airline: Airline) -> str:
+    """Logo da Voepass instalada junto ao código, sem afetar personalizadas."""
+    name = str(airline.name or "")
+    if airline.builtin and any(k in name.casefold() for k in ("voepass", "passaredo")):
+        return logo_from_name(name) or "/imagens/voepass.png"
+    path = str(airline.logo_path or "").strip()
+    if path:
+        return path if path.startswith(("/", "https://", "http://")) else "/" + path
+    return logo_from_name(name) or ""
 
 
 def _can_manage(user, airline: Airline) -> bool:
@@ -297,7 +309,7 @@ def airline_list(request: Request, db: Session = Depends(get_db)):
         .options(selectinload(Airline.calculation_types))
         .order_by(Airline.builtin.desc(), Airline.name)
     ).all()
-    return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines, catalog_categories=CATALOG_CATEGORIES))
+    return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines, catalog_categories=CATALOG_CATEGORIES, catalog_logo_urls={item.id: _catalog_logo(item) for item in airlines}))
 
 
 @router.get("/new")
@@ -465,6 +477,7 @@ def manage_airline(airline_id: int, request: Request, db: Session = Depends(get_
         context(
             request, user=user, airline=airline, can_manage=_can_manage(user, airline),
             catalog_categories=CATALOG_CATEGORIES,
+            catalog_logo_url=_catalog_logo(airline),
             partner_airlines=partner_airlines,
             selected_partner_names=selected_partner_names,
             manual_partner_names=manual_partner_names,

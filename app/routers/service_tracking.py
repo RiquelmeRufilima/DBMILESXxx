@@ -19,6 +19,15 @@ KINDS = {
     "seguros": ("insurance", "Seguros"),
 }
 
+def _service_val(service: dict, *keys) -> str:
+    """Compatibilidade com campos usados nas versões antigas do editor."""
+    for key in keys:
+        value = service.get(key)
+        if value not in (None, "", [], {}):
+            return str(value).strip()
+    return ""
+
+
 def _list_services(data, key):
     services = data.get("services") if isinstance(data, dict) else None
     rows = services.get(key, []) if isinstance(services, dict) else []
@@ -75,6 +84,15 @@ def list_tracking(kind: str, request: Request, page: int = 1, q: str = "", db: S
                 continue
             results.append({"group_id": group.id, "client": name, "service": service,
                             "summary": details or title, "creator": (accepted.user.name if accepted.user else "Equipe"),
+                            "code": str(data.get("quote_code") or f"m{group.id:04d}"),
+                            "start_date": _service_val(service, "start_date", "checkin", "check_in", "checkin_date", "date_start", "arrival_date"),
+                            "start_time": _service_val(service, "start_time", "checkin_time", "check_in_time"),
+                            "end_date": _service_val(service, "end_date", "checkout", "check_out", "checkout_date", "date_end", "departure_date"),
+                            "end_time": _service_val(service, "end_time", "checkout_time", "check_out_time"),
+                            "reservation": _service_val(service, "reservation_number", "confirmation_number", "voucher", "locator"),
+                            "hotel_name": _service_val(service, "name", "hotel", "hotel_name", "property_name", "type"),
+                            "address": _service_val(service, "address", "hotel_address", "location"),
+                            "status": str(accepted.status or ""),
                             "updated_at": accepted.updated_at, "index": index})
     total = len(results)
     subset = results if backend == 'postgresql' else results[(page-1)*20:page*20]

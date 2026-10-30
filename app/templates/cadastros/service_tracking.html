@@ -25,10 +25,15 @@
 .tracking-entry .tracking-service span{overflow-wrap:anywhere;color:var(--muted);font-size:.75rem}
 .tracking-entry .tracking-edit{display:inline-flex;gap:7px;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:10px;padding:10px 13px;text-decoration:none;font-size:.77rem;font-weight:900;white-space:nowrap}
 .tracking-entry .tracking-edit:hover{border-color:var(--cyan);background:color-mix(in srgb,var(--cyan) 10%,var(--panel))}
+.tracking-code{display:inline-flex!important;width:max-content;margin-bottom:3px!important;padding:3px 8px;border-radius:6px;background:color-mix(in srgb,var(--cyan) 16%,var(--panel));color:var(--text)!important;font-weight:900;letter-spacing:.02em}
+.tracking-actions{display:grid;gap:9px;justify-items:end}
+.tracking-status{font-size:.68rem;text-transform:capitalize;color:var(--muted);font-weight:800}
+.tracking-entry .tracking-service small{color:var(--muted)}
+.tracking-entry .tracking-service b{color:var(--text)}
 .tracking-empty{padding:34px 18px;text-align:center;border:1px dashed var(--border);border-radius:16px;background:var(--panel)}
 .tracking-pagination{display:flex;align-items:center;justify-content:center;gap:14px;margin:24px 0;color:var(--muted);font-size:.83rem}
-@media(max-width:950px){.tracking-entry{grid-template-columns:100px minmax(0,1fr) auto}.tracking-entry .tracking-service{grid-column:2}.tracking-entry .tracking-edit{grid-column:3;grid-row:1/3}}
-@media(max-width:680px){.tracking-search{align-items:stretch;flex-direction:column}.tracking-entry{grid-template-columns:1fr 1fr;gap:10px}.tracking-entry .tracking-date{grid-column:1}.tracking-entry .tracking-client{grid-column:1/-1;grid-row:2}.tracking-entry .tracking-service{grid-column:1/-1;grid-row:3}.tracking-entry .tracking-edit{grid-column:2;grid-row:1;justify-self:end}.tracking-types a{flex:1;justify-content:center;font-size:.71rem}}
+@media(max-width:950px){.tracking-entry{grid-template-columns:100px minmax(0,1fr) auto}.tracking-entry .tracking-service{grid-column:2}.tracking-entry .tracking-actions{grid-column:3;grid-row:1/3}}
+@media(max-width:680px){.tracking-search{align-items:stretch;flex-direction:column}.tracking-entry{grid-template-columns:1fr 1fr;gap:10px}.tracking-entry .tracking-date{grid-column:1}.tracking-entry .tracking-client{grid-column:1/-1;grid-row:2}.tracking-entry .tracking-service{grid-column:1/-1;grid-row:3}.tracking-entry .tracking-actions{grid-column:2;grid-row:1;justify-self:end}.tracking-types a{flex:1;justify-content:center;font-size:.71rem}}
 </style>
 {% endblock %}
 {% block content %}
@@ -49,14 +54,30 @@
     {% for item in items %}
       {% set service = item.service %}
       <article class="tracking-entry">
-        <div class="tracking-date"><strong>{{ (service.get('start_date') or 'Data não informada') }}</strong><small>{{ service.get('start_time') or '' }}{% if service.get('end_date') %} até {{ service.get('end_date') }}{% endif %}</small></div>
-        <div class="tracking-client"><strong>{{ item.client }}</strong><small>Cotação #{{ item.group_id }} • Cadastrada por {{ item.creator }}</small></div>
-        <div class="tracking-service">
-          <strong>{{ service.get('name') or service.get('type') or title }}</strong>
-          <span>{% if service.get('origin') or service.get('destination') %}{{ service.get('origin') or '?' }} → {{ service.get('destination') or '?' }} • {% endif %}{{ service.get('address') or service.get('description') or service.get('reservation_number') or item.summary or 'Serviço cadastrado' }}</span>
-          {% if service.get('reservation_number') %}<small>Reserva: {{ service.get('reservation_number') }}</small>{% endif %}
+        <div class="tracking-date">
+          <strong>{{ item.start_date or 'Data a informar' }}</strong>
+          <small>{{ item.start_time or '' }}{% if item.end_date %} até {{ item.end_date }} {{ item.end_time or '' }}{% endif %}</small>
         </div>
-        <a class="tracking-edit" href="/cadastros/cotacoes/{{ item.group_id }}?origem={{ kind }}&amp;tab=orcamento&amp;service={{ kinds[kind][0] }}&amp;service_index={{ item.index }}" aria-label="Editar {{ title }} da cotação de {{ item.client }}" title="Abrir o serviço na cotação original">✎ Editar</a>
+        <div class="tracking-client">
+          <small class="tracking-code">{{ item.code }}</small>
+          <strong>{{ item.client }}</strong>
+          <small>Cadastrada por {{ item.creator }}</small>
+        </div>
+        <div class="tracking-service">
+          <strong>{{ item.hotel_name or title }}</strong>
+          {% if kind == 'hospedagens' %}
+            <span>{{ item.address or service.get('description') or 'Endereço não informado' }}</span>
+            <small>Check-in: {{ item.start_date or 'A informar' }}{% if item.start_time %} às {{ item.start_time }}{% endif %} · Check-out: {{ item.end_date or 'A informar' }}{% if item.end_time %} às {{ item.end_time }}{% endif %}</small>
+            <small>{% if service.get('rooms') %}{{ service.get('rooms') }} quarto(s) · {% endif %}{% if service.get('nights') %}{{ service.get('nights') }} noite(s) · {% endif %}Hospedagem</small>
+          {% else %}
+            <span>{{ item.address or service.get('description') or item.summary or 'Serviço cadastrado' }}</span>
+          {% endif %}
+          {% if item.reservation %}<small>Reserva / confirmação: <b>{{ item.reservation }}</b></small>{% endif %}
+        </div>
+        <div class="tracking-actions">
+          <span class="tracking-status">{{ item.status|replace('_',' ')|capitalize }}</span>
+          <a class="tracking-edit" href="/cadastros/cotacoes/{{ item.group_id }}?origem={{ kind }}&amp;tab=orcamento&amp;service={{ kinds[kind][0] }}&amp;service_index={{ item.index }}" aria-label="Editar {{ title }} da cotação de {{ item.client }}" title="Abrir o serviço na cotação original">✎ Editar</a>
+        </div>
       </article>
     {% else %}
       <section class="tracking-empty"><h3>Nenhum acompanhamento encontrado</h3><p class="muted">Cadastre um serviço dentro da cotação aceita para acompanhar aqui.</p></section>

@@ -2038,15 +2038,28 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
         "terms": str(form.get("terms") or "").strip(),
         "notes": str(form.get("notes") or "").strip(),
     })
-    for key in ["flights", "passengers", "cost_items", "sale_items"]:
-        parsed = _safe_json(str(form.get(f"{key}_json") or "[]"), [])
-        data[key] = parsed if isinstance(parsed, list) else []
-    services = _safe_json(str(form.get("services_json") or "{}"), {})
-    data["services"] = services if isinstance(services, dict) else {}
-    commission = _safe_json(str(form.get("commission_json") or "{}"), {})
-    data["commission"] = commission if isinstance(commission, dict) else {"receive": [], "pay": [], "extra": 0}
-    sale = _safe_json(str(form.get("sale_json") or "{}"), {})
-    data["sale"] = sale if isinstance(sale, dict) else {"date": "", "launched": False, "launched_at": "", "notes": ""}
+    # Não apaga reservas/hospedagens nem outros itens quando o JavaScript
+    # falha em preencher um campo oculto. Um JSON explícito []/{} continua
+    # sendo aceito para remoções intencionais feitas no editor.
+    for key in ("flights", "passengers", "cost_items", "sale_items"):
+        raw = str(form.get(f"{key}_json") or "").strip()
+        if raw:
+            parsed = _safe_json(raw, None)
+            if not isinstance(parsed, list):
+                flash(request, f"Os dados de {key} não puderam ser validados. Nenhuma alteração foi salva.", "error")
+                return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+            data[key] = parsed
+    for key, fallback in (("services", {}), ("commission", {}), ("sale", {})):
+        raw = str(form.get(f"{key}_json") or "").strip()
+        if raw:
+            parsed = _safe_json(raw, None)
+            if not isinstance(parsed, dict):
+                flash(request, f"Os dados de {key} estão inválidos. Nenhuma alteração foi salva.", "error")
+                return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
+            # Mantém chaves não editáveis vindas de versões anteriores.
+            old_data = data.get(key)
+            data[key] = {**(old_data if isinstance(old_data, dict) else fallback), **parsed}
+
 
     # Alterações no valor feitas na tela principal aparecem imediatamente no preview.
     current_sale_total = _item_total(data, "sale_items")
@@ -2140,11 +2153,10 @@ async def salvar_cotacao(group_id: int, request: Request, db: Session = Depends(
                 continue
             if not normalize_supplier(service, label="o fornecedor do serviço", allowed_types={"fornecedor"}):
                 return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
-            if not _iata_value_valid(service.get("origin")) or not _iata_value_valid(service.get("destination")):
-                flash(request, "Há um serviço com origem ou destino inválido. Digite um código IATA de exatamente 3 letras.", "error")
-                return RedirectResponse(f"/cadastros/cotacoes/{group_id}", status_code=303)
-            service["origin"] = _iata_code(service.get("origin"))
-            service["destination"] = _iata_code(service.get("destination"))
+            # IATA é regra de voo, não de hospedagem/transporte/cruzeiro.
+            if service_key == "hotel":
+                service.setdefault("origin", "")
+                service.setdefault("destination", "")
 
     # Garante link de check-in sugerido pela companhia e datas separadas.
     for fl in data.get("flights", []) or []:

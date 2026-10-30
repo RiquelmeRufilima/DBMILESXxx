@@ -35,7 +35,7 @@
       <span class="badge {{ 'builtin' if airline.builtin else 'custom' }}">{{ 'Regra original' if airline.builtin else 'Personalizada' }}</span>
     </div>
     <div class="airline-logo-wrap">
-      {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback large"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}
+      {% if catalog_logo_urls.get(airline.id) %}<img src="{{ catalog_logo_urls[airline.id] }}" alt="{{ airline.name }}" loading="lazy">{% else %}<span class="airline-fallback large"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}
     </div>
     <h2>{{ airline.name }}</h2>
     <div class="airline-scope-row">
