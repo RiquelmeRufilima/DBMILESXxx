@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import select
 
@@ -44,6 +46,7 @@ from .routers import (
     tags,
     admin_database,
     reservations,
+    performance,
     checkin_cron,
 )
 from .services.legacy_migration import migrate_legacy_data
@@ -110,6 +113,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(GZipMiddleware, minimum_size=1400, compresslevel=5)
+
 app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
@@ -121,8 +126,10 @@ app.add_middleware(
 
 @app.middleware("http")
 async def security_and_cache_headers(request, call_next):
-    """Cabeçalhos de segurança em todas as respostas + cache dos estáticos."""
+    """Cabeçalhos de segurança, tempo no servidor e cache dos estáticos."""
+    started = perf_counter()
     response = await call_next(request)
+    response.headers.setdefault("Server-Timing", f"app;dur={(perf_counter()-started)*1000:.1f}")
     path = request.url.path
     headers = response.headers
     headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -168,6 +175,7 @@ app.include_router(company.router)
 app.include_router(tags.router)
 app.include_router(admin_database.router)
 app.include_router(reservations.router)
+app.include_router(performance.router)
 app.include_router(requests.router)
 app.include_router(tasks.router)
 app.include_router(notifications.router)

@@ -1,14 +1,26 @@
-.venv
-.venv_antiga_*
-/data
-uploads
-__pycache__
-*.pyc
+.venv/
+__pycache__/
+*.py[cod]
+.env
+*.log
+data/.secret_key
+data/.local_control_hash
+data/backups/
+data/logs/*
+data/exports/*
+!data/logs/.gitkeep
+!data/exports/.gitkeep
+uploads/*
+!uploads/.gitkeep
+
+.env.local
+.env.production
+.vercel/
+
+# Dependencias e arquivos locais que nao devem ir ao repositorio
+node_modules/
+.pytest_cache/
 *.db
 *.sqlite
 *.sqlite3
-*.log
-app_BACKUP*
-app (2)
-backup
-backups
+data/

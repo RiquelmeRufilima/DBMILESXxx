@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Editar lógica | {{ airline.name }}{% endblock %}
 {% block page_title %}Editar lógica{% endblock %}
-{% block eyebrow %}LÓGICA DA COMPANHIA{% endblock %}
+{% block eyebrow %}COMPANHIA PERSONALIZADA{% endblock %}
 {% block content %}
 <section class="page-heading inline">
   <div>
@@ -12,7 +12,6 @@
   <a class="secondary-button" href="/airlines/{{ airline.id }}">Voltar para a companhia</a>
 </section>
 
-{% if converting_legacy %}<div class="notice-card muted" style="margin-bottom:16px;"><strong>Regra original em modo compatível.</strong><br>Você pode editar tudo. Quando clicar em salvar, somente esta regra passa para o motor de fórmula editável; cotações antigas permanecem intactas.</div>{% endif %}
 <form method="post" action="/airlines/{{ airline.id }}/types/{{ calc_type.id }}/edit" class="builder-layout" id="airlineBuilderForm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="fields_json" id="fieldsJson">
@@ -47,7 +46,7 @@
 
     <div class="form-section">
       <div class="section-title"><span class="step-badge">3</span><div><h2>Fórmula</h2><p>Para desconto percentual sobre a tarifa use o modelo abaixo.</p></div></div>
-      <label>Fórmula principal<textarea name="formula" id="formulaInput" rows="4" required>{{ formula_value }}</textarea></label>
+      <label>Fórmula principal<textarea name="formula" id="formulaInput" rows="4" required>{{ calc_type.formula }}</textarea></label>
       <div class="formula-help"><strong>Modelo:</strong><code>tarifa - (tarifa * desconto_percentual / 100)</code><small>Ex.: tarifa 1000 e desconto 10 = resultado 900.</small></div>
     </div>
 
@@ -66,7 +65,6 @@
   </aside>
 </form>
 
-{% if not converting_legacy and not airline.builtin %}
 <section class="panel" style="margin-top:18px;border-color:rgba(239,68,68,.35);">
   <div class="panel-heading">
     <div>
@@ -76,7 +74,7 @@
     </div>
   </div>
   <form method="post" action="/airlines/{{ airline.id }}/types/{{ calc_type.id }}/delete"
-        onsubmit='return confirm({{ ('Tem certeza que deseja excluir a lógica “' ~ (calc_type.name)|string ~ '”? O histórico será preservado.')|tojson }})'>
+        onsubmit="return confirm('Tem certeza que deseja excluir a lógica “{{ calc_type.name|e }}”? O histórico será preservado.');">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="ghost-button danger" type="submit">
       <svg class="ui-icon"><use href="#icon-trash"></use></svg>
@@ -84,6 +82,5 @@
     </button>
   </form>
 </section>
-{% endif %}
 {% endblock %}
 {% block scripts %}<script src="/static/js/company-builder.js?v=2" defer></script>{% endblock %}

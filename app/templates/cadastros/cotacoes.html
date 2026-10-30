@@ -4,6 +4,12 @@
 {% block eyebrow %}CONTROLE COMERCIAL{% endblock %}
 {% block head %}
 <style>
+.board-lane-skeleton{display:grid;gap:11px;padding:10px;min-height:110px;align-content:start;color:var(--muted)}
+.board-skeleton-line{height:38px;border-radius:9px;background:linear-gradient(95deg,var(--panel-2),var(--border),var(--panel-2));background-size:200% 100%;animation:dbm-shimmer 1.5s ease-in-out infinite}
+.board-skeleton-line:nth-child(2){width:76%}
+@keyframes dbm-shimmer{to{background-position-x:-200%}}
+.board-progress-note{margin:7px 0 12px;color:var(--muted);font-size:.84rem}
+@media(prefers-reduced-motion:reduce){.board-skeleton-line{animation:none}}
 .kanban-scrollbar-top{display:none;overflow-x:auto;overflow-y:hidden;height:19px;margin:4px 0 9px;border:1px solid rgba(113,161,207,.20);border-radius:999px;background:#10263c;scrollbar-color:#38a7d8 #10263c;scrollbar-width:auto}
 .kanban-scrollbar-top.is-active{display:block}
 .kanban-scrollbar-top-inner{height:1px;min-width:1px}
@@ -66,6 +72,7 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
       <p class="muted">Quadro de acompanhamento das cotações aceitas e manuais. Arraste os cards entre as fases ou abra para editar.</p>
     </div>
     <div class="button-row compact-actions">
+      <a class="secondary-button" href="/diagnostics/performance">⚡ Teste de velocidade</a>
       <a class="secondary-button" href="/cadastros/cotacoes-feitas"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Cotações feitas</a>
       <a class="secondary-button" href="/calculations/history"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Histórico de cálculos</a>
       <a class="secondary-button" href="/requests/links"><svg class="ui-icon"><use href="#icon-link"></use></svg> Links</a>
@@ -121,6 +128,10 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
     </form>
   </section>
 
+  {% if board_deferred|default(false) %}
+  <p class="board-progress-note" id="boardProgress" role="status" aria-live="polite">Preparando o quadro. As áreas aparecerão progressivamente...</p>
+  <noscript><p>Ative o JavaScript ou <a href="?__load=1">abra a versão completa do quadro</a>.</p></noscript>
+  {% endif %}
   <div class="kanban-scrollbar-top" data-kanban-scroll-top aria-label="Barra horizontal superior do quadro de cotações"><div class="kanban-scrollbar-top-inner"></div></div>
   <div class="kanban-board" data-csrf="{{ csrf_token }}" data-kanban-scroll-board>
     {% for key,label,color in statuses %}
@@ -130,6 +141,9 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
           <b data-lane-total>{{ totals[key]|money }}</b>
         </header>
         <div class="kanban-dropzone" data-status="{{ key }}">
+          {% if board_deferred|default(false) %}
+            <div class="board-lane-skeleton" role="status" aria-live="polite"><span class="board-skeleton-line"></span><span class="board-skeleton-line"></span><small>Carregando cotações...</small></div>
+          {% else %}
           {% for card in grouped[key] %}
             {% set maker = card.maker %}
             <article class="quote-kanban-card {% if not card.accepted %}calculation-only{% endif %}" draggable="{{ 'true' if card.accepted else 'false' }}" data-group-id="{{ card.group.id }}" data-price="{{ card.total or 0 }}">
@@ -168,6 +182,7 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
           {% endfor %}
           {% if key == 'aguardando' and grouped[key]|length > 10 %}
           <button type="button" class="secondary-button board-more-btn" data-load-more data-page-size="10">Carregar mais 10 cotações</button>
+          {% endif %}
           {% endif %}
         </div>
       </section>
@@ -224,7 +239,10 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
     btn.textContent=`Carregar mais 10 (${Math.max(0,cards.length-current)} restantes)`;
   }
   document.querySelectorAll('.kanban-dropzone[data-status="aguardando"]').forEach(zone=>renderWaitingLimit(zone,true));
-  document.querySelectorAll('[data-load-more]').forEach(btn=>btn.addEventListener('click',()=>renderWaitingLimit(btn.closest('.kanban-dropzone'))));
+  board.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-load-more]');
+    if (btn) renderWaitingLimit(btn.closest('.kanban-dropzone'));
+  });
   let dragged = null;
   const currency = new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'});
   const updateLane = (zone) => {
@@ -244,15 +262,19 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
       zone.appendChild(placeholder);
     }
   };
-  document.querySelectorAll('.quote-kanban-card').forEach(card => {
-    card.addEventListener('dragstart', (event) => {
-      if (card.getAttribute('draggable') === 'false' || card.dataset.saving === '1') {event.preventDefault();return;}
-      dragged = card;
-      event.dataTransfer?.setData('text/plain', card.dataset.groupId || '');
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => {card.classList.remove('dragging');dragged = null;});
+  board.addEventListener('dragstart', (event) => {
+    const card = event.target.closest('.quote-kanban-card');
+    if (!card) return;
+    if (card.getAttribute('draggable') === 'false' || card.dataset.saving === '1') {event.preventDefault();return;}
+    dragged = card;
+    event.dataTransfer?.setData('text/plain', card.dataset.groupId || '');
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    card.classList.add('dragging');
+  });
+  board.addEventListener('dragend', event => {
+    const card = event.target.closest('.quote-kanban-card');
+    card?.classList.remove('dragging');
+    dragged = null;
   });
   document.querySelectorAll('.kanban-dropzone').forEach(zone => {
     zone.addEventListener('dragover', event => {
@@ -302,6 +324,85 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
       }
     });
   });
+
+  // Carrega os dados em outra requisição: o layout, os filtros e os botões
+  // ficam utilizáveis imediatamente. Os cards entram por lotes sem travar o navegador.
+  {% if board_deferred|default(false) %}
+  (async function loadBoardProgressively(){
+    const progress = document.getElementById('boardProgress');
+    const url = new URL(window.location.href);
+    url.searchParams.set('__load', '1');
+    try {
+      const response = await fetch(url, {credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, cache:'no-store'});
+      if (!response.ok) throw new Error('Resposta HTTP ' + response.status);
+      const html = await response.text();
+      const parsed = new DOMParser().parseFromString(html,'text/html');
+      const loadedBoard = parsed.querySelector('[data-kanban-scroll-board]');
+      if (!loadedBoard) throw new Error('Quadro inválido.');
+      const columns = [...board.querySelectorAll('.kanban-column')];
+      let loaded = 0;
+      const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
+      for (const col of columns){
+        const key = col.dataset.status;
+        const sourceCol = [...loadedBoard.querySelectorAll('.kanban-column')].find(c => c.dataset.status === key);
+        const zone = col.querySelector('.kanban-dropzone');
+        const sourceZone = sourceCol?.querySelector('.kanban-dropzone');
+        if (!zone || !sourceZone) continue;
+        zone.replaceChildren();
+        const nodes = [...sourceZone.children];
+        const more = nodes.find(n => n.matches('[data-load-more]'));
+        const cards = nodes.filter(n => n.matches('.quote-kanban-card'));
+        const others = nodes.filter(n => !n.matches('.quote-kanban-card, [data-load-more]'));
+        // Aguardando: os próximos lotes só são inseridos ao clicar em Carregar mais.
+        const waiting = key === 'aguardando';
+        let count = 0;
+        async function appendBatch(){
+          const batch = cards.slice(count, count + (waiting ? 10 : 12));
+          for (const card of batch) zone.appendChild(document.importNode(card,true));
+          count += batch.length;
+          if (waiting && more){
+            const existing = zone.querySelector('[data-load-more]');
+            existing?.remove();
+            if (count < cards.length){
+              const button = document.importNode(more,true);
+              button.hidden = false;
+              button.textContent = 'Carregar mais 10 (' + (cards.length-count) + ' restantes)';
+              button.addEventListener('click', event => {
+                event.stopPropagation();
+                appendBatch();
+              });
+              zone.appendChild(button);
+            }
+          }
+          await nextFrame();
+        }
+        if (cards.length){
+          if (waiting) await appendBatch();
+          else while(count < cards.length) await appendBatch();
+        } else for(const node of others) zone.appendChild(document.importNode(node,true));
+        const sourceCount = sourceCol.querySelector('[data-lane-count]');
+        const sourceTotal = sourceCol.querySelector('[data-lane-total]');
+        if (sourceCount) col.querySelector('[data-lane-count]').textContent = sourceCount.textContent;
+        if (sourceTotal) col.querySelector('[data-lane-total]').textContent = sourceTotal.textContent;
+        loaded++;
+        if (progress) progress.textContent = `Carregando áreas: ${loaded} de ${columns.length} prontas`;
+        refreshTopScrollbar();
+        await nextFrame();
+      }
+      if (progress){progress.textContent = 'Quadro atualizado.';progress.hidden = true;}
+      refreshTopScrollbar();
+    } catch (error){
+      if (progress){
+        progress.replaceChildren();
+        progress.append('Não foi possível carregar as cotações. ');
+        const retry = document.createElement('a');
+        retry.href = url.toString(); retry.textContent = 'Abrir quadro completo';
+        progress.appendChild(retry);
+      }
+      console.warn('Falha ao carregar quadro:', error);
+    }
+  })();
+  {% endif %}
 })();
 </script>
 {% endblock %}

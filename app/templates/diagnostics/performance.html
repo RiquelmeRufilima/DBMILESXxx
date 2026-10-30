@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Teste de velocidade | DBMILESX{% endblock %}
+{% block head %}
+<style>
+.perf-shell{max-width:1100px;margin:0 auto}
+.perf-intro{margin:12px 0 20px;color:var(--muted)}
+.perf-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:18px 0}
+.perf-summary .card-panel{padding:17px}.perf-summary small{display:block;color:var(--muted);font-size:.79rem;margin-bottom:6px}.perf-summary strong{font-size:1.65rem;color:var(--text)}
+.perf-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.perf-table{width:100%;border-collapse:collapse}
+.perf-table th,.perf-table td{padding:12px;text-align:left;border-bottom:1px solid var(--border)}.perf-table th{font-size:.8rem;color:var(--muted)}
+.perf-table td{font-variant-numeric:tabular-nums}.perf-scroll{overflow-x:auto}
+.perf-bar{height:9px;background:var(--border);overflow:hidden;border-radius:999px;margin:5px 0}.perf-bar > span{height:100%;background:var(--cyan);display:block;border-radius:999px;transition:width .25s}
+.perf-help{color:var(--muted);font-size:.82rem;margin:14px 0;line-height:1.6}
+.perf-result{margin-top:14px;min-height:28px}.perf-bad{color:#dc6262}.perf-good{color:#1baf8c}
+@media(max-width:760px){.perf-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.perf-table th,.perf-table td{padding:8px;font-size:.78rem}}
+</style>
+{% endblock %}
+{% block content %}
+<section class="perf-shell">
+  <div class="page-hero"><div><span class="eyebrow">DIAGNÓSTICO</span><h1>Teste de velocidade do sistema</h1><p class="perf-intro">Meça separadamente a abertura inicial, o banco de dados e o recebimento das páginas. Nenhum dado será alterado.</p></div><a class="secondary-button" href="/cadastros/cotacoes">Voltar às cotações</a></div>
+  <div class="perf-summary">
+    <article class="card-panel"><small>DOM desta página</small><strong id="perfDom">—</strong></article>
+    <article class="card-panel"><small>Página completamente carregada</small><strong id="perfLoad">—</strong></article>
+    <article class="card-panel"><small>Resposta inicial desta página</small><strong id="perfTtfb">—</strong></article>
+    <article class="card-panel"><small>Conexão</small><strong id="perfConnection" style="font-size:1rem">—</strong></article>
+  </div>
+  <article class="card-panel">
+    <h2>Teste de páginas pesadas</h2>
+    <p class="perf-help">Clique para testar. O navegador fará uma leitura de cada página em sequência, com sua sessão atual. Os tempos incluem rede, servidor e processamento da resposta. Resultados podem variar pela conexão, pelo tamanho do histórico e pelo servidor.</p>
+    <div class="perf-actions"><button class="primary-button" id="perfStart" type="button">Iniciar teste</button><button class="secondary-button" id="perfCopy" type="button" disabled>Copiar relatório</button></div>
+    <div class="perf-scroll"><table class="perf-table"><thead><tr><th>Página</th><th>Resposta inicial</th><th>Tempo total</th><th>Tamanho recebido</th><th>Resultado</th></tr></thead><tbody id="perfRows"><tr><td colspan="5">Clique em “Iniciar teste” para começar.</td></tr></tbody></table></div>
+    <p class="perf-result" id="perfStatus" role="status" aria-live="polite"></p>
+  </article>
+  <p class="perf-help">Para comparar: faça um teste agora e outro depois de publicar as melhorias, usando o mesmo celular ou computador e a mesma rede. Veja também o gráfico <strong>Network</strong> e o relatório <strong>Lighthouse</strong> nas ferramentas de desenvolvedor do Chrome.</p>
+</section>
+<script>
+(() => {
+  const fmt = ms => `${Math.round(ms)} ms`;
+  const n = performance.getEntriesByType('navigation')[0];
+  if (n) {
+    document.getElementById('perfTtfb').textContent = fmt(n.responseStart - n.requestStart);
+    document.getElementById('perfDom').textContent = fmt(n.domContentLoadedEventEnd - n.startTime);
+    const showLoad = () => document.getElementById('perfLoad').textContent = fmt(performance.getEntriesByType('navigation')[0]?.loadEventEnd || performance.now());
+    if (document.readyState === 'complete') showLoad(); else window.addEventListener('load', showLoad, {once:true});
+  }
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  document.getElementById('perfConnection').textContent = connection?.effectiveType || 'Não informado';
+  const paths = [
+    {name:'Quadro de cotações (com dados)', url:'/cadastros/cotacoes?__load=1'},
+    {name:'Histórico de cálculos', url:'/calculations/history'},
+    {name:'Fluxo de cálculo', url:'/cadastros/fluxo-calculo'},
+    {name:'Arquivo de estilos', url:'/static/css/app.css?v=5.29.1'},
+  ];
+  const startBtn = document.getElementById('perfStart');
+  const copyBtn = document.getElementById('perfCopy');
+  const rows = document.getElementById('perfRows');
+  const status = document.getElementById('perfStatus');
+  let lastReport = '';
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true; copyBtn.disabled = true; rows.replaceChildren();
+    const results = [];
+    try {
+      for(let i=0;i<paths.length;i++){
+        const entry = paths[i];
+        status.textContent = `Testando ${i+1}/${paths.length}: ${entry.name}...`;
+        const tr = rows.insertRow();
+        const label = tr.insertCell(); label.textContent = entry.name;
+        const first = tr.insertCell(); first.textContent = '...';
+        const total = tr.insertCell(); total.textContent = '...';
+        const size = tr.insertCell(); size.textContent = '...';
+        const result = tr.insertCell(); result.textContent = 'Em andamento';
+        const abort = new AbortController();
+        const timeout = setTimeout(() => abort.abort(), 20000);
+        const url = new URL(entry.url, location.origin);
+        // Não usar cache, para medir a solicitação efetiva em vez da memória do browser.
+        url.searchParams.set('__perf', Date.now().toString());
+        const start = performance.now();
+        let wait = 0;
+        try {
+          const response = await fetch(url, {credentials:'same-origin',cache:'no-store',signal:abort.signal});
+          wait = performance.now() - start;
+          const blob = await response.blob();
+          const elapsed = performance.now() - start;
+          first.textContent = fmt(wait);
+          total.textContent = fmt(elapsed);
+          size.textContent = `${Math.round(blob.size/1024)} KB`;
+          if (!response.ok || response.redirected && response.url.includes('/login')) throw new Error('HTTP ' + response.status + ' / sessão expirada');
+          result.textContent = elapsed < 1500 ? 'Rápido' : elapsed < 4000 ? 'Moderado' : 'Lento';
+          result.className = elapsed < 1500 ? 'perf-good' : elapsed >= 4000 ? 'perf-bad' : '';
+          results.push(`${entry.name}: resposta ${fmt(wait)}, total ${fmt(elapsed)}, ${Math.round(blob.size/1024)} KB (${result.textContent})`);
+        } catch(err) {
+          first.textContent = wait ? fmt(wait) : '—';
+          total.textContent = '—';
+          result.textContent = err?.name === 'AbortError' ? 'Limite de 20s' : 'Erro';
+          result.className = 'perf-bad';
+          results.push(`${entry.name}: ${result.textContent}`);
+        } finally {clearTimeout(timeout);}
+      }
+      const device = `${navigator.userAgent} / ${connection?.effectiveType || 'rede não informada'}`;
+      lastReport = `DBMILESX — teste de velocidade\n${new Date().toLocaleString('pt-BR')}\n${device}\n\n${results.join('\n')}`;
+      copyBtn.disabled = false;
+      status.textContent = 'Teste concluído. Copie o relatório para comparar os resultados.';
+    } finally {startBtn.disabled = false;}
+  });
+  copyBtn.addEventListener('click', async () => {
+    if(!lastReport)return;
+    try{await navigator.clipboard.writeText(lastReport);status.textContent='Relatório copiado.';}
+    catch{const box=document.createElement('textarea');box.value=lastReport;document.body.append(box);box.select();document.execCommand('copy');box.remove();status.textContent='Relatório copiado.';}
+  });
+})();
+</script>
+{% endblock %}

@@ -16,3 +16,17 @@ uploads/*
 .env.local
 .env.production
 .vercel/
+# Dependencias
+node_modules/
+
+# Cache de testes
+.pytest_cache/
+
+# Bancos de dados locais
+*.db
+*.sqlite
+*.sqlite3
+
+# Ambientes locais
+.env.*
+!.env.example

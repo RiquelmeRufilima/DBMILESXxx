@@ -666,6 +666,10 @@ html[data-theme="light"] .history-group-card>.history-card-head .quote-author-li
  .history-group-card>.history-card-head .history-expand-toggle:after{content:"Abrir detalhes"!important;font-size:.67rem!important;font-weight:800!important;white-space:nowrap!important}
  .history-group-card.is-history-expanded>.history-card-head .history-expand-toggle:after{content:"Fechar detalhes"!important}
 }
+/* Evita recalcular o layout de cartões que estão fora da tela. */
+@supports (content-visibility:auto) {
+  .history-group-card {content-visibility:auto;contain-intrinsic-size:auto 260px}
+}
 </style>{% endblock %}
 {% block content %}
 {% macro option_price(quote) -%}
@@ -767,6 +771,7 @@ html[data-theme="light"] .history-group-card>.history-card-head .quote-author-li
     <p>Cada subcotação tem seu próprio bloco. Dentro dela, as opções ficam uma embaixo da outra, do menor valor para o maior.</p>
   </div>
   <div class="page-actions">
+    <a class="secondary-button" href="/diagnostics/performance">⚡ Teste de velocidade</a>
     <a class="primary-button" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Nova cotação</a>
   </div>
 </section>

@@ -1042,10 +1042,36 @@ def cotacoes(request: Request, db: Session = Depends(get_db)):
     board_statuses = _board_statuses(db, user)
     valid_statuses = {key for key, _label, _color in board_statuses}
 
+    # Responder com o esqueleto do quadro ANTES de consultar centenas de cotações.
+    # A requisição ?__load=1 carrega os cards, mantendo a mesma autorização e filtros.
+    filters = {"q": q, "status": status_filter, "client": client_filter,
+               "user_id": str(user_filter or ""), "from": qp.get("from") or "",
+               "to": qp.get("to") or ""}
+    if qp.get("__load") != "1":
+        return templates.TemplateResponse(
+            request, "cadastros/cotacoes.html",
+            context(request, user=user, statuses=board_statuses,
+                    grouped={key: [] for key, _, _ in board_statuses},
+                    totals={key: 0.0 for key, _, _ in board_statuses},
+                    counts={key: 0 for key, _, _ in board_statuses},
+                    people=[], users=_users_for_filters(db, user), filters=filters,
+                    board_deferred=True),
+        )
+
+    # Aplicar filtros indexáveis ANTES de carregar as relações e montar os cards.
+    from datetime import time, timedelta
+    query = select(AcceptedQuote).where(_accepted_filter(user))
+    if status_filter:
+        query = query.where(AcceptedQuote.status == status_filter) if status_filter in valid_statuses else query.where(False)
+    if user_filter:
+        query = query.where(AcceptedQuote.user_id == user_filter)
+    if date_from:
+        query = query.where(AcceptedQuote.selected_at >= datetime.combine(date_from, time.min))
+    if date_to:
+        query = query.where(AcceptedQuote.selected_at < datetime.combine(date_to + timedelta(days=1), time.min))
+
     rows = db.scalars(
-        select(AcceptedQuote)
-        .where(_accepted_filter(user))
-        .options(
+        query.options(
             selectinload(AcceptedQuote.group).selectinload(QuoteGroup.trip),
             selectinload(AcceptedQuote.group).selectinload(QuoteGroup.user).selectinload(WebUser.profile),
             selectinload(AcceptedQuote.group).selectinload(QuoteGroup.assigned_user).selectinload(WebUser.profile),
@@ -1111,7 +1137,8 @@ def cotacoes(request: Request, db: Session = Depends(get_db)):
             counts=counts,
             people=people,
             users=_users_for_filters(db, user),
-            filters={"q": q, "status": status_filter, "client": client_filter, "user_id": str(user_filter or ""), "from": qp.get("from") or "", "to": qp.get("to") or ""},
+            filters=filters,
+            board_deferred=False,
         ),
     )
 
@@ -1207,9 +1234,23 @@ def fluxo_calculo(request: Request, db: Session = Depends(get_db)):
         daily[key][field] += 1
         daily[key]["total_value"] += float(value or 0)
 
+    # O fluxo diário não precisa varrer milhares de registros antigos. Mantemos
+    # grupos antigos com opções calculadas dentro do período selecionado.
+    from datetime import time, timedelta
+    period_start = datetime.combine(date_from, time.min)
+    period_end = datetime.combine(date_to + timedelta(days=1), time.min)
+    option_in_period = (
+        select(QuoteOptionIndex.group_id)
+        .join(WebQuote, WebQuote.id == QuoteOptionIndex.quote_id)
+        .where(WebQuote.created_at >= period_start, WebQuote.created_at < period_end)
+    )
     groups = db.scalars(
         select(QuoteGroup)
         .where(_group_filter(user))
+        .where(
+            (QuoteGroup.created_at >= period_start) & (QuoteGroup.created_at < period_end)
+            | QuoteGroup.id.in_(option_in_period)
+        )
         .options(
             selectinload(QuoteGroup.trip),
             selectinload(QuoteGroup.user).selectinload(WebUser.profile),
@@ -1244,7 +1285,9 @@ def fluxo_calculo(request: Request, db: Session = Depends(get_db)):
 
     accepted_rows = db.scalars(
         select(AcceptedQuote)
-        .where(_accepted_filter(user))
+        .where(_accepted_filter(user),
+               AcceptedQuote.selected_at >= period_start,
+               AcceptedQuote.selected_at < period_end)
         .options(selectinload(AcceptedQuote.user).selectinload(WebUser.profile), selectinload(AcceptedQuote.group).selectinload(QuoteGroup.trip))
         .order_by(desc(AcceptedQuote.selected_at))
         .limit(3000)
@@ -1268,7 +1311,9 @@ def fluxo_calculo(request: Request, db: Session = Depends(get_db)):
     linked_ids = select(QuoteOptionIndex.quote_id)
     legacy_rows = db.scalars(
         select(WebQuote)
-        .where(_quote_filter(user), WebQuote.id.notin_(linked_ids))
+        .where(_quote_filter(user), WebQuote.id.notin_(linked_ids),
+               WebQuote.created_at >= period_start,
+               WebQuote.created_at < period_end)
         .options(selectinload(WebQuote.user).selectinload(WebUser.profile), selectinload(WebQuote.airline), selectinload(WebQuote.trip))
         .order_by(desc(WebQuote.created_at))
         .limit(1000)
