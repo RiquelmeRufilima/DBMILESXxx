@@ -384,12 +384,45 @@
       <div class="field-with-button person-search-wrapper"><div class="field-label-line"><label for="svc_supplier">Fornecedor</label><a class="secondary-button tiny" href="/persons/new?quick=1&person_type=fornecedor" target="_blank" rel="noopener">+ Cadastrar</a></div><input id="svc_supplier" class="person-search" placeholder="Digite para filtrar fornecedores" autocomplete="off" data-person-type="fornecedor" data-require-selection="1"><input type="hidden" id="svc_supplier_id" class="person-id"></div>
       <label>Valor<input id="svc_value" placeholder="R$ 0,00"></label>
     </div>
+    <div class="form-grid cols-2 svc-sales-fields">
+      <label>Hóspedes / pessoas <small class="svc-auto-label">Vazio = nº de passageiros da cotação</small><input id="svc_guests" type="number" min="0" placeholder="Ex.: 3"></label>
+      <label>Valor de venda ao cliente <small class="svc-auto-label">Usado na mensagem; vazio = campo Valor</small><input id="svc_sale_value" placeholder="R$ 0,00"></label>
+    </div>
+    <fieldset class="svc-amenities"><legend>Comodidades / incluso (aparece na mensagem de venda)</legend>
+      <label><input type="checkbox" class="svc-amenity" value="☕ Café da manhã incluso"> Café da manhã</label>
+      <label><input type="checkbox" class="svc-amenity" value="📶 Wi-Fi"> Wi-Fi</label>
+      <label><input type="checkbox" class="svc-amenity" value="🔄 Cancelamento grátis"> Cancelamento grátis</label>
+      <label><input type="checkbox" class="svc-amenity" value="🅿️ Estacionamento"> Estacionamento</label>
+      <label><input type="checkbox" class="svc-amenity" value="🏊 Piscina"> Piscina</label>
+      <label><input type="checkbox" class="svc-amenity" value="❄️ Ar-condicionado"> Ar-condicionado</label>
+      <label><input type="checkbox" class="svc-amenity" value="🚐 Transfer incluso"> Transfer</label>
+      <label><input type="checkbox" class="svc-amenity" value="🍽️ Pensão completa"> Pensão completa</label>
+      <label class="svc-amenity-other">Outros (separe por vírgula)<input id="svc_amenities_other" placeholder="Ex.: Academia, Vista para o mar"></label>
+    </fieldset>
     <label>Descrição<textarea id="svc_description" rows="5" placeholder="Observações, bilhete, instruções, política, detalhes do serviço..."></textarea></label>
     <small class="muted">Serviços são opcionais e não ficam como pendência. Eles só aparecem na reserva/PDF quando forem adicionados.</small>
   </div>
   <div class="dialog-actions"><button class="ghost-button" type="button" onclick="closeDialog('serviceModal')">Cancelar</button><button class="primary-button" type="button" onclick="saveServiceFromModal()">Salvar</button></div>
 </dialog>
 
+<style>
+.service-row.rich>div:first-child{flex:1}
+.service-sales-message{margin-top:8px;border:1px solid var(--border,#315273);border-radius:12px;background:rgba(22,161,237,.06);overflow:hidden}
+.service-sales-message summary{cursor:pointer;padding:9px 12px;font-weight:900;font-size:.8rem;color:var(--cyan,#26c5e6);list-style:none}
+.service-sales-message summary::-webkit-details-marker{display:none}
+.service-sales-message summary::after{content:' ▸';}
+.service-sales-message[open] summary::after{content:' ▾';}
+.service-sales-message textarea{display:block;width:calc(100% - 24px);box-sizing:border-box;margin:0 12px 10px;padding:12px;border:1px solid var(--border,#315273);border-radius:10px;background:rgba(5,15,27,.72);color:var(--text,#fff);line-height:1.5;resize:vertical;font:inherit;font-size:.84rem}
+.service-sales-message .button-row{display:flex;gap:8px;flex-wrap:wrap;padding:0 12px 12px}
+.svc-amenities{border:1px solid var(--border,#315273);border-radius:12px;padding:10px 12px;margin:0;display:flex;flex-wrap:wrap;gap:8px 16px}
+.svc-amenities legend{font-weight:900;font-size:.8rem;padding:0 6px}
+.svc-amenities label{display:inline-flex!important;align-items:center;gap:6px;font-weight:700!important}
+.svc-amenities input[type=checkbox]{width:auto!important}
+.svc-amenities .svc-amenity-other{display:grid!important;flex:1 1 100%}
+html[data-theme="light"] .service-sales-message{background:#f3f8fc;border-color:#c7dce9}
+html[data-theme="light"] .service-sales-message textarea{background:#fff;color:#17304b;border-color:#c4d7e6}
+html[data-theme="light"] .service-sales-message summary{color:#155b91}
+</style>
 <script id="cotacaoInitialData" type="application/json">{{ data|default({})|tojson }}</script>
 <script id="airportMapData" type="application/json">{{ airport_map|default({})|tojson }}</script>
 <script id="airlineOptionsData" type="application/json">{{ airline_options|default([])|tojson }}</script>
@@ -683,6 +716,12 @@ function openServiceModal(key,index=null){
   ['name','link','reservation_number','start_date','start_time','end_date','end_time','origin','destination','address','nights','rooms','type','stars','value','description'].forEach(k=>setVal('svc_'+k,s[k]));
   setPersonField('svc_supplier','svc_supplier_id',s.supplier||'',s.supplier_person_id||'');
   if(s.value) setVal('svc_value',brMoney(s.value));
+  setVal('svc_guests', s.guests||'');
+  setVal('svc_sale_value', s.sale_value?brMoney(s.sale_value):'');
+  const amenities=Array.isArray(s.amenities)?s.amenities:[];
+  const known=[...document.querySelectorAll('#serviceModal .svc-amenity')].map(el=>el.value);
+  document.querySelectorAll('#serviceModal .svc-amenity').forEach(el=>{el.checked=amenities.includes(el.value);});
+  setVal('svc_amenities_other', amenities.filter(a=>!known.includes(a)).join(', '));
   updateServiceFieldVisibility(key);
   updateStayDuration();
   updateHotelStars();
@@ -735,13 +774,66 @@ function saveServiceFromModal(){
     }
   }
 
-  const s={name:val('svc_name'),link:val('svc_link'),reservation_number:val('svc_reservation_number'),start_date:val('svc_start_date'),start_time:val('svc_start_time'),end_date:val('svc_end_date'),end_time:val('svc_end_time'),origin:val('svc_origin'),destination:val('svc_destination'),address:val('svc_address'),nights:Number(val('svc_nights')||0),rooms:Number(val('svc_rooms')||0),type:val('svc_type'),stars:val('svc_stars'),supplier:val('svc_supplier'),supplier_person_id:val('svc_supplier_id')||null,value:parseMoney(val('svc_value')),description:val('svc_description')};
+  const s={name:val('svc_name'),link:val('svc_link'),reservation_number:val('svc_reservation_number'),start_date:val('svc_start_date'),start_time:val('svc_start_time'),end_date:val('svc_end_date'),end_time:val('svc_end_time'),origin:val('svc_origin'),destination:val('svc_destination'),address:val('svc_address'),nights:Number(val('svc_nights')||0),rooms:Number(val('svc_rooms')||0),type:val('svc_type'),stars:val('svc_stars'),supplier:val('svc_supplier'),supplier_person_id:val('svc_supplier_id')||null,value:parseMoney(val('svc_value')),description:val('svc_description'),guests:Number(val('svc_guests')||0)||'',sale_value:parseMoney(val('svc_sale_value'))||'',amenities:[...[...document.querySelectorAll('#serviceModal .svc-amenity:checked')].map(el=>el.value),...val('svc_amenities_other').split(',').map(t=>t.trim()).filter(Boolean)]};
   if(!Array.isArray(services[key]))services[key]=[];
   if(editServiceIndex!==null)services[key][editServiceIndex]=s; else services[key].push(s);
   closeDialog('serviceModal'); renderAll();
 }
 function serviceSummary(s){const parts=[];if(s.stars && Number(s.stars)>=1 && Number(s.stars)<=5)parts.push('★'.repeat(Number(s.stars))+'☆'.repeat(5-Number(s.stars)));if(s.nights)parts.push(s.nights+' diária(s)'); if(s.origin||s.destination)parts.push(`${s.origin||''}${s.origin||s.destination?' → ':''}${s.destination||''}`); if(s.start_date||s.start_time||s.end_date||s.end_time){const start=formatDateTime(s.start_date,s.start_time,'');const end=formatDateTime(s.end_date,s.end_time,'');parts.push([start,end].filter(Boolean).join(' até '));} if(s.address)parts.push(s.address); if(s.reservation_number)parts.push('Reserva '+s.reservation_number); if(s.value)parts.push(brMoney(s.value)); return parts.filter(Boolean).join(' • ');}
-function renderServices(){['hotel','transport','cruise','experiences','insurance','additional'].forEach(key=>{const box=document.getElementById(key+'List'); if(!box)return; const arr=Array.isArray(services[key])?services[key]:[]; box.innerHTML=arr.map((s,i)=>`<div class="service-row rich"><div><strong>${s.name||serviceLabels[key]||'Serviço'}</strong><small>${serviceSummary(s)||'Sem detalhes adicionais'}</small>${s.description?`<p>${s.description}</p>`:''}</div><div class="button-row"><button type="button" class="ghost-button tiny" onclick="openServiceModal('${key}',${i})">Editar</button><button type="button" class="ghost-button danger tiny" onclick="services['${key}'].splice(${i},1);renderAll()">Excluir</button></div></div>`).join('')||'<div class="empty-strip">Nenhum item incluído.</div>';});}
+const serviceSaleMeta={
+  hotel:{icon:'🏨',title:'COTAÇÃO DE HOSPEDAGEM',total:'Valor total da hospedagem',support:'Suporte durante toda a estadia',details:'Confira todos os detalhes da hospedagem:'},
+  transport:{icon:'🚐',title:'COTAÇÃO DE TRANSPORTE',total:'Valor total do transporte',support:'Suporte durante todo o trajeto',details:'Confira todos os detalhes do transporte:'},
+  cruise:{icon:'🚢',title:'COTAÇÃO DE CRUZEIRO',total:'Valor total do cruzeiro',support:'Suporte durante toda a viagem',details:'Confira todos os detalhes do cruzeiro:'},
+  experiences:{icon:'🎟️',title:'COTAÇÃO DE EXPERIÊNCIA TURÍSTICA',total:'Valor total da experiência',support:'Suporte durante toda a experiência',details:'Confira todos os detalhes da experiência:'},
+  insurance:{icon:'🛡️',title:'COTAÇÃO DE SEGURO VIAGEM',total:'Valor total do seguro',support:'Suporte durante toda a viagem',details:'Confira todos os detalhes do seguro:'},
+  additional:{icon:'⭐',title:'COTAÇÃO DE SERVIÇO ADICIONAL',total:'Valor total do serviço',support:'Suporte durante todo o serviço',details:'Confira todos os detalhes do serviço:'}
+};
+function weekdayDateBr(value){
+  const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return formatDateBr(value);
+  const names=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  const day=new Date(Date.UTC(+m[1],+m[2]-1,+m[3])).getUTCDay();
+  return `${names[day]}, ${m[3]}/${m[2]}/${m[1]}`;
+}
+function serviceSalesMessage(key,s){
+  const meta=serviceSaleMeta[key]||serviceSaleMeta.additional;
+  const lines=[`${meta.icon} *${meta.title}*`,''];
+  const stars=Number(s.stars||0);
+  lines.push(`${meta.icon} *${s.name||serviceLabels[key]||'Serviço'}*${key==='hotel'&&stars>=1&&stars<=5?' '+'⭐'.repeat(stars):''}`);
+  if(s.address)lines.push(`📍 ${s.address}`);
+  if(key!=='hotel'&&(s.origin||s.destination))lines.push(`📍 ${s.origin||'?'} → ${s.destination||'?'}`);
+  lines.push('');
+  const startLabel=key==='hotel'?'Check-in':(key==='insurance'?'Início da cobertura':'Início');
+  const endLabel=key==='hotel'?'Check-out':(key==='insurance'?'Fim da cobertura':'Término');
+  const withTime=(d,t)=>`${weekdayDateBr(d)}${t?' às '+String(t).slice(0,5):''}`;
+  if(s.start_date)lines.push(`📅 *${startLabel}:* ${withTime(s.start_date,key==='hotel'?'':s.start_time)}`);
+  if(s.end_date)lines.push(`📅 *${endLabel}:* ${withTime(s.end_date,key==='hotel'?'':s.end_time)}`);
+  const nights=Number(s.nights||0);
+  if(['hotel','cruise'].includes(key)&&nights)lines.push(`🌙 *${key==='hotel'?'Estadia':'Duração'}:* ${nights} ${nights===1?'noite':'noites'}`);
+  const guests=Number(s.guests||0)||(Array.isArray(passengers)?passengers.length:0);
+  if(guests)lines.push(`👤 *${key==='hotel'?'Hóspedes':'Pessoas'}:* ${guests} ${guests===1?'adulto':'adultos'}`);
+  const rooms=Number(s.rooms||0);
+  if(key==='hotel'&&rooms)lines.push(`🛏️ *Acomodação:* ${rooms} ${rooms===1?'quarto':'quartos'}${s.type?' — '+s.type:''}`);
+  else if(s.type)lines.push(`🛏️ *Tipo:* ${s.type}`);
+  const amenities=Array.isArray(s.amenities)?s.amenities.filter(Boolean):[];
+  if(amenities.length){lines.push('','*Comodidades:*',...amenities.map(a=>/^\p{Extended_Pictographic}/u.test(a)?a:`✔️ ${a}`));}
+  const price=Number(s.sale_value||0)||Number(s.value||0);
+  if(price){lines.push('',`💰 *${meta.total}: ${brMoney(price)}*`);}
+  lines.push('','*Incluso na reserva:*','✅ Taxas inclusas',`✅ ${meta.support}`,'✅ Suporte jurídico');
+  if(s.link)lines.push('',`🔎 *${meta.details}*`,s.link);
+  lines.push('','⚠️ *Importante:* valores e disponibilidade estão sujeitos a alteração sem aviso prévio até a confirmação da reserva.','','✈️ *ISI Viagens*','_Cuidando de cada detalhe da sua viagem_');
+  return lines.join('\n');
+}
+async function copyServiceMessage(btn){
+  const area=btn.closest('.service-sales-message')?.querySelector('textarea'); if(!area)return;
+  try{await navigator.clipboard.writeText(area.value);btn.textContent='Copiada ✓';}
+  catch(_){area.focus();area.select();btn.textContent='Selecione e copie';}
+  setTimeout(()=>{btn.textContent='Copiar mensagem';},1800);
+}
+function regenerateServiceMessage(btn,key,i){
+  const area=btn.closest('.service-sales-message')?.querySelector('textarea'); if(!area)return;
+  area.value=serviceSalesMessage(key,(services[key]||[])[i]||{});
+}
+function renderServices(){['hotel','transport','cruise','experiences','insurance','additional'].forEach(key=>{const box=document.getElementById(key+'List'); if(!box)return; const arr=Array.isArray(services[key])?services[key]:[]; box.innerHTML=arr.map((s,i)=>`<div class="service-row rich"><div><strong>${escapeHtml(s.name||serviceLabels[key]||'Serviço')}</strong><small>${escapeHtml(serviceSummary(s)||'Sem detalhes adicionais')}</small>${s.description?`<p>${escapeHtml(s.description)}</p>`:''}<details class="service-sales-message"><summary>💬 Mensagem de venda para o cliente</summary><textarea rows="18" spellcheck="true">${escapeHtml(serviceSalesMessage(key,s))}</textarea><div class="button-row"><button type="button" class="primary-button tiny" onclick="copyServiceMessage(this)">Copiar mensagem</button><button type="button" class="ghost-button tiny" onclick="regenerateServiceMessage(this,'${key}',${i})">Refazer texto</button></div></details></div><div class="button-row"><button type="button" class="ghost-button tiny" onclick="openServiceModal('${key}',${i})">Editar</button><button type="button" class="ghost-button danger tiny" onclick="services['${key}'].splice(${i},1);renderAll()">Excluir</button></div></div>`).join('')||'<div class="empty-strip">Nenhum item incluído.</div>';});}
 function openCommissionModal(type,index=null){
   editCommissionType=type; editCommissionIndex=index;
   if(!Array.isArray(commission[type])) commission[type]=[];

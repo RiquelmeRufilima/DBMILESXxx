@@ -225,6 +225,13 @@
     <fieldset><legend>Exibir valor</legend><label><input type="radio" name="dbmMessagePriceMode" value="total" checked> Total da cotação</label><label><input type="radio" name="dbmMessagePriceMode" value="per_person"> Por passageiro</label></fieldset>
     <label><input type="checkbox" id="dbmMessageShowTimes"> Informar datas e horários dos voos, quando cadastrados</label>
     <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
+    <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
+      <strong class="dbm-pay-title">Formas de pagamento na mensagem</strong>
+      <div class="dbm-pay-row" data-pay="cash"><button type="button" class="dbm-eye" data-eye="cash" aria-pressed="true" title="Mostrar/ocultar">👁️</button><span>À vista</span><small id="dbmPayCashPreview"></small></div>
+      <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="24" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
+      <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="24" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
+      <small>Clique no olho para mostrar ou ocultar cada opção. O total com juros é calculado pela taxa da máquina salva na cotação; você pode digitar outro valor.</small>
+    </div>
   </div>
   <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
   <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
@@ -251,6 +258,15 @@ html[data-theme="light"] #quoteSharePanel textarea{background:#fff!important;col
 html[data-theme="light"] .dbm-share-options{background:#fff;color:#17304b;border-color:#c4d7e6}
 html[data-theme="light"] .quote-share-muted{color:#47677d}
 #quoteSharePanel textarea{width:100%;max-width:100%;box-sizing:border-box;margin:10px 0 16px;padding:13px;border:1px solid #315273;border-radius:12px;background:#081e32;color:#f4f9ff;resize:vertical;line-height:1.55}
+.dbm-pay-options{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--border,#315273)}
+.dbm-pay-title{font-size:.75rem;font-weight:900}
+.dbm-pay-row{display:flex!important;align-items:center;gap:8px;flex-wrap:wrap;font-size:.78rem;font-weight:750}
+.dbm-pay-row input{width:90px;padding:6px 8px;border:1px solid var(--border,#315273);border-radius:8px;background:var(--panel-2,#081e32);color:var(--text,#fff)}
+.dbm-pay-row input#dbmPayFreeN,.dbm-pay-row input#dbmPayIntN{width:60px}
+.dbm-pay-row.is-hidden>span,.dbm-pay-row.is-hidden>small,.dbm-pay-row.is-hidden>input{opacity:.4}
+.dbm-eye{border:1px solid var(--border,#315273);background:transparent;border-radius:8px;padding:3px 7px;cursor:pointer;font-size:.95rem;line-height:1}
+.dbm-eye[aria-pressed="true"]{background:rgba(22,161,237,.18);border-color:#16a1ed}
+html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border-color:#c4d7e6}
 .quote-share-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
 .quote-share-actions button{min-height:42px}.quote-share-muted{color:#a9c2d7}
 @media(max-width:600px){.quote-share-actions{display:grid;grid-template-columns:1fr 1fr}.quote-share-actions button{width:100%;white-space:normal}.quote-share-actions #quoteShareStatus{grid-column:1/-1}}
@@ -283,6 +299,44 @@ html[data-theme="light"] .quote-share-muted{color:#47677d}
  const segments = {{ (quote.segment_rows or [])|tojson }};
  const commercialMeta = {{ (commercial_meta or {})|tojson }};
  const skipRecord = {{ (quote.is_skip_record or false)|tojson }};
+ const cardSaved = {
+   installments: {{ (quote.commercial.card_installments if quote.commercial and quote.commercial.card_installments else 1)|tojson }},
+   mode: {{ (quote.commercial.card_interest_mode if quote.commercial and quote.commercial.card_interest_mode else 'cash')|tojson }},
+   total: {{ (quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value else 0)|tojson }}
+ };
+ const payState={cash:true,free:false,interest:false};
+ let machineTables=[{name:'Mercado Pago',rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26}}];
+ const payFreeN=document.getElementById('dbmPayFreeN');
+ const payIntN=document.getElementById('dbmPayIntN');
+ const payIntTotal=document.getElementById('dbmPayIntTotal');
+ const parseBR=raw=>{let v=String(raw??'').trim().replace(/[R$\s]/g,'');if(!v)return 0;if(v.includes(',')&&v.includes('.'))v=v.lastIndexOf(',')>v.lastIndexOf('.')?v.replace(/\./g,'').replace(',','.'):v.replace(/,/g,'');else if(v.includes(','))v=v.replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(v))v=v.replace(/\./g,'');const n=Number(v);return Number.isFinite(n)?n:0;};
+ // Valores salvos no "Lucro / venda" definem o padrão inicial do olho.
+ if(cardSaved.mode==='no_interest' && Number(cardSaved.installments)>1){payState.free=true;payFreeN.value=cardSaved.installments;}
+ if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)>1){payState.interest=true;payIntN.value=cardSaved.installments;}
+ function interestTotal(){
+   const typed=parseBR(payIntTotal.value); if(typed>0)return typed;
+   const n=Math.max(1,Number(payIntN.value)||1);
+   if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)===n && Number(cardSaved.total)>0)return Number(cardSaved.total);
+   const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];
+   const rate=Number(table?.rates?.[String(n)]??0);
+   return rate>0&&rate<100?Math.round(sale/(1-rate/100)*100)/100:sale;
+ }
+ function paymentLines(perPerson,paid,displaySale){
+   const m=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const freeN=Math.max(2,Number(payFreeN.value)||2), intN=Math.max(2,Number(payIntN.value)||2);
+   const intTotal=perPerson?interestTotal()/paid:interestTotal();
+   const card=[];
+   if(payState.free)card.push(`em até ${freeN}x de R$ ${m(displaySale/freeN)} sem juros`);
+   if(payState.interest)card.push(`em até ${intN}x de R$ ${m(intTotal/intN)} com juros`);
+   const lines=[];
+   if(payState.cash||!card.length)lines.push(`💰 Por: R$ *${m(displaySale)}*${card.length?' à vista':''}`);
+   card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
+   document.getElementById('dbmPayCashPreview').textContent=`R$ ${m(displaySale)}`;
+   document.getElementById('dbmPayFreePreview').textContent=`${freeN}x de R$ ${m(displaySale/freeN)}`;
+   document.getElementById('dbmPayIntPreview').textContent=`${intN}x de R$ ${m(intTotal/intN)} (total R$ ${m(intTotal)})`;
+   return lines.join('\n')+'\n';
+ }
+ function syncEyes(){document.querySelectorAll('.dbm-eye').forEach(btn=>{const on=!!payState[btn.dataset.eye];btn.setAttribute('aria-pressed',String(on));btn.textContent=on?'👁️':'🙈';btn.closest('.dbm-pay-row').classList.toggle('is-hidden',!on);});}
  const priceSwitches = document.querySelectorAll('[name="dbmMessagePriceMode"]');
  const showTimes = document.getElementById('dbmMessageShowTimes');
  const plural = (n, singular, pluralWord) => `${n} ${Number(n)===1?singular:pluralWord}`;
@@ -302,24 +356,43 @@ html[data-theme="light"] .quote-share-muted{color:#47677d}
      return pieces.join('\n');
    });
  }
+ function skipFlightBlocks(){
+   // Mensagem do cliente no Skip: mostra só o(s) trecho(s) efetivamente voado(s),
+   // sem a rota completa do bilhete, sem "Trecho N" e sem a marca VOADO.
+   const rows=(Array.isArray(segments)?segments:[]).filter(row=>row.status==='flown');
+   return rows.map(row=>{
+     const routeString=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
+     const times=Array.isArray(row.schedules)&&row.schedules.length?row.schedules:(row.display_date?[row.display_date]:[]);
+     return times.length?`${routeString}\n\n${times.join('\n')}`:routeString;
+   });
+ }
  function template(){
    const paid=Math.max(1,Number(passengers)||1);
    const perPerson=selectedPriceMode()==='per_person';
    const displaySale=perPerson?sale/paid:sale;
    const compare=Number(commercialMeta.anchor_value||0);
    const displayCompare=perPerson?compare/paid:compare;
-   const discount=displayCompare>displaySale?`De: ~${formatMoney(displayCompare)}~\n`:'';
-   const saving=displayCompare>displaySale ? displayCompare-displaySale : 0;
-   const savingText=saving>0?`🎯 Economize *${formatMoney(saving)}* (${(saving/displayCompare*100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%) com a nossa cotação.\n`:'';
+   const moneyPlain=value=>Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const discount=displayCompare>displaySale?`De: R$ ~${moneyPlain(displayCompare)}~\n`:'';
    const people=plural(passengers,'passageiro','passageiros') + (Number(babies)>0?` e ${plural(babies,'bebê','bebês')}`:'');
    const bagCount=Number(fareIncluded)||0;
-   const bag=bagCount>0?`✅ +${plural(bagCount,'bagagem despachada incluída','bagagens despachadas incluídas')}\n`:'';
+   const bag=bagCount>0?`✅ +${bagCount} ${bagCount===1?'bagagem de 23 kg incluída':'bagagens de 23 kg incluídas'} por passageiro\n`:'';
    const extra=Number(baggage)>0?`✅ ${plural(baggage,'bagagem adicional','bagagens adicionais')}\n`:'';
    const obs=note.value.trim();
    const title = scope.match(/volta|round/i)?'IDA e VOLTA':'IDA';
-   const selectedFlights=sections(skipRecord);
-   const flightInfo=selectedFlights.length && (skipRecord||showTimes.checked)?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
-   return `✈️ COTAÇÃO - *${name}*\n\n🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}\n✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${extra}${obs?`✅ ${obs}\n`:''}\n👥 ${perPerson?'Valor por passageiro':'Valor total para '+people}.\n\n${discount}💰 Por: R$ *${displaySale.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}*\n${savingText?'\n'+savingText:''}\n_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
+   const benefits=`✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${extra}${obs?`✅ ${obs}\n`:''}`;
+   const price=`👥 ${perPerson?'Valor por passageiro':'Valor total para '+people}.\n\n${discount}${paymentLines(perPerson,paid,displaySale)}`;
+   const warning=`_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
+   let header;
+   const skipBlocks=skipRecord?skipFlightBlocks():[];
+   if(skipRecord && skipBlocks.length){
+     header=`✈️ ${skipBlocks.length>1?'Voos':'Voo'} de *${title}*\n${skipBlocks.join('\n\n')}\n`;
+   } else {
+     const selectedFlights=sections(false);
+     const flightInfo=selectedFlights.length && showTimes.checked?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
+     header=`🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}`;
+   }
+   return `✈️ COTAÇÃO - *${name}*\n\n${header}\n${benefits}\n${price}\n${warning}`;
  }
  function internalTemplate(){
    const obs=note.value.trim();
@@ -367,6 +440,13 @@ html[data-theme="light"] .quote-share-muted{color:#47677d}
  note.addEventListener('input',()=>{if(!editor.dataset.edited)editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();});
  priceSwitches.forEach(input=>input.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()}));
  showTimes.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
+ // Mexer nas formas de pagamento refaz a mensagem do cliente.
+ const refreshClient=()=>{delete editor.dataset.edited;editor.value=template()};
+ document.querySelectorAll('.dbm-eye').forEach(btn=>btn.addEventListener('click',()=>{payState[btn.dataset.eye]=!payState[btn.dataset.eye];syncEyes();refreshClient();}));
+ [payFreeN,payIntN,payIntTotal].forEach(el=>el.addEventListener('input',refreshClient));
+ payIntN.addEventListener('input',()=>{payIntTotal.value='';refreshClient();});
+ syncEyes();
+ fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;refreshClient();}}).catch(()=>{});
  internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
  editor.addEventListener('input',()=>editor.dataset.edited='1');
  document.getElementById('copyQuoteMessage').addEventListener('click',async()=>{

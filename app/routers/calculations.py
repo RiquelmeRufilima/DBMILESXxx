@@ -4327,6 +4327,9 @@ def _commercial_number(raw: Any) -> float:
             text_value = text_value.replace(",", "")
     elif "," in text_value:
         text_value = text_value.replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+", text_value):
+        # Padrão brasileiro: 8.707 = oito mil setecentos e sete reais.
+        text_value = text_value.replace(".", "")
     try:
         return float(text_value)
     except (TypeError, ValueError):
