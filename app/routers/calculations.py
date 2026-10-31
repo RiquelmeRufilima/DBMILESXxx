@@ -4353,7 +4353,10 @@ def _commercial_number(raw: Any) -> float:
 # O catálogo é salvo por usuário nas preferências já existentes do banco.
 MERCADO_PAGO_FEES = {"1": 3.29, "2": 2.08, "3": 2.75, "4": 3.48, "5": 4.15,
     "6": 5.01, "7": 5.82, "8": 6.54, "9": 7.19, "10": 7.86, "11": 8.48,
-    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26}
+    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26, "16": 15.06, "17": 15.75, "18": 16.45}
+# Taxa fixa por venda, por faixa de parcelas (somada à taxa variável da parcela).
+MACHINE_FIXED_DEFAULT = {"1-6": 2.75, "7-12": 2.99, "13-18": 2.89}
+MACHINE_FIXED_BANDS = ("1-6", "7-12", "13-18")
 
 
 def _machine_tables(user):
@@ -4364,7 +4367,7 @@ def _machine_tables(user):
             return entries
     except (TypeError, ValueError, AttributeError):
         pass
-    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy()}]
+    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy(), "fixed": MACHINE_FIXED_DEFAULT.copy()}]
 
 
 @router.get('/machine-fees')
@@ -4414,7 +4417,20 @@ async def update_machine_fee_tables(request: Request, db: Session = Depends(get_
             valid_rates[str(int(key))] = round(value, 4)
         if not valid_rates:
             return JSONResponse({"ok": False, "message": "Cadastre uma taxa para cada tabela."}, status_code=400)
-        cleaned.append({"name": name, "rates": valid_rates})
+        entry_clean = {"name": name, "rates": valid_rates}
+        fixed = entry.get('fixed')
+        if isinstance(fixed, dict):
+            valid_fixed = {}
+            for band in MACHINE_FIXED_BANDS:
+                try:
+                    band_value = float(fixed.get(band) or 0)
+                except (ValueError, TypeError):
+                    return JSONResponse({"ok": False, "message": "Taxa fixa inválida."}, status_code=400)
+                if not 0 <= band_value < 60 or band_value != band_value:
+                    return JSONResponse({"ok": False, "message": "A taxa fixa deve ficar entre 0 e 60%."}, status_code=400)
+                valid_fixed[band] = round(band_value, 4)
+            entry_clean["fixed"] = valid_fixed
+        cleaned.append(entry_clean)
     preference = user.preference
     if preference is None:
         preference = UserPreference(user_id=user.id)

@@ -222,7 +222,7 @@
   </div>
 </section>
   <div class="dbm-share-options" aria-label="Opções da mensagem de cotação">
-    <fieldset><legend>Exibir valor</legend><label><input type="radio" name="dbmMessagePriceMode" value="total" checked> Total da cotação</label><label><input type="radio" name="dbmMessagePriceMode" value="per_person"> Por passageiro</label></fieldset>
+    <fieldset><legend>Bagagens na mensagem</legend><label><input type="radio" name="dbmMessagePriceMode" value="total" checked> Total da cotação</label><label><input type="radio" name="dbmMessagePriceMode" value="per_person"> Por passageiro</label></fieldset>
     <label><input type="checkbox" id="dbmMessageShowTimes"> Informar datas e horários dos voos, quando cadastrados</label>
     <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
     <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
@@ -280,7 +280,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const formatMoney = value => Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
  let sale = {{ (quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value else quote.total)|tojson }};
  const cost = {{ quote.total|tojson }};
- const profit = {{ (quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0)|tojson }};
+ let profit = {{ (quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0)|tojson }};
  const margin = {{ (quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0)|tojson }};
  const method = {{ (quote.calculation_type.name if quote.calculation_type else 'Não informado')|tojson }};
  const fare = {{ (quote.fare_brand or 'Não informada')|tojson }};
@@ -306,7 +306,10 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    total: {{ (quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value else 0)|tojson }}
  };
  const payState={cash:true,free:false,interest:false};
- let machineTables=[{name:'Mercado Pago',rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26}}];
+ let machineTables=[{name:'Mercado Pago',rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26,16:15.06,17:15.75,18:16.45},fixed:{'1-6':2.75,'7-12':2.99,'13-18':2.89}}];
+ const FIXED_DEFAULT={'1-6':2.75,'7-12':2.99,'13-18':2.89};
+ function fixedRateFor(t,n){const bands=(t&&t.fixed&&typeof t.fixed==='object')?t.fixed:FIXED_DEFAULT;for(const [k,v] of Object.entries(bands)){const [a,b]=k.split('-').map(Number);if(n>=a&&n<=b)return Number(v)||0;}return 0;}
+ function machineRate(n){const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];return Number(table?.rates?.[String(n)]??0)+fixedRateFor(table,n);}
  const payFreeN=document.getElementById('dbmPayFreeN');
  const payIntN=document.getElementById('dbmPayIntN');
  const payIntTotal=document.getElementById('dbmPayIntTotal');
@@ -318,8 +321,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const typed=parseBR(payIntTotal.value); if(typed>0)return typed;
    const n=Math.max(1,Number(payIntN.value)||1);
    if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)===n && Number(cardSaved.total)>0)return Number(cardSaved.total);
-   const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];
-   const rate=Number(table?.rates?.[String(n)]??0);
+   const rate=machineRate(n);
    return rate>0&&rate<100?Math.round(sale/(1-rate/100)*100)/100:sale;
  }
  function paymentLines(perPerson,paid,displaySale){
@@ -370,9 +372,10 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function template(){
    const paid=Math.max(1,Number(passengers)||1);
    const perPerson=selectedPriceMode()==='per_person';
-   const displaySale=perPerson?sale/paid:sale;
+   // "Por passageiro" muda apenas a linha de bagagens; valores e passageiros ficam no total.
+   const displaySale=sale;
    const compare=Number(commercialMeta.anchor_value||0);
-   const displayCompare=perPerson?compare/paid:compare;
+   const displayCompare=compare;
    const moneyPlain=value=>Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    const discount=displayCompare>displaySale?`De: R$ ~${moneyPlain(displayCompare)}~\n`:'';
    // Crianças e bebês só aparecem quando existirem; sem eles fica "N passageiros".
@@ -390,7 +393,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const obs=note.value.trim();
    const title = scope.match(/volta|round/i)?'IDA e VOLTA':'IDA';
    const benefits=`✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bag}${extra}${obs?`✅ ${obs}\n`:''}`;
-   const price=`👥 ${perPerson?'Valor por passageiro':'Valor total para '+people}.\n\n${discount}${paymentLines(perPerson,paid,displaySale)}`;
+   const price=`👥 Valor total para ${people}.\n\n${discount}${paymentLines(false,paid,displaySale)}`;
    const warning=`_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
    let header;
    const skipBlocks=skipRecord?skipFlightBlocks():[];
@@ -434,7 +437,12 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
       if(mileageInfo)mileageInfo='\n'+mileageInfo;
    }
    const marginText=Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${marginText}%${mileageInfo}${discount}${skip}\n\n📝 Observações: ${obs||'—'}`;
+   // Impacto das taxas da máquina (fixa + variável) no lucro de cada opção ligada.
+   let feeInfo='';
+   const pct=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   if(payState.free){const n=Math.max(2,Number(payFreeN.value)||2);const r=machineRate(n);const fee=sale*r/100;feeInfo+=`\n💳 Sem juros ${n}x: taxa ${pct(r)}% = ${formatMoney(fee)} (agência paga) • lucro real ${formatMoney(profit-fee)}`;}
+   if(payState.interest){const n=Math.max(2,Number(payIntN.value)||2);const r=machineRate(n);const total=interestTotal();feeInfo+=`\n💳 Com juros ${n}x: taxa ${pct(r)}% = ${formatMoney(total*r/100)} (cliente paga) • lucro real ${formatMoney(profit-(total*r/100-(total-sale)))}`;}
+   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${marginText}%${feeInfo}${mileageInfo}${discount}${skip}\n\n📝 Observações: ${obs||'—'}`;
  }
  editor.value=template();
  internalEditor.value=internalTemplate();
@@ -450,7 +458,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  priceSwitches.forEach(input=>input.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()}));
  showTimes.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
  // Mexer nas formas de pagamento refaz a mensagem do cliente.
- const refreshClient=()=>{delete editor.dataset.edited;editor.value=template()};
+ const refreshClient=()=>{delete editor.dataset.edited;editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();};
  document.querySelectorAll('.dbm-eye').forEach(btn=>btn.addEventListener('click',()=>{payState[btn.dataset.eye]=!payState[btn.dataset.eye];syncEyes();refreshClient();}));
  [payFreeN,payIntN,payIntTotal].forEach(el=>el.addEventListener('input',refreshClient));
  payIntN.addEventListener('input',()=>{payIntTotal.value='';refreshClient();});
@@ -458,9 +466,10 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  // Salvou o lucro / valor de comparação nesta tela: atualiza a mensagem sem recarregar.
  document.addEventListener('dbm:commercial-saved',ev=>{
    const item=ev.detail||{}; if(String(item.quote_id)!==String({{ quote.id|tojson }}))return;
-   if(item.removed){sale=cost;commercialMeta={};}
+   if(item.removed){sale=cost;profit=0;commercialMeta={};}
    else{
      if(Number(item.sale_value)>0)sale=Number(item.sale_value);
+     profit=Number(item.profit_value||0);
      commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||''};
      cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
    }

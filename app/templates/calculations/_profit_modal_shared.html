@@ -34,6 +34,9 @@
 .dbm-anchor-results{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.78rem}
 .dbm-anchor-results strong,.dbm-anchor-results>span:last-child{font-weight:950;color:#43c994}
 .profit-dialog{max-height:calc(100dvh - 24px);overflow-y:auto}
+.dbm-fixed-bands{display:grid;gap:8px;margin:6px 0;padding:10px;border:1px dashed var(--border,#315273);border-radius:10px}
+.dbm-fixed-bands strong{font-size:.78rem}
+.dbm-fixed-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
 html[data-theme="light"] .dbm-machine-panel,html[data-theme="light"] .dbm-anchor-panel{background:#f3f8fc;color:#19334a;border-color:#c7dce9}
 html[data-theme="light"] .dbm-machine-panel :is(label,small),html[data-theme="light"] .dbm-anchor-panel :is(label,small){color:#35546b}
 html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){background:#fff;color:#17344c;border-color:#bdd6e7}
@@ -70,7 +73,10 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
         <small id="profitMachineNotice" class="dbm-machine-notice">Se não repassar, o valor líquido recebido é reduzido pela taxa.</small>
         <details class="dbm-machine-manager"><summary>Editar taxas / criar outra máquina</summary>
           <div class="profit-grid"><label>Nome da tabela<input type="text" maxlength="48" id="profitMachineEditName" placeholder="Ex.: Mercado Pago"></label><label>Parcela<input type="number" min="1" max="24" id="profitRateInstallment" value="1"></label></div>
-          <div class="profit-grid"><label>Taxa (%)<input type="text" inputmode="decimal" id="profitMachineEditRate" placeholder="Ex.: 3,29"></label><label>Gerenciar<button class="secondary-button" type="button" id="profitRateUpdate">Atualizar taxa</button></label></div>
+          <div class="profit-grid"><label>Taxa variável da parcela (%)<input type="text" inputmode="decimal" id="profitMachineEditRate" placeholder="Ex.: 3,29"></label><label>Gerenciar<button class="secondary-button" type="button" id="profitRateUpdate">Atualizar taxa</button></label></div>
+          <div class="dbm-fixed-bands"><strong>Taxa fixa por venda (somada à variável)</strong>
+            <div class="profit-grid dbm-fixed-grid"><label>1x a 6x (%)<input type="text" inputmode="decimal" data-fixed-band="1-6" placeholder="2,75"></label><label>7x a 12x (%)<input type="text" inputmode="decimal" data-fixed-band="7-12" placeholder="2,99"></label><label>13x a 18x (%)<input type="text" inputmode="decimal" data-fixed-band="13-18" placeholder="2,89"></label></div>
+          </div>
           <div class="dbm-machine-actions"><button type="button" class="ghost-button" id="profitMachineCreate">Nova tabela</button><button type="button" class="ghost-button danger" id="profitMachineDelete">Excluir tabela</button><button class="primary-button" type="button" id="profitMachineSave">Salvar tabelas</button></div>
           <small id="profitMachineSaveStatus" role="status"></small>
         </details>
@@ -143,15 +149,24 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   const machineEditRate = document.getElementById('profitMachineEditRate');
   const machineRateInstallment = document.getElementById('profitRateInstallment');
   const machineSaveStatus = document.getElementById('profitMachineSaveStatus');
-  const machineDefault = [{name:'Mercado Pago', rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26}}];
+  const machineDefault = [{name:'Mercado Pago', rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26,16:15.06,17:15.75,18:16.45},fixed:{'1-6':2.75,'7-12':2.99,'13-18':2.89}}];
+  // Taxa fixa por venda, por faixa de parcelas. Tabelas antigas sem esse campo usam o padrão.
+  const FIXED_DEFAULT = {'1-6':2.75,'7-12':2.99,'13-18':2.89};
+  const fixedBands = t => (t && t.fixed && typeof t.fixed==='object') ? t.fixed : FIXED_DEFAULT;
+  function fixedRateFor(t, n){const bands=fixedBands(t);for(const [k,v] of Object.entries(bands)){const [a,b]=k.split('-').map(Number);if(n>=a&&n<=b)return Number(v)||0;}return 0;}
   let machines = structuredClone(machineDefault);
   let machinesLoaded = false;
   const currentMachine = () => machines.find(t=>t.name===machineSelect?.value) || machines[0];
-  const selectedRate = () => Number(currentMachine()?.rates?.[String(Math.max(1, Number(inst.value)||1))] ?? 0);
+  const selectedVariable = () => Number(currentMachine()?.rates?.[String(Math.max(1, Number(inst.value)||1))] ?? 0);
+  const selectedFixed = () => fixedRateFor(currentMachine(), Math.max(1, Number(inst.value)||1));
+  // Taxa total cobrada pela máquina = taxa fixa da faixa + taxa variável da parcela.
+  const selectedRate = () => Math.round((selectedVariable() + selectedFixed())*10000)/10000;
   function updateMachineInputs(){
     const machine=currentMachine();
     if(machineEditName) machineEditName.value=machine?.name||'';
     if(machineEditRate) machineEditRate.value=dec(Number(machine?.rates?.[String(machineRateInstallment?.value||1)]??0));
+    const bands=fixedBands(machine);
+    document.querySelectorAll('[data-fixed-band]').forEach(input=>{input.value=dec(Number(bands[input.dataset.fixedBand]??0));});
     if(machineRate) machineRate.value=dec(selectedRate());
   }
   function refreshMachines(name){
@@ -187,9 +202,11 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     cardTotal.value=dec(total);
     cardDifference.value=dec(difference);
     mode.value=difference>0?'with_interest':(Number(inst.value)>1?'no_interest':'cash');
+    const profitNow=Math.max(0,num(valueInput.value));
+    const feeText=`${dec(rate)}% (${dec(selectedFixed())}% fixa + ${dec(selectedVariable())}% variável)`;
     machineNotice.textContent=passFees.checked
-      ? `Taxa de ${dec(rate)}% repassada • líquido aproximado: ${money(total*(1-rate/100))}`
-      : `Agência absorve ${money(sale*rate/100)} • líquido aproximado: ${money(sale*(1-rate/100))}`;
+      ? `Taxa de ${feeText} repassada • líquido aproximado: ${money(total*(1-rate/100))} • lucro mantido: ${money(profitNow)}`
+      : `Agência absorve ${money(sale*rate/100)} de taxa ${feeText} • líquido: ${money(sale*(1-rate/100))} • lucro real: ${money(profitNow-sale*rate/100)}`;
     return true;
   }
   function previewAnchor(){
@@ -369,6 +386,12 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   inst?.addEventListener('change',recalcMachine);
   anchorInput?.addEventListener('input',previewAnchor);
   machineRateInstallment?.addEventListener('input',updateMachineInputs);
+  document.querySelectorAll('[data-fixed-band]').forEach(input=>input.addEventListener('change',()=>{
+    const table=currentMachine(); if(!table)return;
+    const value=num(input.value); if(value<0||value>=60){machineSaveStatus.textContent='A taxa fixa deve ficar entre 0 e 60%.';return;}
+    table.fixed={...fixedBands(table),[input.dataset.fixedBand]:value};
+    machineSaveStatus.textContent='Taxa fixa atualizada. Clique em Salvar tabelas.';recalcMachine();
+  }));
   document.getElementById('profitRateUpdate')?.addEventListener('click',()=>{
     const table=currentMachine();const installment=Number(machineRateInstallment.value);const rate=num(machineEditRate.value);
     if(!table||!Number.isInteger(installment)||installment<1||installment>24||rate<0||rate>=60){machineSaveStatus.textContent='Revise a parcela (1 a 24) e a taxa (0 a 60%).';return;}
@@ -380,7 +403,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     if(machines.length>=20){machineSaveStatus.textContent='Limite de 20 máquinas.';return;}
     const name=window.prompt('Nome da nova máquina:');if(!name?.trim())return;
     if(machines.some(t=>t.name.toLowerCase()===name.trim().toLowerCase())){machineSaveStatus.textContent='Já existe uma tabela com esse nome.';return;}
-    machines.push({name:name.trim().slice(0,48),rates:{1:0}});refreshMachines(name.trim().slice(0,48));machineSaveStatus.textContent='Preencha as taxas e salve.';
+    machines.push({name:name.trim().slice(0,48),rates:{1:0},fixed:{'1-6':0,'7-12':0,'13-18':0}});refreshMachines(name.trim().slice(0,48));machineSaveStatus.textContent='Preencha as taxas e salve.';
   });
   document.getElementById('profitMachineDelete')?.addEventListener('click',()=>{
     if(machines.length<=1){machineSaveStatus.textContent='Mantenha pelo menos uma tabela.';return;}
