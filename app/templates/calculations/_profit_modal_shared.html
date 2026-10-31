@@ -485,6 +485,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       btn.dataset.commercialMeta = JSON.stringify({anchor_value:item.anchor_value||0,machine_name:item.machine_name||''});
       btn.textContent = item.removed || Number(item.profit_value || 0) <= 0 ? 'Adicionar lucro' : 'Editar lucro';
     });
+    document.dispatchEvent(new CustomEvent('dbm:commercial-saved', {detail:item}));
   }
 
   async function postCommercialForm(data){

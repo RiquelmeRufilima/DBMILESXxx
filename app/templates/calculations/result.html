@@ -71,7 +71,7 @@
   <a class="secondary-button" data-dbm-smart-back href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
   {% if not shared_view|default(false) %}
   <a class="secondary-button" href="/calculations/history">Abrir cotações no histórico</a>
-  <button class="secondary-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ "Editar lucro" if quote.commercial and (quote.commercial.profit_value or 0) > 0 else "Adicionar lucro" }}</button>
+  <button class="secondary-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-commercial-meta='{{ (commercial_meta or {})|tojson }}' data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ "Editar lucro" if quote.commercial and (quote.commercial.profit_value or 0) > 0 else "Adicionar lucro" }}</button>
   <a class="secondary-button" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
   {% endif %}
 </nav>
@@ -278,7 +278,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const status = document.getElementById('quoteShareStatus');
  const internalEditor = document.getElementById('quoteInternalMessage');
  const formatMoney = value => Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
- const sale = {{ (quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value else quote.total)|tojson }};
+ let sale = {{ (quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value else quote.total)|tojson }};
  const cost = {{ quote.total|tojson }};
  const profit = {{ (quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0)|tojson }};
  const margin = {{ (quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0)|tojson }};
@@ -293,13 +293,14 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const baggage = {{ quote.bags|tojson }};
  const passengers = {{ quote.passengers|tojson }};
  const babies = {{ quote.babies|tojson }};
+ const children = {{ (group_children|default(0))|tojson }};
  const name = {{ (quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name)|tojson }};
  const route = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
  const scope = {{ (quote.scope_label or '')|tojson }};
  const segments = {{ (quote.segment_rows or [])|tojson }};
- const commercialMeta = {{ (commercial_meta or {})|tojson }};
+ let commercialMeta = {{ (commercial_meta or {})|tojson }};
  const skipRecord = {{ (quote.is_skip_record or false)|tojson }};
- const cardSaved = {
+ let cardSaved = {
    installments: {{ (quote.commercial.card_installments if quote.commercial and quote.commercial.card_installments else 1)|tojson }},
    mode: {{ (quote.commercial.card_interest_mode if quote.commercial and quote.commercial.card_interest_mode else 'cash')|tojson }},
    total: {{ (quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value else 0)|tojson }}
@@ -374,9 +375,17 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const displayCompare=perPerson?compare/paid:compare;
    const moneyPlain=value=>Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    const discount=displayCompare>displaySale?`De: R$ ~${moneyPlain(displayCompare)}~\n`:'';
-   const people=plural(passengers,'passageiro','passageiros') + (Number(babies)>0?` e ${plural(babies,'bebê','bebês')}`:'');
+   // Crianças e bebês só aparecem quando existirem; sem eles fica "N passageiros".
+   const kids=Math.max(0,Math.min(Number(children)||0,paid-1));
+   const groups=kids>0?[plural(paid-kids,'adulto','adultos'),plural(kids,'criança','crianças')]:[plural(passengers,'passageiro','passageiros')];
+   if(Number(babies)>0)groups.push(plural(babies,'bebê','bebês'));
+   const people=groups.length>1?groups.slice(0,-1).join(', ')+' e '+groups[groups.length-1]:groups[0];
    const bagCount=Number(fareIncluded)||0;
-   const bag=bagCount>0?`✅ +${bagCount} ${bagCount===1?'bagagem de 23 kg incluída':'bagagens de 23 kg incluídas'} por passageiro\n`:'';
+   // Total: soma das bagagens de todos os pagantes. Por passageiro: quantidade de cada um.
+   const bagTotal=bagCount*paid;
+   const bag=bagCount>0?(perPerson
+     ?`✅ +${bagCount} ${bagCount===1?'bagagem de 23 kg incluída':'bagagens de 23 kg incluídas'} por passageiro\n`
+     :`✅ +${bagTotal} ${bagTotal===1?'bagagem de 23 kg incluída':'bagagens de 23 kg incluídas'}\n`):'';
    const extra=Number(baggage)>0?`✅ ${plural(baggage,'bagagem adicional','bagagens adicionais')}\n`:'';
    const obs=note.value.trim();
    const title = scope.match(/volta|round/i)?'IDA e VOLTA':'IDA';
@@ -446,6 +455,17 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  [payFreeN,payIntN,payIntTotal].forEach(el=>el.addEventListener('input',refreshClient));
  payIntN.addEventListener('input',()=>{payIntTotal.value='';refreshClient();});
  syncEyes();
+ // Salvou o lucro / valor de comparação nesta tela: atualiza a mensagem sem recarregar.
+ document.addEventListener('dbm:commercial-saved',ev=>{
+   const item=ev.detail||{}; if(String(item.quote_id)!==String({{ quote.id|tojson }}))return;
+   if(item.removed){sale=cost;commercialMeta={};}
+   else{
+     if(Number(item.sale_value)>0)sale=Number(item.sale_value);
+     commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||''};
+     cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
+   }
+   refreshClient();internalEditor.value=internalTemplate();
+ });
  fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;refreshClient();}}).catch(()=>{});
  internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
  editor.addEventListener('input',()=>editor.dataset.edited='1');

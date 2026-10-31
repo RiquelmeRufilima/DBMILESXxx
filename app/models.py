@@ -367,6 +367,8 @@ class QuoteGroup(Base):
     origin: Mapped[str | None] = mapped_column(String(80), nullable=True)
     destination: Mapped[str | None] = mapped_column(String(80), nullable=True)
     passengers: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Crianças pagantes (já contadas dentro de "passengers"; adultos = passengers - children).
+    children: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     babies: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     bags: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     source_request_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

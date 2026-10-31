@@ -139,6 +139,7 @@ def ensure_runtime_schema(engine: Engine) -> None:
 
     quote_group_cols = {
         "assigned_user_id": "INTEGER",
+        "children": "INTEGER DEFAULT 0 NOT NULL",
     }
     _add_columns(engine, "web_quote_groups", quote_group_cols)
     user_cols = {

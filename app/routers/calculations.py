@@ -288,6 +288,7 @@ def _blank_base() -> dict[str, Any]:
         "origin": "",
         "destination": "",
         "passengers": 1,
+        "children": 0,
         "babies": 0,
         "bags": 0,
         "travel_type": "round_trip",
@@ -478,6 +479,7 @@ def _base_from_group(group: QuoteGroup, variant_key: str | None = None) -> dict[
         "destination": selected_destination,
         "passengers": max(1, int(selected.get("passengers") if selected.get("passengers") is not None else (group.passengers or 1))),
         "babies": max(0, int(selected.get("babies") if selected.get("babies") is not None else (group.babies or 0))),
+        "children": max(0, min(int(getattr(group, "children", 0) or 0), max(1, int(selected.get("passengers") if selected.get("passengers") is not None else (group.passengers or 1))) - 1)),
         "bags": group.bags,
         "travel_type": selected_travel_type,
         "departure_date": selected.get("departure_date") or "",
@@ -2974,6 +2976,11 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
         group_id = int(form.get("group_id") or 0) or None
         passengers = max(1, int(form.get("passengers") or 1))
         babies = max(0, int(form.get("babies") or 0))
+        children = max(0, int(form.get("children") or 0))
+        if form.get("adults") not in (None, ""):
+            # Adultos + crianças = passageiros pagantes.
+            passengers = max(1, int(form.get("adults") or 0) + children)
+        children = min(children, max(0, passengers - 1))
         option_id = int(form.get("option_id") or 0) or None
     except ValueError:
         flash(request, "Passageiros ou bebês inválidos.", "error")
@@ -3061,6 +3068,7 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
     group.origin = origin_code
     group.destination = destination_code
     group.passengers = passengers
+    group.children = children
     group.babies = babies
     # Bagagens não fazem parte da base fixa.
     # Elas são alteráveis apenas durante o cálculo de cada companhia/opção.
@@ -3951,7 +3959,12 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     breakdown = _safe_json(quote.breakdown_json, {})
     segments = _safe_json(quote.trip.segments_json, []) if quote.trip else []
     commercial_meta = _safe_json(quote.commercial.observations, {}) if quote.commercial else {}
-    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta))
+    group_children = 0
+    if link and link.group_id:
+        group_row = db.get(QuoteGroup, link.group_id)
+        group_children = int(getattr(group_row, "children", 0) or 0) if group_row else 0
+    group_children = max(0, min(group_children, max(0, int(quote.passengers or 1) - 1)))
+    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta, group_children=group_children))
 
 
 @router.post('/result/{quote_id}/observations')
