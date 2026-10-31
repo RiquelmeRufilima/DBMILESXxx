@@ -33,8 +33,13 @@
 
   const ALLOWED = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
   const MAX_BYTES = 4 * 1024 * 1024; // limite do Vercel por envio
-  let view = shell.dataset.view === 'team' ? 'team' : 'conversations';
-  let contactId = shell.dataset.selectedContact || '';
+  const myName = shell.dataset.userName || '';
+  let groupId = Number(shell.dataset.selectedGroup || 0);
+  let view = groupId ? 'cgroup' : (shell.dataset.view === 'team' ? 'team' : 'conversations');
+  let contactId = groupId ? '' : (shell.dataset.selectedContact || '');
+  let mentionPeople = [];   // quem pode ser mencionado na conversa aberta
+  let groupInfo = null;     // {id, name, is_admin} do grupo aberto
+  const prefixFor = () => (view === 'team' ? 'g' : (view === 'cgroup' ? 'c' : 'p'));
   let pendingFile = null;
   let sending = false;
   let lastSeenId = 0;
@@ -105,9 +110,29 @@
     return {forwarded, reply, text};
   }
 
+  // Destaca @Nome (pessoas conhecidas da conversa) e @todos.
+  function highlightMentions(html) {
+    if (!html.includes('@')) return html;
+    const names = [...new Set([myName, ...mentionPeople.map((p) => p.name)].filter(Boolean))].sort((a, b) => b.length - a.length);
+    const marks = [];
+    let out = html;
+    names.forEach((name) => {
+      const needle = `@${esc(name)}`;
+      let idx = out.toLowerCase().indexOf(needle.toLowerCase());
+      while (idx !== -1) {
+        const token = `\u0000${marks.length}\u0000`;
+        marks.push(`<span class="dbm-mention${name === myName ? ' is-me' : ''}">${out.slice(idx, idx + needle.length)}</span>`);
+        out = out.slice(0, idx) + token + out.slice(idx + needle.length);
+        idx = out.toLowerCase().indexOf(needle.toLowerCase(), idx + token.length);
+      }
+    });
+    out = out.replace(/@todos\b/gi, (m) => `<span class="dbm-mention is-me">${m}</span>`);
+    return out.replace(/\u0000(\d+)\u0000/g, (_, i) => marks[Number(i)]);
+  }
+
   function bodyHtml(raw) {
     const part = splitMessage(raw);
-    return `${part.forwarded ? '<em class="dbm-msg-forwarded">↪ Encaminhada</em>' : ''}${part.reply ? `<blockquote class="dbm-msg-quote"><b>${esc(part.reply.name)}</b>${esc(part.reply.text)}</blockquote>` : ''}${part.text ? `<p>${linkify(part.text)}</p>` : ''}`;
+    return `${part.forwarded ? '<em class="dbm-msg-forwarded">↪ Encaminhada</em>' : ''}${part.reply ? `<blockquote class="dbm-msg-quote"><b>${esc(part.reply.name)}</b>${esc(part.reply.text)}</blockquote>` : ''}${part.text ? `<p>${highlightMentions(linkify(part.text))}</p>` : ''}`;
   }
 
   function messageHtml(item, prefix) {
@@ -155,7 +180,12 @@
   }
 
   function updateCompose() {
-    form.hidden = view === 'team' ? !hasCompany : !contactId;
+    form.hidden = view === 'team' ? !hasCompany : (view === 'cgroup' ? !groupId : !contactId);
+    // Anexos ainda não valem nos grupos criados; o resto funciona igual.
+    if (attachButton) { attachButton.style.visibility = view === 'cgroup' ? 'hidden' : ''; attachButton.disabled = view === 'cgroup'; }
+    const info = $('dbmGroupInfo');
+    if (info) info.hidden = view !== 'cgroup';
+    closeMentions();
   }
   function setTabs() {
     document.querySelectorAll('[data-main-tab]').forEach((b) => b.classList.toggle('active', b.dataset.mainTab === view));
@@ -182,6 +212,20 @@
         const initial = firstLoad;
         render(data.messages || [], 'g');
         if (initial) olderWrap.hidden = !data.has_more;
+      } else if (currentView === 'cgroup') {
+        if (!groupId) return;
+        const data = await getJSON(`/company/chat/groups/${groupId}/messages${firstLoad || !lastSeenId ? '' : `?after_id=${lastSeenId}`}`);
+        if (currentGeneration !== generation) return;
+        if (firstLoad) {
+          groupInfo = data.group;
+          mentionPeople = (data.members || []).filter((p) => !p.is_me);
+          title.textContent = data.group?.name || 'Grupo';
+          subtitle.textContent = (data.members || []).map((p) => (p.is_me ? 'Você' : String(p.name || '').split(' ')[0])).join(', ');
+          avatar.textContent = '👥';
+        }
+        const initial = firstLoad;
+        render(data.messages || [], 'c');
+        if (initial) olderWrap.hidden = !data.has_more;
       } else if (currentContact) {
         const data = await getJSON(`/company/chat/private/${encodeURIComponent(currentContact)}${firstLoad || !lastSeenId ? '' : `?after_id=${lastSeenId}`}`);
         if (currentGeneration !== generation) return;
@@ -195,7 +239,7 @@
         render(data.messages || [], 'p');
         if (initial) olderWrap.hidden = !data.has_more;
       }
-      setStatus(view === 'team' ? 'Chat da equipe' : (contactId ? 'Chat privado' : ''));
+      setStatus(view === 'team' ? 'Chat da equipe' : (view === 'cgroup' ? 'Grupo' : (contactId ? 'Chat privado' : '')));
     } catch (_) {
       setStatus('Sem conexão — tentando de novo');
     } finally {
@@ -209,13 +253,14 @@
     olderButton.disabled = true;
     olderButton.textContent = 'Carregando...';
     try {
-      const url = view === 'team' ? '/company/messages' : `/company/chat/private/${encodeURIComponent(contactId)}`;
+      const url = view === 'team' ? '/company/messages' : (view === 'cgroup' ? `/company/chat/groups/${groupId}/messages` : `/company/chat/private/${encodeURIComponent(contactId)}`);
       const data = await getJSON(`${url}?before_id=${oldestId}`);
       if (currentGeneration !== generation) return;
       const items = data.messages || [];
       const before = list.scrollHeight;
-      const html = items.filter(item => !list.querySelector(`[data-message-id="${view === 'team' ? 'g' : 'p'}-${Number(item.id)}"]`))
-        .map(item => messageHtml(item, view === 'team' ? 'g' : 'p')).join('');
+      const pfx = prefixFor();
+      const html = items.filter(item => !list.querySelector(`[data-message-id="${pfx}-${Number(item.id)}"]`))
+        .map(item => messageHtml(item, pfx)).join('');
       if (html) list.insertAdjacentHTML('afterbegin', html);
       if (items.length) oldestId = Math.min(oldestId, ...items.map(x => Number(x.id)));
       list.scrollTop += list.scrollHeight - before;
@@ -226,7 +271,7 @@
 
   function openPrivate(id) {
     if (!id) return;
-    generation++; loading = false; view = 'conversations'; contactId = id; firstLoad = true; lastSeenId = 0; oldestId = 0;
+    generation++; loading = false; view = 'conversations'; contactId = id; groupId = 0; groupInfo = null; mentionPeople = []; firstLoad = true; lastSeenId = 0; oldestId = 0;
     olderWrap.hidden = true; delete olderWrap.dataset.initialized;
     list.innerHTML = emptyHtml('Carregando...', '');
     setTabs(); updateCompose(); clearPending(); clearReply(); exitSelect(); favorites = new Set(); renderPins([]);
@@ -239,7 +284,7 @@
 
   function openTeam() {
     if (!hasCompany) { location.href = '/company'; return; }
-    generation++; loading = false; view = 'team'; contactId = ''; firstLoad = true; lastSeenId = 0; oldestId = 0;
+    generation++; loading = false; view = 'team'; contactId = ''; groupId = 0; groupInfo = null; firstLoad = true; lastSeenId = 0; oldestId = 0;
     olderWrap.hidden = true; delete olderWrap.dataset.initialized;
     title.textContent = companyName; subtitle.textContent = 'Grupo da empresa';
     avatar.textContent = (companyName || 'E').charAt(0).toUpperCase();
@@ -249,6 +294,30 @@
     loadFlags();
     shell.classList.add('mobile-open');
     loadCurrent();
+    loadTeamPeople();
+  }
+
+  async function loadTeamPeople() {
+    try {
+      const data = await getJSON('/company/chat/people?scope=team');
+      if (view === 'team') mentionPeople = (data.people || []).filter((p) => !p.is_me);
+    } catch (_) { /* menções ficam sem sugestões */ }
+  }
+
+  function openGroup(id) {
+    id = Number(id || 0);
+    if (!id) return;
+    generation++; loading = false; view = 'cgroup'; groupId = id; contactId = ''; groupInfo = null; mentionPeople = [];
+    firstLoad = true; lastSeenId = 0; oldestId = 0;
+    olderWrap.hidden = true; delete olderWrap.dataset.initialized;
+    title.textContent = 'Grupo'; subtitle.textContent = 'Carregando participantes...'; avatar.textContent = '👥';
+    list.innerHTML = emptyHtml('Carregando...', '');
+    setTabs(); updateCompose(); clearPending(); clearReply(); exitSelect(); favorites = new Set(); renderPins([]);
+    history.replaceState({}, '', `/company/chat?group=${id}`);
+    loadFlags();
+    shell.classList.add('mobile-open');
+    document.querySelectorAll('#dbmConversationSide [data-group-id],#dbmConversationSide [data-contact-id]').forEach((el) => el.classList.toggle('active', Number(el.dataset.groupId || 0) === id));
+    loadCurrent().then(() => input?.focus());
   }
 
   async function refreshSidebar() {
@@ -258,11 +327,17 @@
       if (!data.ok || !holder) return;
       const more = $('dbmMoreConversations');
       if (more) more.hidden = !data.has_more;
-      if (!data.conversations?.length) {
-        holder.innerHTML = '<div class="dbm-empty-side"><div><strong>Nenhum chat iniciado</strong><span>Adicione um contato à sua agenda para começar uma conversa.</span></div></div>';
+      const rows = [
+        ...(data.groups || []).map((g) => ({...g, isGroup: true})),
+        ...(data.conversations || []),
+      ].sort((a, b) => String(b.last_at || '').localeCompare(String(a.last_at || '')));
+      if (!rows.length) {
+        holder.innerHTML = '<div class="dbm-empty-side"><div><strong>Nenhum chat iniciado</strong><span>Adicione um contato ou crie um grupo para começar.</span></div></div>';
         return;
       }
-      holder.innerHTML = data.conversations.map((item) => `<button class="dbm-chat-item ${contactId === item.contact_id ? 'active' : ''}" type="button" data-contact-id="${esc(item.contact_id)}" data-search="${esc(`${item.name} ${item.contact_id}`)}"><span class="dbm-avatar">${esc((item.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`).join('');
+      holder.innerHTML = rows.map((item) => item.isGroup
+        ? `<button class="dbm-chat-item ${view === 'cgroup' && groupId === Number(item.id) ? 'active' : ''}" type="button" data-group-id="${Number(item.id)}" data-search="${esc(item.name)}"><span class="dbm-avatar is-group">👥</span><span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`
+        : `<button class="dbm-chat-item ${contactId === item.contact_id ? 'active' : ''}" type="button" data-contact-id="${esc(item.contact_id)}" data-search="${esc(`${item.name} ${item.contact_id}`)}"><span class="dbm-avatar">${esc((item.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`).join('');
       const q = ($('dbmChatSearch')?.value || '').trim().toLowerCase();
       if (q) holder.querySelectorAll('[data-search]').forEach((el) => { el.hidden = !el.dataset.search.toLowerCase().includes(q); });
     } catch (_) { /* tenta na próxima */ }
@@ -327,14 +402,16 @@
     if (!typed && !pendingFile) return;
     const text = replyTo && typed ? `${REPLY_MARK}${replyTo.name}: ${replyTo.text}\n${typed}`.slice(0, 2000) : typed;
     if (view === 'team' && !hasCompany) { location.href = '/company'; return; }
-    if (view !== 'team' && !contactId) return;
+    if (view === 'cgroup' && (!groupId || pendingFile)) { if (pendingFile) { clearPending(); setStatus('Anexos ainda não são aceitos nos grupos criados.'); } if (!groupId) return; }
+    if (view === 'conversations' && !contactId) return;
 
     sending = true;
-    const destination = view === 'team' ? 'g' : 'p';
+    closeMentions();
+    const destination = prefixFor();
     const selectedGeneration = generation;
     const originalFile = pendingFile;
     const tempKey = addTemp(typed || (pendingFile ? `📎 ${pendingFile.name}` : ''), pendingFile ? 'enviando arquivo...' : 'enviando...');
-    const base = view === 'team' ? '/company/messages' : `/company/chat/private/${encodeURIComponent(contactId)}`;
+    const base = view === 'team' ? '/company/messages' : (view === 'cgroup' ? `/company/chat/groups/${groupId}/messages` : `/company/chat/private/${encodeURIComponent(contactId)}`);
     input.value = '';
     clearPending();
     const savedReply = replyTo;
@@ -373,18 +450,23 @@
       sending = false;
     }
   });
-  input?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+  input?.addEventListener('keydown', (e) => {
+    if (mentionKeydown(e)) return;
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
 
   // ------------------------- navegação / agenda -------------------------
   document.addEventListener('click', (event) => {
+    const groupRow = event.target.closest('#dbmConversationSide [data-group-id]');
+    if (groupRow) { openGroup(groupRow.dataset.groupId); return; }
     const conversation = event.target.closest('[data-contact-id]');
-    if (conversation && !conversation.closest('#dbmContactList')) { openPrivate(conversation.dataset.contactId); return; }
+    if (conversation && !conversation.closest('#dbmContactList') && !conversation.closest('#dbmGroupPeople')) { openPrivate(conversation.dataset.contactId); return; }
     const start = event.target.closest('[data-start-contact]');
     if (start) { overlay?.classList.remove('open'); openPrivate(start.dataset.startContact); }
   });
   document.querySelectorAll('[data-main-tab]').forEach((btn) => btn.addEventListener('click', () => {
     if (btn.dataset.mainTab === 'team') { openTeam(); return; }
-    generation++; view = 'conversations'; contactId = ''; setTabs(); clearPending(); clearReply(); exitSelect(); renderPins([]);
+    generation++; view = 'conversations'; contactId = ''; groupId = 0; groupInfo = null; mentionPeople = []; setTabs(); clearPending(); clearReply(); exitSelect(); renderPins([]);
     olderWrap.hidden = true; delete olderWrap.dataset.initialized;
     title.textContent = 'Conversas'; subtitle.textContent = 'Selecione um contato'; avatar.textContent = 'C';
     list.innerHTML = emptyHtml('Selecione uma conversa', 'Ou use “Adicionar contatos” para iniciar um novo chat privado.');
@@ -461,7 +543,7 @@
   function openMenu(key, anchor) {
     const m = info(key);
     if (!m) return;
-    const team = view === 'team';
+    const team = view === 'team' || view === 'cgroup';
     const firstName = String(m.realName || '').split(' ')[0] || 'contato';
     const items = [
       ['reply', 'Responder'],
@@ -547,10 +629,11 @@
 
   async function loadFlags() {
     const team = view === 'team';
-    if (!team && !contactId) { favorites = new Set(); renderPins([]); return; }
+    if (!team && view !== 'cgroup' && !contactId) { favorites = new Set(); renderPins([]); return; }
     const current = generation;
     try {
-      const data = await getJSON(`/company/chat/flags?${team ? 'view=team' : `contact=${encodeURIComponent(contactId)}`}`);
+      const query = team ? 'view=team' : (view === 'cgroup' ? `view=cgroup&group=${groupId}` : `contact=${encodeURIComponent(contactId)}`);
+      const data = await getJSON(`/company/chat/flags?${query}`);
       if (current !== generation) return;
       favorites = new Set(data.favorites || []);
       applyFavorites();
@@ -612,13 +695,12 @@
     fwd.setAttribute('aria-hidden', 'false');
     $('dbmForwardSend').disabled = true;
     try {
-      const data = await getJSON('/company/chat/sidebar?limit=50');
-      const seen = new Set();
+      const data = await getJSON('/company/chat/targets');
       const rows = [];
-      if (hasCompany) rows.push({contact_id: 'group', name: data.group?.name || companyName, sub: 'Chat da empresa', group: true});
-      [...(data.conversations || []), ...(data.contacts || [])].forEach((c) => {
-        if (!c?.contact_id || c.is_me || c.active === false || seen.has(c.contact_id)) return;
-        seen.add(c.contact_id);
+      if (data.team) rows.push({contact_id: 'group', name: data.team.name || companyName, sub: 'Chat da empresa', group: true});
+      (data.groups || []).forEach((g) => rows.push({contact_id: g.target, name: g.name, sub: `Grupo • ${g.members_count} participantes`, group: true}));
+      (data.people || []).forEach((c) => {
+        if (!c?.contact_id || c.is_me || c.active === false) return;
         rows.push({contact_id: c.contact_id, name: c.name, sub: c.last_at ? `Última mensagem ${when(c.last_at)} • ${c.contact_id}` : `ID ${c.contact_id}`});
       });
       holder.innerHTML = rows.map((c) => `<label class="dbm-fwd-row" data-fwd-search="${esc(`${c.name} ${c.contact_id}`.toLowerCase())}"><input type="checkbox" value="${esc(c.contact_id)}"><span class="dbm-avatar">${c.group ? '👥' : esc((c.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></span></label>`).join('') || '<div class="dbm-fwd-empty">Nenhum contato. Adicione pela agenda.</div>';
@@ -750,9 +832,177 @@
     if (pinned.length) pinned.forEach((p) => list.querySelector(`[data-message-id="${CSS.escape(p.key)}"]`)?.classList.add('is-pinned'));
   }).observe(list, {childList: true});
 
+  // ------------------------- menções com @ -------------------------
+  const mentionPop = $('dbmMentionPop');
+  let mentionState = null; // {start, query, items, index}
+
+  function closeMentions() { mentionState = null; if (mentionPop) { mentionPop.hidden = true; mentionPop.innerHTML = ''; } }
+
+  function mentionCandidates(query) {
+    const q = query.toLowerCase();
+    const people = mentionPeople.filter((p) => !p.is_me && String(p.name || '').toLowerCase().includes(q));
+    const items = [];
+    if ('todos'.includes(q)) items.push({all: true, name: 'todos', sub: view === 'team' ? 'Mencione todos da empresa' : 'Mencione todos os membros do grupo'});
+    people.slice(0, 30).forEach((p) => items.push({name: p.name, sub: p.contact_id || ''}));
+    return items;
+  }
+
+  function renderMentions() {
+    if (!mentionState || !mentionState.items.length) { closeMentions(); return; }
+    mentionPop.innerHTML = mentionState.items.map((it, i) => `<button type="button" class="dbm-mention-item ${i === mentionState.index ? 'active' : ''}" data-mention-index="${i}" role="option"><span class="dbm-avatar">${it.all ? '👥' : esc(String(it.name || '?').charAt(0).toUpperCase())}</span><span><strong>${esc(it.name)}</strong>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
+    mentionPop.hidden = false;
+    mentionPop.querySelector('.active')?.scrollIntoView({block: 'nearest'});
+  }
+
+  function updateMentions() {
+    if (!input || !mentionPop || !(view === 'team' || view === 'cgroup')) { closeMentions(); return; }
+    const caret = input.selectionStart ?? input.value.length;
+    const before = input.value.slice(0, caret);
+    const match = before.match(/(^|\s)@([^\s@]{0,30})$/);
+    if (!match) { closeMentions(); return; }
+    const query = match[2];
+    const items = mentionCandidates(query);
+    mentionState = {start: caret - query.length - 1, query, items, index: 0};
+    renderMentions();
+  }
+
+  function chooseMention(index) {
+    if (!mentionState) return;
+    const it = mentionState.items[index];
+    if (!it) return;
+    const caret = input.selectionStart ?? input.value.length;
+    const text = `@${it.name} `;
+    input.value = input.value.slice(0, mentionState.start) + text + input.value.slice(caret);
+    const pos = mentionState.start + text.length;
+    input.setSelectionRange(pos, pos);
+    closeMentions();
+    input.focus();
+  }
+
+  function mentionKeydown(e) {
+    if (!mentionState || mentionPop.hidden) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = mentionState.items.length;
+      mentionState.index = (mentionState.index + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+      renderMentions();
+      return true;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); chooseMention(mentionState.index); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); closeMentions(); return true; }
+    return false;
+  }
+
+  input?.addEventListener('input', updateMentions);
+  input?.addEventListener('click', updateMentions);
+  input?.addEventListener('blur', () => setTimeout(closeMentions, 150));
+  mentionPop?.addEventListener('mousedown', (e) => {
+    const b = e.target.closest('[data-mention-index]');
+    if (!b) return;
+    e.preventDefault();
+    chooseMention(Number(b.dataset.mentionIndex));
+  });
+
+  // ------------------------- grupos -------------------------
+  const groupOverlay = $('dbmGroupOverlay');
+  let groupMode = 'create'; // create | manage
+
+  function closeGroupModal() { groupOverlay?.classList.remove('open'); groupOverlay?.setAttribute('aria-hidden', 'true'); }
+
+  function peopleRows(people, disabledIds = new Set()) {
+    return people.filter((p) => !p.is_me).map((p) => {
+      const off = disabledIds.has(p.contact_id);
+      return `<label class="dbm-fwd-row" data-group-search="${esc(`${p.name} ${p.contact_id}`.toLowerCase())}"><input type="checkbox" value="${esc(p.contact_id)}" ${off ? 'checked disabled' : ''}><span class="dbm-avatar">${esc(String(p.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(p.name)}</strong><small>${off ? 'Já participa' : esc(p.contact_id)}</small></span></label>`;
+    }).join('') || '<div class="dbm-fwd-empty">Ninguém disponível. Adicione contatos pela agenda.</div>';
+  }
+
+  function refreshGroupSave() {
+    const btn = $('dbmGroupSave');
+    if (!btn) return;
+    const picked = groupOverlay.querySelectorAll('#dbmGroupPeople input:checked:not(:disabled)').length;
+    btn.disabled = groupMode === 'create' ? (!picked || !$('dbmGroupName').value.trim()) : !picked;
+  }
+
+  async function openGroupModal(mode) {
+    groupMode = mode;
+    const manage = mode === 'manage';
+    $('dbmGroupModalTitle').textContent = manage ? (groupInfo?.name || 'Grupo') : 'Novo grupo';
+    $('dbmGroupModalSub').textContent = manage ? 'Participantes do grupo' : 'Escolha o nome e os participantes';
+    $('dbmGroupNameRow').hidden = manage;
+    $('dbmGroupName').value = '';
+    $('dbmGroupSearch').value = '';
+    $('dbmGroupNotice').textContent = '';
+    $('dbmGroupLeave').hidden = !manage;
+    $('dbmGroupSave').textContent = manage ? 'Adicionar ao grupo' : 'Criar grupo';
+    $('dbmGroupSave').hidden = manage && !groupInfo?.is_admin;
+    $('dbmGroupSearch').parentElement.style.display = manage && !groupInfo?.is_admin ? 'none' : '';
+    const now = $('dbmGroupMembersNow');
+    now.hidden = !manage;
+    const holder = $('dbmGroupPeople');
+    holder.innerHTML = '<div class="dbm-fwd-empty">Carregando pessoas...</div>';
+    groupOverlay.classList.add('open');
+    groupOverlay.setAttribute('aria-hidden', 'false');
+    refreshGroupSave();
+    try {
+      const [all, members] = await Promise.all([
+        getJSON('/company/chat/people'),
+        manage ? getJSON(`/company/chat/people?scope=group&group=${groupId}`) : Promise.resolve({people: []}),
+      ]);
+      const inGroup = new Set((members.people || []).map((p) => p.contact_id));
+      if (manage) now.innerHTML = (members.people || []).map((p) => `<span>${esc(p.is_me ? 'Você' : p.name)}</span>`).join('');
+      holder.innerHTML = manage && !groupInfo?.is_admin
+        ? '<div class="dbm-fwd-empty">Só o administrador do grupo adiciona participantes.</div>'
+        : peopleRows(all.people || [], inGroup);
+      (manage ? $('dbmGroupSearch') : $('dbmGroupName')).focus();
+    } catch (_) { holder.innerHTML = '<div class="dbm-fwd-empty">Erro ao carregar as pessoas.</div>'; }
+  }
+
+  $('dbmNewGroup')?.addEventListener('click', () => openGroupModal('create'));
+  $('dbmGroupInfo')?.addEventListener('click', () => openGroupModal('manage'));
+  $('dbmGroupClose')?.addEventListener('click', closeGroupModal);
+  groupOverlay?.addEventListener('click', (e) => { if (e.target === groupOverlay) closeGroupModal(); });
+  groupOverlay?.addEventListener('change', refreshGroupSave);
+  $('dbmGroupName')?.addEventListener('input', refreshGroupSave);
+  $('dbmGroupSearch')?.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    groupOverlay.querySelectorAll('[data-group-search]').forEach((el) => { el.hidden = !!q && !el.dataset.groupSearch.includes(q); });
+  });
+  $('dbmGroupSave')?.addEventListener('click', async () => {
+    const btn = $('dbmGroupSave');
+    const notice = $('dbmGroupNotice');
+    const members = [...groupOverlay.querySelectorAll('#dbmGroupPeople input:checked:not(:disabled)')].map((i) => i.value);
+    btn.disabled = true;
+    notice.textContent = groupMode === 'create' ? 'Criando grupo...' : 'Adicionando...';
+    try {
+      if (groupMode === 'create') {
+        const data = await postJSON('/company/chat/groups', {name: $('dbmGroupName').value.trim(), members});
+        closeGroupModal();
+        await refreshSidebar();
+        openGroup(data.group.id);
+      } else {
+        await postJSON(`/company/chat/groups/${groupId}/members`, {members});
+        closeGroupModal();
+        const id = groupId; openGroup(id);
+      }
+    } catch (err) { notice.textContent = err.message || 'Não foi possível concluir.'; btn.disabled = false; }
+  });
+  $('dbmGroupLeave')?.addEventListener('click', async () => {
+    if (!groupId || !window.confirm('Sair deste grupo? Você deixa de receber as mensagens dele.')) return;
+    try {
+      await postJSON(`/company/chat/groups/${groupId}/leave`, {});
+      closeGroupModal();
+      document.querySelector('[data-main-tab="conversations"]')?.click();
+      refreshSidebar();
+    } catch (err) { $('dbmGroupNotice').textContent = err.message || 'Erro ao sair do grupo.'; }
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeGroupModal(); });
+
   // ------------------------- ciclo -------------------------
   setTabs(); updateCompose();
-  if (view === 'team' || contactId) { loadCurrent(); loadFlags(); }
+  if (view === 'cgroup') openGroup(groupId);
+  else if (view === 'team' || contactId) { loadCurrent(); loadFlags(); }
+  if (view === 'team') loadTeamPeople();
+  refreshSidebar();
   setInterval(() => { if (!document.hidden) loadCurrent(); }, 1600);
   setInterval(() => { if (!document.hidden) { refreshSidebar(); loadFlags(); } }, 7000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadCurrent(); refreshSidebar(); } });

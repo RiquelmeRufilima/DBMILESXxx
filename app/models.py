@@ -767,6 +767,42 @@ class ChatMessageFlag(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class ChatGroup(Base):
+    """Grupo de conversa criado pelos usuários dentro do chat. Tabela criada sob demanda."""
+    __tablename__ = "web_chat_groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_by: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatGroupMember(Base):
+    """Participante de um grupo do chat; last_read_id controla as não lidas."""
+    __tablename__ = "web_chat_group_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    group_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_read_id: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatGroupMessage(Base):
+    """Mensagem de um grupo criado no chat (chave "c-{id}" no front)."""
+    __tablename__ = "web_chat_group_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    group_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("web_users.id", ondelete="CASCADE"), index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user: Mapped[WebUser] = orm_relationship()
+
+
 # Índices compostos das consultas incrementais mais frequentes.
 Index("ix_chat_company_recent", ChatMessage.company_id, ChatMessage.id)
 Index("ix_pv_sender_recipient_recent", PrivateChatMessage.sender_id, PrivateChatMessage.recipient_id, PrivateChatMessage.id)

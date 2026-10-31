@@ -37,6 +37,12 @@
 .dbm-fixed-bands{display:grid;gap:8px;margin:6px 0;padding:10px;border:1px dashed var(--border,#315273);border-radius:10px}
 .dbm-fixed-bands strong{font-size:.78rem}
 .dbm-fixed-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.dbm-net-profit{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;border:1px solid rgba(255,140,90,.35);border-radius:14px;background:rgba(255,140,90,.08)}
+.dbm-net-profit[hidden]{display:none}
+.dbm-net-profit small{display:block;color:var(--muted,#91acc1);font-size:.68rem;font-weight:900;text-transform:uppercase}
+.dbm-net-profit strong{display:block;font-size:1.05rem}
+.dbm-net-profit span{font-size:.72rem;color:var(--muted,#91acc1)}
+.dbm-net-profit.is-loss strong#profitNetLabel{color:#ff7c8a}
 html[data-theme="light"] .dbm-machine-panel,html[data-theme="light"] .dbm-anchor-panel{background:#f3f8fc;color:#19334a;border-color:#c7dce9}
 html[data-theme="light"] .dbm-machine-panel :is(label,small),html[data-theme="light"] .dbm-anchor-panel :is(label,small){color:#35546b}
 html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){background:#fff;color:#17344c;border-color:#bdd6e7}
@@ -58,6 +64,12 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
         <div><small>Total no cartão</small><strong id="profitCardTotalLabel">R$ 0,00</strong></div>
         <div><small>Juros / diferença</small><strong id="profitDifferenceLabel">R$ 0,00</strong><span class="profit-interest-percent" id="profitDifferencePercent">0,00%</span></div>
       </div>
+      <div class="dbm-net-profit" id="profitNetBox" hidden>
+        <div><small>Taxa da máquina</small><strong id="profitFeeLabel">R$ 0,00</strong><span id="profitFeeWho">—</span></div>
+        <div><small>Lucro real (após a taxa)</small><strong id="profitNetLabel">R$ 0,00</strong><span id="profitNetPercent">0,00%</span></div>
+      </div>
+      <input type="hidden" name="machine_fee_value" id="profitFeeValue" value="0">
+      <input type="hidden" name="net_profit_value" id="profitNetValue" value="0">
       <div class="profit-grid">
         <label>Condição<select name="card_interest_mode" id="cardInterestMode"><option value="cash">À vista</option><option value="no_interest">Cartão sem juros</option><option value="with_interest">Cartão com juros</option></select></label>
         <label>Vezes no cartão<input type="number" min="1" max="24" step="1" name="card_installments" id="cardInstallments" value="1"></label>
@@ -161,6 +173,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   const selectedFixed = () => fixedRateFor(currentMachine(), Math.max(1, Number(inst.value)||1));
   // Taxa total cobrada pela máquina = taxa fixa da faixa + taxa variável da parcela.
   const selectedRate = () => Math.round((selectedVariable() + selectedFixed())*10000)/10000;
+  const cardRate = (n) => { const t=currentMachine(); return Math.round((Number(t?.rates?.[String(n)] ?? 0) + fixedRateFor(t, n))*10000)/10000; };
   function updateMachineInputs(){
     const machine=currentMachine();
     if(machineEditName) machineEditName.value=machine?.name||'';
@@ -304,6 +317,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
         : `Total ${money(normalizedTotal)} • mesmo valor da venda à vista`;
     }
 
+    updateNetProfit(sale, normalizedTotal, normalizedDifference, times);
     return {
       sale,
       total: normalizedTotal,
@@ -311,6 +325,26 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       differencePercent: diffPercent,
       times
     };
+  }
+
+  // Sem juros: a agência assume a taxa da máquina (fixa + variável) e o lucro cai.
+  // Com juros: o cliente paga o total do cartão; o lucro só cai se os juros
+  // cobrados forem menores que a taxa. À vista (PIX/dinheiro): sem taxa.
+  function updateNetProfit(sale, total, difference, times){
+    const box=document.getElementById('profitNetBox'); if(!box)return;
+    const profit=Math.max(0,num(valueInput.value));
+    let fee=0, who='—';
+    if(mode.value==='no_interest'){ fee=sale*cardRate(times)/100; who=`agência paga • ${dec(cardRate(times))}% em ${times}x`; }
+    else if(mode.value==='with_interest'){ fee=total*cardRate(times)/100; who=`cliente paga ${money(difference)} de juros • ${dec(cardRate(times))}%`; }
+    const net=mode.value==='with_interest' ? profit-Math.max(0,fee-difference) : profit-fee;
+    box.hidden=mode.value==='cash';
+    box.classList.toggle('is-loss',net<0);
+    document.getElementById('profitFeeLabel').textContent=money(fee);
+    document.getElementById('profitFeeWho').textContent=who;
+    document.getElementById('profitNetLabel').textContent=money(net);
+    document.getElementById('profitNetPercent').textContent=`${dec(cost>0?net/cost*100:0)}% sobre o custo`;
+    document.getElementById('profitFeeValue').value=String(Math.round(fee*100)/100);
+    document.getElementById('profitNetValue').value=String(Math.round((mode.value==='cash'?profit:net)*100)/100);
   }
 
   function syncCard(source='auto', format=false) {
@@ -583,6 +617,8 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       data.set('card_value_source', cardValueSource.value || 'total');
       data.set('anchor_value', String(num(anchorInput.value)));
       data.set('machine_name', machineSelect.value || '');
+      data.set('machine_fee_value', document.getElementById('profitFeeValue').value || '0');
+      data.set('net_profit_value', document.getElementById('profitNetValue').value || '0');
 
       // Evita requisição presa indefinidamente.
       const controller = new AbortController();

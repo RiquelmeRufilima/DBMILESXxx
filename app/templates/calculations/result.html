@@ -189,15 +189,46 @@
  <div class="dbm-quote-dialog"><div class="dbm-quote-head"><strong>Encaminhar cotação para</strong><button type="button" id="dbmQuoteClose">✕</button></div>
  <input id="dbmQuoteSearch" type="search" placeholder="Pesquisar contato ou grupo" aria-label="Pesquisar contato">
  <div id="dbmQuoteTargets">Carregando contatos...</div><p id="dbmQuoteNotice" role="status"></p></div></div>
-<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}</style>
+<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}.dbm-quote-target strong,.dbm-quote-target small{display:block}.dbm-quote-target small{color:#9fbad0;font-size:.74rem;margin-top:2px}.dbm-quote-target:disabled{opacity:.6}</style>
 <script>
-(()=>{const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');let contacts=[];
+(()=>{
+ const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');
+ const CACHE_KEY='dbmChatTargets.v1';
  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const render=()=>{const q=search.value.toLowerCase();targets.innerHTML=[{contact_id:'group',name:'👥 Grupo da empresa'},...contacts].filter(c=>(c.name+' '+c.contact_id).toLowerCase().includes(q)).map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.contact_id)}">${esc(c.name)}</button>`).join('')||'Nenhum contato encontrado.';};
+ let rows=[];let loaded=false;let pending=null;let sendKind='client';
+ const toRows=d=>{const out=[];if(d.team)out.push({target:'group',name:'👥 '+(d.team.name||'Chat da equipe'),sub:'Chat da empresa'});(d.groups||[]).forEach(g=>out.push({target:g.target,name:'👥 '+g.name,sub:`Grupo • ${g.members_count} participantes`}));(d.people||[]).forEach(p=>{if(p.contact_id&&!p.is_me&&p.active!==false)out.push({target:p.contact_id,name:p.name,sub:p.contact_id});});return out;};
+ // Mostra na hora o que já foi carregado antes e vai acrescentando em lotes.
+ function render(){
+   const q=search.value.trim().toLowerCase();
+   const list=rows.filter(c=>(c.name+' '+c.target+' '+c.sub).toLowerCase().includes(q));
+   if(!list.length){targets.innerHTML=loaded?'Nenhum contato encontrado.':'Carregando contatos...';return;}
+   targets.innerHTML='';let i=0;
+   const step=()=>{const chunk=list.slice(i,i+15).map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.target)}"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></button>`).join('');targets.insertAdjacentHTML('beforeend',chunk);i+=15;if(i<list.length)requestAnimationFrame(step);};
+   step();
+ }
+ try{const cached=JSON.parse(sessionStorage.getItem(CACHE_KEY)||'null');if(cached&&Array.isArray(cached.rows))rows=cached.rows;}catch(_){}
+ function load(){
+   if(pending)return pending;
+   pending=fetch('/company/chat/targets',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(r=>r.json()).then(d=>{if(!d.ok)throw Error(d.message||'Erro');rows=toRows(d);loaded=true;try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({rows,at:Date.now()}))}catch(_){} if(!box.hidden)render();}).catch(()=>{loaded=true;if(!rows.length)targets.textContent='Erro ao carregar os contatos.';}).finally(()=>{pending=null;});
+   return pending;
+ }
+ // Pré-carrega assim que a página termina de abrir (a lista abre instantânea).
+ setTimeout(()=>{try{(window.requestIdleCallback||(f=>f()))(()=>load());}catch(_){load();}},300);
+ window.dbmOpenQuoteForward=kind=>{sendKind=kind||'client';box.hidden=false;notice.textContent='';search.value='';render();load();setTimeout(()=>search.focus(),30);};
  document.getElementById('dbmQuoteClose').onclick=()=>box.hidden=true;
+ box.addEventListener('click',e=>{if(e.target===box)box.hidden=true;});
  search.oninput=render;
- document.querySelectorAll('#forwardQuoteMessage,#forwardQuoteInternal').forEach(b=>b.addEventListener('click',async()=>{if(!contacts.length){try{let r=await fetch('/chat/sidebar');let d=await r.json();contacts=[...(d.contacts||[]),...(d.conversations||[])].filter((c,i,a)=>c.contact_id&&a.findIndex(x=>x.contact_id===c.contact_id)===i);contacts=contacts.filter(c=>c.active);render();}catch(e){notice.textContent='Erro ao carregar os contatos';}}}));
- targets.addEventListener('click',async e=>{const b=e.target.closest('[data-target]');if(!b)return;b.disabled=true;notice.textContent='Encaminhando cotação...';try{const r=await fetch('/chat/quotes/forward',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message);notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);}catch(err){notice.textContent=err.message||'Erro ao encaminhar';}finally{b.disabled=false;}});
+ targets.addEventListener('click',async e=>{
+   const b=e.target.closest('[data-target]');if(!b)return;
+   targets.querySelectorAll('button').forEach(x=>x.disabled=true);notice.textContent='Encaminhando cotação...';
+   const text=(document.getElementById(sendKind==='internal'?'quoteInternalMessage':'quoteClientMessage')?.value||'').trim();
+   try{
+     const r=await fetch('/company/chat/quotes/forward',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,message:text,csrf_token:{{ csrf_token|tojson }}})});
+     const j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw Error(j.message||'Não foi possível encaminhar.');
+     notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);
+   }catch(err){notice.textContent=err.message||'Erro ao encaminhar';}
+   finally{targets.querySelectorAll('button').forEach(x=>x.disabled=false);}
+ });
 })();
 </script>
 
@@ -439,6 +470,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const marginText=Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    // Impacto das taxas da máquina (fixa + variável) no lucro de cada opção ligada.
    let feeInfo='';
+   if(Number(commercialMeta.machine_fee_value||0)>0)feeInfo+=`\n🏧 Taxa da máquina na condição salva: ${formatMoney(commercialMeta.machine_fee_value)} • lucro real ${formatMoney(commercialMeta.net_profit_value)}`;
    const pct=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    if(payState.free){const n=Math.max(2,Number(payFreeN.value)||2);const r=machineRate(n);const fee=sale*r/100;feeInfo+=`\n💳 Sem juros ${n}x: taxa ${pct(r)}% = ${formatMoney(fee)} (agência paga) • lucro real ${formatMoney(profit-fee)}`;}
    if(payState.interest){const n=Math.max(2,Number(payIntN.value)||2);const r=machineRate(n);const total=interestTotal();feeInfo+=`\n💳 Com juros ${n}x: taxa ${pct(r)}% = ${formatMoney(total*r/100)} (cliente paga) • lucro real ${formatMoney(profit-(total*r/100-(total-sale)))}`;}
@@ -470,7 +502,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    else{
      if(Number(item.sale_value)>0)sale=Number(item.sale_value);
      profit=Number(item.profit_value||0);
-     commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||''};
+     commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||'',machine_fee_value:Number(item.machine_fee_value||0),net_profit_value:Number(item.net_profit_value||0)};
      cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
    }
    refreshClient();internalEditor.value=internalTemplate();
@@ -486,13 +518,12 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
   try {await navigator.clipboard.writeText(internalEditor.value);status.textContent='Resumo interno copiado'}
   catch(_){internalEditor.focus();internalEditor.select();status.textContent='Selecione e copie o texto'}
  });
- function openQuoteForwardPicker(){document.getElementById('dbmQuoteForwardModal').hidden=false;}
  document.getElementById('forwardQuoteInternal').addEventListener('click',()=>{
   if(!confirm('Este resumo inclui custo e lucro. Enviar para o chat interno?')) return;
-  openQuoteForwardPicker();
+  window.dbmOpenQuoteForward?.('internal');
  });
  document.getElementById('forwardQuoteMessage').addEventListener('click',()=>{
-  openQuoteForwardPicker();
+  window.dbmOpenQuoteForward?.('client');
  });
 })();
 </script>

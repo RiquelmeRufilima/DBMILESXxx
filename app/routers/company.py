@@ -24,6 +24,9 @@ from ..models import (
     AcceptedQuote,
     Airline,
     ChatAttachment,
+    ChatGroup,
+    ChatGroupMember,
+    ChatGroupMessage,
     ChatMessage,
     ChatMessageFlag,
     CompanyTask,
@@ -301,16 +304,15 @@ def _private_conversation_summaries(db: Session, user: WebUser, limit: int = 20)
 
 
 def _saved_contacts(db: Session, user: WebUser) -> list[dict]:
-    links = db.scalars(
-        select(UserChatContact)
-        .where(UserChatContact.owner_user_id == user.id)
+    # Uma consulta só (antes era uma por contato, o que deixava a lista lenta no Neon).
+    members = db.scalars(
+        select(WebUser)
+        .join(UserChatContact, UserChatContact.contact_user_id == WebUser.id)
+        .where(UserChatContact.owner_user_id == user.id, WebUser.active.is_(True))
         .order_by(UserChatContact.created_at)
     ).all()
     result: list[dict] = []
-    for link in links:
-        member = db.get(WebUser, link.contact_user_id)
-        if member is None or not member.active:
-            continue
+    for member in members:
         _ensure_user_contact_id(db, member)
         result.append(_chat_member_payload(member, user.id))
     return result
@@ -375,6 +377,12 @@ def _ensure_chat_schema(db: Session) -> None:
         ChatMessageFlag.__table__.create(bind=db.get_bind(), checkfirst=True)
     except Exception:  # pragma: no cover - corrida entre instâncias
         pass
+    # Grupos criados no chat: tabelas novas criadas sozinhas, sem SQL manual no Neon.
+    for table in (ChatGroup.__table__, ChatGroupMember.__table__, ChatGroupMessage.__table__):
+        try:
+            table.create(bind=db.get_bind(), checkfirst=True)
+        except Exception:  # pragma: no cover - corrida entre instâncias
+            pass
     _CHAT_SCHEMA_READY = True
 
 
@@ -881,7 +889,7 @@ def remove_member(member_id: int, request: Request, csrf_token: str = Form(...),
 
 
 @router.get("/chat")
-def chat_page(request: Request, contact: str = "", view: str = "conversations", db: Session = Depends(get_db)):
+def chat_page(request: Request, contact: str = "", view: str = "conversations", group: int = 0, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
@@ -922,6 +930,7 @@ def chat_page(request: Request, contact: str = "", view: str = "conversations", 
             selected_contact=_chat_member_payload(selected_contact, user.id) if selected_contact else None,
             private_messages=private_messages,
             chat_view="team" if view == "team" else "conversations",
+            selected_group=int(group or 0),
         ),
     )
 
@@ -964,6 +973,7 @@ def chat_sidebar_api(request: Request, limit: int = 20, db: Session = Depends(ge
             for item in conversations[:limit]
         ],
         "contacts": _saved_contacts(db, user),
+        "groups": _chat_group_summaries(db, user),
     }
 
 
@@ -1160,10 +1170,23 @@ def messages_api(request: Request, before_id: int = 0, after_id: int = 0, db: Se
 # ---------------------------------------------------------------------------
 # Envio por HTTP (o Vercel não mantém WebSocket) + anexos
 # ---------------------------------------------------------------------------
+def _mentions(text: str, members: list[WebUser], author_id: int) -> tuple[set[int], bool]:
+    """Quem foi mencionado com @Nome (ou @todos) no texto."""
+    low = str(text or "").casefold()
+    everyone = "@todos" in low
+    found = {m.id for m in members if m.id != author_id and m.name and f"@{m.name.casefold()}" in low}
+    return found, everyone
+
+
 def _notify_group(db: Session, user: WebUser, text: str) -> None:
     recipients = db.scalars(select(WebUser).where(WebUser.company_id == user.company_id, WebUser.id != user.id)).all()
+    mentioned, everyone = _mentions(text, recipients, user.id)
     for recipient in recipients:
-        create_notification(db, recipient.id, f"Nova mensagem de {user.name}", text[:300], kind="chat", link="/company/chat?view=team", commit=False)
+        if everyone or recipient.id in mentioned:
+            title = f"📣 {user.name} mencionou você no chat da equipe"
+        else:
+            title = f"Nova mensagem de {user.name}"
+        create_notification(db, recipient.id, title, text[:300], kind="chat", link="/company/chat?view=team", commit=False)
 
 
 @router.post("/messages")
@@ -1320,18 +1343,27 @@ def _parse_message_keys(values) -> list[tuple[str, int]]:
         return out
     for raw in values[:100]:
         text = str(raw or "").strip()
-        if len(text) < 3 or text[1] != "-" or text[0] not in "gp":
+        if len(text) < 3 or text[1] != "-" or text[0] not in "gpc":
             continue
         try:
             number = int(text[2:])
         except ValueError:
             continue
         if number > 0:
-            out.append(("group" if text[0] == "g" else "private", number))
+            out.append(({"g": "group", "p": "private", "c": "cgroup"}[text[0]], number))
     return out
 
 
+KIND_PREFIX = {"group": "g", "private": "p", "cgroup": "c"}
+
+
 def _load_allowed_message(db: Session, user: WebUser, kind: str, message_id: int):
+    if kind == "cgroup":
+        _ensure_chat_schema(db)
+        item = db.get(ChatGroupMessage, message_id)
+        if item is None or _group_membership(db, user, item.group_id) is None:
+            return None
+        return item
     if kind == "group":
         item = db.get(ChatMessage, message_id)
         if item is None or not user.company_id or item.company_id != user.company_id:
@@ -1344,7 +1376,7 @@ def _load_allowed_message(db: Session, user: WebUser, kind: str, message_id: int
 
 
 def _message_owner_id(kind: str, item) -> int:
-    return int(item.user_id if kind == "group" else item.sender_id)
+    return int(item.sender_id if kind == "private" else item.user_id)
 
 
 def _forward_targets(db: Session, user: WebUser, targets) -> tuple[list[str], str]:
@@ -1358,6 +1390,16 @@ def _forward_targets(db: Session, user: WebUser, targets) -> tuple[list[str], st
         if value == "group":
             if not user.company_id:
                 return [], "Você não está em uma empresa."
+        elif value.lower().startswith("grp-"):
+            try:
+                group_id = int(value[4:])
+            except ValueError:
+                return [], "Grupo inválido."
+            if _group_membership(db, user, group_id) is None:
+                return [], "Você não participa desse grupo."
+            if value.lower() not in clean:
+                clean.append(value.lower())
+            continue
         elif _resolve_private_contact(db, user, value) is None:
             return [], f"Contato {value} não encontrado."
         if value not in clean:
@@ -1370,6 +1412,15 @@ def _forward_targets(db: Session, user: WebUser, targets) -> tuple[list[str], st
 def _send_copy(db: Session, user: WebUser, target: str, text: str, attachment: ChatAttachment | None = None):
     """Grava uma mensagem (e cópia do anexo, se houver) no grupo ou no privado."""
     text = str(text or "").strip()[:2000] or "↪"
+    if target.startswith("grp-"):
+        group_id = int(target[4:])
+        if _group_membership(db, user, group_id) is None:
+            return None
+        message = ChatGroupMessage(group_id=group_id, user_id=user.id, message=text)
+        db.add(message)
+        db.flush()
+        _notify_chat_group(db, user, group_id, text)
+        return message
     if target == "group":
         message = ChatMessage(company_id=user.company_id, user_id=user.id, message=text)
         db.add(message)
@@ -1476,7 +1527,7 @@ async def chat_quote_forward_api(request: Request, db: Session = Depends(get_db)
     name = str(getattr(quote, "quote_name", "") or f"Cotação {quote.id}")[:100]
     route = f"{getattr(quote, 'origin', '') or '—'} → {getattr(quote, 'destination', '') or '—'}"
     header = f"✈️ Cotação compartilhada | {name} | {route}"
-    text = f"{header}\n\n{custom[:1500]}\n\n/calculations/result/{quote.id}" if custom else f"{header}\n/calculations/result/{quote.id}"
+    text = f"{header}\n\n{custom[:1800]}\n\n/calculations/result/{quote.id}" if custom else f"{header}\n/calculations/result/{quote.id}"
     for target in targets:
         _send_copy(db, user, target, text)
     db.commit()
@@ -1548,7 +1599,7 @@ async def chat_message_action_api(request: Request, db: Session = Depends(get_db
         for kind, item in items:
             db.execute(ChatAttachment.__table__.delete().where(ChatAttachment.kind == kind, ChatAttachment.message_id == item.id))
             db.execute(ChatMessageFlag.__table__.delete().where(ChatMessageFlag.kind == kind, ChatMessageFlag.message_id == item.id))
-            deleted.append(f"{'g' if kind == 'group' else 'p'}-{item.id}")
+            deleted.append(f"{KIND_PREFIX[kind]}-{item.id}")
             db.delete(item)
         db.commit()
         return {"ok": True, "deleted": deleted}
@@ -1578,20 +1629,322 @@ async def chat_message_action_api(request: Request, db: Session = Depends(get_db
                     db, manager.id, "Mensagem denunciada no chat",
                     f"{user.name} denunciou uma mensagem de {author.name if author else 'usuário'}: "
                     f"{str(item.message or '')[:180]}" + (f" • Motivo: {note}" if note else ""),
-                    kind="chat", link="/company/chat?view=team" if kind == "group" else "/company/chat", commit=False)
+                    kind="chat", link="/company/chat?view=team" if kind == "group" else (f"/company/chat?group={item.group_id}" if kind == "cgroup" else "/company/chat"), commit=False)
+    db.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Grupos criados no chat + menções com @ + lista rápida de destinatários
+# ---------------------------------------------------------------------------
+def _group_membership(db: Session, user: WebUser, group_id: int) -> ChatGroupMember | None:
+    if not group_id:
+        return None
+    _ensure_chat_schema(db)
+    try:
+        return db.scalar(select(ChatGroupMember).where(
+            ChatGroupMember.group_id == int(group_id), ChatGroupMember.user_id == user.id))
+    except Exception:
+        db.rollback()
+        return None
+
+
+def _group_member_users(db: Session, group_id: int) -> list[WebUser]:
+    return list(db.scalars(
+        select(WebUser)
+        .join(ChatGroupMember, ChatGroupMember.user_id == WebUser.id)
+        .where(ChatGroupMember.group_id == group_id, WebUser.active.is_(True))
+        .order_by(WebUser.name)
+    ).all())
+
+
+def _chat_group_payload(item: ChatGroupMessage, attachment: dict | None = None) -> dict:
+    return {
+        "id": item.id,
+        "group_id": item.group_id,
+        "user_id": item.user_id,
+        "user_name": item.user.name if item.user else "Usuário",
+        "user_contact_id": (getattr(item.user, "contact_id", "") or "") if item.user else "",
+        "message": item.message,
+        "created_at": iso_utc(item.created_at),
+        "attachment": attachment,
+    }
+
+
+def _chat_group_summaries(db: Session, user: WebUser) -> list[dict]:
+    """Grupos do usuário com última mensagem e não lidas (3 consultas no total)."""
+    _ensure_chat_schema(db)
+    try:
+        rows = db.execute(
+            select(ChatGroup, ChatGroupMember)
+            .join(ChatGroupMember, ChatGroupMember.group_id == ChatGroup.id)
+            .where(ChatGroupMember.user_id == user.id)
+        ).all()
+        if not rows:
+            return []
+        ids = [group.id for group, _ in rows]
+        last_ids = select(func.max(ChatGroupMessage.id)).where(ChatGroupMessage.group_id.in_(ids)).group_by(ChatGroupMessage.group_id)
+        last = {m.group_id: m for m in db.scalars(select(ChatGroupMessage).where(ChatGroupMessage.id.in_(last_ids))).all()}
+        unread = dict(db.execute(
+            select(ChatGroupMessage.group_id, func.count(ChatGroupMessage.id))
+            .join(ChatGroupMember, (ChatGroupMember.group_id == ChatGroupMessage.group_id) & (ChatGroupMember.user_id == user.id))
+            .where(ChatGroupMessage.group_id.in_(ids), ChatGroupMessage.id > ChatGroupMember.last_read_id,
+                   ChatGroupMessage.user_id != user.id)
+            .group_by(ChatGroupMessage.group_id)
+        ).all())
+        counts = dict(db.execute(
+            select(ChatGroupMember.group_id, func.count(ChatGroupMember.id))
+            .where(ChatGroupMember.group_id.in_(ids)).group_by(ChatGroupMember.group_id)
+        ).all())
+    except Exception:
+        db.rollback()
+        return []
+    out = []
+    for group, member in rows:
+        msg = last.get(group.id)
+        out.append({
+            "id": group.id,
+            "name": group.name,
+            "is_admin": bool(member.is_admin),
+            "members_count": int(counts.get(group.id, 0)),
+            "last_message": (f"{msg.user.name.split(' ')[0]}: {msg.message}" if msg and msg.user else (msg.message if msg else "Grupo criado")),
+            "last_at": iso_utc(msg.created_at if msg else group.created_at),
+            "unread": int(unread.get(group.id, 0)),
+        })
+    out.sort(key=lambda g: g["last_at"] or "", reverse=True)
+    return out
+
+
+def _allowed_people(db: Session, user: WebUser) -> list[WebUser]:
+    """Quem pode entrar em grupos / ser mencionado: colegas da empresa + agenda."""
+    people: dict[int, WebUser] = {}
+    if user.company_id:
+        for member in db.scalars(select(WebUser).where(
+                WebUser.company_id == user.company_id, WebUser.active.is_(True), WebUser.id != user.id)).all():
+            people[member.id] = member
+    for member in db.scalars(
+        select(WebUser).join(UserChatContact, UserChatContact.contact_user_id == WebUser.id)
+        .where(UserChatContact.owner_user_id == user.id, WebUser.active.is_(True))
+    ).all():
+        people[member.id] = member
+    for member in people.values():
+        _ensure_user_contact_id(db, member)
+    return sorted(people.values(), key=lambda m: (m.name or "").casefold())
+
+
+def _notify_chat_group(db: Session, user: WebUser, group_id: int, text: str) -> None:
+    group = db.get(ChatGroup, group_id)
+    members = [m for m in _group_member_users(db, group_id) if m.id != user.id]
+    mentioned, everyone = _mentions(text, members, user.id)
+    name = group.name if group else "grupo"
+    for member in members:
+        title = (f"📣 {user.name} mencionou você em {name}" if everyone or member.id in mentioned
+                 else f"{user.name} em {name}")
+        create_notification(db, member.id, title, text[:300], kind="chat",
+                            link=f"/company/chat?group={group_id}", commit=False)
+
+
+@router.get("/chat/people")
+def chat_people_api(request: Request, scope: str = "", group: int = 0, db: Session = Depends(get_db)):
+    """Pessoas para criar grupo ou mencionar com @ (equipe, grupo ou agenda)."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    _ensure_user_contact_id(db, user)
+    if scope == "team":
+        members = db.scalars(select(WebUser).where(
+            WebUser.company_id == user.company_id, WebUser.active.is_(True)).order_by(WebUser.name)).all() if user.company_id else []
+    elif scope == "group":
+        if _group_membership(db, user, group) is None:
+            return JSONResponse({"ok": False, "message": "Grupo indisponível."}, status_code=404)
+        members = _group_member_users(db, group)
+    else:
+        members = _allowed_people(db, user)
+    return {"ok": True, "people": [_chat_member_payload(m, user.id) for m in members]}
+
+
+@router.get("/chat/targets")
+def chat_targets_api(request: Request, db: Session = Depends(get_db)):
+    """Lista leve para encaminhar: equipe, grupos, conversas recentes e agenda."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    _ensure_user_contact_id(db, user)
+    company = db.get(WebCompany, user.company_id) if user.company_id else None
+    seen: set[str] = set()
+    people: list[dict] = []
+    for item in _private_conversation_summaries(db, user, limit=40):
+        member = item["member"]
+        if member["contact_id"] and member["contact_id"] not in seen:
+            seen.add(member["contact_id"])
+            people.append({**member, "last_at": iso_utc(item["last_at"])})
+    for member in _allowed_people(db, user):
+        payload = _chat_member_payload(member, user.id)
+        if payload["contact_id"] and payload["contact_id"] not in seen:
+            seen.add(payload["contact_id"])
+            people.append(payload)
+    return {
+        "ok": True,
+        "team": {"name": company.name, "target": "group"} if company else None,
+        "groups": [{"target": f"grp-{g['id']}", "name": g["name"], "members_count": g["members_count"],
+                    "last_at": g["last_at"]} for g in _chat_group_summaries(db, user)],
+        "people": people,
+    }
+
+
+@router.post("/chat/groups")
+async def chat_group_create_api(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    _ensure_chat_schema(db)
+    _ensure_user_contact_id(db, user)
+    name = " ".join(str(payload.get("name") or "").split())[:80]
+    if not name:
+        return JSONResponse({"ok": False, "message": "Dê um nome ao grupo."}, status_code=400)
+    wanted = {str(v or "").strip().upper() for v in (payload.get("members") or [])[:100] if str(v or "").strip()}
+    allowed = {m.contact_id: m for m in _allowed_people(db, user)}
+    members = [allowed[c] for c in wanted if c in allowed]
+    if not members:
+        return JSONResponse({"ok": False, "message": "Escolha pelo menos um participante."}, status_code=400)
+    group = ChatGroup(company_id=user.company_id, name=name, created_by=user.id)
+    db.add(group)
+    db.flush()
+    db.add(ChatGroupMember(group_id=group.id, user_id=user.id, is_admin=True))
+    for member in members:
+        db.add(ChatGroupMember(group_id=group.id, user_id=member.id, is_admin=False))
+    db.add(ChatGroupMessage(group_id=group.id, user_id=user.id, message=f"👥 {user.name} criou o grupo “{name}”."))
+    for member in members:
+        create_notification(db, member.id, f"Você foi adicionado ao grupo {name}", f"{user.name} criou o grupo.",
+                            kind="chat", link=f"/company/chat?group={group.id}", commit=False)
+    db.commit()
+    return {"ok": True, "group": {"id": group.id, "name": group.name}}
+
+
+@router.get("/chat/groups/{group_id}/messages")
+def chat_group_messages_api(group_id: int, request: Request, before_id: int = 0, after_id: int = 0,
+                            db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "messages": []}, status_code=401)
+    membership = _group_membership(db, user, group_id)
+    if membership is None:
+        return JSONResponse({"ok": False, "message": "Grupo indisponível."}, status_code=404)
+    group = db.get(ChatGroup, group_id)
+    query = select(ChatGroupMessage).where(ChatGroupMessage.group_id == group_id).options(selectinload(ChatGroupMessage.user))
+    if before_id:
+        query = query.where(ChatGroupMessage.id < before_id)
+    if after_id:
+        query = query.where(ChatGroupMessage.id > after_id)
+    limit = 60 if after_id else 30
+    messages = list(reversed(db.scalars(query.order_by(desc(ChatGroupMessage.id)).limit(limit)).all()))
+    if messages and not before_id:
+        newest = max(m.id for m in messages)
+        if newest > (membership.last_read_id or 0):
+            membership.last_read_id = newest
+            db.commit()
+    members = _group_member_users(db, group_id) if not after_id else []
+    return {
+        "ok": True,
+        "group": {"id": group.id, "name": group.name, "is_admin": bool(membership.is_admin)} if group else None,
+        "members": [_chat_member_payload(m, user.id) for m in members],
+        "messages": [_chat_group_payload(m) for m in messages],
+        "has_more": len(messages) == 30 if not after_id else False,
+    }
+
+
+@router.post("/chat/groups/{group_id}/messages")
+async def chat_group_send_api(group_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    membership = _group_membership(db, user, group_id)
+    if membership is None:
+        return JSONResponse({"ok": False, "message": "Você não participa desse grupo."}, status_code=403)
+    text = str(payload.get("message") or "").strip()[:2000]
+    if not text:
+        return JSONResponse({"ok": False, "message": "Digite uma mensagem."}, status_code=400)
+    message = ChatGroupMessage(group_id=group_id, user_id=user.id, message=text)
+    db.add(message)
+    db.flush()
+    membership.last_read_id = message.id
+    _notify_chat_group(db, user, group_id, text)
+    db.commit()
+    db.refresh(message)
+    return {"ok": True, "message": _chat_group_payload(message)}
+
+
+@router.post("/chat/groups/{group_id}/members")
+async def chat_group_add_members_api(group_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    membership = _group_membership(db, user, group_id)
+    if membership is None or not membership.is_admin:
+        return JSONResponse({"ok": False, "message": "Só o administrador do grupo adiciona participantes."}, status_code=403)
+    current = {m.id for m in _group_member_users(db, group_id)}
+    allowed = {m.contact_id: m for m in _allowed_people(db, user)}
+    added = []
+    for raw in (payload.get("members") or [])[:100]:
+        member = allowed.get(str(raw or "").strip().upper())
+        if member and member.id not in current:
+            db.add(ChatGroupMember(group_id=group_id, user_id=member.id, is_admin=False))
+            current.add(member.id)
+            added.append(member.name)
+    if not added:
+        return JSONResponse({"ok": False, "message": "Ninguém novo para adicionar."}, status_code=400)
+    group = db.get(ChatGroup, group_id)
+    db.add(ChatGroupMessage(group_id=group_id, user_id=user.id, message=f"➕ {user.name} adicionou {', '.join(added)}."))
+    db.commit()
+    return {"ok": True, "added": added, "group": {"id": group_id, "name": group.name if group else ""}}
+
+
+@router.post("/chat/groups/{group_id}/leave")
+async def chat_group_leave_api(group_id: int, request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    payload, error = await _json_with_csrf(request)
+    if error:
+        return error
+    membership = _group_membership(db, user, group_id)
+    if membership is None:
+        return JSONResponse({"ok": False, "message": "Você não participa desse grupo."}, status_code=404)
+    was_admin = bool(membership.is_admin)
+    db.delete(membership)
+    db.add(ChatGroupMessage(group_id=group_id, user_id=user.id, message=f"🚪 {user.name} saiu do grupo."))
+    db.flush()
+    if was_admin:
+        others = db.scalars(select(ChatGroupMember).where(ChatGroupMember.group_id == group_id).order_by(ChatGroupMember.id)).all()
+        if others and not any(o.is_admin for o in others):
+            others[0].is_admin = True
     db.commit()
     return {"ok": True}
 
 
 @router.get("/chat/flags")
-def chat_flags_api(request: Request, view: str = "", contact: str = "", db: Session = Depends(get_db)):
+def chat_flags_api(request: Request, view: str = "", contact: str = "", group: int = 0, db: Session = Depends(get_db)):
     """Mensagens fixadas da conversa aberta + favoritas do usuário."""
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"ok": False}, status_code=401)
     _ensure_chat_schema(db)
     try:
-        if view == "team":
+        if view == "cgroup":
+            if _group_membership(db, user, group) is None:
+                return {"ok": True, "pinned": [], "favorites": []}
+            kind = "cgroup"
+            ids_query = select(ChatGroupMessage.id).where(ChatGroupMessage.group_id == group)
+        elif view == "team":
             if not user.company_id:
                 return {"ok": True, "pinned": [], "favorites": []}
             kind = "group"
@@ -1615,9 +1968,9 @@ def chat_flags_api(request: Request, view: str = "", contact: str = "", db: Sess
     except Exception:
         db.rollback()
         return {"ok": True, "pinned": [], "favorites": []}
-    prefix = "g" if kind == "group" else "p"
+    prefix = KIND_PREFIX[kind]
     pinned, favorites, seen = [], [], set()
-    model = ChatMessage if kind == "group" else PrivateChatMessage
+    model = {"group": ChatMessage, "private": PrivateChatMessage, "cgroup": ChatGroupMessage}[kind]
     for row in rows:
         key = f"{prefix}-{row.message_id}"
         if row.flag == "fav" and row.user_id == user.id:

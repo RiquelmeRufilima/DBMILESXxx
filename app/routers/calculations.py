@@ -4616,6 +4616,10 @@ async def save_option_profit(
         if anchor_value > 1000000000:
             raise ValueError("Valor de comparação muito elevado.")
         machine_name = str(form.get("machine_name") or "")[:48].strip()
+        # Taxa da máquina assumida/cobrada e lucro real (após a taxa), calculados na janela.
+        machine_fee_value = round(max(0, _commercial_number(form.get("machine_fee_value"))), 2)
+        raw_net = str(form.get("net_profit_value") or "").strip()
+        net_profit_value = round(-_commercial_number(raw_net[1:]) if raw_net.startswith("-") else _commercial_number(raw_net), 2)
 
         # REMOVER = exatamente o mesmo que lucro zero
 
@@ -4907,6 +4911,8 @@ async def save_option_profit(
                 if isinstance(previous_meta, dict):
                     previous_meta.pop("anchor_value", None)
                     previous_meta.pop("machine_name", None)
+                    previous_meta.pop("machine_fee_value", None)
+                    previous_meta.pop("net_profit_value", None)
                     commercial.observations = json.dumps(previous_meta, ensure_ascii=False) if previous_meta else None
 
             # -------------------------------------------------
@@ -5025,6 +5031,10 @@ async def save_option_profit(
                     "anchor_value": (round(anchor_value * target_sale / cash_sale, 2)
                                      if apply_all and cash_sale > 0 else anchor_value),
                     "machine_name": machine_name,
+                    "machine_fee_value": (round(machine_fee_value * target_sale / cash_sale, 2)
+                                          if apply_all and cash_sale > 0 else machine_fee_value),
+                    "net_profit_value": (round(net_profit_value * target_sale / cash_sale, 2)
+                                         if apply_all and cash_sale > 0 else net_profit_value),
                 })
                 commercial.observations = json.dumps(previous_meta, ensure_ascii=False)
 
@@ -5190,6 +5200,14 @@ async def save_option_profit(
                         if apply_all and cash_sale > 0 else anchor_value
                     ),
                     "machine_name": "" if remove_commercial else machine_name,
+                    "machine_fee_value": 0 if remove_commercial else (
+                        round(machine_fee_value * target_sale / cash_sale, 2)
+                        if apply_all and cash_sale > 0 else machine_fee_value
+                    ),
+                    "net_profit_value": 0 if remove_commercial else (
+                        round(net_profit_value * target_sale / cash_sale, 2)
+                        if apply_all and cash_sale > 0 else net_profit_value
+                    ),
                     "card_difference_percent":
                         (
                             0
