@@ -12,3 +12,5 @@ app_BACKUP*
 app (2)
 backup
 backups
+tests/
+.pytest_cache/

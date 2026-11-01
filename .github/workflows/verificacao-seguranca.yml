@@ -1,0 +1,58 @@
+name: DBMILESX - Segurança de dependências e regressão
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'api/**'
+      - 'requirements.txt'
+      - 'package*.json'
+      - 'tests/**'
+      - '.github/workflows/verificacao-seguranca.yml'
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 10 * * 1'
+permissions:
+  contents: read
+concurrency:
+  group: dbmilesx-auditoria-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  python-security:
+    name: Python 3.12 (SQLite temporário)
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Instalar dependências da aplicação e de testes
+        run: python -m pip install -r requirements.txt pytest pip-audit
+      - name: Testes de segurança sem banco de produção
+        env:
+          APP_ENV: test
+        run: python -m pytest tests/test_security.py tests/test_security_phase2.py tests/test_security_phase34.py -q
+      - name: Auditoria de dependências Python
+        run: python -m pip_audit -r requirements.txt
+  node-security:
+    name: Node 22 (Blob e vulnerabilidades)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar exatamente o lockfile
+        run: npm ci --ignore-scripts --no-fund
+      - name: Verificar sintaxe do endpoint de avatar
+        run: node --check api/avatar-presign.js
+      - name: Verificar a API de Blob utilizada pelo sistema
+        run: |
+          node --input-type=module -e "import {issueSignedToken,presignUrl} from '@vercel/blob'; if(typeof issueSignedToken !== 'function'||typeof presignUrl !== 'function') process.exit(2);"
+      - name: Auditoria de dependências Node em produção
+        run: npm audit --omit=dev --audit-level=high

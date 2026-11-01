@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@vercel/blob": "^2.6.1"
+    "@vercel/blob": "2.8.2"
+  },
+  "overrides": {
+    "zod": "^4.6.6"
   }
 }
