@@ -8,17 +8,16 @@ from datetime import datetime, timedelta
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-_test_dir = tempfile.mkdtemp(prefix="dbm-progressive-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_test_dir}/db.sqlite"
-os.environ["SECRET_KEY"] = "progressive-tests-local-only-very-long-secret"
-os.environ["APP_ENV"] = "test"
-os.environ["RUN_FULL_STARTUP_MAINTENANCE"] = "0"
-os.environ["PERSISTENT_ROOT"] = _test_dir
-os.environ.pop("VERCEL", None)
-
+# Este módulo possui um banco próprio, sem mudar DATABASE_URL global.
 from starlette.requests import Request
-from app.database import Base, SessionLocal, engine
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.database import Base
 from app.main import app
+_test_dir = tempfile.TemporaryDirectory(prefix="dbm-progressive-")
+engine = create_engine(f"sqlite:///{_test_dir.name}/db.sqlite", connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
 from app.models import (AcceptedQuote, ChatMessage, CheckinReminder, Notification,
                         Person, PrivateChatMessage, QuoteGroup, QuoteGroupTripDetail,
                         WebCompany, WebUser)

@@ -20,18 +20,9 @@ from pathlib import Path
 
 import pytest
 
-# --- Ambiente isolado: precisa vir ANTES de importar o app ------------------
-_TMP = tempfile.mkdtemp(prefix="dbmilesx-test-")
-os.environ["DATABASE_URL"] = f"sqlite:///{Path(_TMP) / 'test.db'}"
-os.environ["SECRET_KEY"] = "test-secret-key-only-for-pytest-1234567890"
-os.environ["APP_ENV"] = "test"
-os.environ["RUN_FULL_STARTUP_MAINTENANCE"] = "0"
-os.environ["SESSION_HTTPS_ONLY"] = "0"
-os.environ["PERSISTENT_ROOT"] = _TMP  # uploads e dados de teste ficam fora do projeto
-os.environ.pop("VERCEL", None)
-os.environ.pop("BOOTSTRAP_ADMIN_EMAIL", None)
-os.environ.pop("BOOTSTRAP_ADMIN_PASSWORD", None)
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# O conftest configura SQLite antes da coleta de qualquer módulo.
+_TMP = os.environ["PERSISTENT_ROOT"]
+assert os.environ["DATABASE_URL"].startswith("sqlite:///"), "SQLite de testes obrigatório"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
