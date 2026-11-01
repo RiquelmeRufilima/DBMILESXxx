@@ -71,6 +71,11 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       <input type="hidden" name="machine_fee_value" id="profitFeeValue" value="0">
       <input type="hidden" name="net_profit_value" id="profitNetValue" value="0">
       <div class="profit-grid">
+        <label>Entrada (Pix / dinheiro) em R$
+          <input type="text" name="entry_amount" id="profitEntryAmount" inputmode="decimal" value="0,00" placeholder="0,00"></label>
+        <div class="dbm-entry-explain">Valor recebido por Pix ou dinheiro, descontado do saldo a cobrar no cartão.</div>
+      </div>
+      <div class="profit-grid">
         <label>Condição<select name="card_interest_mode" id="cardInterestMode"><option value="cash">À vista</option><option value="no_interest">Cartão sem juros</option><option value="with_interest">Cartão com juros</option></select></label>
         <label>Vezes no cartão<input type="number" min="1" max="24" step="1" name="card_installments" id="cardInstallments" value="1"></label>
       </div>
@@ -108,7 +113,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       </div>
       <div class="profit-live-helper">
         <span>Digite normalmente em qualquer um dos dois campos.</span>
-        <strong>Total = venda à vista + juros</strong>
+        <strong>Cartão = venda à vista − entrada + juros</strong>
       </div>
       <div class="profit-installment-preview">
         <span class="profit-installment-badge" id="profitInstallmentBadge">1x</span>
@@ -117,7 +122,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
           <small id="profitInstallmentDetail">Sem juros de parcelamento.</small>
         </span>
       </div>
-      <div class="profit-card-note">O <strong>valor de venda à vista</strong> é custo + lucro. O campo <strong>Juros / diferença</strong> é somado ao valor à vista para formar o total no cartão. Você pode editar tanto o total quanto a diferença; o outro campo é recalculado automaticamente.</div>
+      <div class="profit-card-note">O <strong>valor de venda à vista</strong> é custo + lucro. A entrada (Pix/dinheiro) é descontada antes do cartão e as taxas incidem sobre o saldo cobrado no cartão. Você pode editar tanto o total quanto a diferença; o outro campo é recalculado automaticamente.</div>
       <div class="profit-checks"><label><input type="checkbox" name="apply_all" value="1" id="profitApplyAll"> Aplicar a mesma margem percentual proporcionalmente a todos os voos/opções desta cotação.</label><label><input type="checkbox" name="sent_to_client" value="1" id="profitSent" checked> Marcar como cotação enviada ao cliente para a futura base de dashboard de lucros.</label></div>
       <div class="profit-dialog-actions"><button type="button" class="ghost-button danger" data-confirm-ignore="1" id="profitRemove" hidden>Remover lucro</button><button type="button" class="ghost-button" data-confirm-ignore="1" id="profitCancel">Cancelar</button><button type="button" class="primary-button" data-confirm-ignore="1" id="profitSave">Salvar condição comercial</button></div>
     </div>
@@ -147,6 +152,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   const removeBtn = document.getElementById('profitRemove');
   const mode = document.getElementById('cardInterestMode');
   const inst = document.getElementById('cardInstallments');
+  const entryInput = document.getElementById('profitEntryAmount');
   const cardTotal = document.getElementById('cardTotalValue');
   const cardDifference = document.getElementById('cardDifferenceValue');
   const machineSelect = document.getElementById('profitMachineName');
@@ -207,7 +213,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       machineNotice.textContent='Não há taxa cadastrada para esta quantidade de parcelas.';
       return false;
     }
-    const sale=cashSale();
+    const sale=cardBase();
     const total=passFees.checked ? Math.round(sale/(1-rate/100)*100)/100 : sale;
     const difference=Math.max(0,total-sale);
     if(machineRate)machineRate.value=dec(rate);
@@ -251,9 +257,12 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   const money = (value) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(value)||0);
   const dec = (value, digits=2) => (Number(value)||0).toLocaleString('pt-BR',{minimumFractionDigits:digits,maximumFractionDigits:digits});
   const cashSale = () => cost + Math.max(0, num(valueInput.value));
+  const entrySale = () => Math.min(cashSale(), Math.max(0, num(entryInput?.value)));
+  const cardBase = () => Math.max(0, cashSale() - entrySale());
 
   function financeState(source='auto', format=false) {
     const sale = cashSale();
+    const basis = cardBase();
     let times = Math.max(1, Math.min(24, Number(inst.value) || 1));
     let total = Math.max(0, num(cardTotal.value));
     let difference = Math.max(0, num(cardDifference.value));
@@ -263,27 +272,27 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     if (mode.value === 'cash') {
       times = 1;
       inst.value = 1;
-      total = sale;
+      total = basis;
       difference = 0;
       cardValueSource.value = 'total';
     } else if (source === 'difference') {
-      total = sale + difference;
+      total = basis + difference;
       cardValueSource.value = 'difference';
       mode.value = difference > 0 ? 'with_interest' : 'no_interest';
     } else if (source === 'total') {
       // Durante a digitação NÃO reescrevemos o próprio campo.
       // Assim "1200" pode ser digitado normalmente, sem o cursor pular.
-      difference = Math.max(0, total - sale);
+      difference = Math.max(0, total - basis);
       cardValueSource.value = 'total';
       mode.value = difference > 0 ? 'with_interest' : 'no_interest';
     } else if (mode.value === 'no_interest') {
-      total = sale;
+      total = basis;
       difference = 0;
     } else if (mode.value === 'with_interest') {
-      if (cardValueSource.value === 'difference') total = sale + difference;
-      else difference = Math.max(0, total - sale);
+      if (cardValueSource.value === 'difference') total = basis + difference;
+      else difference = Math.max(0, total - basis);
     } else {
-      total = sale;
+      total = basis;
       difference = 0;
     }
 
@@ -291,12 +300,12 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     const totalIsSource = source === 'total' && active === cardTotal;
     const differenceIsSource = source === 'difference' && active === cardDifference;
 
-    if (!totalIsSource || format) cardTotal.value = dec(Math.max(sale, total));
+    if (!totalIsSource || format) cardTotal.value = dec(Math.max(basis, total));
     if (!differenceIsSource || format) cardDifference.value = dec(Math.max(0, difference));
 
-    const normalizedTotal = Math.max(sale, source === 'difference' ? sale + difference : total || sale);
-    const normalizedDifference = Math.max(0, source === 'difference' ? difference : normalizedTotal - sale);
-    const diffPercent = sale > 0 ? normalizedDifference / sale * 100 : 0;
+    const normalizedTotal = Math.max(basis, source === 'difference' ? basis + difference : total || basis);
+    const normalizedDifference = Math.max(0, source === 'difference' ? difference : normalizedTotal - basis);
+    const diffPercent = basis > 0 ? normalizedDifference / basis * 100 : 0;
 
     previewAnchor();
     if(machineRate) machineRate.value=dec(selectedRate());
@@ -308,18 +317,20 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     instBadge.textContent = `${times}x`;
     if (mode.value === 'cash') {
       instLabel.textContent = 'Pagamento à vista';
-      instDetail.textContent = `${money(sale)} • sem juros`;
+      instDetail.textContent = `${money(entrySale())} de entrada + ${money(basis)} no cartão`;
     } else {
       const installmentValue = normalizedTotal / times;
       instLabel.textContent = `${times}x de ${money(installmentValue)}${normalizedDifference <= 0 ? ' sem juros' : ''}`;
       instDetail.textContent = normalizedDifference > 0
         ? `Total ${money(normalizedTotal)} • juros ${money(normalizedDifference)} (${dec(diffPercent)}%)`
-        : `Total ${money(normalizedTotal)} • mesmo valor da venda à vista`;
+        : `Entrada ${money(entrySale())} + cartão ${money(normalizedTotal)} sem juros`;
     }
 
     updateNetProfit(sale, normalizedTotal, normalizedDifference, times);
     return {
       sale,
+      entry:entrySale(),
+      basis,
       total: normalizedTotal,
       difference: normalizedDifference,
       differencePercent: diffPercent,
@@ -375,8 +386,8 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     percentInput.value = dec(percent || (cost > 0 ? profit / cost * 100 : 0));
     mode.value = btn.dataset.cardMode || 'cash';
     inst.value = Math.max(1, Number(btn.dataset.cardInstallments) || 1);
-    cardTotal.value = dec(Math.max(0, num(btn.dataset.cardTotal)) || cost + profit);
-    cardDifference.value = dec(Math.max(0, num(btn.dataset.cardDifference)) || Math.max(0, num(btn.dataset.cardTotal) - (cost + profit)));
+    cardTotal.value = dec(Math.max(0, Number(btn.dataset.cardTotal ?? cost + profit)));
+    cardDifference.value = dec(Math.max(0, Number(btn.dataset.cardDifference ?? 0)));
     applyAll.checked = btn.dataset.applyAll === '1';
     sent.checked = btn.dataset.sent === '1' || btn.dataset.sent === '';
     title.textContent = btn.dataset.applyAll === '1' ? 'Lucro em todos os voos' : (profit > 0 ? 'Editar lucro' : 'Adicionar lucro');
@@ -387,6 +398,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     // Dados de ancoragem por cotação, salvos no campo de metadados comerciais.
     let metadata={};try{metadata=JSON.parse(btn.dataset.commercialMeta||'{}')}catch(_){}
     anchorInput.value=Number(metadata.anchor_value||0)>0?dec(metadata.anchor_value):'';
+    entryInput.value=dec(Math.max(0,Number(metadata.entry_amount||0)));
     refreshMachines(metadata.machine_name||'Mercado Pago');
     machineEnabled.checked=false;
     passFees.checked=true;
@@ -398,6 +410,19 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
 
   refreshMachines('Mercado Pago');
   document.querySelectorAll('.js-profit-open').forEach(btn => btn.addEventListener('click', () => showProfitDialog(btn)));
+  document.querySelectorAll('.dbm-quick-entry').forEach(field=>{
+    field.addEventListener('click',event=>event.stopPropagation());
+    field.addEventListener('change',()=>{
+      const btn=document.querySelector(`.js-profit-open[data-quote-id="${Number(field.dataset.quoteId)}"]`);
+      if(!btn)return;
+      showProfitDialog(btn);
+      entryInput.value=dec(Math.min(cashSale(),Math.max(0,num(field.value))));
+      if(machineEnabled.checked)simulateMachine();
+      syncCard(machineEnabled.checked?'total':'difference',true);
+      field.value=money(Number(JSON.parse(btn.dataset.commercialMeta||'{}').entry_amount||0));
+      entryInput.focus();
+    });
+  });
   // Quando o agente chega pela tela de resultado, abre o lucro da opção solicitada.
   const requestedProfitId = new URLSearchParams(window.location.search).get('profit_quote_id');
   if (requestedProfitId && /^\d+$/.test(requestedProfitId)) {
@@ -410,6 +435,8 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   percentInput?.addEventListener('input', fromPercent);
   valueInput?.addEventListener('focus', () => sourceInput.value = 'value');
   percentInput?.addEventListener('focus', () => sourceInput.value = 'percent');
+  entryInput?.addEventListener('input',()=>{ if(machineEnabled.checked)simulateMachine();syncCard(machineEnabled.checked?'total':'difference',false); });
+  entryInput?.addEventListener('blur',()=>{entryInput.value=dec(entrySale());if(machineEnabled.checked)simulateMachine();syncCard(machineEnabled.checked?'total':'difference',true);});
   mode?.addEventListener('change', () => syncCard('mode', true));
   inst?.addEventListener('input', () => syncCard('installments', false));
   inst?.addEventListener('blur', () => syncCard('installments', true));
@@ -490,10 +517,12 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     const profit = Number(item.profit_value || 0);
     const percent = Number(item.profit_percent || 0);
     const times = Math.max(1, Number(item.card_installments || 1));
-    const total = Number(item.card_total_value || sale);
+    const entry = Math.max(0,Number(item.entry_amount||0));
+    const basis = Math.max(0,sale-entry);
+    const total = Number(item.card_total_value ?? basis);
     const installment = Number(item.card_installment_value || (total / times));
     const difference = Math.max(0, Number(item.card_difference_value || 0));
-    const differencePercent = sale > 0 ? (difference / sale * 100) : 0;
+    const differencePercent = basis > 0 ? (difference / basis * 100) : 0;
     const sent = item.sent_to_client ? `<span class="profit-sent-chip">Enviada ao cliente</span>` : '';
 
     let payment;
@@ -520,7 +549,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     return `<span class="profit-cost-line"><span>Custo</span> <strong>${money(cost)}</strong></span>
       <span class="profit-sale-line"><span>Venda à vista</span> <strong>${money(sale)}</strong></span>
       <span><span class="profit-margin-chip">Lucro ${money(profit)} • ${dec(percent)}%</span>${sent}</span>
-      ${payment}`;
+      ${entry>0?`<span class="profit-entry-chip">Entrada ${money(entry)} • Cartão ${money(total)}</span>`:''}\n      ${payment}`;
   }
 
   function applyCommercialItem(item){
@@ -537,9 +566,10 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       btn.dataset.sent = item.sent_to_client ? '1' : '0';
       btn.dataset.cardInstallments = String(item.card_installments || 1);
       btn.dataset.cardMode = item.card_interest_mode || 'cash';
-      btn.dataset.cardTotal = String(item.card_total_value || item.sale_value || item.cost || 0);
+      btn.dataset.cardTotal = String(item.card_total_value ?? Math.max(0,Number(item.sale_value ?? item.cost ?? 0)-Number(item.entry_amount||0)));
       btn.dataset.cardDifference = String(item.card_difference_value || 0);
-      btn.dataset.commercialMeta = JSON.stringify({anchor_value:item.anchor_value||0,machine_name:item.machine_name||''});
+      btn.dataset.commercialMeta = JSON.stringify({anchor_value:item.anchor_value||0,machine_name:item.machine_name||'',entry_amount:item.entry_amount||0});
+      document.querySelectorAll(`.dbm-quick-entry[data-quote-id="${Number(item.quote_id)}"]`).forEach(field=>{field.value=money(Number(item.entry_amount||0))});
       btn.textContent = item.removed || Number(item.profit_value || 0) <= 0 ? 'Adicionar lucro' : 'Editar lucro';
     });
     document.dispatchEvent(new CustomEvent('dbm:commercial-saved', {detail:item}));
@@ -611,6 +641,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
 
     try {
       const data = new FormData(form);
+      data.set('entry_amount', String(finance.entry));
       data.set('card_total_value', String(finance.total));
       data.set('card_difference_value', String(finance.difference));
       data.set('card_installments', String(finance.times));
@@ -677,6 +708,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     data.set('profit_percent', '0');
     data.set('card_interest_mode', 'cash');
     data.set('card_installments', '1');
+    data.set('entry_amount','0');
     data.set('card_total_value', String(cost));
     data.set('card_difference_value', '0');
     data.set('card_value_source', 'difference');
@@ -698,3 +730,6 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   dialog?.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
 })();
 </script>
+
+<style>.dbm-entry-explain{align-self:center;font-size:.77rem;color:var(--muted)} .profit-entry-chip{display:inline-flex;color:#087449;font-weight:800;font-size:.74rem} html[data-theme="light"] .profit-dialog .dbm-entry-explain{color:#315875!important}</style>
+<!-- DBM-MELHORIAS-20261101 -->

@@ -47,7 +47,7 @@
       const data = await res.json();
       if(!data?.ok) return;
       const current = Number(data.unread || 0);
-      if(!baselineReady){ previousUnread=current; baselineReady=true; return; }
+      if(!baselineReady){ previousUnread=current; baselineReady=true; window.dispatchEvent(new CustomEvent('dbm:chat-unread',{detail:{count:current,data}})); return; }
       if(current > previousUnread) play();
       previousUnread = current;
       window.dispatchEvent(new CustomEvent('dbm:chat-unread',{detail:{count:current,data}}));
@@ -57,3 +57,5 @@
   setTimeout(check,1200);
   setInterval(()=>{ if(!document.hidden) check(); },5500);
 })();
+
+// DBM-MELHORIAS-20261101

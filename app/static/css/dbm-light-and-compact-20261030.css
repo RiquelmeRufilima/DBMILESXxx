@@ -403,3 +403,20 @@ html[data-theme="light"] .range-days button:disabled{
 .quote-date-nav button:disabled,.range-nav button:disabled{opacity:.32!important;cursor:not-allowed!important}
 .quote-date-native-input{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;border:0!important;padding:0!important}
 .range-original-hidden{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;border:0!important;padding:0!important}
+
+/* Correções visuais leves: somente tema claro */
+html[data-theme="light"] .scope-best-badge {color:#096b3c!important;background:#d9f7e6!important;border-color:#79d6a1!important}
+html[data-theme="light"] .profit-interest-percent {color:#c25b00!important;background:#fff0dc!important;border-color:#ffb568!important}
+html[data-theme="light"] .profit-dialog {background:#fff!important;color:#183650!important;border-color:#c8ddeb!important;box-shadow:0 22px 60px rgba(26,57,87,.18)}
+html[data-theme="light"] .profit-dialog :is(.profit-dialog-head,.profit-dialog-body) {background:#fff!important}
+html[data-theme="light"] .profit-dialog :is(h3,label,p,strong) {color:#183650}
+html[data-theme="light"] .profit-dialog :is(input:not([type="checkbox"]),select) {background:#fff!important;color:#173650!important;border-color:#bfd5e7!important}
+html[data-theme="light"] .profit-dialog :is(.profit-kpi,.profit-preview-box,.profit-card-note,.profit-installment-preview) {background:#f1f7fc!important;border-color:#cbddeb!important}
+html[data-theme="light"] .profit-dialog :is(.profit-kpi small,.profit-grid label,.profit-installment-copy small,.profit-live-helper,.profit-checks label,.profit-card-note) {color:#42617b!important}
+html[data-theme="light"] .profit-dialog .profit-dialog-close {background:#edf4fb!important;color:#193a57!important;border-color:#c6dbea!important}
+html[data-theme="light"] :is(.flight-details-panel,.flight-detail-row) {background:#fff!important;border-color:#c9ddeb!important}
+html[data-theme="light"] .flight-detail-row-head {background:#eaf5ff!important;border-color:#c9ddeb!important}
+html[data-theme="light"] .flight-detail-row-head > span {color:#183f60!important}
+html[data-theme="light"] :is(.flight-detail-row-head > small,.flight-details-helper,.flight-details-empty span) {color:#47647d!important}
+html[data-theme="light"] .flight-detail-grid :is(label,input,select) {color:#173650!important}
+html[data-theme="light"] .flight-detail-grid :is(input,select) {background:#f9fcff!important;border-color:#bfd5e7!important}

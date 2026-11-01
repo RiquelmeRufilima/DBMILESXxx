@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import ChatMessage, QuoteActivity, QuoteGroup, WebUser
+from ..models import ChatMessage, ChatGroup, ChatGroupMember, ChatGroupMessage, WebCompany, QuoteActivity, QuoteGroup, WebUser
 from .realtime import avatar_url, manager
 
 # O chat comercial deve mostrar somente acontecimentos que realmente pedem a
@@ -46,6 +46,44 @@ def _payload(
     }
 
 
+_AERIAL_SCHEMA_READY = False
+
+def ensure_aerial_group(db: Session, company_id: int, actor_id: int, *, create_if_missing: bool = True):
+    """Garante o grupo aéreo da empresa e seus participantes atuais.
+
+    Só executado ao abrir o chat ou salvar uma atividade, não nas páginas normais.
+    """
+    if not company_id:
+        return None
+    global _AERIAL_SCHEMA_READY
+    # Na Vercel cada instância verifica o esquema somente uma vez.
+    if not _AERIAL_SCHEMA_READY:
+        for table in (ChatGroup.__table__, ChatGroupMember.__table__, ChatGroupMessage.__table__):
+            table.create(bind=db.get_bind(), checkfirst=True)
+        _AERIAL_SCHEMA_READY = True
+    company = db.get(WebCompany, company_id)
+    if not company:
+        return None
+    group_name = f"Grupo aéreo da {company.name}"[:80]
+    existing = db.scalar(select(ChatGroup).where(
+        ChatGroup.company_id == company_id, ChatGroup.name == group_name).limit(1))
+    if existing is None:
+        if not create_if_missing:
+            return None
+        existing = ChatGroup(company_id=company_id, name=group_name, created_by=actor_id)
+        db.add(existing)
+        db.flush()
+    member_ids = set(db.scalars(select(ChatGroupMember.user_id).where(
+        ChatGroupMember.group_id == existing.id)).all())
+    people = db.scalars(select(WebUser.id).where(
+        WebUser.company_id == company_id, WebUser.active.is_(True))).all()
+    for person_id in people:
+        if person_id not in member_ids:
+            db.add(ChatGroupMember(group_id=existing.id, user_id=person_id,
+                                   is_admin=person_id == actor_id, last_read_id=0))
+    return existing
+
+
 def record_quote_activity(
     db: Session,
     actor: WebUser,
@@ -79,25 +117,17 @@ def record_quote_activity(
         )
         db.flush()
 
-    should_chat = event in CHAT_ACTIVITY_EVENTS if send_to_chat is None else bool(send_to_chat)
-    if not should_chat or not actor.company_id:
-        return None, None
-
-    message = ChatMessage(
-        company_id=actor.company_id,
-        user_id=actor.id,
-        message=text,
-        attachment_type=f"system/{event}",
-        created_at=datetime.utcnow(),
-    )
-    db.add(message)
-    db.flush()
-
-    # Atualizações operacionais continuam aparecendo no chat como avisos
-    # centralizados, porém NÃO entram no sininho e NÃO geram som.
-    return message, _payload(message, actor, group=group, event=event)
-
+    # Todas as ações de cotações com auditoria vão para o grupo AÉREO.
+    # O grupo tradicional da empresa recebe somente conversa humana.
+    if actor.company_id and record_audit and group is not None:
+        aerial = ensure_aerial_group(db, actor.company_id, actor.id)
+        if aerial:
+            db.add(ChatGroupMessage(group_id=aerial.id, user_id=actor.id, message=text))
+            db.flush()
+    return None, None  # JS atual já consulta novos grupos incrementalmente.
 
 async def publish_quote_activity(company_id: int | None, payload: dict[str, Any] | None) -> None:
     if company_id and payload:
         await manager.broadcast(company_id, payload)
+
+# DBM-MELHORIAS-20261101

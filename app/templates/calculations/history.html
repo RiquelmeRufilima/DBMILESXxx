@@ -841,7 +841,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
             <small>{{ 'Cartão com juros' if c.card_interest_mode == 'with_interest' else 'Cartão sem juros' }}</small>
           </span>
           <span class="profit-payment-total">
-            <strong>{{ (c.card_total_value or c.sale_value or quote.total)|money(quote.currency) }}</strong>
+            <strong>{{ (c.card_total_value if c.card_total_value is not none else (c.sale_value or quote.total))|money(quote.currency) }}</strong>
             <small>
               {% if c.card_interest_mode == 'with_interest' %}
                 +{{ (c.card_difference_value or 0)|money(quote.currency) }} de juros
@@ -1118,7 +1118,11 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
                     <span>{% if not bag_known %}{% if bag_extra %}{{ bag_extra }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bag_extra and bag_included %}{{ bag_extra }} bagagem(ns) adicional(is) + {{ bag_included }} bagagem(ns) da tarifa{% elif bag_extra %}{{ bag_extra }} bagagem(ns) adicional(is){% elif bag_included %}{{ bag_included }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
                   </div>
                   <small class="history-calc-type">Cálculo: {{ quote.exact_calculation_type or 'Não informado' }}{% if quote.extra_value_saved %} • Taxa {{ quote.extra_value_saved }}{% endif %}</small>
-                  <small class="quote-option-author">Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong></small>
+                  <label class="dbm-entry-inline">Entrada (Pix/R$)
+        <input class="dbm-quick-entry" inputmode="decimal" type="text" aria-label="Entrada por Pix"
+         data-quote-id="{{ quote.id }}"
+         value="{{ ((quote.commercial.observations|from_json({})).get('entry_amount', 0) if quote.commercial else 0)|money('BRL') }}"
+         placeholder="R$ 0,00" title="Abra Editar lucro para confirmar alterações"></label>
                   {% if quote.option_description %}<small class="history-option-note">{{ quote.option_description }}</small>{% endif %}
                 </div>
                 <div class="option-select-actions">
@@ -1413,3 +1417,10 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
 {% if tags_ready|default(false) %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
 {% endblock %}
 {% block scripts %}<script src="/static/js/history-bulk.js?v=5.10.34" defer></script>{% endblock %}
+
+<style>
+.dbm-entry-inline{display:inline-flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:.8rem;font-weight:700;color:var(--text)}
+.dbm-quick-entry{width:128px;max-width:100%;border:1px solid #9acbc2;border-radius:8px;background:var(--panel);color:var(--text);padding:6px 8px;font-weight:850}
+html[data-theme="light"] .dbm-entry-inline{color:#154266}
+</style>
+<!-- DBM-MELHORIAS-20261101 -->

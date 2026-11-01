@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 import os
 from urllib.parse import urlsplit
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -78,6 +78,13 @@ def notifications_page(request: Request, offset: int = 0, partial: bool = False,
     if user is None:
         return RedirectResponse("/login", status_code=303)
     offset = min(max(offset, 0), 100000)
+    # Abrir a central zera o contador do sino. O contador do chat é independente.
+    if not partial and offset == 0:
+        db.execute(update(Notification).where(
+            Notification.user_id == user.id, Notification.read.is_(False)
+        ).values(read=True).execution_options(synchronize_session=False))
+        db.commit()
+        db.expire(user, ["notifications"])
     rows = db.scalars(select(Notification).where(
         Notification.user_id == user.id,
         Notification.kind != "quote",
@@ -121,3 +128,5 @@ async def mark_all_read(request: Request, db: Session = Depends(get_db)):
     db.commit()
     flash(request, "Todas as notificações foram marcadas como lidas.", "success")
     return RedirectResponse("/notifications", status_code=303)
+
+# DBM-MELHORIAS-20261101

@@ -9,7 +9,7 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
   const presets = {
-    discount: {label:'Desconto (%)', key:'desconto', field_type:'percent', default_value:'0', min_value:0, max_value:100, step:0.01},
+    discount: {label:'Desconto TAVI (%)', key:'desconto', field_type:'percent', default_value:'0', min_value:0, max_value:100, step:0.01},
     interest: {label:'Juros (%)', key:'juros', field_type:'percent', default_value:'0', min_value:0, max_value:1000, step:0.01},
     fee: {label:'Taxa adicional', key:'taxa_adicional', field_type:'number', default_value:'0', min_value:0, max_value:'', step:0.01},
     tariff: {label:'Tarifa informada', key:'tarifa', field_type:'number', default_value:'0', required:true, min_value:0, max_value:'', step:0.01},

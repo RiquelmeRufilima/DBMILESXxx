@@ -899,6 +899,10 @@ def chat_page(request: Request, contact: str = "", view: str = "conversations", 
     company = db.get(WebCompany, user.company_id) if user.company_id else None
     if user.company_id:
         _ensure_company_contact_ids(db, user.company_id)
+        from ..services.quote_activity import ensure_aerial_group
+        ensure_aerial_group(db, user.company_id, user.id, create_if_missing=True)
+        if db.new:
+            db.commit()
 
     group_messages: list[ChatMessage] = []
     if user.company_id:
@@ -986,7 +990,20 @@ def chat_unread_api(request: Request, db: Session = Depends(get_db)):
         PrivateChatMessage.recipient_id == user.id,
         PrivateChatMessage.is_read.is_(False),
     )) or 0
-    return {"ok": True, "unread": int(count)}
+    groups_unread = 0
+    if user.company_id:
+        _ensure_chat_schema(db)
+        groups_unread = int(db.scalar(select(func.count(ChatGroupMessage.id)).join(
+            ChatGroupMember,
+            (ChatGroupMember.group_id == ChatGroupMessage.group_id)
+            & (ChatGroupMember.user_id == user.id),
+        ).join(ChatGroup, ChatGroup.id == ChatGroupMessage.group_id).where(
+            ChatGroup.company_id == user.company_id,
+            ChatGroupMessage.id > ChatGroupMember.last_read_id,
+            ChatGroupMessage.user_id != user.id,
+        )) or 0)
+    return {"ok": True, "unread": int(count) + groups_unread,
+            "private_unread": int(count), "groups_unread": groups_unread}
 
 
 @router.post("/chat/contacts")
@@ -2044,3 +2061,5 @@ async def chat_websocket(websocket: WebSocket):
             manager.disconnect(company_id, websocket)
     finally:
         db.close()
+
+# DBM-MELHORIAS-20261101

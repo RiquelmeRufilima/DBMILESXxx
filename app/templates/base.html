@@ -14,7 +14,7 @@
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
   <link rel="stylesheet" href="/static/css/app.css?v=5.29.1">
   {% block head %}{% endblock %}
-  <link rel="stylesheet" href="/static/css/dbm-light-and-compact-20261030.css?v=20261030.12">
+  <link rel="stylesheet" href="/static/css/dbm-light-and-compact-20261030.css?v=20261101.1">
 <style>
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
     .dbm-modal-overlay.is-open{display:flex}
@@ -103,7 +103,7 @@
       <a href="/dashboard" class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}"><svg class="ui-icon"><use href="#icon-home"></use></svg> Tela de início</a>
       <a href="/calculations/new?clean=1" class="nav-link {% if '/calculations/new' in request.url.path and not request.query_params.get('calc') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Nova cotação</a>
       <a href="/calculations/new?calc=1" class="nav-link nav-link-sub {% if '/calculations/new' in request.url.path and request.query_params.get('calc') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-calculator"></use></svg> Aba calculadora</a>
-      <a href="/company/chat" class="nav-link {% if request.url.path == '/company/chat' %}active{% endif %}"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Chat</a>
+      <a href="/company/chat" class="nav-link {% if request.url.path == '/company/chat' %}active{% endif %}"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Chat <b id="dbmChatUnreadBadge" hidden></b></a>
       <a href="/tasks" class="nav-link nav-link-badge {% if request.url.path.startswith('/tasks') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-tasks"></use></svg> Tarefas {% if pending_task_count %}<b>{{ pending_task_count }}</b>{% endif %}</a>
       <a href="/calculations/history" class="nav-link {% if '/calculations/history' in request.url.path or '/calculations/result' in request.url.path or request.url.path.startswith('/calculations/group') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
       <a href="/airlines" class="nav-link {% if '/airlines' in request.url.path %}active{% endif %}"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Companhias</a>
@@ -412,11 +412,17 @@
         href.startsWith('tel:') || link.target === '_blank' ||
         link.hasAttribute('download')
       ) return;
+      if (/^\/(?:dashboard|tags|settings|notifications|profile)(?:\/|$)/.test(new URL(link.href).pathname)) {
+        link.dataset.noLoader = '1'; // A página leve já navega sem bloqueio.
+        return;
+      }
       showLoader(link.dataset.loaderMessage || 'Abrindo página...');
     }, true);
   })();
   </script>
-    {% if user %}<script src="/static/js/chat-notifications.js?v=20261027b" defer></script>{% endif %}
+    {% if user %}<script src="/static/js/chat-notifications.js?v=20261101a" defer></script><script src="/static/js/dbm-fast-navigation-20261101.js?v=1" defer></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>
+
+<!-- DBM-MELHORIAS-20261101 -->

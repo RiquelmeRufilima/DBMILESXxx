@@ -142,6 +142,7 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
         <button class="dbm-main-tab {% if chat_view != 'team' %}active{% endif %}" type="button" data-main-tab="conversations">Conversas</button>
         <button class="dbm-main-tab {% if chat_view == 'team' %}active{% endif %}" type="button" data-main-tab="team">Chat da equipe</button>
       </div>
+      {% if has_company %}<button id="dbmNewGroup" class="secondary-button dbm-create-group" type="button">＋ Criar grupo</button>{% endif %}
       <input class="dbm-chat-search" id="dbmChatSearch" placeholder="Buscar nas conversas..." autocomplete="off">
     </div>
 
@@ -175,6 +176,7 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
         <small id="dbmChatSubtitle">{% if chat_view == 'team' %}Grupo da empresa{% elif selected_contact %}{{ selected_contact.contact_id }} • Chat privado{% else %}Selecione um contato{% endif %}</small>
       </div>
       <span class="dbm-chat-status" id="dbmChatStatus"></span>
+      <button id="dbmGroupInfo" class="secondary-button" type="button" hidden title="Participantes do grupo">👥 Participantes</button>
     </header>
     <div class="dbm-pin-bar" id="dbmPinBar" hidden></div>
     <div class="dbm-chat-older" id="dbmOlderWrap" hidden><button type="button" id="dbmLoadOlder">Carregar mensagens anteriores</button></div>
@@ -198,10 +200,11 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
     </div>
 
     <form class="dbm-compose" id="dbmChatForm" {% if chat_view == 'team' and not has_company %}hidden{% elif chat_view != 'team' and not selected_contact %}hidden{% endif %} data-no-loader="1">
-      <div class="dbm-reply-bar" id="dbmReplyBar" hidden></div>
+      <div class="dbm-reply-bar" id="dbmReplyBar" hidden></div><button type="button" id="dbmReplyCancel" hidden>Cancelar resposta</button>
       <div class="dbm-attach-preview" id="dbmAttachPreview" hidden></div>
       <button class="dbm-attach" id="dbmAttachButton" type="button" title="Anexar PDF, Word, JPG ou PNG" aria-label="Anexar arquivo">📎</button>
       <input type="file" id="dbmChatFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg" hidden>
+      <div class="dbm-mention-pop" id="dbmMentionPop" role="listbox" hidden></div>
       <textarea id="dbmChatInput" maxlength="2000" placeholder="Digite uma mensagem..." title="Dica: cole um print com Ctrl+V"></textarea>
       <button class="dbm-send" type="submit">➤</button>
     </form>
@@ -236,6 +239,17 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
     </div>
   </section>
 </div>
+<div class="dbm-agenda-overlay" id="dbmGroupOverlay" aria-hidden="true">
+  <section class="dbm-agenda" role="dialog" aria-label="Criar ou gerenciar grupo">
+    <header class="dbm-agenda-head"><div><h3 id="dbmGroupModalTitle">Novo grupo</h3><p id="dbmGroupModalSub">Escolha participantes</p></div><button class="dbm-close" id="dbmGroupClose" type="button">×</button></header>
+    <div id="dbmGroupNameRow" class="dbm-add-contact"><label>Nome do grupo <input id="dbmGroupName" maxlength="80" placeholder="Nome do grupo"></label></div>
+    <div id="dbmGroupMembersNow" class="dbm-current-group-members" hidden></div>
+    <div class="dbm-add-contact"><input id="dbmGroupSearch" placeholder="Buscar membros" autocomplete="off"></div>
+    <div class="dbm-fwd-list dbm-group-people" id="dbmGroupPeople"></div>
+    <p id="dbmGroupNotice" role="status"></p>
+    <div class="dbm-fwd-foot"><button type="button" class="ghost-button danger" id="dbmGroupLeave" hidden>Sair do grupo</button><button type="button" id="dbmGroupSave" class="primary-button">Criar grupo</button></div>
+  </section>
+</div>
 <div class="dbm-agenda-overlay" id="dbmForwardOverlay" aria-hidden="true">
   <section class="dbm-agenda" role="dialog" aria-label="Encaminhar mensagem">
     <header class="dbm-agenda-head"><div><h3>Encaminhar para</h3><p>Conversas mais recentes primeiro</p></div><button class="dbm-close" id="dbmForwardClose" type="button">×</button></header>
@@ -246,6 +260,16 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
 </div>
 {% endblock %}
 
+<style>
+.dbm-create-group{margin:8px 16px 0;width:calc(100% - 32px)}
+.dbm-mention-pop[hidden],#dbmGroupOverlay[aria-hidden="true"],#dbmGroupInfo[hidden]{display:none!important}
+.dbm-compose{position:relative}.dbm-mention-pop{position:absolute;bottom:100%;left:40px;min-width:235px;max-height:230px;overflow:auto;z-index:15;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px #0003}
+.dbm-mention-item{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:8px;border:0;background:transparent;color:var(--text);cursor:pointer}.dbm-mention-item.active,.dbm-mention-item:hover{background:var(--panel-2)}
+.dbm-mention-item small{display:block;color:var(--muted)}.dbm-group-people{max-height:350px;overflow-y:auto}.dbm-current-group-members{padding:10px;display:flex;flex-wrap:wrap;gap:5px}.dbm-current-group-members span{padding:5px;border:1px solid var(--border);border-radius:12px}
+html[data-theme="light"] #dbmGroupOverlay .dbm-agenda{background:#fff!important;color:#123451!important}
+</style>
 {% block scripts %}
 <script src="/static/js/chat.js?v=20261029-edit" defer></script>
 {% endblock %}
+
+<!-- DBM-MELHORIAS-20261101 -->

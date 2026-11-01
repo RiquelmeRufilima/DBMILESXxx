@@ -115,7 +115,7 @@ def _field_label(key: str) -> str:
         "milhas": "Milhas/Pontos",
         "milheiro": "Valor do milheiro",
         "taxa": "Taxa",
-        "desconto": "Desconto (%)",
+        "desconto": "Desconto TAVI (%)",
         "juros": "Juros (%)",
         "taxa_adicional": "Taxa adicional",
         "desconto_taxa": "Desconto da taxa (%)",
@@ -288,7 +288,6 @@ def _blank_base() -> dict[str, Any]:
         "origin": "",
         "destination": "",
         "passengers": 1,
-        "children": 0,
         "babies": 0,
         "bags": 0,
         "travel_type": "round_trip",
@@ -479,7 +478,6 @@ def _base_from_group(group: QuoteGroup, variant_key: str | None = None) -> dict[
         "destination": selected_destination,
         "passengers": max(1, int(selected.get("passengers") if selected.get("passengers") is not None else (group.passengers or 1))),
         "babies": max(0, int(selected.get("babies") if selected.get("babies") is not None else (group.babies or 0))),
-        "children": max(0, min(int(getattr(group, "children", 0) or 0), max(1, int(selected.get("passengers") if selected.get("passengers") is not None else (group.passengers or 1))) - 1)),
         "bags": group.bags,
         "travel_type": selected_travel_type,
         "departure_date": selected.get("departure_date") or "",
@@ -2062,6 +2060,7 @@ def _partner_airline_choices(airlines: list[Airline], selected_airline: Airline 
         str(item.name or "").strip()
         for item in airlines
         if item.active
+        and str(getattr(item, "catalog_category", "airlines") or "airlines") == "airlines"
         and (selected_airline is None or item.id != selected_airline.id)
         and str(item.name or "").strip()
     ]
@@ -2093,6 +2092,8 @@ def _partner_airline_options(airlines: list[Airline], selected_airline: Airline 
     for airline in airlines:
         if not getattr(airline, "active", True):
             continue
+        if str(getattr(airline, "catalog_category", "airlines") or "airlines") != "airlines":
+            continue
         if selected_airline is not None and int(getattr(airline, "id", 0) or 0) == int(getattr(selected_airline, "id", 0) or 0):
             continue
 
@@ -2119,6 +2120,7 @@ def _partner_airline_options(airlines: list[Airline], selected_airline: Airline 
                 "international": "Internacional",
                 "both": "Nacional + internacional",
             }.get(scope, "Nacional + internacional"),
+            "catalog_category": str(getattr(airline, "catalog_category", "airlines") or "airlines"),
             "builtin": bool(getattr(airline, "builtin", False)),
             "configured": token in {_normalized_token(item) for item in configured},
         }
@@ -2976,11 +2978,6 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
         group_id = int(form.get("group_id") or 0) or None
         passengers = max(1, int(form.get("passengers") or 1))
         babies = max(0, int(form.get("babies") or 0))
-        children = max(0, int(form.get("children") or 0))
-        if form.get("adults") not in (None, ""):
-            # Adultos + crianças = passageiros pagantes.
-            passengers = max(1, int(form.get("adults") or 0) + children)
-        children = min(children, max(0, passengers - 1))
         option_id = int(form.get("option_id") or 0) or None
     except ValueError:
         flash(request, "Passageiros ou bebês inválidos.", "error")
@@ -3068,7 +3065,6 @@ async def save_base(request: Request, db: Session = Depends(get_db)):
     group.origin = origin_code
     group.destination = destination_code
     group.passengers = passengers
-    group.children = children
     group.babies = babies
     # Bagagens não fazem parte da base fixa.
     # Elas são alteráveis apenas durante o cálculo de cada companhia/opção.
@@ -3959,12 +3955,7 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     breakdown = _safe_json(quote.breakdown_json, {})
     segments = _safe_json(quote.trip.segments_json, []) if quote.trip else []
     commercial_meta = _safe_json(quote.commercial.observations, {}) if quote.commercial else {}
-    group_children = 0
-    if link and link.group_id:
-        group_row = db.get(QuoteGroup, link.group_id)
-        group_children = int(getattr(group_row, "children", 0) or 0) if group_row else 0
-    group_children = max(0, min(group_children, max(0, int(quote.passengers or 1) - 1)))
-    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta, group_children=group_children))
+    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta))
 
 
 @router.post('/result/{quote_id}/observations')
@@ -4340,9 +4331,6 @@ def _commercial_number(raw: Any) -> float:
             text_value = text_value.replace(",", "")
     elif "," in text_value:
         text_value = text_value.replace(",", ".")
-    elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+", text_value):
-        # Padrão brasileiro: 8.707 = oito mil setecentos e sete reais.
-        text_value = text_value.replace(".", "")
     try:
         return float(text_value)
     except (TypeError, ValueError):
@@ -4353,10 +4341,7 @@ def _commercial_number(raw: Any) -> float:
 # O catálogo é salvo por usuário nas preferências já existentes do banco.
 MERCADO_PAGO_FEES = {"1": 3.29, "2": 2.08, "3": 2.75, "4": 3.48, "5": 4.15,
     "6": 5.01, "7": 5.82, "8": 6.54, "9": 7.19, "10": 7.86, "11": 8.48,
-    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26, "16": 15.06, "17": 15.75, "18": 16.45}
-# Taxa fixa por venda, por faixa de parcelas (somada à taxa variável da parcela).
-MACHINE_FIXED_DEFAULT = {"1-6": 2.75, "7-12": 2.99, "13-18": 2.89}
-MACHINE_FIXED_BANDS = ("1-6", "7-12", "13-18")
+    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26}
 
 
 def _machine_tables(user):
@@ -4367,7 +4352,7 @@ def _machine_tables(user):
             return entries
     except (TypeError, ValueError, AttributeError):
         pass
-    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy(), "fixed": MACHINE_FIXED_DEFAULT.copy()}]
+    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy()}]
 
 
 @router.get('/machine-fees')
@@ -4417,20 +4402,7 @@ async def update_machine_fee_tables(request: Request, db: Session = Depends(get_
             valid_rates[str(int(key))] = round(value, 4)
         if not valid_rates:
             return JSONResponse({"ok": False, "message": "Cadastre uma taxa para cada tabela."}, status_code=400)
-        entry_clean = {"name": name, "rates": valid_rates}
-        fixed = entry.get('fixed')
-        if isinstance(fixed, dict):
-            valid_fixed = {}
-            for band in MACHINE_FIXED_BANDS:
-                try:
-                    band_value = float(fixed.get(band) or 0)
-                except (ValueError, TypeError):
-                    return JSONResponse({"ok": False, "message": "Taxa fixa inválida."}, status_code=400)
-                if not 0 <= band_value < 60 or band_value != band_value:
-                    return JSONResponse({"ok": False, "message": "A taxa fixa deve ficar entre 0 e 60%."}, status_code=400)
-                valid_fixed[band] = round(band_value, 4)
-            entry_clean["fixed"] = valid_fixed
-        cleaned.append(entry_clean)
+        cleaned.append({"name": name, "rates": valid_rates})
     preference = user.preference
     if preference is None:
         preference = UserPreference(user_id=user.id)
@@ -4616,10 +4588,6 @@ async def save_option_profit(
         if anchor_value > 1000000000:
             raise ValueError("Valor de comparação muito elevado.")
         machine_name = str(form.get("machine_name") or "")[:48].strip()
-        # Taxa da máquina assumida/cobrada e lucro real (após a taxa), calculados na janela.
-        machine_fee_value = round(max(0, _commercial_number(form.get("machine_fee_value"))), 2)
-        raw_net = str(form.get("net_profit_value") or "").strip()
-        net_profit_value = round(-_commercial_number(raw_net[1:]) if raw_net.startswith("-") else _commercial_number(raw_net), 2)
 
         # REMOVER = exatamente o mesmo que lucro zero
 
@@ -4670,6 +4638,12 @@ async def save_option_profit(
             2,
         )
 
+        # Entrada Pix/dinheiro: reduz o saldo a cobrar no cartão.
+        # Persistida em observations JSON, sem migração do banco Neon.
+        entry_amount = round(max(0.0, min(cash_sale,
+            _commercial_number(form.get("entry_amount")))), 2)
+        card_basis = round(cash_sale - entry_amount, 2)
+
         entered_total = max(
             0.0,
             _commercial_number(
@@ -4698,7 +4672,7 @@ async def save_option_profit(
         # -----------------------------------------------------
         # RELAÇÃO:
         #
-        # TOTAL CARTÃO = VENDA À VISTA + JUROS
+        # TOTAL CARTÃO = VENDA À VISTA - ENTRADA + JUROS
         # -----------------------------------------------------
 
         if remove_commercial:
@@ -4711,7 +4685,7 @@ async def save_option_profit(
         elif card_mode == "cash":
 
             installments = 1
-            card_total = cash_sale
+            card_total = card_basis
             difference = 0.0
 
         elif card_value_source == "difference":
@@ -4722,7 +4696,7 @@ async def save_option_profit(
             )
 
             card_total = round(
-                cash_sale + difference,
+                card_basis + difference,
                 2,
             )
 
@@ -4736,8 +4710,8 @@ async def save_option_profit(
 
             card_total = round(
                 max(
-                    cash_sale,
-                    entered_total or cash_sale,
+                    card_basis,
+                    entered_total or card_basis,
                 ),
                 2,
             )
@@ -4745,7 +4719,7 @@ async def save_option_profit(
             difference = round(
                 max(
                     0,
-                    card_total - cash_sale,
+                    card_total - card_basis,
                 ),
                 2,
             )
@@ -4757,8 +4731,8 @@ async def save_option_profit(
             )
 
         difference_percent = (
-            difference / cash_sale * 100
-            if cash_sale > 0
+            difference / card_basis * 100
+            if card_basis > 0
             else 0
         )
 
@@ -4909,10 +4883,9 @@ async def save_option_profit(
                 commercial.card_difference_value = None
                 previous_meta = _safe_json(commercial.observations, {})
                 if isinstance(previous_meta, dict):
+                    previous_meta.pop("entry_amount", None)
                     previous_meta.pop("anchor_value", None)
                     previous_meta.pop("machine_name", None)
-                    previous_meta.pop("machine_fee_value", None)
-                    previous_meta.pop("net_profit_value", None)
                     commercial.observations = json.dumps(previous_meta, ensure_ascii=False) if previous_meta else None
 
             # -------------------------------------------------
@@ -4942,19 +4915,25 @@ async def save_option_profit(
                     2,
                 )
 
+                # A entrada proporcional por opção é descontada antes dos juros.
+                target_entry = (round(entry_amount * target_sale / cash_sale, 2)
+                                if apply_all and cash_sale > 0 else entry_amount)
+                target_entry = min(target_sale, max(0.0, target_entry))
+                target_card_basis = round(target_sale - target_entry, 2)
+
                 # juros proporcionais no "aplicar todos"
 
                 if apply_all:
 
                     target_difference = round(
-                        target_sale
+                        target_card_basis
                         * difference_percent
                         / 100,
                         2,
                     )
 
                     target_card_total = round(
-                        target_sale
+                        target_card_basis
                         + target_difference,
                         2,
                     )
@@ -4967,7 +4946,7 @@ async def save_option_profit(
                     )
 
                     target_card_total = round(
-                        target_sale
+                        target_card_basis
                         + target_difference,
                         2,
                     )
@@ -5031,10 +5010,7 @@ async def save_option_profit(
                     "anchor_value": (round(anchor_value * target_sale / cash_sale, 2)
                                      if apply_all and cash_sale > 0 else anchor_value),
                     "machine_name": machine_name,
-                    "machine_fee_value": (round(machine_fee_value * target_sale / cash_sale, 2)
-                                          if apply_all and cash_sale > 0 else machine_fee_value),
-                    "net_profit_value": (round(net_profit_value * target_sale / cash_sale, 2)
-                                         if apply_all and cash_sale > 0 else net_profit_value),
+                    "entry_amount": round(target_entry, 2),
                 })
                 commercial.observations = json.dumps(previous_meta, ensure_ascii=False)
 
@@ -5097,6 +5073,7 @@ async def save_option_profit(
                         "profit_percent":
                             profit_percent,
 
+                        "entry_amount": target_entry,
                         "card_installments":
                             installments,
 
@@ -5173,6 +5150,7 @@ async def save_option_profit(
                         if remove_commercial
                         else commercial.card_interest_mode,
 
+                    "entry_amount": 0 if remove_commercial else target_entry,
                     "card_total_value":
                         target_card_total,
 
@@ -5200,22 +5178,14 @@ async def save_option_profit(
                         if apply_all and cash_sale > 0 else anchor_value
                     ),
                     "machine_name": "" if remove_commercial else machine_name,
-                    "machine_fee_value": 0 if remove_commercial else (
-                        round(machine_fee_value * target_sale / cash_sale, 2)
-                        if apply_all and cash_sale > 0 else machine_fee_value
-                    ),
-                    "net_profit_value": 0 if remove_commercial else (
-                        round(net_profit_value * target_sale / cash_sale, 2)
-                        if apply_all and cash_sale > 0 else net_profit_value
-                    ),
                     "card_difference_percent":
                         (
                             0
                             if remove_commercial
-                            or target_sale <= 0
+                            or target_card_basis <= 0
                             else round(
                                 target_difference
-                                / target_sale
+                                / target_card_basis
                                 * 100,
                                 4,
                             )
@@ -6027,3 +5997,7 @@ async def delete_quote(quote_id: int, request: Request, db: Session = Depends(ge
         db.commit()
         flash(request, "Opção excluída.", "success")
     return RedirectResponse(redirect, status_code=303)
+
+# DBM-MELHORIAS-20261101
+
+# DBM-MELHORIAS-20261101
