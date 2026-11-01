@@ -62,6 +62,7 @@ from .services.user_defaults import ensure_user_defaults
 from .services.team_accounts import ensure_company_owners
 from .models import Airline, WebUser
 from .services.hosted_bootstrap import ensure_hosted_admin
+from .services.security_headers import apply_phase2_headers
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ async def security_and_cache_headers(request, call_next):
     if path == "/static/sw.js":
         headers["Service-Worker-Allowed"] = "/"
         headers["Cache-Control"] = "no-cache"
-    return response
+    return apply_phase2_headers(response)
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
