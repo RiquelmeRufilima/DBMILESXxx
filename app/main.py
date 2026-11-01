@@ -4,12 +4,14 @@ import logging
 from time import perf_counter
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+from mimetypes import guess_type
 
 from .config import (
     AIRLINE_IMAGE_DIR,
@@ -21,10 +23,13 @@ from .config import (
     SESSION_COOKIE,
     SESSION_HTTPS_ONLY,
     STATIC_DIR,
+    UPLOAD_DIR,
     IS_VERCEL,
     RUN_FULL_STARTUP_MAINTENANCE,
 )
-from .database import Base, SessionLocal, engine
+from .database import Base, SessionLocal, engine, get_db
+from .dependencies import require_user
+from .services.private_uploads import clean_upload_path, may_read_upload
 from .routers import (
     airlines,
     auth,
@@ -160,7 +165,28 @@ async def security_and_cache_headers(request, call_next):
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/uploads", StaticFiles(directory=str(AIRLINE_UPLOAD_DIR.parent)), name="uploads")
+@app.get("/uploads/{relative_path:path}", include_in_schema=False)
+def protected_upload(relative_path: str, request: Request, db: Session = Depends(get_db)):
+    """Entregar uploads apenas após autorização do proprietário/empresa."""
+    user = require_user(request, db)
+    relative = clean_upload_path(relative_path)
+    if relative is None or not may_read_upload(db, user, relative, request.session):
+        # Retorna 404 em vez de revelar a existência de arquivos de terceiros.
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    root = UPLOAD_DIR.resolve()
+    target = (root / relative).resolve()
+    if not target.is_relative_to(root) or not target.is_file():
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    mime = guess_type(str(target))[0] or "application/octet-stream"
+    safe_image = mime in {"image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/svg+xml"}
+    headers = {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "inline" if safe_image else "attachment",
+    }
+    if mime == "image/svg+xml":
+        headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return FileResponse(target, media_type=mime if safe_image else "application/octet-stream", headers=headers)
 if AIRLINE_IMAGE_DIR.exists():
     app.mount("/imagens", StaticFiles(directory=str(AIRLINE_IMAGE_DIR)), name="airline_images")
 
@@ -232,14 +258,12 @@ def health_db():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
-    except Exception as exc:
+    except Exception:
         logger.exception("Falha no teste do banco hospedado")
         return JSONResponse(
             {
                 "status": "error",
                 "database": "unavailable",
-                "error_type": type(exc).__name__,
-                "message": str(exc)[:500],
             },
             status_code=503,
         )
