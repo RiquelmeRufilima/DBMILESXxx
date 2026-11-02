@@ -264,6 +264,14 @@
       <small>Clique no olho para mostrar ou ocultar cada opção. O total com juros é calculado pela taxa da máquina salva na cotação; você pode digitar outro valor.</small>
     </div>
   </div>
+  <details class="dbm-compact-installments" id="dbmCompactInstallments">
+    <summary>💳 Parcelamento para o cliente — ver até o limite escolhido</summary>
+    <label>Mostrar até <select id="dbmCompactMaxInstallments">
+      {% for n in range(1, 25) %}<option value="{{ n }}" {% if n == 12 %}selected{% endif %}>{{ n }}x</option>{% endfor %}
+    </select></label>
+    <div class="dbm-compact-hint">Valores pela tabela de taxas da máquina da cotação, considerando a entrada Pix quando cadastrada. Não mostra o total do cartão.</div>
+    <div id="dbmCompactInstallmentsList" aria-live="polite"></div>
+  </details>
   <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
   <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
   <label for="quoteInternalMessage"><strong>Resumo interno — custo, lucro e origem da cotação</strong></label>
@@ -277,6 +285,31 @@
     <button class="primary-button" type="button" id="copyQuoteMessage">Copiar mensagem</button>
     <button class="secondary-button" type="button" id="forwardQuoteMessage">Encaminhar para o chat</button>
   </div>
+  <section class="dbm-art-section" id="dbmFlightArtArea" aria-label="Arte da cotação">
+    <div class="dbm-art-head"><h3>✈️ Arte da Cotação</h3><span>Imagem PNG • opcional</span></div>
+    <p class="dbm-art-note">Prévia ilustrada a partir dos dados da cotação, sem custo de geração e sem mostrar custos ou lucros internos.</p>
+    <div class="dbm-art-buttons">
+      <label><input type="checkbox" id="dbmArtShowBagPrices"> Exibir preço das bagagens adicionais</label>
+      <label><input type="checkbox" id="dbmArtShowPayments" checked> Exibir parcelas salvas</label>
+    </div>
+    <canvas class="dbm-art-preview" width="1080" height="1300" role="img" aria-label="Prévia da arte da cotação"></canvas>
+    <div class="dbm-art-buttons">
+      <button class="primary-button small-button" type="button" id="dbmArtGenerate">Atualizar arte</button>
+      <button class="secondary-button small-button" type="button" id="dbmArtDownload">Baixar PNG</button>
+      <button class="secondary-button small-button" type="button" id="dbmArtShare">Compartilhar</button>
+    </div>
+  </section>
+  <script id="dbmFlightArtData" type="application/json">{{ {'quote_id':quote.id,
+       'name':quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name,
+       'origin':quote.origin,'destination':quote.destination,
+       'airline':quote.airline.name if quote.airline else '',
+       'itinerary':inputs.get('_itinerary_v1', {}),
+       'sale':quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value is not none else quote.total,
+       'cost':quote.total,
+       'installments':quote.commercial.card_installments if quote.commercial else 1,
+       'installment_value':quote.commercial.card_installment_value if quote.commercial else 0}|tojson }}</script>
+  <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.1">
+  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261102.1"></script>
 </section>
 <style>
  .dbm-share-options{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid var(--border,#315273);border-radius:12px;background:var(--panel,#0a2034);color:var(--text,#fff)}
@@ -341,6 +374,19 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const FIXED_DEFAULT={'1-6':2.75,'7-12':2.99,'13-18':2.89};
  function fixedRateFor(t,n){const bands=(t&&t.fixed&&typeof t.fixed==='object')?t.fixed:FIXED_DEFAULT;for(const [k,v] of Object.entries(bands)){const [a,b]=k.split('-').map(Number);if(n>=a&&n<=b)return Number(v)||0;}return 0;}
  function machineRate(n){const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];return Number(table?.rates?.[String(n)]??0)+fixedRateFor(table,n);}
+ // Compartilha a tabela vigente de parcelas com a prévia compacta.
+ window.dbmFlightMaxInstallments = function(){
+   const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];
+   const opts=Object.keys(table?.rates||{}).map(Number).filter(n=>n>=1&&n<=24);
+   return opts.length?Math.max(...opts):1;
+ };
+ window.dbmFlightPaymentPreview = function(n){
+   n=Math.max(1,Math.min(24,Number(n)||1));
+   const entry=Math.max(0,Number(commercialMeta.entry_amount||0));
+   const financed=Math.max(0,sale-entry);
+   const rate=n>1?machineRate(n):0;
+   return rate>=0&&rate<100?Math.round(financed/(1-rate/100)*100)/(100*n):null;
+ };
  const payFreeN=document.getElementById('dbmPayFreeN');
  const payIntN=document.getElementById('dbmPayIntN');
  const payIntTotal=document.getElementById('dbmPayIntTotal');
@@ -367,7 +413,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
    document.getElementById('dbmPayCashPreview').textContent=`R$ ${m(displaySale)}`;
    document.getElementById('dbmPayFreePreview').textContent=`${freeN}x de R$ ${m(displaySale/freeN)}`;
-   document.getElementById('dbmPayIntPreview').textContent=`${intN}x de R$ ${m(intTotal/intN)} (total R$ ${m(intTotal)})`;
+   document.getElementById('dbmPayIntPreview').textContent=`${intN}x de R$ ${m(intTotal/intN)}`;
    return lines.join('\n')+'\n';
  }
  function syncEyes(){document.querySelectorAll('.dbm-eye').forEach(btn=>{const on=!!payState[btn.dataset.eye];btn.setAttribute('aria-pressed',String(on));btn.textContent=on?'👁️':'🙈';btn.closest('.dbm-pay-row').classList.toggle('is-hidden',!on);});}
@@ -507,7 +553,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    }
    refreshClient();internalEditor.value=internalTemplate();
  });
- fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;refreshClient();}}).catch(()=>{});
+ fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;refreshClient();document.dispatchEvent(new Event('dbm:machine-fees-loaded'));}}).catch(()=>{});
  internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
  editor.addEventListener('input',()=>editor.dataset.edited='1');
  document.getElementById('copyQuoteMessage').addEventListener('click',async()=>{

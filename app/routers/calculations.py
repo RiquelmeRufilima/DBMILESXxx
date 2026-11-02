@@ -36,6 +36,7 @@ from ..models import (
 )
 from ..security import validate_csrf_token
 from ..services.calculator import CalculationResult, calculate
+from ..services.flight_itinerary import normalize_itinerary
 from ..services.tags import delete_links_for_targets, list_tags, tags_for_targets, targets_matching_tag_text, targets_with_all_tags
 from ..services.travel_data import BR_AIRPORTS
 from ..services.schema_migrations import ensure_runtime_schema
@@ -3655,6 +3656,14 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
         "flexibility_days": max(0, int(base_for_scope.get("flexibility_days") or 0)),
     }
     values["_flight_details"] = flight_details
+    # Opcional: todos os campos por conexão ficam no input_json da própria cotação.
+    # Se a versão atual do formulário não enviar os campos (JS desativado),
+    # preserva os dados anteriores na edição para evitar apagá-los.
+    submitted_itinerary = form.get("itinerary_json")
+    if submitted_itinerary is None and existing_option is not None:
+        values["_itinerary_v1"] = existing_input.get("_itinerary_v1", {})
+    else:
+        values["_itinerary_v1"] = normalize_itinerary(submitted_itinerary, selected_segments)
     values["_skip_financial"] = {
         "value": skip_value if is_skip_record else 0.0,
         "commission": skip_commission if is_skip_record else 0.0,
@@ -3738,6 +3747,18 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     except Exception as exc:
         flash(request, f"Não foi possível calcular: {exc}", "error")
         return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
+
+    # O custo de bagagens pagas só é somado se o agente marcar essa
+    # opção expressamente. Sem a marcação, as fórmulas atuais não mudam.
+    # A venda adicional é informativa; o preço ao cliente segue em Editar lucro.
+    itinerary_extra = values.get("_itinerary_v1", {})
+    if (not is_skip_record and isinstance(itinerary_extra, dict)
+            and itinerary_extra.get("charge_extra_bags") is True):
+        extra_baggage_cost = round(float(itinerary_extra.get("extra_bags_cost") or 0), 2)
+        if extra_baggage_cost > 0:
+            result.total = round(result.total + extra_baggage_cost, 2)
+            result.baggage_total = round(result.baggage_total + extra_baggage_cost, 2)
+            result.breakdown["bagagens_adicionais_itinerario"] = extra_baggage_cost
 
     quote = existing_option
     if quote is None:

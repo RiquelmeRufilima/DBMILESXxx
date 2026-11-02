@@ -1,0 +1,44 @@
+/* Itinerário opcional e arte de cotação: claro/escuro sem dependências. */
+.dbm-itinerary-panel{margin:16px 0;padding:16px;border-radius:18px;border:1px solid #315977;background:linear-gradient(145deg,#102c44,#0b2035);color:#eaf6ff}
+.dbm-itinerary-heading,.dbm-itinerary-sidehead,.dbm-itinerary-leghead{display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap}
+.dbm-itinerary-heading strong{font-size:1.01rem}.dbm-itinerary-heading small,.dbm-itinerary-sidehead small,.dbm-itinerary-leghead span{display:block;color:#aac6d9;font-size:.72rem;margin-top:4px}
+.dbm-itinerary-heading>span{border:1px solid #449b90;background:#144b4a;color:#a8f8df;font-size:.65rem;padding:5px 8px;border-radius:99px;font-weight:900}
+.dbm-itinerary-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:13px 0}.dbm-itinerary-actions button{font-size:.72rem!important}
+.dbm-itinerary-copy-paid{display:flex;align-items:center;gap:6px;font-size:.72rem}
+.dbm-itinerary-sides{display:grid;gap:14px}
+.dbm-itinerary-side{background:rgba(255,255,255,.035);border:1px solid rgba(158,194,224,.2);padding:13px;border-radius:14px;min-width:0}
+.dbm-itinerary-sidehead{margin-bottom:12px}.dbm-itinerary-legs{display:grid;gap:10px;margin-top:12px}
+.dbm-itinerary-leg{padding:12px;border:1px solid rgba(147,183,212,.22);border-radius:12px;background:rgba(5,23,43,.4)}
+.dbm-itinerary-leghead{margin-bottom:12px}.dbm-itinerary-leghead b{font-size:.83rem}
+.dbm-itinerary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:8px 0}
+.dbm-itinerary-grid label,.dbm-itinerary-stops label{display:grid;gap:5px;font-size:.72rem;color:#bed6e9;min-width:0}
+.dbm-itinerary-grid :is(input,select),.dbm-itinerary-stops input{width:100%;box-sizing:border-box;min-width:0;min-height:39px;padding:8px 10px;border-radius:9px;border:1px solid #3a6687;background:#102d47;color:#f0f9ff;font-size:.78rem}
+.dbm-itinerary-grid option{color:#10243b;background:#fff}
+.dbm-itinerary-stops{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:10px 0}
+.dbm-itinerary-timing{border-top:1px solid rgba(161,198,222,.21);margin-top:10px;padding-top:10px}.dbm-itinerary-timing summary{cursor:pointer;color:#b7e4fd;font-weight:750;font-size:.76rem}
+.dbm-itinerary-duration{font-size:.76rem;color:#89edc9;padding:10px 1px 0}
+.dbm-itinerary-foot{display:grid;gap:7px;margin-top:13px;border-top:1px solid rgba(153,184,214,.25);padding-top:13px;font-size:.78rem}
+.dbm-itinerary-foot label{display:flex;align-items:center;gap:9px;font-weight:800}.dbm-itinerary-foot small{color:#aac7d7;font-size:.68rem}
+#dbmItineraryTotals{color:#97e6c8;font-size:.73rem}
+html[data-theme='light'] .dbm-itinerary-panel{background:#fff;color:#173953;border-color:#c8dfed;box-shadow:0 7px 26px rgba(40,97,151,.07)}
+html[data-theme='light'] .dbm-itinerary-side{background:#f5faff;border-color:#cce0f0}
+html[data-theme='light'] .dbm-itinerary-leg{background:#fff;border-color:#d0e2ef}
+html[data-theme='light'] .dbm-itinerary-heading small,html[data-theme='light'] .dbm-itinerary-sidehead small,html[data-theme='light'] .dbm-itinerary-leghead span,html[data-theme='light'] .dbm-itinerary-grid label,html[data-theme='light'] .dbm-itinerary-stops label,html[data-theme='light'] .dbm-itinerary-foot small{color:#456780}
+html[data-theme='light'] .dbm-itinerary-grid :is(input,select),html[data-theme='light'] .dbm-itinerary-stops input{color:#183950;background:#fff;border-color:#b7d0e3}
+html[data-theme='light'] .dbm-itinerary-timing summary{color:#116087}
+html[data-theme='light'] :is(.dbm-itinerary-duration,#dbmItineraryTotals){color:#08744c}
+.dbm-art-section{margin-top:18px!important;padding:18px;border:1px solid #34637c;border-radius:17px;background:#0e2c43;color:#e8f6ff}
+.dbm-art-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.dbm-art-head h3{margin:0!important;color:inherit}.dbm-art-note{font-size:.74rem;color:#a6c6d8;margin:0 0 12px}
+.dbm-art-preview{display:block;width:min(100%,430px);height:auto;margin:0 auto 12px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.16);background:#fff}
+.dbm-art-buttons{display:flex;flex-wrap:wrap;gap:9px;align-items:center}.dbm-art-buttons label{font-size:.73rem;display:flex;gap:5px;align-items:center}
+.dbm-compact-installments{border:1px solid #3b6280;background:rgba(44,146,199,.08);padding:10px 13px;border-radius:11px;margin-bottom:12px}
+.dbm-compact-installments summary{cursor:pointer;font-weight:850;font-size:.8rem}.dbm-compact-installments label{display:inline-flex;align-items:center;gap:7px;font-size:.74rem;margin:10px 0}
+.dbm-compact-installments select{min-height:34px;border-radius:7px;padding:4px 8px}.dbm-compact-installments .dbm-compact-hint{font-size:.71rem;color:#a5c4d7}
+html[data-theme='light'] .dbm-art-section{background:#f5faff;color:#163650;border-color:#cadfec}
+html[data-theme='light'] .dbm-art-note,html[data-theme='light'] .dbm-compact-installments .dbm-compact-hint{color:#4a697f}
+html[data-theme='light'] .dbm-compact-installments{background:#eef7ff;border-color:#c5d9e7;color:#183c5c}
+@media(max-width:800px){.dbm-itinerary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dbm-itinerary-stops{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.dbm-itinerary-grid,.dbm-itinerary-stops{grid-template-columns:1fr}.dbm-itinerary-panel{padding:11px}.dbm-itinerary-actions button{width:100%}}
+
+#partnerAirlineField .partner-segment-grid[hidden]{display:none!important}
