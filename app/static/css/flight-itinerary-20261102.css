@@ -97,3 +97,66 @@ html[data-theme='light'] .dbm-partner-route{background:#f5faff;border-color:#d1e
 html[data-theme='light'] .dbm-itinerary-compact[open]>summary{border-color:#d1e4f0}
 @media(max-width:760px){.dbm-timing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dbm-itinerary-essentials{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.dbm-itinerary-essentials,.dbm-timing-grid,.dbm-partners-expanded,.dbm-itinerary-shared .baggage-section .form-grid{grid-template-columns:1fr}.dbm-itinerary-compact>summary span{font-size:.59rem}.dbm-itinerary-content{padding:8px}}
+
+/* 2026-11-02 — Organização exatamente por blocos conforme modelo2.png.
+   Parcerias -> cálculo -> bagagens -> tarifa/classe (IDA/VOLTA) -> datas
+   -> observação -> horários opcionais -> salvar. Sem novos cálculos. */
+.dbm-itinerary-legacy-inputs[hidden]{display:none!important}
+.dbm-layout-reference{margin:8px 0 12px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+.dbm-layout-reference .dbm-itinerary-sides{display:grid;gap:10px}
+.dbm-layout-reference .dbm-itinerary-side{background:rgba(32,73,111,.20);border:1px solid rgba(107,160,200,.46);padding:12px 14px!important;border-radius:11px!important}
+.dbm-layout-reference .dbm-itinerary-sidehead{padding:0 1px 8px;margin-bottom:0!important}
+.dbm-layout-reference .dbm-itinerary-sidehead b{font-size:.87rem;color:#f0f9ff}
+.dbm-layout-reference .dbm-itinerary-sidehead small{font-size:.66rem;color:#c0d6e5}
+.dbm-layout-reference .dbm-status-grid,.dbm-layout-reference .dbm-condition-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:3px 0 7px!important}
+.dbm-layout-reference .dbm-side-conditions{border-top:0;margin:4px 0 0}
+.dbm-layout-reference .dbm-itinerary-grid label{font-weight:750;color:#cee3ef}
+.dbm-layout-reference .dbm-itinerary-grid :is(input,select){min-height:36px!important;background:#0c2740;border-color:#3b6987;color:#f4faff;border-radius:7px}
+.dbm-itinerary-fees,.dbm-itinerary-copy-tools{margin-top:9px;border:1px solid rgba(110,162,202,.22);border-radius:9px}
+.dbm-itinerary-fees>summary,.dbm-itinerary-copy-tools>summary{font-size:.74rem;font-weight:750;cursor:pointer;padding:8px 11px;color:#a6cce4}
+.dbm-itinerary-fees>.form-grid{padding:8px 11px 12px;margin:0}
+.dbm-itinerary-copy-tools .dbm-itinerary-actions{padding:4px 9px 10px;margin:0!important}
+.dbm-baggage-scope{font-size:.75rem;font-weight:750;color:inherit}
+.dbm-baggage-scope small{font-weight:400;color:#a9c5d7}
+.dbm-itinerary-observation{margin:8px 0 10px;border-radius:10px}
+.dbm-itinerary-observation label{display:grid;gap:6px;font-weight:800;font-size:.77rem}
+.dbm-itinerary-observation textarea{width:100%;min-height:70px;border-radius:9px;padding:10px;box-sizing:border-box}
+.dbm-reference-schedules{border:1px solid rgba(104,170,216,.34);border-radius:12px;background:rgba(15,45,69,.28);padding:0;overflow:hidden;margin-top:4px}
+.dbm-reference-schedules>summary{list-style:none;padding:11px 13px;cursor:pointer;color:#e5f7ff;font-weight:850;font-size:.81rem;background:rgba(34,92,132,.24)}
+.dbm-reference-schedules>summary::-webkit-details-marker{display:none}
+.dbm-reference-timing{display:grid;gap:9px;padding:10px}
+.dbm-reference-time-side{border:1px solid rgba(112,162,204,.36);border-radius:10px;padding:11px 12px;background:rgba(39,85,126,.16);min-width:0}
+.dbm-reference-time-side .dbm-itinerary-grid{margin:7px 0!important}
+.dbm-reference-time-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:.79rem}
+.dbm-reference-time-head small{font-size:.65rem;color:#a7cbe1}
+.dbm-reference-schedules .dbm-timing-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dbm-reference-schedules .dbm-itinerary-leg{padding:8px 9px!important;background:rgba(8,29,48,.24)}
+.dbm-reference-stop-times{border:1px solid rgba(130,170,197,.27);border-radius:9px;margin-top:10px;padding:0 8px 8px}
+.dbm-reference-stop-times>summary{list-style:none;cursor:pointer;color:#c0e9fc;font-weight:750;font-size:.72rem;padding:9px 2px}
+.dbm-reference-stop-times>summary::-webkit-details-marker{display:none}
+.dbm-reference-time-side .dbm-itinerary-duration{padding:8px 0 0;color:#74eeb5;font-size:.7rem}
+.dbm-reference-alternatives{padding:0 10px 10px}
+.dbm-reference-alternatives>.optional-bottom-card{background:transparent!important;box-shadow:none!important;border:1px solid rgba(116,164,198,.22)!important;margin:0}
+.dbm-reference-alternatives>.optional-bottom-card>summary{padding:7px 10px!important}
+.dbm-reference-alternatives>.optional-bottom-card>summary strong{font-size:.72rem}
+.dbm-reference-alternatives>.optional-bottom-card>summary small{display:none}
+.dbm-reference-alternatives .optional-summary-step{display:none}
+.dbm-reference-alternatives .optional-summary-pill{display:none}
+.dbm-reference-alternatives .optional-bottom-card>summary{display:block}
+html[data-theme='light'] .dbm-layout-reference .dbm-itinerary-side{background:#f5faff;border-color:#c5dced}
+html[data-theme='light'] .dbm-layout-reference .dbm-itinerary-sidehead b{color:#173b5b}
+html[data-theme='light'] .dbm-layout-reference .dbm-itinerary-sidehead small,
+html[data-theme='light'] .dbm-layout-reference .dbm-itinerary-grid label{color:#345c79}
+html[data-theme='light'] .dbm-layout-reference .dbm-itinerary-grid :is(input,select){color:#133951;background:#fff;border-color:#bfd6e8}
+html[data-theme='light'] .dbm-itinerary-fees>summary,
+html[data-theme='light'] .dbm-itinerary-copy-tools>summary{color:#225b7d}
+html[data-theme='light'] .dbm-reference-schedules{background:#f7fbff;border-color:#c4dbec}
+html[data-theme='light'] .dbm-reference-schedules>summary{background:#e9f5ff;color:#173b58}
+html[data-theme='light'] .dbm-reference-time-side{background:#fff;border-color:#d0e2ee}
+html[data-theme='light'] .dbm-reference-time-head small{color:#456783}
+html[data-theme='light'] .dbm-reference-stop-times{border-color:#d4e4ef}
+html[data-theme='light'] .dbm-reference-stop-times>summary{color:#235c82}
+html[data-theme='light'] .dbm-reference-time-side .dbm-itinerary-duration{color:#087950}
+@media(max-width:800px){.dbm-reference-schedules .dbm-timing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.dbm-layout-reference .dbm-status-grid,.dbm-layout-reference .dbm-condition-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dbm-reference-schedules .dbm-timing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:460px){.dbm-layout-reference .dbm-status-grid,.dbm-layout-reference .dbm-condition-grid,.dbm-reference-schedules .dbm-timing-grid{grid-template-columns:1fr}}

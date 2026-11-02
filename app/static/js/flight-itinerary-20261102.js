@@ -27,61 +27,95 @@
       };
     }
   });
-  const panel = document.createElement('section');
-  panel.className = 'dbm-itinerary-panel';
-  panel.id = 'dbmItineraryPanel';
-  panel.innerHTML = `
-    <details class="dbm-itinerary-compact" id="dbmItineraryDetails">
-      <summary><strong>✈️ Condições, paradas e horários do voo</strong><span>OPCIONAL • abrir / fechar</span></summary>
-      <div class="dbm-itinerary-content">
-        <p class="dbm-itinerary-intro">Tudo opcional. Os campos já existentes foram reunidos aqui; deixar as paradas em branco não impede o cálculo.</p>
-        <div class="dbm-itinerary-shared" id="dbmItineraryShared">
-          <strong>Padrão desta opção</strong>
-          <div class="dbm-itinerary-essentials" id="dbmItineraryEssentials"></div>
-          <div id="dbmItineraryBaggage"></div>
-        </div>
-        <div class="dbm-itinerary-actions">
-          <button type="button" class="secondary-button small-button" data-copy="all">Repetir do 1º trecho em todos</button>
-          <button type="button" class="secondary-button small-button" data-copy="outbound">Repetir apenas na ida</button>
-          <button type="button" class="secondary-button small-button" data-copy="return">Repetir apenas na volta</button>
-        </div>
-        <div class="dbm-itinerary-sides" id="dbmItinerarySides"></div>
-        <div class="dbm-itinerary-schedules" id="dbmItinerarySchedules"></div>
-      </div>
-    </details>`;
-  const calculationSection = form.querySelector('.calculation-values-section');
-  if (!calculationSection) return;
-  calculationSection.insertAdjacentElement('beforebegin', panel);
-  // Mover os inputs REAIS existentes, sem duplicar nomes ou alterar o cálculo.
-  const essentials = panel.querySelector('#dbmItineraryEssentials');
-  ['cabin_class','fare_brand','included_bags_per_passenger'].forEach(name => {
-    const field = form.querySelector(`[name="${name}"]`);
-    if (field?.closest('label')) essentials.append(field.closest('label'));
-  });
+  // Layout solicitado: não cria um segundo painel, reutiliza os campos originais.
+  const metadataSection = form.querySelector('.option-metadata-section');
+  const metadataFields = metadataSection?.querySelector('.form-grid');
   const baggageSection = form.querySelector('.baggage-section');
-  if (baggageSection) {
-    panel.querySelector('#dbmItineraryBaggage').append(baggageSection);
-    const bagsInput = baggageSection.querySelector('[name="bags_override"]');
-    if (bagsInput) {
-      const place = document.createElement('label');
-      place.className = 'dbm-baggage-scope';
-      place.innerHTML = 'Aplicar bagagem adicional em <select id="dbmBaggageScope" aria-label="Sentido da bagagem adicional"></select><small>Usa a mesma quantidade e o mesmo valor do cálculo original. Não duplica a cobrança.</small>';
-      bagsInput.closest('label')?.insertAdjacentElement('afterend',place);
-    }
-  }
+  const optionalStack = form.querySelector('.optional-bottom-stack');
+  const datesCard = optionalStack?.querySelector('.optional-bottom-card');
   const flightPanel = document.getElementById('flightDetailsPanel');
   const flightCard = flightPanel?.closest('.optional-bottom-card');
-  if (flightCard) {
-    panel.querySelector('#dbmItinerarySchedules').append(flightCard);
-    flightCard.querySelector('summary strong')?.replaceChildren(document.createTextNode('Horários e alternativas do voo (opcionais)'));
+  if (!metadataSection || !metadataFields || !baggageSection || !optionalStack || !datesCard || !flightCard) return;
+
+  // Os selects já usados pelo backend continuam no formulário, mas sem
+  // duplicar visualmente os campos por sentido. O primeiro sentido é o padrão.
+  const originalInputs = document.createElement('div');
+  originalInputs.className = 'dbm-itinerary-legacy-inputs';
+  originalInputs.hidden = true;
+  ['cabin_class','fare_brand','included_bags_per_passenger'].forEach(name => {
+    const field = metadataFields.querySelector(`[name="${name}"]`);
+    if (field?.closest('label')) originalInputs.append(field.closest('label'));
+  });
+  metadataSection.append(originalInputs);
+
+  // Observação abaixo das datas, como na referência, preservando o mesmo name.
+  const note = metadataFields.querySelector('[name="option_description"]')?.closest('label');
+  if (note) {
+    const observations = document.createElement('div');
+    observations.className = 'dbm-itinerary-observation';
+    observations.append(note);
+    datesCard.insertAdjacentElement('afterend', observations);
   }
+
+  // Custos/taxas adicionais que já existem permanecem, mas recolhidos para
+  // não competir com os blocos simples de ida/volta.
+  const feeCard = document.createElement('details');
+  feeCard.className = 'dbm-itinerary-fees';
+  feeCard.innerHTML = '<summary>Taxas e identificação adicionais (opcionais)</summary>';
+  feeCard.append(metadataFields);
+  metadataSection.append(feeCard);
+  const feeHasContent = [...metadataFields.querySelectorAll('input')]
+    .some(input => input.name === 'extra_name' ? !!input.value.trim() :
+      input.name === 'extra_value' && Number(input.value) > 0);
+  feeCard.open = feeHasContent;
+
+  const panel = document.createElement('div');
+  panel.className = 'dbm-itinerary-panel dbm-layout-reference';
+  panel.id = 'dbmItineraryPanel';
+  panel.innerHTML = `
+    <div class="dbm-itinerary-sides" id="dbmItinerarySides"></div>
+    <details class="dbm-itinerary-copy-tools">
+      <summary>↪ Repetir configurações entre trechos (opcional)</summary>
+      <div class="dbm-itinerary-actions">
+        <button type="button" class="secondary-button small-button" data-copy="all">Repetir do 1º trecho em todos</button>
+        <button type="button" class="secondary-button small-button" data-copy="outbound">Repetir apenas na ida</button>
+        <button type="button" class="secondary-button small-button" data-copy="return">Repetir apenas na volta</button>
+      </div>
+    </details>`;
+  feeCard.insertAdjacentElement('beforebegin', panel);
+  const sidesBox = panel.querySelector('#dbmItinerarySides');
+
+  // A bagagem adicional continua no bloco 3, sem criar bagagem por conexão.
+  const bagsInput = baggageSection.querySelector('[name="bags_override"]');
+  if (bagsInput && !document.getElementById('dbmBaggageScope')) {
+    const place = document.createElement('label');
+    place.className = 'dbm-baggage-scope';
+    place.innerHTML = 'Aplicar bagagem adicional em <select id="dbmBaggageScope" aria-label="Sentido da bagagem adicional"></select><small>Mesma quantidade e mesmo valor do cálculo original. Sem cobrança duplicada.</small>';
+    bagsInput.closest('label')?.insertAdjacentElement('afterend',place);
+  }
+  const bagsScopeInput = document.getElementById('dbmBaggageScope');
+
+  // Horários sob as datas, numa área independente, facultativa.
+  // O controle de alternativas já existente é preservado e pode ser aberto
+  // dentro da mesma seção; seus listeners e input names não mudam.
+  datesCard.open = true;
+  const schedule = document.createElement('details');
+  schedule.className = 'dbm-itinerary-schedules dbm-reference-schedules';
+  schedule.open = true;
+  schedule.innerHTML = '<summary>◢ &nbsp; Horários do voo (opcionais)</summary><div class="dbm-reference-timing" id="dbmItinerarySchedules"></div>';
+  if (note) note.closest('.dbm-itinerary-observation').insertAdjacentElement('afterend', schedule);
+  else datesCard.insertAdjacentElement('afterend', schedule);
+  const alternatives = document.createElement('div');
+  alternatives.className = 'dbm-reference-alternatives';
+  schedule.append(alternatives);
+  alternatives.append(flightCard);
+  const schedulesBox = schedule.querySelector('#dbmItinerarySchedules');
+
   const partnerGrid = partnerArea.querySelector('.partner-segment-grid');
   const extraPartners = document.createElement('div');
   extraPartners.className = 'dbm-partners-expanded';
   extraPartners.id = 'dbmStopPartnerGrid';
   if (partnerGrid) partnerGrid.insertAdjacentElement('afterend',extraPartners);
-  const sidesBox = panel.querySelector('#dbmItinerarySides');
-
   const list = document.createElement('datalist');
   list.id = 'dbmItineraryPartners';
   (Array.isArray(partnerOptions) ? partnerOptions : []).forEach(item => {
@@ -95,7 +129,6 @@
   const globalCabin = form.querySelector('[name="cabin_class"]')?.value || '';
   const globalFare = form.querySelector('[name="fare_brand"]')?.value || '';
   const globalBags = form.querySelector('[name="included_bags_per_passenger"]')?.value || '';
-  const bagsScopeInput = document.getElementById('dbmBaggageScope');
   function activeSegments() {
     const scope = scopeData.find(row => row.key === currentKey) || scopeData[0] || {};
     return (Array.isArray(scope.segments) ? scope.segments : []).map((segment, i) => ({
@@ -150,14 +183,12 @@
     const cabin=side.cabin ?? (side.legs[0]?.cabin || globalCabin);
     const fare=side.fare ?? (side.legs[0]?.fare || globalFare);
     const bags=side.included_bags ?? (side.legs[0]?.included_bags ?? globalBags);
-    return `<details class="dbm-side-conditions"><summary>Classe, tarifa e bagagem deste sentido (personalizar)</summary>
-      <div class="dbm-itinerary-grid">
+    return `<div class="dbm-side-conditions">
+      <div class="dbm-itinerary-grid dbm-condition-grid">
         <label>Classe<select data-side-field="cabin">${optionsLike(cabinSelect,cabin)}</select></label>
         <label>Tarifa<input data-side-field="fare" type="text" maxlength="70" value="${esc(fare)}" placeholder="Ex.: Light, Flex, Full"></label>
         <label>Bagagem incluída<select data-side-field="included_bags">${optionsLike(bagSelect,bags)}</select></label>
-      </div>
-      <small>Não cria taxas nem altera o custo original. Se quiser repetir, use os botões acima.</small>
-      </details>`;
+      </div></div>`;
   }
   function legHTML(side,leg,i){
     return `<article class="dbm-itinerary-leg" data-leg="${i}">
@@ -172,6 +203,19 @@
   function partnerCards(segments){
     const sides=segments.map(s=>model.sides[s.key]).filter(Boolean);
     const expanded=sides.some(s=>s.status==='stops' && s.stops.some(Boolean));
+    // O HTML original pode conter a quantidade MÁXIMA de trechos entre
+    // modalidades. Mostra só os da modalidade ativa (só ida = 1 cartão).
+    const cards = [...(partnerGrid?.querySelectorAll('.partner-segment-card') || [])];
+    cards.forEach((card,index)=>{
+      const active=segments[index];
+      card.hidden=!active;
+      const input=card.querySelector('.partner-segment-input');
+      if(input) input.disabled=!active;
+      if(active){
+        const route=card.querySelector('.partner-segment-route small');
+        if(route) route.textContent=`${active.origin} → ${active.destination}`;
+      }
+    });
     if(partnerGrid)partnerGrid.hidden=expanded;
     if(!expanded){extraPartners.innerHTML='';return;}
     extraPartners.innerHTML=sides.map((side)=>side.legs.map((leg,i)=>
@@ -189,13 +233,30 @@
       <div class="dbm-itinerary-grid dbm-status-grid">
         <label>Status do voo<select data-side-field="status"><option value="direct" ${side.status!=='stops'?'selected':''}>Direto / sem conexão informada</option><option value="stops" ${side.status==='stops'?'selected':''}>Com parada(s)</option></select></label>
         ${side.status==='stops'?`<label>Quantidade de paradas<select data-side-field="stop_count">${Array.from({length:4},(_,i)=>`<option value="${i+1}" ${count===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label>`:''}
+        ${side.status==='stops'?side.stops.map((stop,i)=>`<label>Parada ${i+1} • aeroporto IATA<input data-stop="${i}" value="${esc(stop)}" maxlength="3" placeholder="Ex.: BSB"></label>`).join(''):''}
       </div>
-      ${side.status==='stops'?`<div class="dbm-itinerary-stops">${side.stops.map((stop,i)=>`<label>Parada ${i+1} • aeroporto IATA<input data-stop="${i}" value="${esc(stop)}" maxlength="3" placeholder="Ex.: BSB"></label>`).join('')}</div>`:''}
       ${sideConditions(side)}
-      <details class="dbm-side-times"><summary>🕒 Horários ${side.status==='stops'?'das etapas e conexões':'do voo'} (opcionais)</summary>
+    </section>`;
+  }
+  function timingHTML(segment){
+    const side=getSide(segment);
+    const label=side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':side.key.replace('_',' ').toUpperCase();
+    const first=side.legs[0]||{};
+    const last=side.legs.at(-1)||{};
+    // A linha principal e a primeira/última etapa usam os mesmos valores;
+    // não são horários independentes que podem divergir no salvamento.
+    return `<section class="dbm-reference-time-side" data-side="${esc(side.key)}">
+      <div class="dbm-reference-time-head"><strong>${esc(label)} • ${esc(side.origin)} → ${esc(side.destination)}</strong><small>Horários opcionais</small></div>
+      <div class="dbm-itinerary-grid dbm-timing-grid dbm-main-timing">
+        <label>Saída ${esc(side.origin)}<input type="datetime-local" data-main-field="departure" value="${esc(first.departure)}"></label>
+        <label>Fuso saída<select data-main-field="origin_tz">${zoneOptions(first.origin_tz)}</select></label>
+        <label>Chegada ${esc(side.destination)}<input type="datetime-local" data-main-field="arrival" value="${esc(last.arrival)}"></label>
+        <label>Fuso chegada<select data-main-field="destination_tz">${zoneOptions(last.destination_tz)}</select></label>
+      </div>
+      ${side.status==='stops'?`<details class="dbm-reference-stop-times" open><summary>◢ &nbsp; Horários das etapas e conexões (opcionais)</summary>
         <div class="dbm-itinerary-legs">${side.legs.map((leg,i)=>legHTML(side,leg,i)).join('')}</div>
-        <div class="dbm-itinerary-duration" data-duration="${esc(side.key)}"></div>
-      </details>
+      </details>`:''}
+      <div class="dbm-itinerary-duration" data-duration="${esc(side.key)}"></div>
     </section>`;
   }
   function updateBaggageScope(segments){
@@ -231,7 +292,8 @@
       if(side.status==='stops' && !side.stops.length) side.stops=[''];
       rebuildLegs(side);
     });
-    sidesBox.innerHTML = segments.length ? segments.map(sideHTML).join('') : '<p>Esta modalidade não possui uma rota com aeroportos únicos. O cálculo continua normalmente sem este complemento.</p>';
+    sidesBox.innerHTML = segments.length ? segments.map(sideHTML).join('') : '<p>Sem rota configurada. O cálculo continua normalmente.</p>';
+    schedulesBox.innerHTML = segments.length ? segments.map(timingHTML).join('') : '';
     partnerCards(segments);
     updateBaggageScope(segments);
     totals();
@@ -244,7 +306,7 @@
     activeSegments().forEach(segment=>{
       const side=model.sides[segment.key];if(!side)return;
       const legs=side.legs||[];
-      const node=panel.querySelector(`[data-duration="${side.key}"]`);if(!node)return;
+      const node=schedulesBox.querySelector(`[data-duration="${side.key}"]`);if(!node)return;
       if(!legs.length){node.textContent='';return;}
       const first=utc(legs[0].departure,legs[0].origin_tz);
       const last=utc(legs.at(-1).arrival,legs.at(-1).destination_tz);
@@ -264,7 +326,15 @@
     hidden.value=JSON.stringify({version:2,sides:activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean),bags_applies_to:model.bags_applies_to,charge_extra_bags:false});
   }
   function topologyChanged(target,side,root){
-    if(['cabin','fare','included_bags'].includes(target.dataset.sideField)){side[target.dataset.sideField]=target.value;saveHidden();return true;}
+    if(['cabin','fare','included_bags'].includes(target.dataset.sideField)){
+      side[target.dataset.sideField]=target.value;
+      // Mantém os inputs originais compatíveis com os cálculos antigos.
+      const first=activeSegments()[0];
+      if(first?.key===side.key){
+        const master=target.dataset.sideField==='cabin'?cabinSelect:target.dataset.sideField==='fare'?fareSelect:bagSelect;
+        if(master && [...master.options].some(o=>o.value===target.value)) master.value=target.value;
+      }
+      saveHidden();return true;}
     if(target.dataset.sideField==='status'){
       side.status=target.value==='stops'?'stops':'direct';
       if(side.status==='stops'&&!side.stops.length)side.stops=[''];
@@ -288,7 +358,11 @@
     const target=e.target;const root=target.closest('[data-side]');if(!root)return;
     const side=model.sides[root.dataset.side];if(!side)return;
     if(target.hasAttribute('data-stop')){side.stops[Number(target.dataset.stop)]=target.value.trim().toUpperCase();saveHidden();return;}
-    if(target.dataset.sideField==='fare'){side.fare=target.value;saveHidden();return;}
+    if(target.dataset.sideField==='fare'){
+      side.fare=target.value;
+      const first=activeSegments()[0];
+      if(first?.key===side.key && fareSelect && [...fareSelect.options].some(o=>o.value===target.value)) fareSelect.value=target.value;
+      saveHidden();return;}
     const legRoot=target.closest('[data-leg]');if(legRoot&&target.dataset.field){const leg=side.legs[Number(legRoot.dataset.leg)];if(leg)leg[target.dataset.field]=target.value;totals();saveHidden();}
   });
   sidesBox.addEventListener('change', e=>{
@@ -297,6 +371,33 @@
     if(topologyChanged(target,side,root))return;
     const legRoot=target.closest('[data-leg]');if(legRoot&&target.dataset.field){const leg=side.legs[Number(legRoot.dataset.leg)];if(leg)leg[target.dataset.field]=target.value;totals();saveHidden();}
   });
+  function updateTimeInput(target){
+    const root=target.closest('[data-side]');
+    const side=model.sides[root?.dataset.side];
+    if(!side?.legs?.length)return;
+    if(target.hasAttribute('data-main-field')){
+      const key=target.dataset.mainField;
+      const leg=['departure','origin_tz'].includes(key)?side.legs[0]:side.legs.at(-1);
+      leg[key]=target.value;
+      const corresponding=root.querySelector(`[data-leg="${leg===side.legs[0]?0:side.legs.length-1}"] [data-field="${key}"]`);
+      if(corresponding) corresponding.value=target.value;
+    } else if(target.hasAttribute('data-field')) {
+      const legRoot=target.closest('[data-leg]');
+      const idx=Number(legRoot?.dataset.leg);
+      const leg=side.legs[idx];
+      if(!leg)return;
+      leg[target.dataset.field]=target.value;
+      const mainKey=target.dataset.field;
+      if((idx===0&&['departure','origin_tz'].includes(mainKey))||
+          (idx===side.legs.length-1&&['arrival','destination_tz'].includes(mainKey))){
+        const corresponding=root.querySelector(`[data-main-field="${mainKey}"]`);
+        if(corresponding) corresponding.value=target.value;
+      }
+    } else return;
+    totals();saveHidden();
+  }
+  schedulesBox.addEventListener('input', e=>updateTimeInput(e.target));
+  schedulesBox.addEventListener('change', e=>updateTimeInput(e.target));
   panel.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener('click',()=>{
     const target=button.dataset.copy;
     const sides=activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean);
