@@ -347,9 +347,11 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  let profit = {{ (quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0)|tojson }};
  const margin = {{ (quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0)|tojson }};
  const method = {{ (quote.calculation_type.name if quote.calculation_type else 'Não informado')|tojson }};
+ let profitDefined = {{ (quote.commercial is not none and quote.commercial.profit_value is not none)|tojson }};
  const fare = {{ (quote.fare_brand or 'Não informada')|tojson }};
  const airline = {{ (quote.display_airline_name or (quote.airline.name if quote.airline else 'Companhia'))|tojson }};
  const agency = {{ (quote.user.company.name if quote.user and quote.user.company else 'Não informada')|tojson }};
+ const catalogCategory = {{ (quote.airline.catalog_category if quote.airline else 'airlines')|tojson }};
  const responsible = {{ (quote.user.name if quote.user else 'Não informado')|tojson }};
  const includedBags = {{ (quote.input_json|default('{}', true))|tojson }};
  let fareIncluded = '';
@@ -484,44 +486,69 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    return `✈️ COTAÇÃO - *${name}*\n\n${header}\n${benefits}\n${price}\n${warning}`;
  }
  function internalTemplate(){
-   const obs=note.value.trim();
-   const discount = (()=>{try {const input=JSON.parse(includedBags); return ['valor_gol','desagio'].every(k=>input[k]!==undefined)?`\n🧮 Deságio GOL: ${formatMoney(input.valor_gol)} - ${input.desagio}%`:''}catch(_){return ''}})();
-   let skip='';
-   if(skipRecord){
-     const kind=/inverse|invertido/i.test(scope)?'SKIP INVERTIDO':'SKIP NORMAL';
-     const all=sections(false).join('\n\n').replaceAll('*VOADO*','VOADO');
-     skip=`\n\n${kind}\n\n${all}`;
-   }
-   // Leia os dados que de fato geraram o cálculo; não invente milhas ou tarifas.
+   // O custo é sempre o total calculado e já inclui custos adicionais.
    let inputs={};try{inputs=JSON.parse(includedBags)||{}}catch(_){inputs={}}
-   const visibleInputs=inputs.values && typeof inputs.values==='object'?inputs.values:inputs;
-   const inputNumber = key => {
-      const raw=visibleInputs[key];if(raw===undefined||raw===null||raw==='')return null;
-      const value=String(raw).replace(/\s/g,'').replace('R$','');
-      const normalized=value.includes(',')?value.replace(/\./g,'').replace(',','.'):value;
-      const number=Number(normalized);return Number.isFinite(number)?number:null;
+   const v=(inputs.values && typeof inputs.values==='object')?inputs.values:inputs;
+   const numberOf=key=>{
+     const raw=v[key];if(raw===null||raw===undefined||raw==='')return null;
+     let text=String(raw).replace(/[R$\s]/g,'');
+     if(text.includes(','))text=text.replace(/\./g,'').replace(',','.');
+     const n=Number(text);return Number.isFinite(n)?n:null;
    };
-   const isMiles= /milhas|smiles|pass|pontos|aadvantage|avios/i.test(method) ||
-      (inputNumber('milhas')!==null && inputNumber('milheiro')!==null);
-   let mileageInfo='';
-   if(isMiles){
-      // O motor interno armazena milhas em milhares (ex.: 12.500 = 12.500 milhas).
-      const miles=inputNumber('milhas'); const unit=inputNumber('milheiro');
-      const fees=['taxa','taxas_impostos','taxa_embarque','taxa_resgate','taxa_adicional'].filter(key=>inputNumber(key)!==null);
-      if(miles!==null)mileageInfo+=`\n✈️ Milhas: ${(miles*1000).toLocaleString('pt-BR',{maximumFractionDigits:0})}`;
-      if(unit!==null)mileageInfo+=`\n💠 Milheiro: ${formatMoney(unit)}`;
-      if(fees.length)mileageInfo+=fees.map(key=>`\n🧾 ${key.replaceAll('_',' ')}: ${formatMoney(inputNumber(key))}`).join('');
-      if(mileageInfo)mileageInfo='\n'+mileageInfo;
+   const lines=['📊 RESUMO INTERNO DA COTAÇÃO', '', `🧮 Tipo de cálculo: ${method}`];
+   if(['systems','consolidators'].includes(catalogCategory))lines.push(`🏢 Plataforma: ${airline}`);
+   else if(airline && !method.toLocaleLowerCase('pt-BR').includes(airline.toLocaleLowerCase('pt-BR')))lines.push(`✈️ Programa: ${airline}`);
+   lines.push(`💰 Custo total: ${formatMoney(cost)}`);
+   if(profitDefined){
+     lines.push(`💵 Valor cobrado: ${formatMoney(sale)}`);
+     lines.push(`📈 Lucro: ${formatMoney(profit)}`);
+     lines.push(`📊 Margem: ${Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%`);
+   }else{
+     lines.push('💵 Valor cobrado: não definido');
    }
-   const marginText=Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-   // Impacto das taxas da máquina (fixa + variável) no lucro de cada opção ligada.
-   let feeInfo='';
-   if(Number(commercialMeta.machine_fee_value||0)>0)feeInfo+=`\n🏧 Taxa da máquina na condição salva: ${formatMoney(commercialMeta.machine_fee_value)} • lucro real ${formatMoney(commercialMeta.net_profit_value)}`;
-   const pct=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-   if(payState.free){const n=Math.max(2,Number(payFreeN.value)||2);const r=machineRate(n);const fee=sale*r/100;feeInfo+=`\n💳 Sem juros ${n}x: taxa ${pct(r)}% = ${formatMoney(fee)} (agência paga) • lucro real ${formatMoney(profit-fee)}`;}
-   if(payState.interest){const n=Math.max(2,Number(payIntN.value)||2);const r=machineRate(n);const total=interestTotal();feeInfo+=`\n💳 Com juros ${n}x: taxa ${pct(r)}% = ${formatMoney(total*r/100)} (cliente paga) • lucro real ${formatMoney(profit-(total*r/100-(total-sale)))}`;}
-   return `📊 RESUMO INTERNO DA COTAÇÃO\n\n💰 Custo: ${formatMoney(cost)}\n💵 Valor de venda: ${formatMoney(sale)}\n📈 Lucro: ${formatMoney(profit)}\n📊 Margem: ${marginText}%${feeInfo}${mileageInfo}${discount}${skip}\n\n📝 Observações: ${obs||'—'}`;
+   // Cartão: informações somente quando a condição de venda foi definida.
+   if(profitDefined && payState.interest){
+     const n=Math.max(2,Number(payIntN.value)||2), rate=machineRate(n);
+     const cardTotal=interestTotal();
+     const fee=cardTotal*rate/100;
+     const realProfit=profit-(fee-(cardTotal-sale));
+     const pct=rate.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+     lines.push(`💳 Com juros ${n}x: taxa ${pct}% = ${formatMoney(fee)} (cliente paga) • lucro real ${formatMoney(realProfit)}`);
+   }
+   const isMiles=/milhas|smiles|pass|pontos|aadvantage|avios/i.test(method+' '+airline) ||
+       (numberOf('milhas')!==null && numberOf('milheiro')!==null);
+   if(isMiles){
+     const miles=numberOf('milhas'),milheiro=numberOf('milheiro');
+     if(miles!==null)lines.push(`✈️ Milhas: ${(miles*1000).toLocaleString('pt-BR',{maximumFractionDigits:0})}`);
+     if(milheiro!==null)lines.push(`💠 Milheiro: ${formatMoney(milheiro)}`);
+     for(const key of ['taxa','taxas_impostos','taxa_embarque','taxa_resgate','taxa_adicional']){
+       const value=numberOf(key);
+       if(value!==null)lines.push(`🧾 ${key.replaceAll('_',' ')}: ${formatMoney(value)}`);
+     }
+   }
+   if(numberOf('desagio')!==null)lines.push(`🧮 Deságio: ${numberOf('desagio')}%`);
+   if(Number(baggage)>0){
+     const amount=Number(baggage);
+     let bagLine=`🧳 Bagagem adicional: ${amount} ${amount===1?'unidade':'unidades'}`;
+     // Só mostra valor máximo se esse dado for realmente informado no cálculo.
+     const maxBag=numberOf('bagagem_valor_maximo')??numberOf('bagagem_maxima');
+     if(maxBag!==null)bagLine+=` • valor máximo: ${formatMoney(maxBag)}`;
+     lines.push(bagLine);
+   }
+   if(skipRecord){
+     lines.push('⚡ Tipo: SKIP');
+     const flown=(Array.isArray(segments)?segments:[]).filter(row=>row.status==='flown');
+     for(const row of flown){
+       const routeName=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
+       lines.push(`✈️ Trecho ${row.segment||''}: ${routeName}`.trim());
+       if(Array.isArray(row.schedules)&&row.schedules.length)lines.push(...row.schedules);
+       else if(row.display_date)lines.push(row.display_date);
+     }
+   }
+   const obs=note.value.trim();if(obs)lines.push(`📝 ${obs}`);
+   return lines.join('\n');
  }
+
  editor.value=template();
  internalEditor.value=internalTemplate();
  document.getElementById('saveQuoteObservation').addEventListener('click',async()=>{
@@ -544,10 +571,10 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  // Salvou o lucro / valor de comparação nesta tela: atualiza a mensagem sem recarregar.
  document.addEventListener('dbm:commercial-saved',ev=>{
    const item=ev.detail||{}; if(String(item.quote_id)!==String({{ quote.id|tojson }}))return;
-   if(item.removed){sale=cost;profit=0;commercialMeta={};}
+   if(item.removed){sale=cost;profit=0;profitDefined=false;commercialMeta={};}
    else{
      if(Number(item.sale_value)>0)sale=Number(item.sale_value);
-     profit=Number(item.profit_value||0);
+     profit=Number(item.profit_value||0);profitDefined=item.profit_value!==null&&item.profit_value!==undefined&&item.profit_value!=="";
      commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||'',machine_fee_value:Number(item.machine_fee_value||0),net_profit_value:Number(item.net_profit_value||0)};
      cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
    }

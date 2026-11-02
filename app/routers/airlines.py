@@ -485,6 +485,38 @@ def manage_airline(airline_id: int, request: Request, db: Session = Depends(get_
     )
 
 
+@router.post("/{airline_id}/rename")
+async def rename_catalog_item(airline_id: int, request: Request, db: Session = Depends(get_db)):
+    """Renomeia apenas cadastros personalizados do próprio usuário/empresa."""
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    airline = db.get(Airline, airline_id)
+    if airline is None or not _can_manage(user, airline):
+        flash(request, "Você não tem permissão para renomear este cadastro.", "error")
+        return RedirectResponse("/airlines", status_code=303)
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        flash(request, "Sessão expirada. Atualize a página e tente novamente.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+    name = " ".join(str(form.get("name") or "").split()).strip()
+    if not 2 <= len(name) <= 180:
+        flash(request, "O nome deve ter de 2 a 180 caracteres.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+    # Evita nomes duplicados na mesma empresa ou entre itens do mesmo usuário.
+    others = db.scalars(
+        select(Airline).where(Airline.id != airline_id, Airline.active.is_(True), _visibility(user))
+    ).all()
+    if any(item.name.strip().casefold() == name.casefold() for item in others):
+        flash(request, "Já existe um cadastro com esse nome.", "error")
+        return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+    airline.name = name
+    # Não alterar slug ou IDs: fórmulas e histórico continuam vinculados.
+    db.commit()
+    flash(request, "Nome atualizado com sucesso.", "success")
+    return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
+
+
 @router.post("/{airline_id}/profile")
 async def update_airline_profile(airline_id: int, request: Request, db: Session = Depends(get_db)):
     """Persist the operation scope and partner choices for custom airlines."""

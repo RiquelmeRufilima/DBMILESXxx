@@ -26,6 +26,7 @@
     {% endif %}
   </div>
   <div class="action-cluster">
+    <a class="secondary-button" href="/airlines">← Voltar</a>
     <a class="primary-button" href="/calculations/new?airline_id={{ airline.id }}">Calcular agora</a>
     {% if can_manage and not airline.builtin %}
     <form method="post" action="/airlines/{{ airline.id }}/delete" onsubmit="return confirm('Excluir esta companhia personalizada? Ela deixará de aparecer nos novos cálculos, mas as cotações antigas continuarão no histórico.');">
@@ -36,6 +37,16 @@
   </div>
 </section>
 
+{% if can_manage and not airline.builtin %}
+<section class="panel" style="margin-bottom:16px" id="rename-catalog-item">
+  <div class="panel-heading"><div><span class="eyebrow">IDENTIFICAÇÃO</span><h2>Renomear cadastro</h2><p>Atualiza apenas o nome exibido. As regras e o histórico continuam intactos.</p></div></div>
+  <form method="post" action="/airlines/{{ airline.id }}/rename" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Novo nome<input name="name" value="{{ airline.name }}" maxlength="180" minlength="2" required></label>
+    <div class="form-actions"><a class="secondary-button" href="/airlines">Voltar</a><button class="primary-button" type="submit">Salvar novo nome</button></div>
+  </form>
+</section>
+{% endif %}
 {% if can_manage %}
 <section class="panel" style="margin-bottom:16px">
   <div class="panel-heading"><div><span class="eyebrow">ORGANIZAÇÃO</span><h2>Categoria do catálogo</h2><p>Somente cadastros personalizados podem mudar de categoria. Os cálculos não são alterados.</p></div></div>
