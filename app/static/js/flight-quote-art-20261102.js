@@ -53,16 +53,25 @@
       legs.forEach((leg,idx)=>{
         if(y>height-250)return;
         fill(`✈ ${leg.origin||'?'}  →  ${leg.destination||'?'}`,77,y,'bold 27px Arial','#163d60');y+=35;
-        const brand=leg.operator||leg.partner||data.airline||'';
-        const fare=[leg.cabin,leg.fare].filter(Boolean).join(' • ');
+        const brand=leg.partner||data.airline||'';
+        const fare=idx===0?[side.cabin||legs[0]?.cabin,side.fare||legs[0]?.fare].filter(Boolean).join(' • '):'';
         const details=[brand,fare].filter(Boolean).join('  |  ');
         if(details){y=wrap(details,108,y,875,'21px Arial','#456f88',27,2)+4;}
-        const baggage=[Number(leg.included_bags||0)>0?`${Number(leg.included_bags)} mala(s) incluída(s)`: 'Sem mala despachada incluída'];
-        if(Number(leg.extra_bags||0)>0){
-          baggage.push(`+ ${leg.extra_bags} mala(s) extra(s)${leg.extra_weight?' '+leg.extra_weight+'kg':''}${leg.extra_passenger?' • '+leg.extra_passenger:''}`);
-          if(checkbox.checked&&Number(leg.extra_sale||0)>0)baggage.push(`(${money(Number(leg.extra_bags)*Number(leg.extra_sale))})`);
+        // A bagagem pertence ao sentido do voo, não a cada conexão.
+        if(idx===0){
+          const bags=side.included_bags??legs[0]?.included_bags;
+          const label=bags===''||bags==null?'Bagagem: a confirmar':Number(bags)>0?`${Number(bags)} mala(s) incluída(s)`:'Sem mala despachada incluída';
+          y=wrap(label,108,y,885,'19px Arial','#527c91',27,2)+4;
+          const extraQty=Math.max(0,Number(data.extra_bags_quantity||0));
+          const where=itin.bags_applies_to||'all';
+          const showExtra=extraQty>0&&checkbox.checked&&(where==='all'?i===0:where===side.key);
+          if(showExtra){
+            const extraLabel=where==='all'&&sides.length>1
+              ?`+ ${extraQty} bagagem(ns) adicional(is) na cotação (sentido não especificado)`
+              :`+ ${extraQty} bagagem(ns) adicional(is) neste sentido`;
+            y=wrap(extraLabel,108,y,885,'19px Arial','#527c91',27,2)+4;
+          }
         }
-        y=wrap(baggage.join(' • '),108,y,885,'19px Arial','#527c91',27,2)+4;
         if(leg.departure&&leg.arrival){
           const times=`${dateBR(leg.departure)} ${leg.origin_tz?'UTC'+leg.origin_tz:''} → ${dateBR(leg.arrival)} ${leg.destination_tz?'UTC'+leg.destination_tz:''}`;
           y=wrap(times,108,y,885,'19px Arial','#527c91',25,2)+4;

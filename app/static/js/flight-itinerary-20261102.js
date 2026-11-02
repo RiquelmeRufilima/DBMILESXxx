@@ -18,9 +18,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const validIata = value => /^[A-Z]{3}$/.test(String(value || '').trim().toUpperCase());
   const firstCode = value => (String(value || '').toUpperCase().match(/\b[A-Z]{3}\b/) || [])[0] || '';
-  const money = value => Number(value || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-  const normalizeValue = value => String(value || '').trim();
-  const model = {sides:{}, charge_extra_bags: Boolean(persisted.charge_extra_bags)};
+  const model = {sides:{}, bags_applies_to: String(persisted.bags_applies_to || 'all')};
   (Array.isArray(persisted.sides) ? persisted.sides : []).forEach(side => {
     if (side && side.key) {
       model.sides[side.key] = {
@@ -33,23 +31,57 @@
   panel.className = 'dbm-itinerary-panel';
   panel.id = 'dbmItineraryPanel';
   panel.innerHTML = `
-    <div class="dbm-itinerary-heading"><div><strong>✈️ Paradas e condições por trecho</strong><small>Opcional — funciona para voo direto ou com conexões. Não precisa preencher para calcular.</small></div><span>OPCIONAL</span></div>
-    <div class="dbm-itinerary-actions">
-      <button type="button" class="secondary-button small-button" data-copy="all">Aplicar dados do 1º trecho a todos</button>
-      <button type="button" class="secondary-button small-button" data-copy="outbound">Copiar só na ida</button>
-      <button type="button" class="secondary-button small-button" data-copy="return">Copiar só na volta</button>
-      <label class="dbm-itinerary-copy-paid"><input type="checkbox" id="dbmCopyPaid"> Copiar também bagagem paga</label>
-    </div>
-    <div class="dbm-itinerary-sides" id="dbmItinerarySides"></div>
-    <div class="dbm-itinerary-foot">
-      <label><input type="checkbox" id="dbmChargeExtraBags"> Somar o CUSTO das bagagens extras ao cálculo desta opção</label>
-      <small>Desmarcado por padrão para evitar cobrar duas vezes bagagens que já estão no cálculo. Valores de venda são somente referência para Editar lucro.</small>
-      <div id="dbmItineraryTotals" aria-live="polite"></div>
-    </div>`;
-  partnerArea.insertAdjacentElement('afterend', panel);
+    <details class="dbm-itinerary-compact" id="dbmItineraryDetails">
+      <summary><strong>✈️ Condições, paradas e horários do voo</strong><span>OPCIONAL • abrir / fechar</span></summary>
+      <div class="dbm-itinerary-content">
+        <p class="dbm-itinerary-intro">Tudo opcional. Os campos já existentes foram reunidos aqui; deixar as paradas em branco não impede o cálculo.</p>
+        <div class="dbm-itinerary-shared" id="dbmItineraryShared">
+          <strong>Padrão desta opção</strong>
+          <div class="dbm-itinerary-essentials" id="dbmItineraryEssentials"></div>
+          <div id="dbmItineraryBaggage"></div>
+        </div>
+        <div class="dbm-itinerary-actions">
+          <button type="button" class="secondary-button small-button" data-copy="all">Repetir do 1º trecho em todos</button>
+          <button type="button" class="secondary-button small-button" data-copy="outbound">Repetir apenas na ida</button>
+          <button type="button" class="secondary-button small-button" data-copy="return">Repetir apenas na volta</button>
+        </div>
+        <div class="dbm-itinerary-sides" id="dbmItinerarySides"></div>
+        <div class="dbm-itinerary-schedules" id="dbmItinerarySchedules"></div>
+      </div>
+    </details>`;
+  const calculationSection = form.querySelector('.calculation-values-section');
+  if (!calculationSection) return;
+  calculationSection.insertAdjacentElement('beforebegin', panel);
+  // Mover os inputs REAIS existentes, sem duplicar nomes ou alterar o cálculo.
+  const essentials = panel.querySelector('#dbmItineraryEssentials');
+  ['cabin_class','fare_brand','included_bags_per_passenger'].forEach(name => {
+    const field = form.querySelector(`[name="${name}"]`);
+    if (field?.closest('label')) essentials.append(field.closest('label'));
+  });
+  const baggageSection = form.querySelector('.baggage-section');
+  if (baggageSection) {
+    panel.querySelector('#dbmItineraryBaggage').append(baggageSection);
+    const bagsInput = baggageSection.querySelector('[name="bags_override"]');
+    if (bagsInput) {
+      const place = document.createElement('label');
+      place.className = 'dbm-baggage-scope';
+      place.innerHTML = 'Aplicar bagagem adicional em <select id="dbmBaggageScope" aria-label="Sentido da bagagem adicional"></select><small>Usa a mesma quantidade e o mesmo valor do cálculo original. Não duplica a cobrança.</small>';
+      bagsInput.closest('label')?.insertAdjacentElement('afterend',place);
+    }
+  }
+  const flightPanel = document.getElementById('flightDetailsPanel');
+  const flightCard = flightPanel?.closest('.optional-bottom-card');
+  if (flightCard) {
+    panel.querySelector('#dbmItinerarySchedules').append(flightCard);
+    flightCard.querySelector('summary strong')?.replaceChildren(document.createTextNode('Horários e alternativas do voo (opcionais)'));
+  }
+  const partnerGrid = partnerArea.querySelector('.partner-segment-grid');
+  const extraPartners = document.createElement('div');
+  extraPartners.className = 'dbm-partners-expanded';
+  extraPartners.id = 'dbmStopPartnerGrid';
+  if (partnerGrid) partnerGrid.insertAdjacentElement('afterend',extraPartners);
   const sidesBox = panel.querySelector('#dbmItinerarySides');
-  const charge = panel.querySelector('#dbmChargeExtraBags');
-  charge.checked = model.charge_extra_bags;
+
   const list = document.createElement('datalist');
   list.id = 'dbmItineraryPartners';
   (Array.isArray(partnerOptions) ? partnerOptions : []).forEach(item => {
@@ -62,7 +94,8 @@
   const initialCarrier = document.getElementById('partnerAirlineInput')?.value || '';
   const globalCabin = form.querySelector('[name="cabin_class"]')?.value || '';
   const globalFare = form.querySelector('[name="fare_brand"]')?.value || '';
-  const globalBags = Number(form.querySelector('[name="included_bags_per_passenger"]')?.value || 0);
+  const globalBags = form.querySelector('[name="included_bags_per_passenger"]')?.value || '';
+  const bagsScopeInput = document.getElementById('dbmBaggageScope');
   function activeSegments() {
     const scope = scopeData.find(row => row.key === currentKey) || scopeData[0] || {};
     return (Array.isArray(scope.segments) ? scope.segments : []).map((segment, i) => ({
@@ -73,22 +106,22 @@
   function getSide(segment) {
     const previous = model.sides[segment.key];
     if (previous) {
+      if(previous.cabin===undefined)previous.cabin=previous.legs?.[0]?.cabin || globalCabin;
+      if(previous.fare===undefined)previous.fare=previous.legs?.[0]?.fare || globalFare;
+      if(previous.included_bags===undefined)previous.included_bags=String(previous.legs?.[0]?.included_bags ?? globalBags);
       previous.origin = segment.origin;
       previous.destination = segment.destination;
       return previous;
     }
-    const side = {key:segment.key, status:'direct', stops:[], legs:[], origin:segment.origin, destination:segment.destination};
+    const segmentIndex=activeSegments().findIndex(s=>s.key===segment.key);
+    const priorPartner=partnerGrid?.querySelector(`[data-segment="${segmentIndex+1}"]`)?.value || initialCarrier;
+    const side = {key:segment.key, status:'direct', stops:[], legs:[{partner:priorPartner}], origin:segment.origin, destination:segment.destination, cabin:globalCabin, fare:globalFare, included_bags:globalBags};
     model.sides[segment.key] = side;
     return side;
   }
   function newLeg(origin,destination,previous) {
     return {
-      origin, destination, partner:previous?.partner || initialCarrier,
-      operator:previous?.operator || '', cabin:previous?.cabin || globalCabin,
-      fare:previous?.fare || globalFare, included_bags:previous?.included_bags ?? globalBags,
-      extra_bags:previous?.extra_bags || 0, extra_weight:previous?.extra_weight || 23,
-      extra_passenger:previous?.extra_passenger || '',
-      extra_cost:previous?.extra_cost || 0, extra_sale:previous?.extra_sale || 0,
+      origin, destination, partner:previous?.partner ?? initialCarrier,
       departure:previous?.departure || '', arrival:previous?.arrival || '',
       origin_tz:previous?.origin_tz || '', destination_tz:previous?.destination_tz || ''
     };
@@ -106,47 +139,91 @@
   function classOptions(value){
     return ['','Econômica','Premium','Executiva','Primeira'].map(cls => `<option value="${esc(cls)}" ${cls===value?'selected':''}>${esc(cls || 'Não informado')}</option>`).join('');
   }
-  function legHTML(side, leg, i) {
-    const k=esc(side.key);
-    return `<article class="dbm-itinerary-leg" data-leg="${i}">
-      <div class="dbm-itinerary-leghead"><b>Trecho ${i+1} • ${esc(leg.origin)} → ${esc(leg.destination)}</b><span>Opções independentes</span></div>
+  const fareSelect = form.querySelector('[name="fare_brand"]');
+  const cabinSelect = form.querySelector('[name="cabin_class"]');
+  const bagSelect = form.querySelector('[name="included_bags_per_passenger"]');
+  function optionsLike(select,value) {
+    if(!select) return '';
+    return [...select.options].map(o=>`<option value="${esc(o.value)}" ${String(o.value)===String(value)?'selected':''}>${esc(o.textContent)}</option>`).join('');
+  }
+  function sideConditions(side) {
+    const cabin=side.cabin ?? (side.legs[0]?.cabin || globalCabin);
+    const fare=side.fare ?? (side.legs[0]?.fare || globalFare);
+    const bags=side.included_bags ?? (side.legs[0]?.included_bags ?? globalBags);
+    return `<details class="dbm-side-conditions"><summary>Classe, tarifa e bagagem deste sentido (personalizar)</summary>
       <div class="dbm-itinerary-grid">
-      <label>Companhia parceira<input data-field="partner" list="dbmItineraryPartners" value="${esc(leg.partner)}" placeholder="Companhia parceira opcional"></label>
-      <label>Operado por<input data-field="operator" list="dbmItineraryPartners" value="${esc(leg.operator)}" placeholder="Outra companhia, se houver"></label>
-      <label>Classe<select data-field="cabin">${classOptions(leg.cabin)}</select></label>
-      <label>Tarifa<input data-field="fare" value="${esc(leg.fare)}" maxlength="70" placeholder="Light, Flex, etc."></label>
-      <label>Malas despachadas incluídas<select data-field="included_bags">${Array.from({length:6},(_,n)=>`<option ${n===Number(leg.included_bags)?'selected':''} value="${n}">${n}</option>`).join('')}</select></label>
-      <label>Malas extras pagas<select data-field="extra_bags">${Array.from({length:6},(_,n)=>`<option ${n===Number(leg.extra_bags)?'selected':''} value="${n}">${n}</option>`).join('')}</select></label>
-      <label>Passageiro da bagagem extra (opcional)<input data-field="extra_passenger" value="${esc(leg.extra_passenger||'')}" maxlength="100" placeholder="Nome / identificação"></label>
-      <label>Peso por mala extra (kg)<input type="number" data-field="extra_weight" min="0" max="50" value="${Number(leg.extra_weight)||23}"></label>
-      <label>Custo por mala extra (R$)<input type="number" data-field="extra_cost" min="0" max="1000000" step="0.01" value="${Number(leg.extra_cost)||0}"></label>
-      <label>Venda por mala extra (R$)<input type="number" data-field="extra_sale" min="0" max="1000000" step="0.01" value="${Number(leg.extra_sale)||0}"></label>
+        <label>Classe<select data-side-field="cabin">${optionsLike(cabinSelect,cabin)}</select></label>
+        <label>Tarifa<input data-side-field="fare" type="text" maxlength="70" value="${esc(fare)}" placeholder="Ex.: Light, Flex, Full"></label>
+        <label>Bagagem incluída<select data-side-field="included_bags">${optionsLike(bagSelect,bags)}</select></label>
       </div>
-      <details class="dbm-itinerary-timing"><summary>🕒 Horários e fuso desta etapa (opcionais)</summary>
-        <div class="dbm-itinerary-grid">
-          <label>Saída — ${esc(leg.origin)}<input type="datetime-local" data-field="departure" value="${esc(leg.departure)}"></label>
-          <label>Fuso da saída<select data-field="origin_tz">${zoneOptions(leg.origin_tz)}</select></label>
-          <label>Chegada — ${esc(leg.destination)}<input type="datetime-local" data-field="arrival" value="${esc(leg.arrival)}"></label>
-          <label>Fuso da chegada<select data-field="destination_tz">${zoneOptions(leg.destination_tz)}</select></label>
-        </div>
-      </details>
-    </article>`;
+      <small>Não cria taxas nem altera o custo original. Se quiser repetir, use os botões acima.</small>
+      </details>`;
+  }
+  function legHTML(side,leg,i){
+    return `<article class="dbm-itinerary-leg" data-leg="${i}">
+      <div class="dbm-itinerary-leghead"><b>${esc(leg.origin)} → ${esc(leg.destination)}</b><small>Horários opcionais</small></div>
+      <div class="dbm-itinerary-grid dbm-timing-grid">
+        <label>Saída ${esc(leg.origin)}<input type="datetime-local" data-field="departure" value="${esc(leg.departure)}"></label>
+        <label>Fuso saída<select data-field="origin_tz">${zoneOptions(leg.origin_tz)}</select></label>
+        <label>Chegada ${esc(leg.destination)}<input type="datetime-local" data-field="arrival" value="${esc(leg.arrival)}"></label>
+        <label>Fuso chegada<select data-field="destination_tz">${zoneOptions(leg.destination_tz)}</select></label>
+      </div></article>`;
+  }
+  function partnerCards(segments){
+    const sides=segments.map(s=>model.sides[s.key]).filter(Boolean);
+    const expanded=sides.some(s=>s.status==='stops' && s.stops.some(Boolean));
+    if(partnerGrid)partnerGrid.hidden=expanded;
+    if(!expanded){extraPartners.innerHTML='';return;}
+    extraPartners.innerHTML=sides.map((side)=>side.legs.map((leg,i)=>
+      `<label class="dbm-partner-route" data-partner-side="${esc(side.key)}" data-partner-leg="${i}">
+      <span>${side.key==='return'?'Volta':side.key==='outbound'||side.key==='one_way'?'Ida':'Trecho'} • ${esc(leg.origin)} → ${esc(leg.destination)}</span>
+      <input list="dbmItineraryPartners" placeholder="Parceria opcional" value="${esc(leg.partner)}" data-partner-edit></label>`
+    ).join('')).join('');
   }
   function sideHTML(segment){
     const side=getSide(segment);
     const label=side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':side.key.replace('_',' ').toUpperCase();
     const count=side.stops.length;
     return `<section class="dbm-itinerary-side" data-side="${esc(side.key)}">
-      <div class="dbm-itinerary-sidehead"><b>🛫 ${label} • ${esc(side.origin)} → ${esc(side.destination)}</b><small>Cada sentido é independente</small></div>
-      <div class="dbm-itinerary-grid">
-        <label>Status do voo<select data-side-field="status"><option value="direct" ${side.status!=='stops'?'selected':''}>Direto (sem parada)</option><option value="stops" ${side.status==='stops'?'selected':''}>Com parada(s)</option></select></label>
-        <label ${side.status==='stops'?'':'hidden'} data-stop-count-wrap>Quantidade de paradas<select data-side-field="stop_count">${Array.from({length:4},(_,i)=>`<option value="${i+1}" ${count===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label>
+      <div class="dbm-itinerary-sidehead"><b>✈️ ${label} • ${esc(side.origin)} → ${esc(side.destination)}</b><small>Todos os campos opcionais</small></div>
+      <div class="dbm-itinerary-grid dbm-status-grid">
+        <label>Status do voo<select data-side-field="status"><option value="direct" ${side.status!=='stops'?'selected':''}>Direto / sem conexão informada</option><option value="stops" ${side.status==='stops'?'selected':''}>Com parada(s)</option></select></label>
+        ${side.status==='stops'?`<label>Quantidade de paradas<select data-side-field="stop_count">${Array.from({length:4},(_,i)=>`<option value="${i+1}" ${count===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label>`:''}
       </div>
-      ${side.status==='stops'?`<div class="dbm-itinerary-stops">${side.stops.map((stop,i)=>`<label>${i+1}ª parada — aeroporto IATA<input data-stop="${i}" value="${esc(stop)}" maxlength="3" placeholder="Ex.: BSB" pattern="[A-Za-z]{3}" required></label>`).join('')}</div>`:''}
-      <div class="dbm-itinerary-legs">${side.legs.map((leg,i)=>legHTML(side,leg,i)).join('')}</div>
-      <div class="dbm-itinerary-duration" data-duration="${esc(side.key)}"></div>
+      ${side.status==='stops'?`<div class="dbm-itinerary-stops">${side.stops.map((stop,i)=>`<label>Parada ${i+1} • aeroporto IATA<input data-stop="${i}" value="${esc(stop)}" maxlength="3" placeholder="Ex.: BSB"></label>`).join('')}</div>`:''}
+      ${sideConditions(side)}
+      <details class="dbm-side-times"><summary>🕒 Horários ${side.status==='stops'?'das etapas e conexões':'do voo'} (opcionais)</summary>
+        <div class="dbm-itinerary-legs">${side.legs.map((leg,i)=>legHTML(side,leg,i)).join('')}</div>
+        <div class="dbm-itinerary-duration" data-duration="${esc(side.key)}"></div>
+      </details>
     </section>`;
   }
+  function updateBaggageScope(segments){
+    if(!bagsScopeInput)return;
+    const previous=model.bags_applies_to;
+    const options=[{key:'all',label:'Percurso completo (como já era)'}];
+    if(segments.length>1)segments.forEach((s,i)=>options.push({key:s.key,label:s.key==='return'?'Somente volta':s.key==='outbound'?'Somente ida':`Somente trecho ${i+1}`}));
+    bagsScopeInput.innerHTML=options.map(o=>`<option value="${esc(o.key)}">${esc(o.label)}</option>`).join('');
+    model.bags_applies_to=options.some(o=>o.key===previous)?previous:'all';
+    bagsScopeInput.value=model.bags_applies_to;
+    bagsScopeInput.closest('label').hidden=segments.length<2;
+  }
+  if(bagsScopeInput)bagsScopeInput.addEventListener('change',()=>{model.bags_applies_to=bagsScopeInput.value;saveHidden()});
+  partnerGrid?.addEventListener('input',event=>{
+    const input=event.target.closest('.partner-segment-input');
+    if(!input)return;
+    const seg=activeSegments()[Number(input.dataset.segment)-1];
+    if(!seg)return;
+    const side=model.sides[seg.key];
+    if(side?.legs?.length){side.legs[0].partner=input.value;saveHidden()}
+  });
+  extraPartners.addEventListener('input',e=>{
+    if(!e.target.matches('[data-partner-edit]'))return;
+    const row=e.target.closest('[data-partner-side]');
+    const side=model.sides[row?.dataset.partnerSide];
+    const leg=side?.legs[Number(row?.dataset.partnerLeg)];
+    if(leg){leg.partner=e.target.value;saveHidden()}
+  });
   function render(){
     const segments=activeSegments();
     segments.forEach(segment => {
@@ -155,8 +232,8 @@
       rebuildLegs(side);
     });
     sidesBox.innerHTML = segments.length ? segments.map(sideHTML).join('') : '<p>Esta modalidade não possui uma rota com aeroportos únicos. O cálculo continua normalmente sem este complemento.</p>';
-    const oldGrid=partnerArea.querySelector('.partner-segment-grid');
-    if(oldGrid) oldGrid.hidden=segments.length>0;
+    partnerCards(segments);
+    updateBaggageScope(segments);
     totals();
     saveHidden();
   }
@@ -164,11 +241,9 @@
   function utc(date,tz){if(!date||offsetMinutes(tz)===null)return null;const ms=Date.parse(date+':00Z');return Number.isFinite(ms)?ms-offsetMinutes(tz)*60000:null;}
   const fmtMinutes=min=>`${Math.floor(min/60)}h ${String(min%60).padStart(2,'0')}min`;
   function totals(){
-    let cost=0, sale=0;
     activeSegments().forEach(segment=>{
       const side=model.sides[segment.key];if(!side)return;
       const legs=side.legs||[];
-      legs.forEach(leg=>{const qty=Math.max(0,Number(leg.extra_bags)||0);cost+=qty*(Number(leg.extra_cost)||0);sale+=qty*(Number(leg.extra_sale)||0);});
       const node=panel.querySelector(`[data-duration="${side.key}"]`);if(!node)return;
       if(!legs.length){node.textContent='';return;}
       const first=utc(legs[0].departure,legs[0].origin_tz);
@@ -182,13 +257,14 @@
       });
       node.textContent=complete?`Duração total: ${fmtMinutes(Math.round((last-first)/60000))}${waits.length?' • Esperas: '+waits.map((w,i)=>`${side.stops[i]} ${fmtMinutes(w)}`).join(' • '):''}`:'Duração total: opcional. Informe datas, horas e fusos de todas as etapas para calcular corretamente.';
     });
-    panel.querySelector('#dbmItineraryTotals').textContent=`Bagagens adicionais: custo ${money(cost)} • venda de referência ${money(sale)}${charge.checked?' • custo incluído no cálculo':' • não somadas automaticamente'}`;
+
   }
   function saveHidden(){
-    model.charge_extra_bags=charge.checked;
-    hidden.value=JSON.stringify({version:1,sides:activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean),charge_extra_bags:model.charge_extra_bags});
+    activeSegments().forEach((seg,i)=>{const input=partnerGrid?.querySelector(`[data-segment="${i+1}"]`);const s=model.sides[seg.key];if(input&&s?.legs?.[0]?.partner!==undefined&&input.value!==s.legs[0].partner)input.value=s.legs[0].partner;});
+    hidden.value=JSON.stringify({version:2,sides:activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean),bags_applies_to:model.bags_applies_to,charge_extra_bags:false});
   }
   function topologyChanged(target,side,root){
+    if(['cabin','fare','included_bags'].includes(target.dataset.sideField)){side[target.dataset.sideField]=target.value;saveHidden();return true;}
     if(target.dataset.sideField==='status'){
       side.status=target.value==='stops'?'stops':'direct';
       if(side.status==='stops'&&!side.stops.length)side.stops=[''];
@@ -202,12 +278,8 @@
     if(target.hasAttribute('data-stop')){
       const idx=Number(target.dataset.stop);
       side.stops[idx]=target.value.trim().toUpperCase();
-      if(validIata(side.stops[idx])){
-        rebuildLegs(side);
-        const wasFocused=document.activeElement===target;
-        // Draw dependent routes only on change/blur; never steal focus on typing.
-        if(!wasFocused || target.type==='text') render();
-      }else saveHidden();
+      if(validIata(side.stops[idx])){rebuildLegs(side);render();}
+      else saveHidden();
       return true;
     }
     return false;
@@ -216,6 +288,7 @@
     const target=e.target;const root=target.closest('[data-side]');if(!root)return;
     const side=model.sides[root.dataset.side];if(!side)return;
     if(target.hasAttribute('data-stop')){side.stops[Number(target.dataset.stop)]=target.value.trim().toUpperCase();saveHidden();return;}
+    if(target.dataset.sideField==='fare'){side.fare=target.value;saveHidden();return;}
     const legRoot=target.closest('[data-leg]');if(legRoot&&target.dataset.field){const leg=side.legs[Number(legRoot.dataset.leg)];if(leg)leg[target.dataset.field]=target.value;totals();saveHidden();}
   });
   sidesBox.addEventListener('change', e=>{
@@ -224,33 +297,23 @@
     if(topologyChanged(target,side,root))return;
     const legRoot=target.closest('[data-leg]');if(legRoot&&target.dataset.field){const leg=side.legs[Number(legRoot.dataset.leg)];if(leg)leg[target.dataset.field]=target.value;totals();saveHidden();}
   });
-  charge.addEventListener('change',()=>{totals();saveHidden();});
   panel.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener('click',()=>{
-    const target=button.dataset.copy;const sides=activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean);
-    const source=(target==='return'?sides.find(side=>side.key==='return'):sides.find(side=>side.key!=='return'))||sides[0];
+    const target=button.dataset.copy;
+    const sides=activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean);
+    const source=(target==='return'?sides.find(s=>s.key==='return'):sides.find(s=>s.key!=='return'))||sides[0];
     if(!source?.legs.length)return;
-    const recipients=sides.flatMap(side=>side.legs.map((leg,i)=>({side,leg,i})))
-      .filter(item=>target==='all'||(target==='return'?item.side.key==='return':item.side.key!=='return'))
-      .filter(item=>!(item.side===source && item.i===0));
+    const recipients=sides.filter(s=>target==='all'||(target==='return'?s.key==='return':s.key!=='return'));
     if(!recipients.length)return;
-    if(!confirm(`Copiar as configurações do 1º trecho para ${recipients.length} trecho(s)? Os dados existentes de parceria, classe, tarifa e bagagem incluída serão substituídos. Horários e rotas serão mantidos.`))return;
-    const first=source.legs[0];const copyPaid=panel.querySelector('#dbmCopyPaid').checked;
-    recipients.forEach(({leg})=>{
-      ['partner','operator','cabin','fare','included_bags'].forEach(key=>{leg[key]=first[key];});
-      if(copyPaid)['extra_bags','extra_weight','extra_cost','extra_sale','extra_passenger'].forEach(key=>{leg[key]=first[key];});
+    if(!confirm('Repetir parceria, classe, tarifa e bagagem incluída do primeiro trecho? Não serão alterados horários, rotas nem bagagem paga.'))return;
+    const first=source.legs[0];
+    recipients.forEach(side=>{
+      ['cabin','fare','included_bags'].forEach(key=>{side[key]=source[key]??''});
+      side.legs.forEach((leg,i)=>{if(side!==source||i!==0)leg.partner=first.partner});
     });
     render();
   }));
   document.addEventListener('calculation-scope-will-change',()=>saveHidden());
   document.addEventListener('calculation-scope-changed',event=>{currentKey=event.detail?.to||selectedScope?.value||currentKey;render();});
-  form.addEventListener('submit',e=>{
-    for(const side of activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean)){
-      if(side.status==='stops' && side.stops.some(stop=>!validIata(stop))){
-        e.preventDefault();panel.scrollIntoView({behavior:'smooth',block:'center'});
-        alert('Informe os três caracteres IATA de todas as paradas, ou escolha Voo direto.');return;
-      }
-    }
-    saveHidden();
-  },true);
+  form.addEventListener('submit',()=>saveHidden(),true);
   render();
 })();

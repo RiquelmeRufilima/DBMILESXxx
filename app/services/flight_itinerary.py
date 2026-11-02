@@ -13,7 +13,7 @@ from typing import Any
 MAX_STOPS = 4
 MAX_SIDES = 12
 MAX_BAGS = 10
-_ALLOWED_CLASSES = {"", "Econômica", "Premium", "Executiva", "Primeira"}
+_ALLOWED_CLASSES = {"", "Econômica", "Premium", "Premium Economy", "Executiva", "Business", "Primeira", "Primeira classe", "Conforto"}
 _CURRENCY_LIMIT = Decimal("1000000.00")
 
 
@@ -109,8 +109,6 @@ def normalize_itinerary(raw: Any, selected_segments: list[dict[str, Any]] | None
     # A saved itinerary from an older quote need not be valid in a new scope.
     raw_sides = raw.get("sides") if isinstance(raw.get("sides"), list) else []
     normalized_sides: list[dict[str, Any]] = []
-    total_cost = Decimal("0")
-    total_sale = Decimal("0")
     for side in raw_sides[:MAX_SIDES]:
         if not isinstance(side, dict):
             continue
@@ -130,29 +128,24 @@ def normalize_itinerary(raw: Any, selected_segments: list[dict[str, Any]] | None
                     stops.append(code)
         airports = [origin, *stops, destination]
         leg_inputs = side.get("legs") if isinstance(side.get("legs"), list) else []
+        # Na nova versão, classe/tarifa/franquia são por SENTIDO, nunca por conexão.
+        # Aceita campos antigos do primeiro trecho para abrir cotações já salvas.
+        first_leg = leg_inputs[0] if leg_inputs and isinstance(leg_inputs[0], dict) else {}
+        cabin = _text(side.get("cabin") if side.get("cabin") is not None else first_leg.get("cabin"), 30)
+        if cabin not in _ALLOWED_CLASSES:
+            cabin = ""
+        fare = _text(side.get("fare") if side.get("fare") is not None else first_leg.get("fare"), 70)
+        included_raw = side.get("included_bags")
+        if included_raw is None:
+            included_raw = first_leg.get("included_bags", "")
+        included_bags = "" if included_raw is None or str(included_raw).strip() == "" else str(_number(included_raw, 0, MAX_BAGS))
         legs: list[dict[str, Any]] = []
         for idx in range(len(airports) - 1):
             leg = leg_inputs[idx] if idx < len(leg_inputs) and isinstance(leg_inputs[idx], dict) else {}
-            cabin = _text(leg.get("cabin"), 30)
-            if cabin not in _ALLOWED_CLASSES:
-                cabin = ""
-            bags = _number(leg.get("included_bags"), 0, MAX_BAGS)
-            added = _number(leg.get("extra_bags"), 0, MAX_BAGS)
-            cost = _money(leg.get("extra_cost"))
-            sale = _money(leg.get("extra_sale"))
-            leg_cost = cost * added
-            leg_sale = sale * added
-            total_cost += leg_cost
-            total_sale += leg_sale
+            # Parada é somente uma etapa da viagem: não gera bagagem ou custo novo.
             legs.append({
                 "origin": airports[idx], "destination": airports[idx + 1],
                 "partner": _text(leg.get("partner"), 180),
-                "operator": _text(leg.get("operator"), 180),
-                "cabin": cabin, "fare": _text(leg.get("fare"), 70),
-                "included_bags": bags, "extra_bags": added,
-                "extra_weight": _number(leg.get("extra_weight"), 0, 50),
-                "extra_passenger": _text(leg.get("extra_passenger"), 100),
-                "extra_cost": float(cost), "extra_sale": float(sale),
                 "departure": _datetime(leg.get("departure")),
                 "arrival": _datetime(leg.get("arrival")),
                 "origin_tz": _tz(leg.get("origin_tz")),
@@ -183,12 +176,12 @@ def normalize_itinerary(raw: Any, selected_segments: list[dict[str, Any]] | None
                 duration_minutes = int((finish - start).total_seconds() // 60)
         normalized_sides.append({"key": key, "status": "stops" if stops else "direct", "stops": stops,
                                  "origin": origin, "destination": destination, "legs": legs,
+                                 "cabin": cabin, "fare": fare, "included_bags": included_bags,
                                  "wait_minutes": wait_minutes, "duration_minutes": duration_minutes})
 
-    # Financial impact is opt-in to avoid charging bags twice when they were
-    # already counted in the original calculation's bags_override.
-    charge = raw.get("charge_extra_bags") is True
-    total_cost = min(total_cost, _CURRENCY_LIMIT)
-    total_sale = min(total_sale, _CURRENCY_LIMIT)
-    return {"version": 1, "sides": normalized_sides, "charge_extra_bags": charge,
-            "extra_bags_cost": float(total_cost), "extra_bags_sale": float(total_sale)}
+    # A bagagem adicional EXISTENTE é calculada no campo bags_override.
+    # Este seletor é apenas o destino (ida, volta ou multitrecho), sem multiplicar custo.
+    requested_scope = _text(raw.get("bags_applies_to"), 30)
+    bags_scope = requested_scope if requested_scope in allowed else "all"
+    return {"version": 2, "sides": normalized_sides, "bags_applies_to": bags_scope,
+            "charge_extra_bags": False, "extra_bags_cost": 0.0, "extra_bags_sale": 0.0}

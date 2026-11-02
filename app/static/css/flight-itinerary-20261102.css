@@ -42,3 +42,58 @@ html[data-theme='light'] .dbm-compact-installments{background:#eef7ff;border-col
 @media(max-width:520px){.dbm-itinerary-grid,.dbm-itinerary-stops{grid-template-columns:1fr}.dbm-itinerary-panel{padding:11px}.dbm-itinerary-actions button{width:100%}}
 
 #partnerAirlineField .partner-segment-grid[hidden]{display:none!important}
+
+/* 2026-11-02 — Layout compacto opcional, usando os campos originais. */
+.dbm-itinerary-panel{margin:10px 0 12px!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important}
+.dbm-itinerary-compact{border:1px solid #345b76;border-radius:13px;background:#102b43;color:#e6f5ff;overflow:hidden}
+.dbm-itinerary-compact>summary{display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;padding:11px 14px;list-style:none}
+.dbm-itinerary-compact>summary::-webkit-details-marker{display:none}
+.dbm-itinerary-compact>summary strong{font-size:.85rem}
+.dbm-itinerary-compact>summary span{font-size:.67rem;font-weight:900;color:#8bdfc9}
+.dbm-itinerary-compact[open]>summary{border-bottom:1px solid #345b76}
+.dbm-itinerary-content{padding:10px 12px 12px}
+.dbm-itinerary-intro{font-size:.73rem;color:#bed1df;margin:0 0 9px}
+.dbm-itinerary-shared{padding:10px;border:1px solid rgba(150,193,225,.2);border-radius:9px;background:rgba(0,0,0,.10)}
+.dbm-itinerary-shared>strong{font-size:.78rem;display:block;margin-bottom:8px}
+.dbm-itinerary-essentials{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.dbm-itinerary-essentials>label,.dbm-baggage-scope{display:grid;gap:5px;font-size:.74rem;min-width:0}
+.dbm-itinerary-essentials select,.dbm-baggage-scope select{width:100%;min-height:36px;border:1px solid #3a6687;border-radius:8px;padding:6px 9px;background:#102d47;color:#eaf6ff}
+.dbm-itinerary-shared .baggage-section{background:transparent!important;border:0!important;box-shadow:none!important;margin:8px 0 0!important;padding:6px 0 0!important}
+.dbm-itinerary-shared .baggage-section .section-title{display:none!important}
+.dbm-itinerary-shared .baggage-section .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.dbm-itinerary-shared .baggage-section .compact-note{display:none}
+.dbm-baggage-scope small{color:#accbda;font-size:.64rem}
+.dbm-itinerary-actions{margin:8px 0!important;gap:6px!important}
+.dbm-itinerary-actions button{min-height:30px!important;padding:5px 9px!important;font-size:.68rem!important}
+.dbm-itinerary-sides{gap:7px!important}
+.dbm-itinerary-side{padding:9px!important;border-radius:10px!important}
+.dbm-itinerary-sidehead{margin-bottom:7px!important}
+.dbm-itinerary-stops{margin:6px 0!important}
+.dbm-itinerary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important;margin:5px 0!important}
+.dbm-itinerary-grid :is(input,select),.dbm-itinerary-stops input{min-height:34px!important;padding:6px 8px!important}
+.dbm-side-conditions,.dbm-side-times{margin:7px 0 0;padding:0;border-top:1px solid rgba(163,197,217,.17)}
+.dbm-side-conditions>summary,.dbm-side-times>summary{cursor:pointer;font-size:.75rem;font-weight:750;padding:8px 0;color:#bce6fc}
+.dbm-side-conditions>small{font-size:.67rem;color:#acc5d6}
+.dbm-itinerary-legs{gap:7px;margin-top:5px}
+.dbm-itinerary-leg{padding:9px!important}
+.dbm-itinerary-leghead{margin-bottom:5px!important}
+.dbm-itinerary-leghead small{font-size:.66rem;color:#9fc1d3}
+.dbm-timing-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dbm-itinerary-schedules{margin-top:9px}
+.dbm-itinerary-schedules>.optional-bottom-card{border-radius:9px!important;box-shadow:none!important}
+.dbm-itinerary-schedules>.optional-bottom-card>summary{padding:9px 10px!important}
+.dbm-itinerary-schedules .flight-details-panel{margin:0!important;box-shadow:none!important}
+.dbm-partners-expanded{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.dbm-partner-route{display:grid;gap:4px;font-size:.72rem;min-width:0;border:1px solid #315b7b;background:rgba(45,105,155,.08);padding:8px;border-radius:9px}
+.dbm-partner-route input{min-width:0;min-height:35px;width:100%;box-sizing:border-box;border-radius:7px;border:1px solid #416786;background:#102f49;color:#f4faff;padding:6px 9px}
+.dbm-partners-expanded:empty{display:none}
+html[data-theme='light'] .dbm-itinerary-compact{background:#fff;color:#143852;border-color:#cce0ee}
+html[data-theme='light'] .dbm-itinerary-compact>summary span{color:#087d55}
+html[data-theme='light'] .dbm-itinerary-intro,html[data-theme='light'] .dbm-side-conditions>small,html[data-theme='light'] .dbm-baggage-scope small{color:#45677f}
+html[data-theme='light'] .dbm-itinerary-shared{background:#f7fbff;border-color:#d4e3ef}
+html[data-theme='light'] .dbm-itinerary-essentials select,html[data-theme='light'] .dbm-baggage-scope select,html[data-theme='light'] .dbm-partner-route input{background:#fff;color:#193a57;border-color:#b9d3e6}
+html[data-theme='light'] .dbm-side-conditions>summary,html[data-theme='light'] .dbm-side-times>summary{color:#155c85}
+html[data-theme='light'] .dbm-partner-route{background:#f5faff;border-color:#d1e4f0;color:#193a57}
+html[data-theme='light'] .dbm-itinerary-compact[open]>summary{border-color:#d1e4f0}
+@media(max-width:760px){.dbm-timing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dbm-itinerary-essentials{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.dbm-itinerary-essentials,.dbm-timing-grid,.dbm-partners-expanded,.dbm-itinerary-shared .baggage-section .form-grid{grid-template-columns:1fr}.dbm-itinerary-compact>summary span{font-size:.59rem}.dbm-itinerary-content{padding:8px}}

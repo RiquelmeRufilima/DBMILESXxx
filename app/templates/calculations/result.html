@@ -289,7 +289,7 @@
     <div class="dbm-art-head"><h3>✈️ Arte da Cotação</h3><span>Imagem PNG • opcional</span></div>
     <p class="dbm-art-note">Prévia ilustrada a partir dos dados da cotação, sem custo de geração e sem mostrar custos ou lucros internos.</p>
     <div class="dbm-art-buttons">
-      <label><input type="checkbox" id="dbmArtShowBagPrices"> Exibir preço das bagagens adicionais</label>
+      <label><input type="checkbox" id="dbmArtShowBagPrices"> Mostrar bagagens adicionais</label>
       <label><input type="checkbox" id="dbmArtShowPayments" checked> Exibir parcelas salvas</label>
     </div>
     <canvas class="dbm-art-preview" width="1080" height="1300" role="img" aria-label="Prévia da arte da cotação"></canvas>
@@ -303,13 +303,13 @@
        'name':quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name,
        'origin':quote.origin,'destination':quote.destination,
        'airline':quote.airline.name if quote.airline else '',
-       'itinerary':inputs.get('_itinerary_v1', {}),
+       'itinerary':inputs.get('_itinerary_v1', {}), 'extra_bags_quantity':quote.bags,
        'sale':quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value is not none else quote.total,
        'cost':quote.total,
        'installments':quote.commercial.card_installments if quote.commercial else 1,
        'installment_value':quote.commercial.card_installment_value if quote.commercial else 0}|tojson }}</script>
-  <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.1">
-  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261102.1"></script>
+  <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.2">
+  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261102.2"></script>
 </section>
 <style>
  .dbm-share-options{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid var(--border,#315273);border-radius:12px;background:var(--panel,#0a2034);color:var(--text,#fff)}
