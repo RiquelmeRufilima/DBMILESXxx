@@ -1,6 +1,9 @@
 {% macro flight_choice_picker(quote, csrf_token) -%}
 {% set choices = (quote.flight_details|default([], true))|select('mapping')|list %}
-{% if choices %}
+{# Só mostra o seletor quando algum trecho tem 2+ horários: com 1 não há o que escolher. #}
+{% set picker = namespace(keys=[], multiple=false) %}
+{% for f in choices %}{% if f.get('segment_key') in picker.keys %}{% set picker.multiple = true %}{% else %}{% set picker.keys = picker.keys + [f.get('segment_key')] %}{% endif %}{% endfor %}
+{% if choices and picker.multiple %}
 <section class="dbm-flight-picker" data-dbm-flight-picker data-quote-id="{{ quote.id }}" data-csrf-token="{{ csrf_token }}" aria-label="Escolher horários da cotação">
   <div class="dbm-flight-picker-heading">
     <strong>✈️ Escolha o horário</strong>

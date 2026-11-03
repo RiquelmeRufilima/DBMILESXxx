@@ -8,3 +8,8 @@
 @media(max-width:950px){.dbm-flight-choice-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.dbm-flight-choice-baggage{grid-column:1/-1}.dbm-flight-choice-marker{display:none}}
 @media(max-width:560px){.dbm-flight-picker{padding:7px}.dbm-flight-choice-main{padding:9px 6px!important;gap:6px}.dbm-flight-choice-grid{grid-template-columns:1fr 1fr;row-gap:9px}.dbm-flight-choice-stops{grid-column:1/-1;grid-row:2}.dbm-flight-choice-duration,.dbm-flight-choice-baggage{grid-column:auto}.dbm-flight-connection-details{margin-left:12px}.dbm-flight-choice-time strong{font-size:1.04rem}}
 html[data-theme=light] .dbm-flight-picker{background:#f9fcff;color:#16324c;border-color:#c2d9ed}html[data-theme=light] .dbm-flight-choice{background:#fff;border-color:#d1e1ee}html[data-theme=light] .dbm-flight-choice.is-selected{border-color:#168ce0}html[data-theme=light] .dbm-flight-choice-time small,html[data-theme=light] .dbm-flight-choice-stops small,html[data-theme=light] .dbm-flight-choice-duration small,html[data-theme=light] .dbm-flight-picker-heading small{color:#53748b}html[data-theme=light] .dbm-flight-connection-details{background:#eff7fe}html[data-theme=light] .dbm-flight-connection-body{color:#32546c}
+
+/* 03/11: o seletor ocupa a largura toda do card, abaixo dos dados da companhia (não fica espremido numa coluna). */
+.option-airline:has(> .dbm-flight-picker){flex-wrap:wrap!important}
+.option-airline>.dbm-flight-picker{flex:1 0 100%!important;width:100%!important;max-width:100%!important;grid-column:1/-1!important;box-sizing:border-box;margin:10px 0 0}
+.option-airline>.dbm-flight-picker .dbm-flight-choice-airline b,.option-airline>.dbm-flight-picker .dbm-flight-choice-marker{white-space:nowrap}
