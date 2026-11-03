@@ -1,0 +1,837 @@
+{% extends "base.html" %}
+{% block title %}Resultado | DBMILESX
+{% endblock %}
+{% block eyebrow %}RESULTADO{% endblock %}
+{% block page_title %}Opção calculada{% endblock %}
+{% block content %}
+{% if shared_view|default(false) %}
+
+<script>document.addEventListener('DOMContentLoaded',()=>{document.getElementById('saveSharedQuote')?.addEventListener('click',async e=>{const b=e.currentTarget;b.disabled=true;try{const r=await fetch('/chat/quotes/{{ quote.id }}/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf_token:{{ csrf_token|tojson }}})});const j=await r.json();if(!j.ok)throw Error(j.message||'Falha');b.textContent='Abrir cópia salva';b.disabled=false;b.onclick=()=>location.href=j.url;}catch(err){alert(err.message);b.disabled=false;}});});</script>
+{% endif %}
+<style>.result-grid > .card-panel:nth-child(2),.page-actions form,.result-grid .button-delete,.result-grid .button-edit,.result-grid .button-fare,.result-grid .button-duplicate,.result-grid .button-accept,.result-grid .button-open,.result-grid .quote-actions-panel{display:none!important}
+  .dbm-result-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin:0 0 15px}
+  .result-hero{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:22px!important;align-items:start!important;padding:22px!important;min-width:0}
+  .result-hero>div:first-child{min-width:0!important;max-width:none!important}
+  .result-hero h1{font-size:clamp(1.5rem,2.2vw,2.3rem)!important;line-height:1.2!important;overflow-wrap:break-word;word-break:normal;max-width:100%!important}
+  .result-hero .page-actions{position:static!important;display:flex!important;max-width:620px!important;justify-content:flex-end!important;flex-wrap:wrap!important;gap:8px!important;align-self:start!important}
+  .result-hero .page-actions>*{margin:0!important;flex:0 1 auto!important}
+  .dbm-result-financial{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 17px}
+  .dbm-finance-card{background:linear-gradient(150deg,#0e304c,#0b2339);border:1px solid #2a597a;border-radius:15px;padding:15px 18px;min-width:0;display:grid;gap:6px}
+  .dbm-finance-card small{color:#a7c9de;font-weight:700}.dbm-finance-card strong{color:#fff;font-size:clamp(1.2rem,2vw,1.85rem);overflow-wrap:anywhere}
+  .dbm-result-financial .dbm-finance-card:nth-child(2) strong{color:#87ebbc}
+  .result-grid{display:grid!important;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr)!important;align-items:start!important;gap:16px!important}
+  .result-grid>.card-panel{min-width:0!important}
+  .selected-company-bar img{width:74px!important;height:74px!important;max-width:74px!important;max-height:74px!important;object-fit:contain!important;background:white!important;border-radius:12px!important}
+  .dbm-baggage-detail{padding:13px 15px;margin:12px 0!important;background:rgba(20,113,139,.12);border:1px solid rgba(70,173,200,.35);border-radius:12px;color:#d5eff8;font-size:.87rem;line-height:1.65}
+  .dbm-bag-title{display:block;color:#e8fbff;margin-bottom:4px}
+  .dbm-bag-cost{display:grid;gap:3px;margin-top:7px;font-size:.8rem;color:#b5dce8}
+  html[data-theme="light"] .dbm-finance-card{background:#f2f8fd;border-color:#c9dce9}html[data-theme="light"] .dbm-finance-card small{color:#355c77}html[data-theme="light"] .dbm-finance-card strong{color:#103b58}html[data-theme="light"] .dbm-result-financial .dbm-finance-card:nth-child(2) strong{color:#087d57}html[data-theme="light"] .dbm-baggage-detail{background:#eaf8fb;color:#13465e;border-color:#a4d7e4}html[data-theme="light"] .dbm-bag-title{color:#0d455b}html[data-theme="light"] .dbm-bag-cost{color:#24566a}
+  @media(max-width:1000px){.result-hero{grid-template-columns:1fr!important}.result-hero .page-actions{justify-content:flex-start!important}.result-grid{grid-template-columns:1fr!important}}
+  @media(max-width:630px){.dbm-result-financial{grid-template-columns:1fr 1fr}.dbm-finance-card:last-child{grid-column:1/-1}.result-hero{padding:16px!important}.dbm-result-toolbar>a{flex:1 1 auto;text-align:center}.result-hero .page-actions>*{flex:1 1 auto!important;text-align:center}.result-hero h1{font-size:1.48rem!important}}
+
+  .result-hero{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(330px,auto)!important;gap:24px!important;align-items:start!important}
+  .result-hero>div:first-child{width:auto!important;min-width:0!important;max-width:100%!important}
+  .result-hero h1{font-size:clamp(1.35rem,2vw,2.1rem)!important;line-height:1.24!important;max-width:100%!important;white-space:normal!important;overflow-wrap:break-word!important}
+  .result-hero .page-actions{position:static!important;display:flex!important;justify-content:flex-end!important;align-content:flex-start!important;gap:8px!important;flex-wrap:wrap!important;min-width:0!important;max-width:590px!important}
+  .result-hero .page-actions>*{margin:0!important;width:auto!important}
+  .dbm-result-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 16px}
+  .dbm-result-toolbar .button-profit{background:#087451!important;border:1px solid #21b785!important;color:#fff!important}
+  @media(max-width:900px){.result-hero{grid-template-columns:minmax(0,1fr)!important}.result-hero .page-actions{justify-content:flex-start!important}}
+</style>
+{% set flight_chips = quote.flight_detail_chips|default([], true) %}
+{% set flexible_schedule = quote.has_flexible_schedule|default(false) %}
+{% set route_items = quote.scope_route_items|default([], true) %}
+
+<style>
+  /* Estilo do botão do olhinho para ocultar/exibir trecho */
+  .toggle-segment-visibility {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: #9eb6cb;
+    padding: 4px;
+    border-radius: 4px;
+    transition: 0.2s;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .toggle-segment-visibility:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.1);
+  }
+  /* Estado quando o trecho é ocultado pelo olhinho */
+  .itinerary-segment-box.segment-hidden,
+  .history-segment-row.segment-hidden {
+    opacity: 0.3;
+    text-decoration: line-through;
+  }
+</style>
+
+<nav class="dbm-result-toolbar" aria-label="Navegação da cotação">
+  <a class="secondary-button" data-dbm-smart-back href="{% if shared_view|default(false) %}/company/chat{% elif group_id %}/calculations/group/{{ group_id }}{% else %}/calculations/history{% endif %}">← Voltar</a>
+  {% if not shared_view|default(false) %}
+  <a class="secondary-button" href="/calculations/history">Abrir cotações no histórico</a>
+  <button class="secondary-button small-button button-profit js-profit-open" data-commercial-button="1" type="button" data-commercial-meta='{{ (commercial_meta or {})|tojson }}' data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ "Editar lucro" if quote.commercial and (quote.commercial.profit_value or 0) > 0 else "Adicionar lucro" }}</button>
+  <a class="secondary-button" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
+  {% endif %}
+</nav>
+<section class="page-hero result-hero">
+  <div>
+    <span class="eyebrow">OPÇÃO DA COTAÇÃO</span>
+    <h1>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }} — {{ quote.total|money(quote.currency) }}</h1>
+    <p>{{ quote.quote_name }}{% if quote.variant_key|default('primary') != 'primary' %} • {{ quote.variant_name }}{% endif %} • {{ quote.scope_label or 'Cálculo' }} • {{ quote.origin or '—' }} → {{ quote.destination or '—' }}</p>
+    <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Calculado por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at|brt('%d/%m/%Y %H:%M') if quote.created_at else '—' }}</small>
+  </div>
+  {% if shared_view|default(false) %}<div class="page-actions"><a class="secondary-button" href="/company/chat">Voltar ao chat</a><button class="primary-button" type="button" id="saveSharedQuote">Salvar no histórico</button></div>{% else %}<div class="page-actions">
+    {% if group_id %}<a class="primary-button" href="/calculations/group/{{ group_id }}"><svg class="ui-icon"><use href="#icon-file"></use></svg> Voltar para cotação principal</a>{% endif %}
+    <a class="secondary-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}"><svg class="ui-icon"><use href="#icon-edit"></use></svg> Alterar cálculo</a>
+    <a class="secondary-button button-fare" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}#optionMetadataSection">Alterar tarifa</a>
+    {% if group_id %}<form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>{% endif %}
+    <a class="ghost-button button-open" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
+  </div>
+</section>
+{% endif %}
+
+<section class="dbm-result-financial" aria-label="Resumo financeiro">
+ <div class="dbm-finance-card"><small>Custo calculado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+ <div class="dbm-finance-card"><small>Lucro</small><strong>{% if quote.commercial %}{{ (quote.commercial.profit_value or 0)|money(quote.currency) }}{% else %}Não adicionado{% endif %}</strong></div>
+ <div class="dbm-finance-card"><small>Venda ao cliente</small><strong>{% if quote.commercial %}{{ (quote.commercial.sale_value or quote.total)|money(quote.currency) }}{% else %}Não definida{% endif %}</strong></div>
+</section>
+<section class="result-grid">
+  <div class="card-panel">
+    <div class="selected-company-bar">
+      {% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path }}" alt="{{ quote.airline.name }}">{% endif %}
+      <div><span class="eyebrow">COMPANHIA</span><h2>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }}</h2><p>{{ quote.calculation_type.name if quote.calculation_type else 'Cálculo' }}</p></div>
+    </div>
+    <div class="history-meta-grid top-gap">
+      <div><small>Passageiros</small><strong>{{ quote.passengers }}</strong></div>
+      <div><small>Bebês</small><strong>{{ quote.babies }}</strong></div>
+      {% set fare_bags_value = inputs.get('_meta', {}).get('included_bags_per_passenger') if inputs.get('_meta') is mapping else none %}
+      {% set fare_bags_known = fare_bags_value is not none and fare_bags_value|string != '' %}
+      {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
+      {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
+      {% set extra_bags_total = quote.bags|default(0, true)|int %}
+      <div><small>Bagagens{% if not fare_bags_known %} adicionais{% endif %}</small><strong>{{ fare_bags_total + extra_bags_total }}{% if not fare_bags_known %} <small>+ franquia a confirmar</small>{% endif %}</strong></div>
+      <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
+    </div>
+    <div class="result-baggage-total-breakdown dbm-baggage-detail" aria-label="Detalhamento de bagagens">
+      <strong class="dbm-bag-title">Franquia e bagagens adicionais</strong>
+      {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong>{% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) • franquia da tarifa ainda não informada{% endif %}
+      <div class="dbm-bag-cost">
+        {% if extra_bags_total > 0 %}
+          {% set extra_unit_cost = inputs.get('bagagem_unitaria', none) %}
+          {% if extra_unit_cost is not none and extra_unit_cost|string|trim not in ('', '0', '0.0', '0.00') %}
+            <span>Valor unitário registrado da bagagem adicional: <b>R$ {{ extra_unit_cost }}</b>.</span>
+          {% else %}
+            <span>Bagagem adicional: sem custo unitário informado no cálculo.</span>
+          {% endif %}
+        {% else %}<span>Nenhuma bagagem adicional cobrada.</span>{% endif %}
+        {% if fare_bags_known and fare_bags_total > 0 %}<span>Bagagem da tarifa: já incluída, sem cobrança adicional.</span>{% endif %}
+      </div>
+    </div>
+    {% if route_items or flight_chips or quote.flown_segment|default(None) or quote.operation_scope_label or quote.partner_airline %}
+    <div class="result-flight-chips">
+      {% if quote.variant_key|default('primary') != 'primary' %}<span class="history-chip">Subcotação • {{ quote.variant_name }}</span>{% endif %}
+      {% if quote.flown_segment|default(None) %}<span class="history-chip skip-chip">Passageiro voa o trecho {{ quote.flown_segment }}</span>{% endif %}
+      {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}
+      {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}
+      {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}
+      {% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}
+    </div>
+    
+    <!-- TRECHOS COM O BOTÃO DO OLHINHO INTEGRADO -->
+    {% if quote.segment_rows %}
+    <div class="history-segment-list result-segment-list">
+      {% for row in quote.segment_rows %}
+      <div class="history-segment-row {% if row.status == 'flown' %}segment-flown{% elif row.status == 'not_flown' %}segment-unflown{% endif %}" id="segment-row-{{ loop.index }}">
+        <div class="history-segment-route">
+          <!-- Botão do Olhinho para ocultar/exibir o trecho -->
+          <button type="button" class="toggle-segment-visibility" onclick="toggleSegment({{ loop.index }})" title="Ocultar/Exibir trecho">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+          
+          <span class="segment-number">Trecho {{ row.segment }}</span>
+          <strong>{{ row.route }}</strong>
+          {% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}
+          {% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}
+        </div>
+        <div class="history-segment-schedule">
+          {% if row.schedules %}
+            {% for schedule in row.schedules %}<span>{{ schedule }}</span>{% endfor %}
+          {% elif row.status == 'not_flown' %}
+            <span class="schedule-muted">Sem horário — trecho não utilizado</span>
+          {% else %}
+            <span class="schedule-muted">Data e horário não informados</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="card-panel">
+    <div class="panel-heading"><div><span class="eyebrow">AÇÕES</span><h2>Documentos e alterações</h2></div></div>
+    <div class="button-column">
+      <a class="primary-button" href="/quotes/{{ quote.id }}/preview?kind=quote"><svg class="ui-icon"><use href="#icon-file"></use></svg> PDF de cotação</a>
+      <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=cost">PDF de custo</a>
+      <a class="secondary-button" href="/quotes/{{ quote.id }}/preview?kind=profit">PDF de lucro</a>
+      <a class="ghost-button button-edit" href="/calculations/new?{% if group_id %}group_id={{ group_id }}&calc=1&{% endif %}edit_id={{ quote.id }}">Alterar cálculo</a>
+      <form method="post" action="/calculations/{{ quote.id }}/delete" onsubmit="return confirm('Excluir esta opção?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger full button-delete" type="submit">Excluir opção</button></form>
+    </div>
+  </div>
+</section>
+
+
+
+<div id="dbmQuoteForwardModal" hidden class="dbm-quote-modal" role="dialog" aria-modal="true" aria-label="Encaminhar cotação">
+ <div class="dbm-quote-dialog"><div class="dbm-quote-head"><strong>Encaminhar cotação para</strong><button type="button" id="dbmQuoteClose">✕</button></div>
+ <input id="dbmQuoteSearch" type="search" placeholder="Pesquisar contato ou grupo" aria-label="Pesquisar contato">
+ <div id="dbmQuoteTargets">Carregando contatos...</div><p id="dbmQuoteNotice" role="status"></p></div></div>
+<style>.dbm-quote-modal[hidden]{display:none!important}.dbm-quote-modal{position:fixed;inset:0;z-index:9999;background:#000a;display:flex;align-items:center;justify-content:center;padding:15px}.dbm-quote-dialog{width:min(480px,100%);max-height:80vh;overflow:auto;background:#0c2238;color:#fff;border:1px solid #38546a;border-radius:16px;padding:19px;box-shadow:0 12px 60px #000a}.dbm-quote-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.dbm-quote-head button{background:transparent;border:0;color:white;font-size:24px}.dbm-quote-dialog input{width:100%;padding:12px;border-radius:10px;border:1px solid #42607a;background:#07182b;color:white;margin-bottom:10px}.dbm-quote-target{display:block;width:100%;padding:13px;text-align:left;background:#102d45;color:white;border:1px solid #294a65;border-radius:10px;margin:7px 0;cursor:pointer}.dbm-quote-target:hover{background:#1a4d69}.dbm-quote-target strong,.dbm-quote-target small{display:block}.dbm-quote-target small{color:#9fbad0;font-size:.74rem;margin-top:2px}.dbm-quote-target:disabled{opacity:.6}</style>
+<script>
+(()=>{
+ const box=document.getElementById('dbmQuoteForwardModal'),targets=document.getElementById('dbmQuoteTargets'),search=document.getElementById('dbmQuoteSearch'),notice=document.getElementById('dbmQuoteNotice');
+ const CACHE_KEY='dbmChatTargets.v1';
+ const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let rows=[];let loaded=false;let pending=null;let sendKind='client';
+ const toRows=d=>{const out=[];if(d.team)out.push({target:'group',name:'👥 '+(d.team.name||'Chat da equipe'),sub:'Chat da empresa'});(d.groups||[]).forEach(g=>out.push({target:g.target,name:'👥 '+g.name,sub:`Grupo • ${g.members_count} participantes`}));(d.people||[]).forEach(p=>{if(p.contact_id&&!p.is_me&&p.active!==false)out.push({target:p.contact_id,name:p.name,sub:p.contact_id});});return out;};
+ // Mostra na hora o que já foi carregado antes e vai acrescentando em lotes.
+ function render(){
+   const q=search.value.trim().toLowerCase();
+   const list=rows.filter(c=>(c.name+' '+c.target+' '+c.sub).toLowerCase().includes(q));
+   if(!list.length){targets.innerHTML=loaded?'Nenhum contato encontrado.':'Carregando contatos...';return;}
+   targets.innerHTML='';let i=0;
+   const step=()=>{const chunk=list.slice(i,i+15).map(c=>`<button type="button" class="dbm-quote-target" data-target="${esc(c.target)}"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></button>`).join('');targets.insertAdjacentHTML('beforeend',chunk);i+=15;if(i<list.length)requestAnimationFrame(step);};
+   step();
+ }
+ try{const cached=JSON.parse(sessionStorage.getItem(CACHE_KEY)||'null');if(cached&&Array.isArray(cached.rows))rows=cached.rows;}catch(_){}
+ function load(){
+   if(pending)return pending;
+   pending=fetch('/company/chat/targets',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(r=>r.json()).then(d=>{if(!d.ok)throw Error(d.message||'Erro');rows=toRows(d);loaded=true;try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({rows,at:Date.now()}))}catch(_){} if(!box.hidden)render();}).catch(()=>{loaded=true;if(!rows.length)targets.textContent='Erro ao carregar os contatos.';}).finally(()=>{pending=null;});
+   return pending;
+ }
+ // Pré-carrega assim que a página termina de abrir (a lista abre instantânea).
+ setTimeout(()=>{try{(window.requestIdleCallback||(f=>f()))(()=>load());}catch(_){load();}},300);
+ window.dbmOpenQuoteForward=kind=>{sendKind=kind||'client';box.hidden=false;notice.textContent='';search.value='';render();load();setTimeout(()=>search.focus(),30);};
+ document.getElementById('dbmQuoteClose').onclick=()=>box.hidden=true;
+ box.addEventListener('click',e=>{if(e.target===box)box.hidden=true;});
+ search.oninput=render;
+ targets.addEventListener('click',async e=>{
+   const b=e.target.closest('[data-target]');if(!b)return;
+   targets.querySelectorAll('button').forEach(x=>x.disabled=true);notice.textContent='Encaminhando cotação...';
+   const text=(document.getElementById(sendKind==='internal'?'quoteInternalMessage':'quoteClientMessage')?.value||'').trim();
+   try{
+     const r=await fetch('/company/chat/quotes/forward',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({quote_id:{{ quote.id }},target:b.dataset.target,message:text,csrf_token:{{ csrf_token|tojson }}})});
+     const j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw Error(j.message||'Não foi possível encaminhar.');
+     notice.textContent='Cotação enviada ao chat ✓';setTimeout(()=>box.hidden=true,900);
+   }catch(err){notice.textContent=err.message||'Erro ao encaminhar';}
+   finally{targets.querySelectorAll('button').forEach(x=>x.disabled=false);}
+ });
+})();
+</script>
+
+{% if not shared_view|default(false) %}<section class="card-panel top-gap-xl" id="quoteSharePanel">
+  <div class="panel-heading"><div><span class="eyebrow">ATENDIMENTO</span><h2>Mensagem para o cliente</h2></div></div>
+  <p class="quote-share-muted">Edite a observação e revise a mensagem antes de compartilhar. Custos, lucro e deságio não entram no texto do cliente.</p>
+  <label for="quoteObservations"><strong>Observação da cotação</strong></label>
+  <textarea id="quoteObservations" rows="3" maxlength="3000" placeholder="Ex.: Tarifa Standard • 1 bagagem de 23 kg">{{ quote.trip.notes if quote.trip and quote.trip.notes else '' }}</textarea>
+  <div class="quote-share-actions"><button class="secondary-button" type="button" id="saveQuoteObservation">Salvar observação</button><span id="quoteShareStatus" role="status"></span></div>
+  <p class="quote-share-muted"><strong>Tipo exato do cálculo:</strong> {{ quote.calculation_type.name if quote.calculation_type else 'Não informado' }} • <strong>Tarifa:</strong> {{ quote.fare_brand or 'Não informada' }}</p>
+<section class="card-panel top-gap-xl dbm-result-input-detail" id="detalhamentoCalculo">
+  <div class="panel-heading"><div><span class="eyebrow">DETALHAMENTO DO CÁLCULO</span><h2>Valores e informações utilizados</h2><p>Confira os valores informados para esta opção. Os campos abaixo são dados internos.</p></div></div>
+  <div class="history-meta-grid">
+    {% if quote.is_skip_record %}
+      <div><small>Tipo de registro</small><strong>Skip simplificado</strong></div>
+      <div><small>Valor registrado</small><strong>{{ quote.total|money(quote.currency) }}</strong></div>
+      <div><small>Comissão</small><strong>{{ quote.skip_commission_value|money('BRL') if quote.skip_commission_value else 'Não informada' }}</strong></div>
+      <div><small>Trecho utilizado</small><strong>Trecho {{ quote.flown_segment }}</strong></div>
+    {% else %}
+      {% for key, value in inputs.items() %}{% if not key.startswith('_') %}<div><small>{{ key }}</small><strong class="editable-preview-field" data-field-key="{{ key }}">{{ value }}</strong></div>{% endif %}{% endfor %}
+    {% endif %}
+  </div>
+</section>
+  <div class="dbm-share-options" aria-label="Opções da mensagem de cotação">
+    <div class="dbm-message-new-settings" id="dbmMessageSettings" aria-label="Configurações opcionais da mensagem">
+      <div class="dbm-message-heading">⚙️ Configurações da mensagem</div>
+      <div class="dbm-msg-section" aria-label="Parcelamento ao cliente">
+        <div class="dbm-msg-section-title">💳 Parcelamento para o cliente</div>
+        <label class="dbm-msg-max" for="dbmMessageMaxInstallments"><span>Máximo de parcelas</span>
+          <select id="dbmMessageMaxInstallments" aria-label="Máximo de parcelas para o cliente">
+            <option value="3">3x</option><option value="6">6x</option><option value="10">10x</option><option value="12" selected>12x</option><option value="15">15x</option>
+          </select>
+        </label>
+        <label class="dbm-msg-row" for="dbmMessageShowAllInstallments"><input type="checkbox" id="dbmMessageShowAllInstallments"><span>Mostrar todas as parcelas até o máximo escolhido</span></label>
+      </div>
+      <div class="dbm-msg-section" aria-label="Informações opcionais">
+        <div class="dbm-msg-section-title">✈️ Detalhes opcionais do voo</div>
+        <label class="dbm-msg-row" for="dbmMessageShowTimes"><input type="checkbox" id="dbmMessageShowTimes"><span>Mostrar horários e duração, quando informados</span></label>
+        <label class="dbm-msg-row" for="dbmMessageShowFare"><input type="checkbox" id="dbmMessageShowFare"><span>Mostrar tarifa e classe, quando informadas</span></label>
+      </div>
+      <div class="dbm-msg-section" style="grid-column:1/-1" aria-label="Bagagens na mensagem">
+        <div class="dbm-msg-section-title">🧳 Como mostrar as bagagens</div>
+        <fieldset id="dbmBaggageModes">
+          <legend class="sr-only">Formato da bagagem</legend>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="total" checked><span>Quantidade total de bagagens</span></label>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="per_person"><span>Bagagem por passageiro</span></label>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="per_leg"><span>Bagagem por trecho</span></label>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="per_person_leg"><span>Por passageiro e por trecho</span></label>
+        </fieldset>
+      </div>
+      <p class="dbm-msg-note">A franquia da tarifa e as bagagens adicionais são consideradas juntas. Uma conexão não cria bagagem adicional. Sem bagagem informada, essa escolha fica oculta.</p>
+    </div>
+    <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
+    <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
+      <strong class="dbm-pay-title">Formas de pagamento na mensagem</strong>
+      <div class="dbm-pay-row" data-pay="cash"><button type="button" class="dbm-eye" data-eye="cash" aria-pressed="true" title="Mostrar/ocultar">👁️</button><span>À vista</span><small id="dbmPayCashPreview"></small></div>
+      <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="24" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
+      <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="24" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
+      <small>Clique no olho para mostrar ou ocultar cada opção. O total com juros é calculado pela taxa da máquina salva na cotação; você pode digitar outro valor.</small>
+    </div>
+  </div>
+  <details class="dbm-compact-installments" id="dbmCompactInstallments">
+    <summary>💳 Parcelamento para o cliente — ver até o limite escolhido</summary>
+    <label>Mostrar até <select id="dbmCompactMaxInstallments">
+      {% for n in range(1, 25) %}<option value="{{ n }}" {% if n == 12 %}selected{% endif %}>{{ n }}x</option>{% endfor %}
+    </select></label>
+    <div class="dbm-compact-hint">Valores pela tabela de taxas da máquina da cotação, considerando a entrada Pix quando cadastrada. Não mostra o total do cartão.</div>
+    <div id="dbmCompactInstallmentsList" aria-live="polite"></div>
+  </details>
+  <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
+  <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
+  <label for="quoteInternalMessage"><strong>Resumo interno — custo, lucro e origem da cotação</strong></label>
+  <p class="quote-share-muted">Somente para uso interno: revise os dados antes de encaminhar. O texto do cliente acima não inclui valores de custo.</p>
+  <textarea id="quoteInternalMessage" rows="13" spellcheck="true"></textarea>
+  <div class="quote-share-actions">
+    <button class="secondary-button" type="button" id="copyQuoteInternal">Copiar resumo interno</button>
+    <button class="secondary-button" type="button" id="forwardQuoteInternal">Encaminhar resumo interno ao chat</button>
+  </div>
+  <div class="quote-share-actions">
+    <button class="primary-button" type="button" id="copyQuoteMessage">Copiar mensagem</button>
+    <button class="secondary-button" type="button" id="forwardQuoteMessage">Encaminhar para o chat</button>
+  </div>
+  <section class="dbm-art-section" id="dbmFlightArtArea" aria-label="Arte da cotação">
+    <div class="dbm-art-head"><h3>✈️ Arte da Cotação</h3><span>Imagem PNG • opcional</span></div>
+    <p class="dbm-art-note">Prévia ilustrada a partir dos dados da cotação, sem custo de geração e sem mostrar custos ou lucros internos.</p>
+    <div class="dbm-art-buttons">
+      <label><input type="checkbox" id="dbmArtShowBagPrices"> Mostrar bagagens adicionais</label>
+      <label><input type="checkbox" id="dbmArtShowPayments" checked> Exibir parcelas salvas</label>
+    </div>
+    <canvas class="dbm-art-preview" width="1080" height="1300" role="img" aria-label="Prévia da arte da cotação"></canvas>
+    <div class="dbm-art-buttons">
+      <button class="primary-button small-button" type="button" id="dbmArtGenerate">Atualizar arte</button>
+      <button class="secondary-button small-button" type="button" id="dbmArtDownload">Baixar PNG</button>
+      <button class="secondary-button small-button" type="button" id="dbmArtShare">Compartilhar</button>
+    </div>
+  </section>
+  <script id="dbmFlightArtData" type="application/json">{{ {'quote_id':quote.id,
+       'name':quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name,
+       'origin':quote.origin,'destination':quote.destination,
+       'airline':quote.airline.name if quote.airline else '',
+       'itinerary':inputs.get('_itinerary_v1', {}), 'flight_options':quote.flight_details, 'extra_bags_quantity':quote.bags,
+       'sale':quote.commercial.sale_value if quote.commercial and quote.commercial.profit_value is not none else none,
+       'cost':quote.total,
+       'installments':quote.commercial.card_installments if quote.commercial else 1,
+       'installment_value':quote.commercial.card_installment_value if quote.commercial else 0}|tojson }}</script>
+  <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
+  <link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
+  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261103.7"></script>
+</section>
+<style>
+.dbm-message-new-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;padding:12px;border:1px solid #365e7d;border-radius:11px;background:rgba(21,67,101,.2)}
+.dbm-message-heading{grid-column:1/-1;font-weight:900;font-size:.85rem}
+.dbm-message-new-settings>label{display:flex!important;justify-content:flex-start;align-items:center;min-width:0}
+.dbm-message-max select{max-width:110px;min-width:74px;min-height:34px;margin-left:8px;border-radius:8px;background:var(--panel-2,#0a2034);color:var(--text,#fff);border:1px solid #537795}
+.dbm-message-new-settings fieldset{grid-column:1/-1;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:0}
+.dbm-message-new-settings fieldset legend{grid-column:1/-1}
+.dbm-message-new-settings small{grid-column:1/-1}
+.dbm-message-new-settings fieldset[hidden]{display:none!important}
+.dbm-pax-visible{position:relative;z-index:0}
+#dbmCompactInstallments{display:none!important} /* selector duplicado: controlado acima */
+html[data-theme='light'] .dbm-message-new-settings{background:#f4faff;color:#193c56;border-color:#c1dbee}
+html[data-theme='light'] .dbm-message-max select{background:#fff;color:#193c56;border-color:#bed5e5}
+@media(max-width:650px){.dbm-message-new-settings,.dbm-message-new-settings fieldset{grid-template-columns:1fr}}
+ .dbm-share-options{display:grid;gap:10px;margin:12px 0;padding:13px;border:1px solid var(--border,#315273);border-radius:12px;background:var(--panel,#0a2034);color:var(--text,#fff)}
+.dbm-share-options fieldset{border:0;padding:0;margin:0;display:flex;gap:14px;flex-wrap:wrap}
+.dbm-share-options legend{font-size:.75rem;font-weight:900;margin:0 0 8px}
+.dbm-share-options label{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;font-weight:750}
+.dbm-share-options input{accent-color:#16a1ed}
+.dbm-share-options small{color:var(--muted,#96b0ca);font-size:.71rem}
+html[data-theme="light"] #quoteSharePanel textarea{background:#fff!important;color:#17304b!important;border-color:#c4d7e6!important}
+html[data-theme="light"] .dbm-share-options{background:#fff;color:#17304b;border-color:#c4d7e6}
+html[data-theme="light"] .quote-share-muted{color:#47677d}
+#quoteSharePanel textarea{width:100%;max-width:100%;box-sizing:border-box;margin:10px 0 16px;padding:13px;border:1px solid #315273;border-radius:12px;background:#081e32;color:#f4f9ff;resize:vertical;line-height:1.55}
+.dbm-pay-options{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--border,#315273)}
+.dbm-pay-title{font-size:.75rem;font-weight:900}
+.dbm-pay-row{display:flex!important;align-items:center;gap:8px;flex-wrap:wrap;font-size:.78rem;font-weight:750}
+.dbm-pay-row input{width:90px;padding:6px 8px;border:1px solid var(--border,#315273);border-radius:8px;background:var(--panel-2,#081e32);color:var(--text,#fff)}
+.dbm-pay-row input#dbmPayFreeN,.dbm-pay-row input#dbmPayIntN{width:60px}
+.dbm-pay-row.is-hidden>span,.dbm-pay-row.is-hidden>small,.dbm-pay-row.is-hidden>input{opacity:.4}
+.dbm-eye{border:1px solid var(--border,#315273);background:transparent;border-radius:8px;padding:3px 7px;cursor:pointer;font-size:.95rem;line-height:1}
+.dbm-eye[aria-pressed="true"]{background:rgba(22,161,237,.18);border-color:#16a1ed}
+html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border-color:#c4d7e6}
+.quote-share-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.quote-share-actions button{min-height:42px}.quote-share-muted{color:#a9c2d7}
+@media(max-width:600px){.quote-share-actions{display:grid;grid-template-columns:1fr 1fr}.quote-share-actions button{width:100%;white-space:normal}.quote-share-actions #quoteShareStatus{grid-column:1/-1}}
+</style>
+<script>
+(() => {
+ const note = document.getElementById('quoteObservations');
+ const editor = document.getElementById('quoteClientMessage');
+ const status = document.getElementById('quoteShareStatus');
+ const internalEditor = document.getElementById('quoteInternalMessage');
+ const formatMoney = value => Number(value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ let sale = {{ (quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value else quote.total)|tojson }};
+ const cost = {{ quote.total|tojson }};
+ let profit = {{ (quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0)|tojson }};
+ const margin = {{ (quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0)|tojson }};
+ const method = {{ (quote.calculation_type.name if quote.calculation_type else 'Não informado')|tojson }};
+ let profitDefined = {{ (quote.commercial is not none and quote.commercial.profit_value is not none)|tojson }};
+ const fare = {{ (quote.fare_brand or 'Não informada')|tojson }};
+ const airline = {{ (quote.display_airline_name or (quote.airline.name if quote.airline else 'Companhia'))|tojson }};
+ const agency = {{ (quote.user.company.name if quote.user and quote.user.company else 'Não informada')|tojson }};
+ const catalogCategory = {{ (quote.airline.catalog_category if quote.airline else 'airlines')|tojson }};
+ const responsible = {{ (quote.user.name if quote.user else 'Não informado')|tojson }};
+ const includedBags = {{ (quote.input_json|default('{}', true))|tojson }};
+ let fareIncluded = '';
+ try {fareIncluded = JSON.parse(includedBags)._meta?.included_bags_per_passenger ?? ''}catch(_){}
+ const baggage = {{ quote.bags|tojson }};
+ const passengers = {{ quote.passengers|tojson }};
+ const babies = {{ quote.babies|tojson }};
+ const children = {{ (group_children|default(0))|tojson }};
+ const name = {{ (quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name)|tojson }};
+ const route = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
+ const scope = {{ (quote.scope_label or '')|tojson }};
+ const segments = {{ (quote.segment_rows or [])|tojson }};
+ let commercialMeta = {{ (commercial_meta or {})|tojson }};
+ const skipRecord = {{ (quote.is_skip_record or false)|tojson }};
+ let cardSaved = {
+   installments: {{ (quote.commercial.card_installments if quote.commercial and quote.commercial.card_installments else 1)|tojson }},
+   mode: {{ (quote.commercial.card_interest_mode if quote.commercial and quote.commercial.card_interest_mode else 'cash')|tojson }},
+   total: {{ (quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value else 0)|tojson }}
+ };
+ const payState={cash:true,free:false,interest:false};
+ let machineTables=[{name:'Mercado Pago',rates:{1:3.29,2:2.08,3:2.75,4:3.48,5:4.15,6:5.01,7:5.82,8:6.54,9:7.19,10:7.86,11:8.48,12:9.21,13:12.89,14:13.63,15:14.26,16:15.06,17:15.75,18:16.45},fixed:{'1-6':2.75,'7-12':2.99,'13-18':2.89}}];
+ const FIXED_DEFAULT={'1-6':2.75,'7-12':2.99,'13-18':2.89};
+ function fixedRateFor(t,n){const bands=(t&&t.fixed&&typeof t.fixed==='object')?t.fixed:FIXED_DEFAULT;for(const [k,v] of Object.entries(bands)){const [a,b]=k.split('-').map(Number);if(n>=a&&n<=b)return Number(v)||0;}return 0;}
+ function machineRate(n){const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];return Number(table?.rates?.[String(n)]??0)+fixedRateFor(table,n);}
+ // Compartilha a tabela vigente de parcelas com a prévia compacta.
+ window.dbmFlightMaxInstallments = function(){
+   const table=machineTables.find(t=>t.name===commercialMeta.machine_name)||machineTables[0];
+   const opts=Object.keys(table?.rates||{}).map(Number).filter(n=>n>=1&&n<=24);
+   return opts.length?Math.max(...opts):1;
+ };
+ window.dbmFlightPaymentPreview = function(n){
+   n=Math.max(1,Math.min(24,Number(n)||1));
+   const entry=Math.max(0,Number(commercialMeta.entry_amount||0));
+   const financed=Math.max(0,sale-entry);
+   const rate=n>1?machineRate(n):0;
+   return rate>=0&&rate<100?Math.round(financed/(1-rate/100)*100)/(100*n):null;
+ };
+ const payFreeN=document.getElementById('dbmPayFreeN');
+ const payIntN=document.getElementById('dbmPayIntN');
+ const payIntTotal=document.getElementById('dbmPayIntTotal');
+ const parseBR=raw=>{let v=String(raw??'').trim().replace(/[R$\s]/g,'');if(!v)return 0;if(v.includes(',')&&v.includes('.'))v=v.lastIndexOf(',')>v.lastIndexOf('.')?v.replace(/\./g,'').replace(',','.'):v.replace(/,/g,'');else if(v.includes(','))v=v.replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(v))v=v.replace(/\./g,'');const n=Number(v);return Number.isFinite(n)?n:0;};
+ // Valores salvos no "Lucro / venda" definem o padrão inicial do olho.
+ if(cardSaved.mode==='no_interest' && Number(cardSaved.installments)>1){payState.free=true;payFreeN.value=cardSaved.installments;}
+ if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)>1){payState.interest=true;payIntN.value=cardSaved.installments;}
+ function interestTotal(){
+   const typed=parseBR(payIntTotal.value); if(typed>0)return typed;
+   const n=Math.max(1,Number(payIntN.value)||1);
+   if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)===n && Number(cardSaved.total)>0)return Number(cardSaved.total);
+   const rate=machineRate(n);
+   return rate>0&&rate<100?Math.round(sale/(1-rate/100)*100)/100:sale;
+ }
+ function paymentLines(perPerson,paid,displaySale){
+   const m=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const freeN=Math.max(2,Number(payFreeN.value)||2), intN=Math.max(2,Number(payIntN.value)||2);
+   const intTotal=perPerson?interestTotal()/paid:interestTotal();
+   const card=[];
+   if(payState.free)card.push(`em até ${freeN}x de R$ ${m(displaySale/freeN)} sem juros`);
+   if(payState.interest)card.push(`em até ${intN}x de R$ ${m(intTotal/intN)} com juros`);
+   const lines=[];
+   if(payState.cash||!card.length)lines.push(`💰 Por: R$ *${m(displaySale)}*${card.length?' à vista':''}`);
+   card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
+   document.getElementById('dbmPayCashPreview').textContent=`R$ ${m(displaySale)}`;
+   document.getElementById('dbmPayFreePreview').textContent=`${freeN}x de R$ ${m(displaySale/freeN)}`;
+   document.getElementById('dbmPayIntPreview').textContent=`${intN}x de R$ ${m(intTotal/intN)}`;
+   return lines.join('\n')+'\n';
+ }
+ function syncEyes(){document.querySelectorAll('.dbm-eye').forEach(btn=>{const on=!!payState[btn.dataset.eye];btn.setAttribute('aria-pressed',String(on));btn.textContent=on?'👁️':'🙈';btn.closest('.dbm-pay-row').classList.toggle('is-hidden',!on);});}
+ const priceSwitches = document.querySelectorAll('[name="dbmMessagePriceMode"]');
+ const showTimes = document.getElementById('dbmMessageShowTimes');
+ const msgMaxInstallments = document.getElementById('dbmMessageMaxInstallments');
+ const msgShowAll = document.getElementById('dbmMessageShowAllInstallments');
+ const msgShowFare = document.getElementById('dbmMessageShowFare');
+ let itineraryData={};
+ try { const raw=JSON.parse(includedBags||'{}');itineraryData=raw._itinerary_v1||{}; } catch(_){}
+ const itinerarySides=Array.isArray(itineraryData.sides)?itineraryData.sides:[];
+ const availableFlightOptions={{ (quote.flight_details or [])|tojson }};
+ function chosenFlightOptions(){
+   const seen=new Set(), answer=[];
+   availableFlightOptions.filter(f=>f&&f.preferred).concat(availableFlightOptions).forEach(f=>{
+     if(!f||seen.has(f.segment_key))return;
+     seen.add(f.segment_key);answer.push(f);
+   });
+   return answer;
+ }
+
+ const bagModeBox=document.getElementById('dbmBaggageModes');
+ const saleKnown=()=>typeof profitDefined!=='undefined'?!!profitDefined:{{ (quote.commercial is not none and quote.commercial.profit_value is not none)|tojson }};
+ const bagQty=n=>`${n} ${n===1?'bagagem de 23kg inclusa':'bagagens de 23kg inclusas'}`;
+ function getBaggageLines(){
+   const paid=Math.max(1,Number(passengers)||1);
+   const added=Math.max(0,Number(baggage)||0);
+   const original=Number(fareIncluded);
+   const fallback=Number.isFinite(original)&&original>0?original:0;
+   const mode=selectedPriceMode();
+   const segments=itinerarySides.length?itinerarySides:[{key:'one_way',included_bags:String(fareIncluded||'')}];
+   const franchisePerSide=segments.map(s=>{
+     const n=Number(s.included_bags);
+     return s.included_bags==null||s.included_bags===''?fallback:(Number.isFinite(n)&&n>0?n:0);
+   });
+   // Percurso completo: o mesmo adicional em cada SENTIDO principal,
+   // nunca em cada conexão. Apenas apresentação; não muda o custo calculado.
+   const scope=String(itineraryData.bags_applies_to||'all');
+   const extraCount=scope==='all'?added*segments.length:(segments.some(s=>s.key===scope)?added:0);
+   const baseIncluded=franchisePerSide.reduce((sum,bags)=>sum+bags*paid,0);
+   const total=baseIncluded+extraCount;
+   if(bagModeBox)bagModeBox.hidden=total===0;
+   if(total===0)return '';
+   const line=txt=>`✅ +${txt}\n`;
+   if(mode==='total')return line(bagQty(total));
+   if(mode==='per_person'){
+     const base=franchisePerSide.reduce((sum,bags)=>sum+bags,0);
+     return (base>0?line(`${bagQty(base)} por passageiro no percurso`):'')+
+       (extraCount>0?line(`${bagQty(extraCount)} adicionais no percurso`):'');
+   }
+   const labelOf=(side,i)=>side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`;
+   const lines=[];
+   segments.forEach((side,i)=>{
+     const included=franchisePerSide[i];
+     // 'all' representa a mesma quantidade EM CADA SENTIDO principal.
+     const extras=(scope==='all'||scope===side.key)?added:0;
+     if(included*paid+extras===0)return;
+     const label=labelOf(side,i);
+     if(mode==='per_person_leg'){
+       if(included)lines.push(line(`${label}: ${bagQty(included)} por passageiro`).trimEnd());
+       if(extras)lines.push(line(`${label}: ${bagQty(extras)} adicionais na cotação`).trimEnd());
+     }else{
+       lines.push(line(`${label}: ${bagQty(included*paid+extras)}`).trimEnd());
+     }
+   });
+
+   return lines.length?lines.join('\n')+'\n':'';
+ }
+ function itineraryExtraDetails(){
+   let text='';
+   if(msgShowFare?.checked){
+     itinerarySides.forEach((side,i)=>{
+       const fields=[side.cabin,side.fare].filter(v=>v&&v!=='Não informar'&&v!=='Não informado');
+       if(fields.length)text+=`💺 ${side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`}: ${fields.join(' • ')}\n`;
+     });
+     if(!itinerarySides.length){
+       const fields=[{{ (quote.cabin_class or '')|tojson }},fare].filter(v=>v&&v!=='Não informada');
+       if(fields.length)text+=`💺 ${fields.join(' • ')}\n`;
+     }
+   }
+   if(showTimes.checked){
+     const selected=chosenFlightOptions();
+     const keysWithSchedule=new Set();
+     selected.forEach((option,i)=>{
+       const legs=Array.isArray(option.legs)?option.legs:[];
+       const hasDates=option.departure_date||option.arrival_date||legs.some(l=>l.departure||l.arrival);
+       if(!hasDates)return;
+       keysWithSchedule.add(option.segment_key);
+       const title=option.label||`Trecho ${i+1}`;
+       const format=v=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v||'')?v.slice(8,10)+'/'+v.slice(5,7)+' '+v.slice(11,16):v||'—';
+       const stops=Array.isArray(option.stops)?option.stops:[];
+       text+=`🕒 ${title}${stops.length?' • Via '+stops.join(' / '):' • Direto'}:\n`;
+       const filled=legs.filter(l=>l.departure||l.arrival);
+       if(filled.length){filled.forEach(l=>text+=`  ${l.origin||'?'} → ${l.destination||'?'}: ${format(l.departure)} → ${format(l.arrival)}\n`);}
+       else text+=`  ${option.origin||'?'} → ${option.destination||'?'}: ${option.departure_date||''} ${option.departure_time||''} → ${option.arrival_date||''} ${option.arrival_time||''}\n`;
+       if(Number.isInteger(option.duration_minutes))text+=`⏱️ Duração total: ${Math.floor(option.duration_minutes/60)}h${String(option.duration_minutes%60).padStart(2,'0')}\n`;
+       if(Array.isArray(option.wait_minutes)&&option.wait_minutes.length&&option.wait_minutes.every(Number.isInteger))text+=`⏳ Conexão: ${option.wait_minutes.map(m=>Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')).join(' • ')}\n`;
+     });
+     itinerarySides.filter(side=>!keysWithSchedule.has(side.key)).forEach((side,i)=>{
+       const legs=Array.isArray(side.legs)?side.legs:[];
+       const head=side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`;
+       const filled=legs.filter(leg=>leg.departure||leg.arrival);
+       if(!filled.length)return;
+       text+=`🕒 ${head}:\n`;
+       filled.forEach(leg=>{
+         const fmt=v=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v||'')?v.slice(8,10)+'/'+v.slice(5,7)+'/'+v.slice(0,4)+' '+v.slice(11,16):v||'—';
+         const d=fmt(leg.departure);
+         const a=fmt(leg.arrival);
+         text+=`  ${leg.origin||'?'} → ${leg.destination||'?'}: ${d} → ${a}\n`;
+       });
+       if(Number.isInteger(side.duration_minutes))text+=`⏱️ Duração total: ${Math.floor(side.duration_minutes/60)}h${String(side.duration_minutes%60).padStart(2,'0')}\n`;
+     });
+   }
+   return text;
+ }
+ function installmentList(){
+   const supported=typeof window.dbmFlightMaxInstallments==='function'?window.dbmFlightMaxInstallments():15;
+   const max=Math.max(2,Math.min(15,supported,Number(msgMaxInstallments?.value||12)));
+   const entry=Math.max(0,Number(commercialMeta.entry_amount||0));
+   const financed=Math.max(0,sale-entry);
+   const money=n=>Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const lines=[];
+   for(let n=1;n<=max;n++){
+     const rate=n===1?0:machineRate(n);
+     if(rate<0||rate>=100)continue;
+     const total=n===1?financed:Math.round(financed/(1-rate/100)*100)/100;
+     lines.push(`• ${n}x de R$ ${money(total/n)}${n===1?' à vista':' com juros'}`);
+   }
+   return lines.length?'💳 Parcelamento disponível:\n'+lines.join('\n'):' ';
+ }
+
+ const plural = (n, singular, pluralWord) => `${n} ${Number(n)===1?singular:pluralWord}`;
+ const dateBR = value => /^\d{4}-\d{2}-\d{2}/.test(value||'') ? value.slice(0,10).split('-').reverse().join('/') : (value||'');
+
+ function selectedPriceMode(){return document.querySelector('[name="dbmMessagePriceMode"]:checked')?.value||'total'}
+ function sections(onlyFlown=false){
+   const rows = Array.isArray(segments)?segments:[];
+   return rows.filter(row => !onlyFlown || row.status==='flown').map(row=>{
+     const routeString=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
+     const pieces=[`Trecho ${row.segment}`, routeString];
+     if(row.status==='flown')pieces.push('*VOADO*');
+     if(row.status==='not_flown')pieces.push('NÃO VOADO');
+     if((showTimes.checked || skipRecord) && Array.isArray(row.schedules) && row.schedules.length){
+       pieces.push(...row.schedules);
+     } else if((showTimes.checked || skipRecord) && row.display_date)pieces.push(row.display_date);
+     return pieces.join('\n');
+   });
+ }
+ function skipFlightBlocks(){
+   // Mensagem do cliente no Skip: mostra só o(s) trecho(s) efetivamente voado(s),
+   // sem a rota completa do bilhete, sem "Trecho N" e sem a marca VOADO.
+   const rows=(Array.isArray(segments)?segments:[]).filter(row=>row.status==='flown');
+   return rows.map(row=>{
+     const routeString=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
+     const times=Array.isArray(row.schedules)&&row.schedules.length?row.schedules:(row.display_date?[row.display_date]:[]);
+     return times.length?`${routeString}\n\n${times.join('\n')}`:routeString;
+   });
+ }
+ function template(){
+   const paid=Math.max(1,Number(passengers)||1);
+   const perPerson=selectedPriceMode()==='per_person';
+   // "Por passageiro" muda apenas a linha de bagagens; valores e passageiros ficam no total.
+   const displaySale=sale;
+   const compare=Number(commercialMeta.anchor_value||0);
+   const displayCompare=compare;
+   const moneyPlain=value=>Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const discount=saleKnown()&&displayCompare>displaySale?`De: R$ ~${moneyPlain(displayCompare)}~\n`:'';
+   // Crianças e bebês só aparecem quando existirem; sem eles fica "N passageiros".
+   const kids=Math.max(0,Math.min(Number(children)||0,paid-1));
+   const groups=kids>0?[plural(paid-kids,'adulto','adultos'),plural(kids,'criança','crianças')]:[plural(passengers,'passageiro','passageiros')];
+   if(Number(babies)>0)groups.push(plural(babies,'bebê','bebês'));
+   const people=groups.length>1?groups.slice(0,-1).join(', ')+' e '+groups[groups.length-1]:groups[0];
+   const bagText=getBaggageLines();
+   const optionalDetails=itineraryExtraDetails();
+   const obs=note.value.trim();
+   const title = scope.match(/volta|round/i)?'IDA e VOLTA':'IDA';
+   const benefits=`✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bagText}${optionalDetails}${obs?`✅ ${obs}\n`:''}`;
+   let payText='';
+   if(saleKnown()){
+     if(msgShowAll?.checked && payState.interest){
+       // Mantém à vista e sem juros quando selecionados; substitui somente
+       // a linha com juros pelo desdobramento completo de parcelas.
+       const current=paymentLines(false,paid,displaySale).trimEnd().split('\n');
+       payText=current.filter(line=>!line.includes('com juros')).join('\n')+'\n'+installmentList()+'\n';
+     }else payText=paymentLines(false,paid,displaySale);
+   }
+   const price=`👥 Valor total para ${people}.\n${saleKnown()?'\n'+discount+payText:''}`;
+   const warning=`_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
+   let header;
+   const skipBlocks=skipRecord?skipFlightBlocks():[];
+   if(skipRecord && skipBlocks.length){
+     header=`✈️ ${skipBlocks.length>1?'Voos':'Voo'} de *${title}*\n${skipBlocks.join('\n\n')}\n`;
+   } else {
+     const selectedFlights=sections(false);
+     const flightInfo=selectedFlights.length && showTimes.checked && !itinerarySides.some(s=>(s.legs||[]).some(l=>l.departure||l.arrival))?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
+     header=`🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}`;
+   }
+   return `✈️ COTAÇÃO - *${name}*\n\n${header}\n${benefits}\n${price}\n${warning}`;
+ }
+ function internalTemplate(){
+   // O custo é sempre o total calculado e já inclui custos adicionais.
+   let inputs={};try{inputs=JSON.parse(includedBags)||{}}catch(_){inputs={}}
+   const v=(inputs.values && typeof inputs.values==='object')?inputs.values:inputs;
+   const numberOf=key=>{
+     const raw=v[key];if(raw===null||raw===undefined||raw==='')return null;
+     let text=String(raw).replace(/[R$\s]/g,'');
+     if(text.includes(','))text=text.replace(/\./g,'').replace(',','.');
+     const n=Number(text);return Number.isFinite(n)?n:null;
+   };
+   const lines=['📊 RESUMO INTERNO DA COTAÇÃO', '', `🧮 Tipo de cálculo: ${method}`];
+   if(['systems','consolidators'].includes(catalogCategory))lines.push(`🏢 Plataforma: ${airline}`);
+   else if(airline && !method.toLocaleLowerCase('pt-BR').includes(airline.toLocaleLowerCase('pt-BR')))lines.push(`✈️ Programa: ${airline}`);
+   lines.push(`💰 Custo total: ${formatMoney(cost)}`);
+   if(profitDefined){
+     lines.push(`💵 Valor cobrado: ${formatMoney(sale)}`);
+     lines.push(`📈 Lucro: ${formatMoney(profit)}`);
+     lines.push(`📊 Margem: ${Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%`);
+   }else{
+     lines.push('💵 Valor cobrado: não definido');
+   }
+   // Cartão: informações somente quando a condição de venda foi definida.
+   if(profitDefined && payState.interest){
+     const n=Math.max(2,Number(payIntN.value)||2), rate=machineRate(n);
+     const cardTotal=interestTotal();
+     const fee=cardTotal*rate/100;
+     const realProfit=profit-(fee-(cardTotal-sale));
+     const pct=rate.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+     lines.push(`💳 Com juros ${n}x: taxa ${pct}% = ${formatMoney(fee)} (cliente paga) • lucro real ${formatMoney(realProfit)}`);
+   }
+   const isMiles=/milhas|smiles|pass|pontos|aadvantage|avios/i.test(method+' '+airline) ||
+       (numberOf('milhas')!==null && numberOf('milheiro')!==null);
+   if(isMiles){
+     const miles=numberOf('milhas'),milheiro=numberOf('milheiro');
+     if(miles!==null)lines.push(`✈️ Milhas: ${(miles*1000).toLocaleString('pt-BR',{maximumFractionDigits:0})}`);
+     if(milheiro!==null)lines.push(`💠 Milheiro: ${formatMoney(milheiro)}`);
+     for(const key of ['taxa','taxas_impostos','taxa_embarque','taxa_resgate','taxa_adicional']){
+       const value=numberOf(key);
+       if(value!==null)lines.push(`🧾 ${key.replaceAll('_',' ')}: ${formatMoney(value)}`);
+     }
+   }
+   if(numberOf('desagio')!==null)lines.push(`🧮 Deságio: ${numberOf('desagio')}%`);
+   if(Number(baggage)>0){
+     const amount=Number(baggage);
+     let bagLine=`🧳 Bagagem adicional: ${amount} ${amount===1?'unidade':'unidades'}`;
+     // Só mostra valor máximo se esse dado for realmente informado no cálculo.
+     const maxBag=numberOf('bagagem_valor_maximo')??numberOf('bagagem_maxima');
+     if(maxBag!==null)bagLine+=` • valor máximo: ${formatMoney(maxBag)}`;
+     lines.push(bagLine);
+   }
+   if(skipRecord){
+     lines.push('⚡ Tipo: SKIP');
+     const flown=(Array.isArray(segments)?segments:[]).filter(row=>row.status==='flown');
+     for(const row of flown){
+       const routeName=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
+       lines.push(`✈️ Trecho ${row.segment||''}: ${routeName}`.trim());
+       if(Array.isArray(row.schedules)&&row.schedules.length)lines.push(...row.schedules);
+       else if(row.display_date)lines.push(row.display_date);
+     }
+   }
+   const obs=note.value.trim();if(obs)lines.push(`📝 ${obs}`);
+   return lines.join('\n');
+ }
+
+ editor.value=template();
+ internalEditor.value=internalTemplate();
+ document.getElementById('saveQuoteObservation').addEventListener('click',async()=>{
+  status.textContent='Salvando...';
+  try {
+   const res=await fetch({{ ('/calculations/result/' ~ quote.id ~ '/observations')|tojson }},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({observations:note.value,csrf_token:{{ csrf_token|tojson }}})});
+   const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Falha ao salvar');
+   status.textContent='Observação salva';
+  }catch(err){status.textContent=err.message||'Erro ao salvar';}
+ });
+ note.addEventListener('input',()=>{if(!editor.dataset.edited)editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();});
+ priceSwitches.forEach(input=>input.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()}));
+ showTimes.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
+ msgShowFare?.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
+ msgShowAll?.addEventListener('change',()=>{if(msgShowAll.checked){payState.interest=true;syncEyes()}if(!editor.dataset.edited)editor.value=template()});
+ function syncMessageMaxAvailability(){
+   if(!msgMaxInstallments)return;
+   const supported=typeof window.dbmFlightMaxInstallments==='function'?window.dbmFlightMaxInstallments():15;
+   [...msgMaxInstallments.options].forEach(o=>o.disabled=Number(o.value)>supported);
+   if(Number(msgMaxInstallments.value)>supported){
+     const eligible=[...msgMaxInstallments.options].filter(o=>!o.disabled);
+     if(eligible.length)msgMaxInstallments.value=eligible.at(-1).value;
+   }
+ }
+ document.addEventListener('dbm:machine-fees-loaded',syncMessageMaxAvailability);
+ syncMessageMaxAvailability();
+ msgMaxInstallments?.addEventListener('change',()=>{
+   // Só muda a apresentação; não salva nem altera a venda cadastrada.
+   const max=Number(msgMaxInstallments.value);
+   const supported=typeof window.dbmFlightMaxInstallments==='function'?window.dbmFlightMaxInstallments():15;
+   const selected=Math.min(max,Math.max(1,supported));
+   payIntN.value=String(selected);payIntTotal.value='';
+   payState.interest=true;syncEyes();
+   const oldMax=document.getElementById('dbmCompactMaxInstallments');
+   if(oldMax && [...oldMax.options].some(op=>op.value===String(selected))){oldMax.value=String(selected);oldMax.dispatchEvent(new Event('change'));}
+   if(!editor.dataset.edited)editor.value=template();
+ });
+ // Mexer nas formas de pagamento refaz a mensagem do cliente.
+ const refreshClient=()=>{delete editor.dataset.edited;editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();};
+ document.querySelectorAll('.dbm-eye').forEach(btn=>btn.addEventListener('click',()=>{payState[btn.dataset.eye]=!payState[btn.dataset.eye];syncEyes();refreshClient();}));
+ [payFreeN,payIntN,payIntTotal].forEach(el=>el.addEventListener('input',refreshClient));
+ payIntN.addEventListener('input',()=>{payIntTotal.value='';refreshClient();});
+ syncEyes();
+ // Salvou o lucro / valor de comparação nesta tela: atualiza a mensagem sem recarregar.
+ document.addEventListener('dbm:commercial-saved',ev=>{
+   const item=ev.detail||{}; if(String(item.quote_id)!==String({{ quote.id|tojson }}))return;
+   if(item.removed){sale=cost;profit=0;profitDefined=false;commercialMeta={};}
+   else{
+     if(Number(item.sale_value)>0)sale=Number(item.sale_value);
+     profit=Number(item.profit_value||0);profitDefined=item.profit_value!==null&&item.profit_value!==undefined&&item.profit_value!=="";
+     commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||'',machine_fee_value:Number(item.machine_fee_value||0),net_profit_value:Number(item.net_profit_value||0)};
+     cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
+   }
+   refreshClient();internalEditor.value=internalTemplate();
+ });
+ fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;refreshClient();document.dispatchEvent(new Event('dbm:machine-fees-loaded'));}}).catch(()=>{});
+ internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
+ editor.addEventListener('input',()=>editor.dataset.edited='1');
+ document.getElementById('copyQuoteMessage').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(editor.value);status.textContent='Mensagem copiada';}
+  catch(_){editor.focus();editor.select();status.textContent='Selecione e copie o texto';}
+ });
+ document.getElementById('copyQuoteInternal').addEventListener('click',async()=>{
+  try {await navigator.clipboard.writeText(internalEditor.value);status.textContent='Resumo interno copiado'}
+  catch(_){internalEditor.focus();internalEditor.select();status.textContent='Selecione e copie o texto'}
+ });
+ document.getElementById('forwardQuoteInternal').addEventListener('click',()=>{
+  if(!confirm('Este resumo inclui custo e lucro. Enviar para o chat interno?')) return;
+  window.dbmOpenQuoteForward?.('internal');
+ });
+ document.getElementById('forwardQuoteMessage').addEventListener('click',()=>{
+  window.dbmOpenQuoteForward?.('client');
+ });
+})();
+</script>
+{% endif %}
+
+
+
+<script>
+  // Função do Olhinho para ocultar ou reexibir o trecho instantaneamente
+  function toggleSegment(index) {
+    const segmentBox = document.getElementById(`segment-row-${index}`);
+    if (!segmentBox) return;
+    
+    segmentBox.classList.toggle('segment-hidden');
+    
+    const btn = segmentBox.querySelector('.toggle-segment-visibility');
+    if (segmentBox.classList.contains('segment-hidden')) {
+      btn.style.opacity = '0.3';
+      btn.title = "Trecho oculto (Clique para reexibir)";
+    } else {
+      btn.style.opacity = '1';
+      btn.title = "Ocultar trecho";
+    }
+  }
+
+  // Torna os campos de detalhamento interativos por clique
+  document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll('.editable-preview-field').forEach(el => {
+      el.style.cursor = "pointer";
+      el.title = "Clique para editar rapidamente";
+      
+      el.addEventListener('click', function() {
+        const currentText = this.innerText;
+        const newText = prompt("Alterar informação:", currentText);
+        if (newText !== null && newText.trim() !== "") {
+          this.innerText = newText;
+        }
+      });
+    });
+  });
+</script>
+{% if not shared_view|default(false) %}{% include 'calculations/_profit_modal_shared.html' %}{% endif %}
+{% include 'calculations/_smart_back.html' %}
+{% endblock %}

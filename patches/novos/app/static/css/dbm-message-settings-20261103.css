@@ -1,0 +1,53 @@
+/* DBMILESX | 03/11/2026 | Configurações da mensagem, sem afetar outros formulários. */
+#dbmMessageSettings.dbm-message-new-settings {
+  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+  align-items:start!important;column-gap:22px!important;row-gap:12px!important;
+  padding:16px!important;background:rgba(16,48,74,.85)!important;
+  border:1px solid #285476!important;border-radius:14px!important;
+}
+#dbmMessageSettings .dbm-message-heading {grid-column:1/-1!important;font-size:14px!important;line-height:1.4!important}
+#dbmMessageSettings .dbm-msg-section {display:flex!important;flex-direction:column!important;align-items:stretch!important;min-width:0;gap:10px!important;padding:12px!important;border:1px solid #305875!important;border-radius:11px!important;background:rgba(5,26,45,.35)!important}
+#dbmMessageSettings .dbm-msg-section-title {font-size:12px!important;font-weight:800!important;letter-spacing:.01em;color:#eaf5ff!important}
+#dbmMessageSettings .dbm-msg-row {display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:9px!important;min-width:0!important;width:100%!important;margin:0!important;padding:5px 0!important;line-height:1.4!important;font-size:13px!important;cursor:pointer!important;text-align:left!important}
+#dbmMessageSettings .dbm-msg-row input[type="checkbox"],
+#dbmMessageSettings .dbm-msg-row input[type="radio"] {display:inline-block!important;position:static!important;float:none!important;flex:0 0 17px!important;appearance:auto!important;width:17px!important;height:17px!important;max-width:17px!important;min-width:17px!important;margin:0!important;padding:0!important;accent-color:#20aaff!important;vertical-align:middle!important;transform:none!important}
+#dbmMessageSettings .dbm-msg-row span {display:block!important;position:static!important;flex:1 1 auto!important;min-width:0!important;width:auto!important;max-width:100%!important;white-space:normal!important;color:#e0f0fd!important}
+#dbmMessageSettings .dbm-msg-max {display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;font-size:13px!important;font-weight:750!important}
+#dbmMessageSettings #dbmMessageMaxInstallments {flex:0 0 95px!important;width:95px!important;max-width:95px!important;min-height:37px!important;margin:0!important;padding:6px 9px!important;background:#08283f!important;color:#fff!important;border:1px solid #527592!important;border-radius:9px!important}
+#dbmMessageSettings #dbmBaggageModes {display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:5px 16px!important;border:0!important;min-width:0!important;padding:0!important;margin:0!important;width:100%!important;}
+#dbmMessageSettings #dbmBaggageModes > legend {font-size:12px!important;padding:0 0 7px!important;font-weight:800!important;color:#eaf5ff!important}
+#dbmMessageSettings #dbmBaggageModes[hidden] {display:none!important}
+#dbmMessageSettings .dbm-msg-section:has(#dbmBaggageModes[hidden]) {display:none!important}
+#dbmMessageSettings #dbmBaggageModes > legend.sr-only {position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important}
+#dbmMessageSettings .dbm-msg-note {grid-column:1/-1!important;font-size:11px!important;color:#a8c6df!important;line-height:1.5!important;margin:0!important}
+html[data-theme="light"] #dbmMessageSettings.dbm-message-new-settings {background:#f5faff!important;border-color:#c4d9eb!important;color:#19374e!important}
+html[data-theme="light"] #dbmMessageSettings .dbm-msg-section {background:#fff!important;border-color:#d4e3ef!important}
+html[data-theme="light"] #dbmMessageSettings :is(.dbm-msg-section-title,#dbmBaggageModes > legend,.dbm-msg-row span) {color:#21435e!important}
+html[data-theme="light"] #dbmMessageSettings .dbm-msg-note {color:#486781!important}
+html[data-theme="light"] #dbmMessageSettings #dbmMessageMaxInstallments {background:#fff!important;color:#173650!important;border-color:#bfd5e7!important}
+@media(max-width:800px){#dbmMessageSettings.dbm-message-new-settings {grid-template-columns:1fr!important}#dbmMessageSettings #dbmBaggageModes{grid-template-columns:1fr!important}}
+/* Informações de horários salvas: não multiplica o valor da cotação. */
+.dbm-saved-flight-options{margin:9px 0;padding:9px 11px;border:1px solid #355c7a;border-radius:9px;max-width:860px}
+.dbm-saved-flight-options summary{cursor:pointer;font-size:12px;font-weight:800}
+.dbm-saved-flight-options .dbm-flight-opt-row{display:flex;gap:8px;justify-content:space-between;align-items:baseline;border-top:1px solid #2c5170;padding:7px 0;font-size:12px}
+.dbm-saved-flight-options .dbm-flight-opt-row:first-of-type{margin-top:7px}
+.dbm-saved-flight-options .dbm-flight-opt-row small{font-size:11px;color:#98b5c8}
+html[data-theme="light"] .dbm-saved-flight-options{border-color:#cbdeeb;background:#f8fcff}
+html[data-theme="light"] .dbm-saved-flight-options .dbm-flight-opt-row{border-color:#e0eaf3}
+html[data-theme="light"] .dbm-saved-flight-options .dbm-flight-opt-row small{color:#526c7e}
+/* Alternativas de voo: compactas por sentido, com etapas recolhidas por padrão. */
+#flightDetailsPanel .dbm-flight-option-more{margin-top:8px;border:1px solid #355a76;border-radius:9px;padding:8px 10px}
+#flightDetailsPanel .dbm-flight-option-more summary{font-size:12px;font-weight:750;cursor:pointer}
+#flightDetailsPanel .dbm-flight-option-stop-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:8px}
+#flightDetailsPanel .dbm-flight-option-leg{border-top:1px solid #355a76;padding-top:8px;margin-top:8px}
+#flightDetailsPanel .dbm-flight-option-leg strong{display:block;margin:5px 0;font-size:12px}
+#flightDetailsPanel .dbm-flight-leg-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+#flightDetailsPanel .dbm-flight-leg-fields input,#flightDetailsPanel .dbm-flight-leg-fields select{width:100%;min-width:0}
+#flightDetailsPanel .dbm-flight-option-preview{margin:8px 0 0;color:#57e3be;font-size:12px;font-weight:750}
+#flightDetailsPanel .dbm-flight-preferred{display:inline-flex;align-items:center;gap:6px;font-size:12px;margin-left:auto}
+#flightDetailsPanel .dbm-flight-preferred input{width:16px;height:16px;accent-color:#11b987}
+html[data-theme="light"] #flightDetailsPanel .dbm-flight-option-more{background:#f7fbff;border-color:#c4ddec}
+html[data-theme="light"] #flightDetailsPanel .dbm-flight-option-leg{border-color:#d8e7f1}
+html[data-theme="light"] #flightDetailsPanel .dbm-flight-option-preview{color:#087950}
+@media(max-width:900px){#flightDetailsPanel .dbm-flight-leg-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){#flightDetailsPanel .dbm-flight-leg-fields{grid-template-columns:1fr}}

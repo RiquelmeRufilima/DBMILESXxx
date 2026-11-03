@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Chat | DBMILESX{% endblock %}
+{% block eyebrow %}COMUNICAÇÃO{% endblock %}
+{% block page_title %}Chat{% endblock %}
+
+{% block head %}
+<style>
+.dbm-chat-v2 [hidden],.dbm-chat-older[hidden]{display:none!important}
+.dbm-chat-v2{height:calc(100vh - 118px);min-height:620px;border:1px solid var(--border);border-radius:22px;overflow:hidden;background:var(--panel);display:grid;grid-template-columns:345px minmax(0,1fr)}
+.dbm-chat-side{position:relative;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--border);background:color-mix(in srgb,var(--panel) 95%,var(--bg))}
+.dbm-chat-side-head{padding:16px;border-bottom:1px solid var(--border)}
+.dbm-chat-side-head h2{margin:0;font-size:1.25rem}.dbm-chat-side-head p{margin:4px 0 0;color:var(--muted);font-size:.78rem}
+.dbm-chat-main-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:13px}
+.dbm-main-tab{border:1px solid var(--border);background:var(--panel-2);color:var(--muted);border-radius:12px;padding:10px 8px;font-weight:900;cursor:pointer}
+.dbm-main-tab.active{background:color-mix(in srgb,var(--cyan) 14%,var(--panel-2));border-color:color-mix(in srgb,var(--cyan) 44%,var(--border));color:var(--text)}
+.dbm-chat-search{margin-top:10px;width:100%;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);border-radius:12px;padding:11px 13px}
+.dbm-chat-list{overflow:auto;min-height:0;flex:1;padding:8px 8px 88px}
+.dbm-chat-item{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;padding:11px;border:0;background:transparent;color:var(--text);text-align:left;border-radius:14px;cursor:pointer;text-decoration:none}
+.dbm-chat-item:hover,.dbm-chat-item.active{background:color-mix(in srgb,var(--cyan) 10%,var(--panel-2))}
+.dbm-avatar{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;overflow:hidden;background:linear-gradient(145deg,color-mix(in srgb,var(--cyan) 26%,var(--panel-2)),color-mix(in srgb,var(--blue) 22%,var(--panel-2)));border:1px solid color-mix(in srgb,var(--cyan) 28%,var(--border));font-weight:950}
+.dbm-chat-copy{min-width:0}.dbm-chat-copy strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dbm-chat-copy small{display:block;margin-top:3px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbm-chat-meta{text-align:right;color:var(--muted);font-size:.68rem}.dbm-unread{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#22c983;color:#062818;font-weight:950;margin-top:4px}
+.dbm-empty-side{display:grid;place-items:center;text-align:center;min-height:320px;padding:34px 22px;color:var(--muted)}.dbm-empty-side strong{display:block;color:var(--text);font-size:1.05rem;margin-bottom:6px}
+.dbm-agenda-fixed{position:absolute;left:14px;right:14px;bottom:14px;display:flex;justify-content:center;align-items:center;gap:8px;min-height:48px;border:0;border-radius:15px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;font-weight:950;cursor:pointer;box-shadow:0 10px 28px rgba(0,100,190,.22)}
+.dbm-chat-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.dbm-chat-header{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--border);min-height:72px}
+.dbm-chat-back{display:none;width:40px;height:40px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:12px}
+.dbm-chat-header-copy{min-width:0;flex:1}.dbm-chat-header-copy strong{display:block;font-size:1rem}.dbm-chat-header-copy small{display:block;color:var(--muted);margin-top:3px}.dbm-chat-status{font-size:.72rem;color:#43d6a3;font-weight:800}
+.dbm-chat-messages{flex:1;overflow:auto;min-height:0;padding:20px;display:flex;flex-direction:column;gap:8px;background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 92%,transparent),color-mix(in srgb,var(--panel) 96%,transparent))}
+.dbm-chat-older{display:flex;justify-content:center;padding:6px 12px;background:var(--panel-2)}.dbm-chat-older button{border:1px solid var(--border);background:var(--panel);color:var(--text);border-radius:999px;padding:6px 16px;font-weight:750;cursor:pointer}
+.dbm-msg{display:flex}.dbm-msg.mine{justify-content:flex-end}.dbm-msg-bubble{max-width:min(72%,680px);padding:9px 12px;border-radius:15px;background:var(--panel-2);border:1px solid var(--border);box-shadow:0 5px 16px rgba(0,0,0,.08)}.dbm-msg.mine .dbm-msg-bubble{background:color-mix(in srgb,var(--cyan) 14%,var(--panel-2));border-color:color-mix(in srgb,var(--cyan) 35%,var(--border))}
+.dbm-msg-bubble strong{display:block;font-size:.7rem;color:var(--cyan-2);margin-bottom:3px}.dbm-msg-bubble p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.dbm-msg-bubble small{display:block;text-align:right;color:var(--muted);font-size:.62rem;margin-top:4px}
+.dbm-chat-center-empty{margin:auto;text-align:center;color:var(--muted);max-width:420px;padding:24px}.dbm-chat-center-empty strong{display:block;color:var(--text);font-size:1.1rem;margin-bottom:6px}
+.dbm-compose{display:grid;grid-template-columns:minmax(0,1fr) 52px;gap:9px;padding:10px 12px;border-top:1px solid var(--border);background:var(--panel)}.dbm-compose textarea{width:100%;min-height:48px;max-height:120px;resize:none;border:1px solid var(--border);background:var(--bg-soft);color:var(--text);border-radius:16px;padding:13px 15px;font:inherit}.dbm-send{width:52px;height:48px;border:0;border-radius:16px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:white;font-size:21px;cursor:pointer}
+.dbm-agenda-overlay{position:fixed;inset:0;z-index:5000;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(2,9,18,.72);backdrop-filter:blur(6px)}.dbm-agenda-overlay.open{display:flex}.dbm-agenda{width:min(560px,96vw);max-height:min(720px,88vh);display:flex;flex-direction:column;border-radius:22px;border:1px solid var(--border);background:var(--panel);box-shadow:0 28px 90px rgba(0,0,0,.4);overflow:hidden}
+.dbm-agenda-head{display:flex;align-items:center;gap:12px;padding:18px;border-bottom:1px solid var(--border)}.dbm-agenda-head div{flex:1}.dbm-agenda-head h3{margin:0}.dbm-agenda-head p{margin:4px 0 0;color:var(--muted);font-size:.78rem}.dbm-close{width:38px;height:38px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:12px}
+.dbm-add-contact{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:14px 18px;border-bottom:1px solid var(--border)}.dbm-add-contact input{border:1px solid var(--border);background:var(--bg-soft);color:var(--text);border-radius:12px;padding:11px 12px;text-transform:uppercase}.dbm-add-contact button{border:0;border-radius:12px;padding:0 16px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:white;font-weight:900}
+.dbm-contact-list{padding:10px;overflow:auto}.dbm-contact-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px;border-radius:13px}.dbm-contact-row:hover{background:var(--panel-2)}.dbm-contact-row button{border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:10px;padding:8px 10px;font-weight:800}.dbm-contact-id{display:inline-block;margin-top:3px;color:var(--muted);font-size:.68rem}
+.dbm-agenda-message{padding:0 18px 12px;color:var(--muted);font-size:.8rem}.dbm-agenda-message.error{color:#ff6c7f}.dbm-team-locked{margin:auto;text-align:center;max-width:430px;padding:30px}.dbm-team-locked strong{display:block;font-size:1.15rem;margin-bottom:7px}.dbm-team-locked p{color:var(--muted);line-height:1.5}.dbm-team-locked a{display:inline-flex;margin-top:12px;padding:12px 16px;border-radius:13px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:white;font-weight:900;text-decoration:none}
+/* Anexos (v3) */
+.dbm-compose{grid-template-columns:44px minmax(0,1fr) 52px!important;align-items:end}
+.dbm-attach-preview{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2)}
+.dbm-attach-preview img{width:44px;height:44px;object-fit:cover;border-radius:8px}
+.dbm-attach{width:44px;height:48px;border:1px solid var(--border);border-radius:14px;background:var(--panel-2);color:var(--text);font-size:1.15rem;cursor:pointer}
+.dbm-attach:hover{border-color:var(--cyan)}
+.dbm-att-image{display:block;margin:4px 0;max-width:280px}
+.dbm-att-image img{display:block;width:100%;max-height:260px;object-fit:cover;border-radius:10px;border:1px solid var(--border)}
+.dbm-att-file{display:flex;align-items:center;gap:10px;margin:4px 0;padding:8px 10px;min-width:220px;border-radius:10px;border:1px solid var(--border);background:color-mix(in srgb,var(--panel) 70%,transparent);color:var(--text)!important;text-decoration:none}
+.dbm-att-icon{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:8px;background:#64748b;color:#fff;font-size:.66rem;font-weight:950}
+.dbm-att-icon.is-pdf{background:#dc2626}
+.dbm-att-icon.is-doc{background:#2563eb}
+.dbm-att-copy{display:grid;min-width:0}
+.dbm-att-copy b{font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.dbm-att-copy small{color:var(--muted);font-size:.68rem;text-align:left!important;margin:0!important}
+.dbm-att-remove{margin-left:auto;width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer}
+/* Opções das mensagens (v4) */
+.dbm-msg-bubble{position:relative}
+.dbm-msg-menu-btn{position:absolute;top:4px;right:5px;width:26px;height:22px;display:grid;place-items:center;border:0;border-radius:8px;background:color-mix(in srgb,var(--panel-2) 82%,transparent);color:var(--muted);font-size:15px;line-height:1;cursor:pointer;opacity:0;transition:opacity .15s}
+.dbm-msg:hover .dbm-msg-menu-btn,.dbm-msg-menu-btn:focus-visible{opacity:1}
+.dbm-msg-bubble>strong{padding-right:24px}
+@media(hover:none){.dbm-msg-menu-btn{opacity:.85}}
+.dbm-msg-menu{position:fixed;z-index:6000;min-width:236px;padding:6px 0;border-radius:12px;background:#1e2329;color:#e9edef;border:1px solid #2f3a44;box-shadow:0 14px 40px rgba(0,0,0,.45)}
+.dbm-msg-menu[hidden]{display:none}
+.dbm-msg-menu button{display:flex;align-items:center;gap:14px;width:100%;padding:10px 18px;border:0;background:transparent;color:inherit;font:inherit;font-size:.92rem;text-align:left;cursor:pointer}
+.dbm-msg-menu button:hover,.dbm-msg-menu button:focus-visible{background:#2a3138;outline:none}
+.dbm-msg-menu svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;opacity:.9}
+.dbm-msg-menu hr{border:0;border-top:1px solid #2f3a44;margin:5px 0}
+.dbm-msg-menu button.danger{color:#ff8a95}
+.dbm-msg-forwarded{display:block;font-size:.7rem;color:var(--muted);margin-bottom:3px}
+.dbm-msg-quote{margin:2px 0 6px;padding:6px 9px;border-left:3px solid var(--cyan);border-radius:8px;background:color-mix(in srgb,var(--bg) 40%,transparent);font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px}
+.dbm-msg-quote b{display:block;color:var(--cyan-2);font-size:.72rem}
+.dbm-msg-link{color:var(--cyan-2);font-weight:800;text-decoration:underline}
+.dbm-msg.is-fav .dbm-msg-bubble small::before{content:"★ ";color:#f5c542}
+.dbm-msg.is-pinned .dbm-msg-bubble small::after{content:" 📌"}
+.dbm-msg.is-flash .dbm-msg-bubble{box-shadow:0 0 0 3px color-mix(in srgb,var(--cyan) 60%,transparent)}
+.dbm-reply-bar{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:8px 10px;border-left:3px solid var(--cyan);border-radius:10px;background:var(--panel-2)}
+.dbm-reply-bar[hidden]{display:none}
+.dbm-reply-bar div{flex:1;min-width:0}.dbm-reply-bar b{display:block;font-size:.75rem;color:var(--cyan-2)}.dbm-reply-bar span{display:block;font-size:.82rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbm-reply-bar button{width:30px;height:30px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);cursor:pointer}
+.dbm-pin-bar{display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);background:var(--panel)}
+.dbm-pin-bar[hidden]{display:none}
+.dbm-pin-main{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer;padding:4px}
+.dbm-pin-main svg{width:18px;height:18px;flex:none;fill:none;stroke:var(--cyan-2);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.dbm-pin-main span{min-width:0;font-size:.82rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dbm-pin-main b{color:var(--text);margin-right:6px}
+.dbm-pin-x{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.dbm-select-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--border);background:var(--panel)}
+.dbm-select-bar[hidden]{display:none}
+.dbm-select-bar [data-sel-count]{flex:1;font-weight:850}
+.dbm-select-bar button{border:1px solid var(--border);background:var(--panel-2);color:var(--text);border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer}
+.dbm-select-bar button:disabled{opacity:.45;cursor:not-allowed}
+.dbm-select-bar button.danger{color:#ff8a95}
+.dbm-compose.is-hidden-by-select{display:none!important}
+.dbm-msg-check{display:none}
+.is-selecting .dbm-msg{align-items:center;gap:10px;cursor:pointer}
+.is-selecting .dbm-msg-check{display:block;flex:none;width:20px;height:20px;border-radius:6px;border:2px solid var(--muted);order:-1}
+.is-selecting .dbm-msg.mine .dbm-msg-check{margin-right:auto}
+.is-selecting .dbm-msg.is-selected .dbm-msg-check{background:#22c983;border-color:#22c983;box-shadow:inset 0 0 0 3px var(--panel)}
+.is-selecting .dbm-msg.is-selected .dbm-msg-bubble{outline:2px solid color-mix(in srgb,#22c983 70%,transparent)}
+.is-selecting .dbm-msg-menu-btn{display:none}
+.dbm-fwd-list{padding:8px 10px;overflow:auto;flex:1}
+.dbm-fwd-row{display:grid;grid-template-columns:22px 44px minmax(0,1fr);gap:10px;align-items:center;padding:9px;border-radius:12px;cursor:pointer}
+.dbm-fwd-row[hidden]{display:none}
+.dbm-fwd-row:hover{background:var(--panel-2)}
+.dbm-fwd-row input{width:18px;height:18px;accent-color:#22c983}
+.dbm-fwd-empty{padding:24px;text-align:center;color:var(--muted)}
+.dbm-fwd-foot{display:flex;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--border)}
+.dbm-fwd-foot p{flex:1;margin:0;color:var(--muted);font-size:.82rem}
+.dbm-fwd-foot button{border:0;border-radius:12px;padding:11px 18px;background:linear-gradient(135deg,var(--cyan),var(--blue));color:#fff;font-weight:900;cursor:pointer}
+.dbm-fwd-foot button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:920px){
+  .dbm-chat-v2{grid-template-columns:1fr;height:calc(100dvh - 166px);min-height:520px;border-radius:20px}
+  .dbm-chat-side{border-right:0}.dbm-chat-main{display:none}.dbm-chat-v2.mobile-open .dbm-chat-side{display:none}.dbm-chat-v2.mobile-open .dbm-chat-main{display:flex}.dbm-chat-back{display:inline-grid;place-items:center}
+  .dbm-chat-messages{padding:13px}.dbm-msg-bubble{max-width:86%}.dbm-chat-list{padding-bottom:84px}
+}
+
+/* Menu de ações refinado: contraste e hierarquia, apenas interface. */
+.dbm-msg-menu{border-radius:16px!important;background:linear-gradient(155deg,#112c41,#0b1d31)!important;border:1px solid #285672!important;padding:7px!important;min-width:225px!important;box-shadow:0 18px 42px rgba(0,0,0,.42)!important}
+.dbm-msg-menu button{border-radius:9px!important;color:#e7f6ff!important;font-size:.86rem!important;padding:11px 12px!important;gap:10px!important}
+.dbm-msg-menu button:hover,.dbm-msg-menu button:focus-visible{background:#174e75!important}
+.dbm-msg-menu button.danger{color:#ff8794!important}.dbm-msg-menu hr{border-color:#2c506c!important}
+.dbm-edit-inline{margin:10px 0 0;display:grid;gap:8px}.dbm-edit-inline textarea{min-height:70px;max-width:100%;width:100%;border-radius:11px;padding:10px;background:#0b2236;border:1px solid #4c87aa;color:#fff;resize:vertical}
+.dbm-edit-inline-actions{display:flex;justify-content:flex-end;gap:8px}.dbm-edit-inline-actions button{border:1px solid #416e89;padding:8px 12px;border-radius:8px;background:#173952;color:#e2f4ff;cursor:pointer}.dbm-edit-inline-actions button:last-child{background:#176cb7;color:white}
+html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c4dbea!important}html[data-theme="light"] .dbm-msg-menu button{color:#173951!important}html[data-theme="light"] .dbm-msg-menu button:hover{background:#e6f3ff!important}html[data-theme="light"] .dbm-msg-menu button.danger{color:#bd2949!important}html[data-theme="light"] .dbm-edit-inline textarea{background:#fff;color:#143650}
+
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="dbm-chat-v2 {% if selected_contact or chat_view == 'team' %}mobile-open{% endif %}" id="dbmChatV2"
+  data-user-id="{{ user.id }}"
+  data-user-contact-id="{{ user.contact_id }}"
+  data-has-company="{{ '1' if has_company else '0' }}"
+  data-company-name="{{ company.name if company else '' }}"
+  data-csrf="{{ csrf_token }}"
+  data-selected-contact="{{ selected_contact.contact_id if selected_contact else '' }}"
+  data-view="{{ chat_view }}">
+  <aside class="dbm-chat-side">
+    <div class="dbm-chat-side-head">
+      <h2>Chat</h2>
+      <p>Suas conversas e o grupo da empresa.</p>
+      <div class="dbm-chat-main-tabs">
+        <button class="dbm-main-tab {% if chat_view != 'team' %}active{% endif %}" type="button" data-main-tab="conversations">Conversas</button>
+        <button class="dbm-main-tab {% if chat_view == 'team' %}active{% endif %}" type="button" data-main-tab="team">Chat da equipe</button>
+      </div>
+      <input class="dbm-chat-search" id="dbmChatSearch" placeholder="Buscar nas conversas..." autocomplete="off">
+    </div>
+
+    <div class="dbm-chat-list" id="dbmConversationSide">
+      {% if conversations %}
+        {% for item in conversations %}
+        <button class="dbm-chat-item {% if selected_contact and selected_contact.contact_id == item.member.contact_id %}active{% endif %}"
+          type="button" data-contact-id="{{ item.member.contact_id }}" data-search="{{ item.member.name }} {{ item.member.contact_id }}">
+          <span class="dbm-avatar">{{ item.member.name[:1]|upper }}</span>
+          <span class="dbm-chat-copy"><strong>{{ item.member.name }}</strong><small>{{ item.last_message }}</small></span>
+          <span class="dbm-chat-meta">{{ item.last_at|brt('%H:%M') }}{% if item.unread %}<b class="dbm-unread">{{ item.unread }}</b>{% endif %}</span>
+        </button>
+        {% endfor %}
+      {% else %}
+        <div class="dbm-empty-side" id="dbmNoConversations">
+          <div><strong>Nenhum chat iniciado</strong><span>Adicione um contato à sua agenda para começar uma conversa.</span></div>
+        </div>
+      {% endif %}
+    </div>
+    <button class="secondary-button" id="dbmMoreConversations" type="button" {% if not conversation_has_more %}hidden{% endif %} style="margin:8px 14px">Carregar mais 20 conversas</button>
+
+    <button class="dbm-agenda-fixed" id="dbmOpenAgenda" type="button">＋ Adicionar contatos</button>
+  </aside>
+
+  <main class="dbm-chat-main">
+    <header class="dbm-chat-header">
+      <button class="dbm-chat-back" id="dbmChatBack" type="button">←</button>
+      <span class="dbm-avatar" id="dbmHeaderAvatar">{% if chat_view == 'team' and company %}{{ company.name[:1]|upper }}{% elif selected_contact %}{{ selected_contact.name[:1]|upper }}{% else %}C{% endif %}</span>
+      <div class="dbm-chat-header-copy">
+        <strong id="dbmChatTitle">{% if chat_view == 'team' %}{{ company.name if company else 'Chat da equipe' }}{% elif selected_contact %}{{ selected_contact.name }}{% else %}Conversas{% endif %}</strong>
+        <small id="dbmChatSubtitle">{% if chat_view == 'team' %}Grupo da empresa{% elif selected_contact %}{{ selected_contact.contact_id }} • Chat privado{% else %}Selecione um contato{% endif %}</small>
+      </div>
+      <span class="dbm-chat-status" id="dbmChatStatus"></span>
+    </header>
+    <div class="dbm-pin-bar" id="dbmPinBar" hidden></div>
+    <div class="dbm-chat-older" id="dbmOlderWrap" hidden><button type="button" id="dbmLoadOlder">Carregar mensagens anteriores</button></div>
+
+    <div class="dbm-chat-messages" id="dbmChatMessages">
+      {% if chat_view == 'team' %}
+        {% if not has_company %}
+          <div class="dbm-team-locked"><strong>Você ainda não está em uma empresa</strong><p>Para usar o Chat da equipe, crie uma empresa ou entre em uma empresa existente.</p><a href="/company">Criar ou entrar em uma empresa</a></div>
+        {% else %}
+          {% for item in messages %}
+          <article class="dbm-msg {% if item.user_id == user.id %}mine{% endif %}" data-message-id="g-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.user.name }}</strong><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m %H:%M') }}</small></div></article>
+          {% endfor %}
+        {% endif %}
+      {% elif selected_contact %}
+        {% for item in private_messages %}
+        <article class="dbm-msg {% if item.sender_id == user.id %}mine{% endif %}" data-message-id="p-{{ item.id }}"><div class="dbm-msg-bubble"><strong>{{ item.sender.name if item.sender else ('Você' if item.sender_id == user.id else 'Usuário') }}</strong><p>{{ item.message }}</p><small>{{ item.created_at|brt('%d/%m %H:%M') }}</small></div></article>
+        {% endfor %}
+      {% else %}
+        <div class="dbm-chat-center-empty"><strong>Selecione uma conversa</strong><span>Ou use “Adicionar contatos” para iniciar um novo chat privado.</span></div>
+      {% endif %}
+    </div>
+
+    <form class="dbm-compose" id="dbmChatForm" {% if chat_view == 'team' and not has_company %}hidden{% elif chat_view != 'team' and not selected_contact %}hidden{% endif %} data-no-loader="1">
+      <div class="dbm-reply-bar" id="dbmReplyBar" hidden></div>
+      <div class="dbm-attach-preview" id="dbmAttachPreview" hidden></div>
+      <button class="dbm-attach" id="dbmAttachButton" type="button" title="Anexar PDF, Word, JPG ou PNG" aria-label="Anexar arquivo">📎</button>
+      <input type="file" id="dbmChatFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg" hidden>
+      <textarea id="dbmChatInput" maxlength="2000" placeholder="Digite uma mensagem..." title="Dica: cole um print com Ctrl+V"></textarea>
+      <button class="dbm-send" type="submit">➤</button>
+    </form>
+    <div class="dbm-select-bar" id="dbmSelectBar" hidden>
+      <span data-sel-count>0 selecionada(s)</span>
+      <button type="button" data-sel-action="copy">Copiar</button>
+      <button type="button" data-sel-action="forward">Encaminhar</button>
+      <button type="button" data-sel-action="fav">Favoritar</button>
+      <button type="button" class="danger" data-sel-action="delete" title="Só mensagens enviadas por você">Apagar</button>
+      <button type="button" data-sel-action="cancel">Cancelar</button>
+    </div>
+  </main>
+</section>
+
+<div class="dbm-agenda-overlay" id="dbmAgendaOverlay" aria-hidden="true">
+  <section class="dbm-agenda">
+    <header class="dbm-agenda-head"><div><h3>Agenda de contatos</h3><p>Seu ID: <strong>{{ user.contact_id }}</strong></p></div><button class="dbm-close" id="dbmCloseAgenda" type="button">×</button></header>
+    <div class="dbm-add-contact"><input id="dbmContactIdInput" placeholder="Digite o ID, ex.: DBM-123456" maxlength="20"><button id="dbmAddContact" type="button">Adicionar</button></div>
+    <div class="dbm-agenda-message" id="dbmAgendaMessage"></div>
+    <div class="dbm-contact-list" id="dbmContactList">
+      {% if contacts %}
+        {% for contact in contacts %}
+        <div class="dbm-contact-row" data-agenda-contact="{{ contact.contact_id }}">
+          <span class="dbm-avatar">{{ contact.name[:1]|upper }}</span>
+          <span class="dbm-chat-copy"><strong>{{ contact.name }}</strong><small>{{ contact.email }}</small><span class="dbm-contact-id">{{ contact.contact_id }}</span></span>
+          <button type="button" data-start-contact="{{ contact.contact_id }}">Conversar</button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="dbm-empty-side"><div><strong>Sua agenda está vazia</strong><span>Adicione alguém usando o ID de contato.</span></div></div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+<div class="dbm-agenda-overlay" id="dbmForwardOverlay" aria-hidden="true">
+  <section class="dbm-agenda" role="dialog" aria-label="Encaminhar mensagem">
+    <header class="dbm-agenda-head"><div><h3>Encaminhar para</h3><p>Conversas mais recentes primeiro</p></div><button class="dbm-close" id="dbmForwardClose" type="button">×</button></header>
+    <div class="dbm-add-contact" style="grid-template-columns:1fr"><input id="dbmForwardSearch" placeholder="Pesquisar contato ou grupo" style="text-transform:none" autocomplete="off"></div>
+    <div class="dbm-fwd-list" id="dbmForwardList"></div>
+    <div class="dbm-fwd-foot"><p id="dbmForwardNotice" role="status"></p><button type="button" id="dbmForwardSend" disabled>Encaminhar ➤</button></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/chat.js?v=20261029-edit" defer></script>
+{% endblock %}

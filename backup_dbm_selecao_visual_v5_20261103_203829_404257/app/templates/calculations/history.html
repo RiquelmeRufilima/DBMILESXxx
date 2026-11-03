@@ -1,0 +1,1436 @@
+{% extends "base.html" %}
+{% from "partials/tags.html" import tag_row, tag_filter, tag_assets %}
+{% block title %}Histórico | DBMILESX{% endblock %}
+{% block eyebrow %}HISTÓRICO{% endblock %}
+{% block page_title %}Cotações principais{% endblock %}
+{% block head %}<style>
+.history-filter-form{display:grid;grid-template-columns:minmax(260px,1.5fr) minmax(170px,.7fr) minmax(170px,.7fr) 145px 145px auto;gap:9px;align-items:end;margin:0 0 12px}.history-filter-search,.history-filter-field{display:grid;gap:5px}.history-filter-search label,.history-filter-field label{font-size:.66rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:#86a6bf}.history-filter-search-input{position:relative}.history-filter-search-input svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#6f91aa}.history-filter-search-input input{width:100%;padding-left:38px!important}.history-filter-form input,.history-filter-form select{min-height:42px}.history-filter-actions{display:flex;gap:7px;align-items:center}.history-date-badge{display:inline-flex;align-items:center;gap:5px;margin-left:7px;padding:3px 7px;border-radius:999px;background:rgba(45,159,221,.1);border:1px solid rgba(59,172,229,.2);color:#a9dcf4;font-size:.65rem;font-weight:850}.skip-date-chip{background:rgba(36,174,225,.11)!important;border-color:rgba(69,191,237,.3)!important;color:#bcecff!important}@media(max-width:1100px){.history-filter-form{grid-template-columns:1fr 1fr 1fr}.history-filter-search{grid-column:1/-1}.history-filter-actions{grid-column:1/-1}}@media(max-width:760px){.history-filter-form{grid-template-columns:1fr 1fr}.history-filter-search{grid-column:1/-1}.history-filter-actions{grid-column:1/-1}.history-filter-actions .secondary-button{flex:1}}
+
+.option-select-actions{display:flex!important;gap:7px!important;flex-wrap:wrap!important;align-items:center!important}.option-select-actions form{display:inline-flex!important}.button-open{background:#124c8c!important;border-color:#2f8ee8!important;color:#fff!important}.button-edit{background:#8a5a00!important;border-color:#d99a25!important;color:#fff2c4!important}.button-fare{background:#7b2e87!important;border-color:#c067d0!important;color:#fff!important}.button-duplicate{background:#5b32a8!important;border-color:#8c68df!important;color:#fff!important}.button-accept{background:#087c5c!important;border-color:#1bc79b!important;color:#fff!important}.button-flight{background:#076b82!important;border-color:#21b7d8!important;color:#fff!important}.button-delete{background:#7f1d2d!important;border-color:#e04f66!important;color:#fff!important}.history-segment-list{display:grid!important;gap:8px!important;margin-top:10px!important}.history-segment-row{display:grid!important;grid-template-columns:minmax(220px,.8fr) minmax(260px,1.2fr)!important;gap:12px!important;padding:10px 12px!important;border-radius:12px!important;border:1px solid rgba(129,167,206,.18)!important;background:rgba(255,255,255,.025)!important}.history-segment-route,.history-segment-schedule{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important}.history-segment-schedule span{display:inline-flex!important;padding:5px 8px!important;border-radius:999px!important;background:rgba(57,131,255,.12)!important;border:1px solid rgba(87,163,255,.24)!important}.segment-flown{border-color:rgba(30,213,156,.38)!important;background:rgba(30,213,156,.07)!important}.segment-unflown{border-color:rgba(255,91,110,.35)!important;background:rgba(255,91,110,.055)!important}.quote-change-log{margin:12px 0 4px;padding:10px 12px;border-radius:13px;border:1px solid rgba(101,151,198,.16);background:rgba(4,20,35,.32)}.quote-change-log summary{cursor:pointer;font-weight:800;color:#9fd8f2}.quote-change-list{display:grid;gap:7px;margin-top:9px}.quote-change-item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start;padding:7px 0;border-top:1px solid rgba(255,255,255,.05)}.quote-change-item:first-child{border-top:0}.quote-change-dot{width:8px;height:8px;margin-top:5px;border-radius:50%;background:#4bb8e6}.quote-change-item small{color:#7890a5;white-space:nowrap}.history-pager{display:flex;justify-content:center;align-items:center;gap:12px;margin:20px 0;flex-wrap:wrap}.history-pager strong{color:#dbefff}.history-result-count{text-align:center;color:#8198ad;font-size:.78rem;margin:10px 0}.history-scrollbar-top{display:none;overflow-x:auto;overflow-y:hidden;height:18px;margin:8px 0 7px;border-radius:999px;background:rgba(7,21,36,.58);border:1px solid rgba(113,161,207,.16);scrollbar-color:#38a7d8 #10263c;scrollbar-width:auto}.history-scrollbar-top.is-active{display:block}.history-scrollbar-top-inner{height:1px;min-width:1px}.history-scrollbar-top::-webkit-scrollbar{height:12px}.history-scrollbar-top::-webkit-scrollbar-track{background:#10263c;border-radius:999px}.history-scrollbar-top::-webkit-scrollbar-thumb{background:linear-gradient(90deg,#248fd0,#39c6c8);border:2px solid #10263c;border-radius:999px}.history-options-strip{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;overflow:visible!important;padding:0!important}.history-options-strip>.compact-history-option{width:100%!important;min-width:0!important;max-width:none!important;flex:none!important}.subquote-history-block{position:relative!important;border-width:2px!important;padding:18px!important;margin:18px 0!important;background:linear-gradient(145deg,rgba(10,32,52,.86),rgba(8,24,40,.94))!important;box-shadow:0 14px 34px rgba(0,0,0,.16)!important}.subquote-history-block.is-primary{border-color:rgba(31,203,160,.48)!important}.subquote-history-block.is-subquote{border-color:rgba(91,148,255,.55)!important;margin-top:28px!important}.subquote-history-block.is-subquote:before{content:"";position:absolute;left:18px;right:18px;top:-15px;height:1px;background:linear-gradient(90deg,transparent,rgba(91,148,255,.55),transparent)}.subquote-history-head{align-items:flex-start!important;padding-bottom:14px!important;margin-bottom:14px!important}.subquote-history-title{display:grid;gap:5px}.subquote-kind-badge{display:inline-flex;width:max-content;align-items:center;gap:7px;padding:5px 9px;border-radius:999px;font-size:.68rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.is-primary .subquote-kind-badge{background:rgba(31,203,160,.12);border:1px solid rgba(31,203,160,.34);color:#83f2d1}.is-subquote .subquote-kind-badge{background:rgba(91,148,255,.13);border:1px solid rgba(91,148,255,.38);color:#a9c9ff}.subquote-history-title h3{font-size:1.12rem;margin:0!important}.subquote-history-route{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:#a7c2d8;font-size:.78rem}.subquote-history-route strong{color:#e8f6ff}.subquote-history-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.subquote-empty-state{padding:22px;border:1px dashed rgba(122,165,205,.28);border-radius:14px;text-align:center;color:#86a3ba;background:rgba(255,255,255,.018)}.history-scope-block{margin-top:12px!important}.history-scope-title{border-left:3px solid rgba(74,175,225,.65)!important;padding-left:10px!important}.history-order-note{display:flex;justify-content:center;align-items:center;gap:7px;color:#8eb5d0;font-size:.76rem;margin:-3px 0 12px}.history-order-note strong{color:#bfe9ff}@media(max-width:760px){.history-segment-row{grid-template-columns:1fr!important}.quote-change-item{grid-template-columns:auto 1fr}.quote-change-item small{grid-column:2}}
+
+.profit-price-stack{display:inline-flex;flex-direction:column;gap:6px;margin-left:10px;vertical-align:middle;min-width:190px}.profit-cost-line{display:flex;align-items:baseline;gap:8px;color:#cfe5f7;font-size:.88rem;font-weight:950}.profit-cost-line strong{font-size:1.52rem;color:#f7fcff;letter-spacing:-.03em;line-height:1.05}.profit-sale-line{display:flex;align-items:baseline;gap:7px;color:#76f2bf;font-size:.8rem;font-weight:900}.profit-sale-line strong{font-size:1.12rem;color:#78f0bd;letter-spacing:-.02em}.profit-margin-chip,.profit-card-chip,.profit-sent-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:.64rem;font-weight:900;margin:2px 3px 0 0}.profit-margin-chip{background:rgba(48,211,143,.12);border:1px solid rgba(48,211,143,.28);color:#8ff5c9}.profit-card-chip{background:rgba(166,104,255,.12);border:1px solid rgba(166,104,255,.28);color:#d5baff}.profit-sent-chip{background:rgba(56,132,255,.13);border:1px solid rgba(83,151,255,.28);color:#9bc5ff}.profit-payment-card{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;margin-top:5px;padding:9px 10px;border-radius:12px;background:linear-gradient(90deg,rgba(116,77,190,.15),rgba(22,107,139,.12));border:1px solid rgba(159,123,225,.22);max-width:420px}.profit-payment-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:rgba(168,110,255,.14);color:#d6c2ff;font-size:.86rem;font-weight:950}.profit-payment-main{display:grid;gap:2px}.profit-payment-main strong{color:#f0eaff;font-size:.76rem}.profit-payment-main small{color:#aeb8cf;font-size:.63rem;font-weight:700}.profit-payment-total{text-align:right}.profit-payment-total strong{display:block;color:#d8c2ff;font-size:.78rem}.profit-payment-total small{display:block;color:#94a4bd;font-size:.6rem}.profit-payment-cash{border-color:rgba(52,211,153,.18);background:linear-gradient(90deg,rgba(22,101,77,.13),rgba(12,95,126,.10))}.button-profit{background:#155e4b!important;border-color:#34d399!important;color:#d9fff0!important}.button-profit-all{background:#0b6472!important;border-color:#22d3ee!important;color:#e1fbff!important}.profit-dialog{width:min(640px,calc(100vw - 28px));padding:0;border:1px solid rgba(86,168,224,.25);border-radius:22px;background:linear-gradient(160deg,#0d2138,#09182a);color:#eef8ff;box-shadow:0 30px 90px rgba(0,0,0,.55)}.profit-dialog::backdrop{background:rgba(2,9,19,.75);backdrop-filter:blur(7px)}.profit-dialog-head{display:flex;justify-content:space-between;gap:16px;padding:22px 24px 17px;border-bottom:1px solid rgba(120,166,202,.14)}.profit-dialog-head h3{margin:3px 0 4px;font-size:1.22rem}.profit-dialog-head p{margin:0;color:#8faec5;font-size:.78rem}.profit-dialog-close{width:36px;height:36px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#d6e9f7;cursor:pointer}.profit-dialog-body{padding:20px 24px 24px;display:grid;gap:16px}.profit-cost-box{display:grid;grid-template-columns:1fr 1fr;gap:10px}.profit-kpi{padding:13px 14px;border-radius:14px;border:1px solid rgba(93,151,197,.15);background:rgba(255,255,255,.035)}.profit-kpi small{display:block;color:#7e9cb3;font-size:.66rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.profit-kpi strong{display:block;margin-top:4px;font-size:1.12rem}.profit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.profit-grid.cols-3{grid-template-columns:1fr .75fr 1fr}.profit-grid label{display:grid;gap:6px;color:#a7bfd1;font-size:.76rem;font-weight:800}.profit-grid input,.profit-grid select{width:100%;border-radius:12px;border:1px solid rgba(109,165,210,.2);background:#071525;color:#fff;padding:12px 13px;font:inherit;font-weight:800}.profit-preview-box{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:12px;border-radius:15px;background:linear-gradient(90deg,rgba(22,101,77,.25),rgba(12,95,126,.22));border:1px solid rgba(52,211,153,.18)}.profit-preview-box div{padding:7px 8px}.profit-preview-box small{display:block;color:#8bb8aa;font-size:.64rem;font-weight:900;text-transform:uppercase}.profit-preview-box strong{font-size:1.08rem;color:#78f0bd}.profit-card-note{padding:11px 13px;border-radius:12px;background:rgba(168,110,255,.08);border:1px solid rgba(168,110,255,.18);color:#bda8d6;font-size:.72rem}.profit-checks{display:grid;gap:9px}.profit-checks label{display:flex;gap:9px;align-items:flex-start;color:#a7bfd1;font-size:.76rem}.profit-checks input{margin-top:2px}.profit-dialog-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:3px}
+.profit-interest-percent{display:inline-flex;align-items:center;padding:3px 7px;border-radius:999px;background:rgba(255,173,67,.11);border:1px solid rgba(255,173,67,.25);color:#ffd69b;font-size:.61rem;font-weight:900;margin-left:4px}
+.profit-finance-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.profit-finance-grid label{display:grid;gap:6px;color:#a7bfd1;font-size:.76rem;font-weight:800}
+.profit-finance-grid input{width:100%;border-radius:12px;border:1px solid rgba(109,165,210,.2);background:#071525;color:#fff;padding:12px 13px;font:inherit;font-weight:900}
+.profit-installment-preview{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;padding:13px 14px;border-radius:14px;background:linear-gradient(90deg,rgba(114,76,184,.16),rgba(30,118,147,.13));border:1px solid rgba(160,127,224,.24)}
+.profit-installment-badge{display:grid;place-items:center;min-width:48px;height:48px;padding:0 8px;border-radius:14px;background:rgba(170,111,255,.17);color:#e1d0ff;font-size:1rem;font-weight:950}
+.profit-installment-copy{display:grid;gap:3px}.profit-installment-copy strong{font-size:.88rem;color:#f2ecff}.profit-installment-copy small{font-size:.67rem;color:#aab9ce}
+@media(max-width:640px){.profit-finance-grid{grid-template-columns:1fr}}
+.profit-finance-grid input:focus,.profit-grid input:focus,.profit-grid select:focus{outline:2px solid rgba(38,193,255,.34);border-color:#2fc4ef;box-shadow:0 0 0 4px rgba(47,196,239,.08)}
+.profit-live-helper{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#7897ad;font-size:.68rem;margin-top:-6px}
+.profit-live-helper strong{color:#a9cbe1}
+.commercial-toast{position:fixed;right:22px;bottom:22px;z-index:6000;max-width:min(420px,calc(100vw - 34px));padding:14px 17px;border-radius:15px;background:#0c2b26;border:1px solid rgba(52,211,153,.28);box-shadow:0 18px 55px rgba(0,0,0,.38);color:#dfffee;font-weight:800;transform:translateY(18px);opacity:0;pointer-events:none;transition:.2s ease}
+.commercial-toast.show{opacity:1;transform:translateY(0)}
+.commercial-toast.error{background:#39171e;border-color:rgba(255,99,117,.34);color:#ffe5e9}
+@media(max-width:640px){.profit-grid,.profit-grid.cols-3,.profit-cost-box,.profit-preview-box{grid-template-columns:1fr}.profit-dialog-head,.profit-dialog-body{padding-left:17px;padding-right:17px}}
+
+
+/* V2.10 - Juntar Só ida + Só volta / Trechos */
+.combine-option-toggle{
+  position:static;z-index:8;flex:0 0 auto;
+  display:flex;align-items:center;gap:6px;padding:7px 10px;
+  border-radius:999px;border:1px solid rgba(61,192,219,.26);
+  background:rgba(5,27,43,.92);color:#9fdff0;font-size:.62rem;font-weight:900;
+  cursor:pointer;user-select:none;
+}
+.combine-option-toggle input{width:15px;height:15px;accent-color:#20b9c8}
+.combine-option-toggle:has(input:checked){
+  color:#dffffb;border-color:rgba(45,220,184,.48);background:rgba(18,103,87,.92)
+}
+.combine-option-toggle span{white-space:nowrap}
+.compact-history-option:has(.combine-option-toggle){
+  flex-wrap:wrap!important;
+}
+.compact-history-option:has(.combine-option-toggle) .combine-option-toggle{
+  order:-10;
+}
+.compact-history-option:has(.combine-option-toggle) .history-logo-seal{
+  margin-left:0;
+}
+.combined-logo-host{
+  width:84px!important;
+  height:48px!important;
+  min-width:84px!important;
+  overflow:visible!important;
+  display:flex!important;
+  justify-content:center;
+  align-items:center;
+  background:transparent!important;
+  border:0!important;
+}
+.combined-logo-stack{
+  position:relative;
+  width:84px;
+  height:48px;
+  display:block;
+}
+.combined-logo-badge{
+  --i:0;
+  position:absolute;
+  left:calc(var(--i) * 22px);
+  top:4px;
+  width:40px;
+  height:40px;
+  border-radius:14px;
+  border:1px solid rgba(82,205,255,.28);
+  background:linear-gradient(180deg,rgba(18,43,70,.96),rgba(7,25,43,.98));
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.combined-logo-badge img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#fff;
+  padding:4px;
+}
+.combined-logo-badge.fallback span,
+.combined-logo-more{
+  color:#ecfbff;
+  font-weight:900;
+  font-size:.95rem;
+}
+.combined-logo-more{
+  background:linear-gradient(180deg,rgba(21,90,106,.98),rgba(11,54,68,.98));
+  color:#bdf7ff;
+  font-size:.78rem;
+}
+.compact-history-option{position:relative}
+.combine-builder{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;
+  margin-top:14px;padding:13px 14px;border-radius:14px;
+  border:1px solid rgba(64,177,213,.20);
+  background:linear-gradient(135deg,rgba(10,39,61,.72),rgba(9,31,50,.86));
+}
+.combine-builder-copy{display:grid;gap:5px;min-width:0}
+.combine-builder-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.combine-builder-title strong{color:#e8f8ff;font-size:.82rem}
+.combine-builder-title span{
+  padding:3px 7px;border-radius:999px;background:rgba(51,163,202,.11);
+  border:1px solid rgba(51,163,202,.20);color:#91cfe6;font-size:.58rem;font-weight:900
+}
+.combine-builder-copy small{color:#7699ad;font-size:.65rem;line-height:1.45}
+.combine-live{
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;color:#9bb7c9;font-size:.66rem
+}
+.combine-live strong{color:#eefaff}
+.combine-status{font-weight:850}
+.combine-status.valid{color:#79efc9}.combine-status.invalid{color:#ffb5bd}
+.button-combine{
+  min-width:170px;background:#0b6975!important;border-color:#28cbd4!important;color:#e9ffff!important
+}
+.button-combine:disabled{opacity:.45!important;cursor:not-allowed!important;filter:saturate(.4)}
+.combined-chip{
+  background:rgba(168,110,255,.12)!important;border-color:rgba(168,110,255,.30)!important;color:#d9c4ff!important
+}
+.combined-components{
+  display:flex;gap:6px;flex-wrap:wrap;margin-top:7px
+}
+.combined-component{
+  display:inline-flex;gap:5px;align-items:center;padding:5px 8px;border-radius:9px;
+  background:rgba(145,116,217,.08);border:1px solid rgba(145,116,217,.17);
+  color:#c6b6e8;font-size:.61rem;font-weight:780
+}
+@media(max-width:760px){
+  .combine-builder{grid-template-columns:1fr}
+  .button-combine{width:100%}
+  .combine-option-toggle{width:max-content;margin:0}
+}
+
+
+/* V2.10.6 — imagens do Histórico */
+.history-logo-image{
+  width:26px!important;
+  height:26px!important;
+  max-width:26px!important;
+  max-height:26px!important;
+  object-fit:contain!important;
+  display:block!important;
+  border-radius:8px!important;
+}
+.combined-logo-stack{
+  overflow:visible!important;
+}
+.combined-logo-badge{
+  overflow:hidden!important;
+}
+.combined-logo-badge img{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  object-fit:contain!important;
+  display:block!important;
+}
+
+
+/* V5.15 — Histórico compacto, alinhado à esquerda e logos padronizadas */
+.history-options-strip{align-items:stretch!important}
+.compact-history-option{
+  display:grid!important;
+  grid-template-columns:28px 72px minmax(0,1fr)!important;
+  grid-template-rows:auto auto!important;
+  column-gap:12px!important;row-gap:9px!important;
+  align-items:start!important;justify-items:start!important;
+  padding:14px 16px!important;min-height:0!important;
+}
+.compact-history-option:not(:has(.combine-option-toggle)){
+  grid-template-columns:72px minmax(0,1fr)!important;
+}
+.compact-history-option>.combine-option-toggle{
+  grid-column:1!important;grid-row:1!important;
+  width:26px!important;height:26px!important;min-width:26px!important;
+  padding:0!important;margin:3px 0 0!important;border-radius:8px!important;
+  justify-content:center!important;gap:0!important;background:rgba(5,27,43,.48)!important;
+  border-color:rgba(80,169,198,.20)!important;
+}
+.compact-history-option>.combine-option-toggle span{display:none!important}
+.compact-history-option>.combine-option-toggle input{width:13px!important;height:13px!important;margin:0!important}
+.compact-history-option>.history-logo-seal{
+  grid-column:2!important;grid-row:1!important;
+  width:66px!important;height:50px!important;min-width:66px!important;
+  margin:0!important;border-radius:13px!important;display:grid!important;place-items:center!important;
+  overflow:hidden!important;
+}
+.compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{grid-column:1!important}
+.history-logo-image{
+  width:58px!important;height:42px!important;max-width:58px!important;max-height:42px!important;
+  object-fit:contain!important;border-radius:8px!important;padding:3px!important;background:#fff!important;
+}
+.compact-history-option>.option-select-copy{
+  grid-column:3!important;grid-row:1!important;width:100%!important;min-width:0!important;
+  text-align:left!important;align-items:flex-start!important;justify-self:start!important;margin:0!important;
+}
+.compact-history-option:not(:has(.combine-option-toggle))>.option-select-copy{grid-column:2!important}
+.compact-history-option>.option-select-actions{
+  grid-column:3!important;grid-row:2!important;justify-content:flex-start!important;align-items:center!important;
+  margin:0!important;margin-left:0!important;max-width:none!important;width:auto!important;justify-self:start!important;
+}
+.compact-history-option:not(:has(.combine-option-toggle))>.option-select-actions{grid-column:2!important}
+.history-scope-title{
+  display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:10px!important;
+  flex-wrap:wrap!important;padding:9px 12px!important;border-radius:10px!important;
+  background:linear-gradient(90deg,rgba(40,156,215,.12),transparent)!important;
+}
+.history-scope-title>span{font-size:.82rem!important;font-weight:950!important;letter-spacing:.07em!important;text-transform:uppercase!important;color:#dff7ff!important}
+.history-scope-title>small{margin-left:auto!important;color:#83aac3!important}
+.scope-best-badge{display:inline-flex!important;align-items:center!important;padding:4px 8px!important;border-radius:999px!important;background:rgba(34,197,94,.13)!important;border:1px solid rgba(34,197,94,.32)!important;color:#8ff1b1!important;font-size:.61rem!important;font-weight:950!important;letter-spacing:.04em!important}
+html[data-theme="light"] .compact-history-option{background:#fff!important;border-color:#d8e5f0!important}
+html[data-theme="light"] .history-scope-title{background:linear-gradient(90deg,#e8f6ff,transparent)!important}
+html[data-theme="light"] .history-scope-title>span{color:#0b4f78!important}
+html[data-theme="light"] .compact-history-option>.combine-option-toggle{background:#f5f9fc!important;border-color:#c9dbe8!important}
+@media(max-width:760px){
+ .compact-history-option,.compact-history-option:not(:has(.combine-option-toggle)){grid-template-columns:26px 58px minmax(0,1fr)!important}
+ .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{grid-column:2!important}
+ .compact-history-option:not(:has(.combine-option-toggle))>.option-select-copy{grid-column:3!important}
+ .compact-history-option:not(:has(.combine-option-toggle))>.option-select-actions{grid-column:3!important}
+ .compact-history-option>.history-logo-seal{width:54px!important;height:44px!important;min-width:54px!important}
+ .history-logo-image{width:48px!important;height:36px!important;max-width:48px!important;max-height:36px!important}
+ .history-scope-title>small{margin-left:0!important;width:100%!important}
+}
+
+
+
+/* ============================================================
+   V5.28 — RESUMO COMPACTO DO CARD NO DESKTOP
+   IMPORTANTE: só atua em telas acima de 920px.
+   Os cards das opções/voos calculados NÃO são alterados.
+   O layout mobile permanece exatamente como estava.
+   ============================================================ */
+@media (min-width:921px){
+  /* Cabeçalho da cotação principal: formato de lista, mais baixo */
+  .history-group-card > .history-card-head{
+    display:grid!important;
+    grid-template-columns:24px minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:10px!important;
+    margin:0!important;
+    padding:8px 10px 7px!important;
+    border:1px solid rgba(91,157,211,.14)!important;
+    border-radius:12px 12px 0 0!important;
+    background:rgba(6,25,43,.30)!important;
+  }
+  .history-group-card > .history-card-head .select-check{
+    align-self:center!important;
+    margin:0!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy{
+    display:grid!important;
+    grid-template-columns:auto minmax(0,1fr)!important;
+    align-items:center!important;
+    column-gap:9px!important;
+    row-gap:1px!important;
+    min-width:0!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy .eyebrow{
+    grid-column:1!important;
+    grid-row:1!important;
+    margin:0!important;
+    font-size:.58rem!important;
+    line-height:1!important;
+    padding:4px 7px!important;
+    border-radius:999px!important;
+    letter-spacing:.06em!important;
+    white-space:nowrap!important;
+    background:rgba(37,197,166,.09)!important;
+    border:1px solid rgba(37,197,166,.18)!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy h2{
+    grid-column:2!important;
+    grid-row:1!important;
+    margin:0!important;
+    font-size:1rem!important;
+    line-height:1.15!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+  .history-group-card > .history-card-head .history-main-copy > p{
+    grid-column:1 / -1!important;
+    margin:2px 0 0!important;
+    font-size:.69rem!important;
+    line-height:1.2!important;
+    color:#a9c3d8!important;
+  }
+  .history-group-card > .history-card-head .quote-author-line{
+    grid-column:1 / -1!important;
+    display:flex!important;
+    align-items:center!important;
+    gap:4px!important;
+    flex-wrap:wrap!important;
+    margin:1px 0 0!important;
+    font-size:.60rem!important;
+    line-height:1.2!important;
+    color:#7899b4!important;
+  }
+  .history-group-card > .history-card-head .quote-author-line .ui-icon{
+    width:11px!important;
+    height:11px!important;
+  }
+  .history-group-card > .history-card-head .history-total-box{
+    min-width:118px!important;
+    display:flex!important;
+    align-items:baseline!important;
+    justify-content:flex-end!important;
+    gap:7px!important;
+    padding:0!important;
+    margin:0!important;
+    background:transparent!important;
+    border:0!important;
+    text-align:right!important;
+  }
+  .history-group-card > .history-card-head .history-total-box small{
+    font-size:.60rem!important;
+    white-space:nowrap!important;
+  }
+  .history-group-card > .history-card-head .history-total-box strong{
+    font-size:.92rem!important;
+    line-height:1!important;
+    white-space:nowrap!important;
+  }
+
+  /* Dados principais deixam de parecer 5 cards grandes e viram uma linha */
+  .history-group-card > .history-meta-grid{
+    display:flex!important;
+    align-items:center!important;
+    flex-wrap:wrap!important;
+    gap:0!important;
+    margin:0 10px!important;
+    padding:0!important;
+    border-left:1px solid rgba(91,157,211,.14)!important;
+    border-right:1px solid rgba(91,157,211,.14)!important;
+    background:rgba(6,25,43,.17)!important;
+  }
+  .history-group-card > .history-meta-grid > div{
+    min-width:0!important;
+    flex:1 1 150px!important;
+    display:flex!important;
+    align-items:baseline!important;
+    gap:6px!important;
+    padding:6px 10px!important;
+    margin:0!important;
+    border:0!important;
+    border-right:1px solid rgba(91,157,211,.12)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .history-group-card > .history-meta-grid > div:last-child{
+    border-right:0!important;
+  }
+  .history-group-card > .history-meta-grid small{
+    font-size:.57rem!important;
+    line-height:1!important;
+    text-transform:uppercase!important;
+    letter-spacing:.04em!important;
+    color:#6f96b3!important;
+    white-space:nowrap!important;
+  }
+  .history-group-card > .history-meta-grid strong{
+    font-size:.68rem!important;
+    line-height:1.15!important;
+    color:#e7f4ff!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+
+  /* Responsável vira uma faixa simples, sem outro card alto */
+  .history-group-card > .history-assignee-form{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    align-items:center!important;
+    gap:8px!important;
+    margin:0 10px 6px!important;
+    padding:6px 8px!important;
+    border:1px solid rgba(91,157,211,.14)!important;
+    border-radius:0 0 12px 12px!important;
+    background:rgba(6,25,43,.22)!important;
+  }
+  .history-group-card > .history-assignee-form label{
+    display:flex!important;
+    align-items:center!important;
+    gap:8px!important;
+    min-width:0!important;
+    margin:0!important;
+  }
+  .history-group-card > .history-assignee-form label > span{
+    flex:0 0 auto!important;
+    font-size:.58rem!important;
+    color:#7498b5!important;
+    white-space:nowrap!important;
+  }
+  .history-group-card > .history-assignee-form select{
+    width:100%!important;
+    min-width:0!important;
+    height:30px!important;
+    min-height:30px!important;
+    padding:4px 9px!important;
+    border-radius:8px!important;
+    font-size:.66rem!important;
+  }
+  .history-group-card > .history-assignee-form .button-assign{
+    min-height:30px!important;
+    height:30px!important;
+    padding:4px 10px!important;
+    font-size:.60rem!important;
+    border-radius:8px!important;
+    white-space:nowrap!important;
+  }
+
+  /* Log recente permanece disponível, mas ocupa só uma linha fechado */
+  .history-group-card > .quote-change-log{
+    margin:0 10px 7px!important;
+    padding:6px 9px!important;
+    border-radius:9px!important;
+  }
+  .history-group-card > .quote-change-log summary{
+    font-size:.64rem!important;
+    line-height:1.2!important;
+  }
+
+  /* Menos espaço antes dos cards dos voos, sem mudar os cards dos voos */
+  .history-group-card > .history-scope-stack{
+    margin-top:6px!important;
+  }
+}
+
+
+/* ==========================================================
+   V5.29 — HISTÓRICO DESKTOP EM LISTA + DETALHES EXPANSÍVEIS
+   NÃO altera o formato mobile.
+   ========================================================== */
+@media (min-width: 921px){
+  .history-group-card{
+    transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+
+  .history-group-card > .history-card-head,
+  .history-group-card > .history-meta-grid{
+    cursor:pointer;
+  }
+
+  .history-group-card > .history-card-head:hover,
+  .history-group-card > .history-meta-grid:hover{
+    background:rgba(41,164,226,.035)!important;
+  }
+
+  .history-group-card > .history-card-head .history-main-copy h2{
+    font-size:19px!important;
+    line-height:1.15!important;
+    font-weight:950!important;
+    letter-spacing:-.01em!important;
+  }
+
+  .history-group-card > .history-card-head .history-main-copy > p{
+    font-size:14px!important;
+    line-height:1.35!important;
+    font-weight:850!important;
+  }
+
+  .history-group-card > .history-meta-grid strong{
+    font-size:12px!important;
+    line-height:1.25!important;
+  }
+
+  .history-group-card > .history-meta-grid > div:nth-child(2) strong,
+  .history-group-card > .history-meta-grid > div:nth-child(3) strong{
+    font-size:13px!important;
+    font-weight:950!important;
+  }
+
+  .history-expand-toggle{
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:30px!important;
+    min-width:30px!important;
+    height:30px!important;
+    padding:0!important;
+    margin-left:7px!important;
+    border-radius:9px!important;
+    border:1px solid rgba(70,167,221,.32)!important;
+    background:rgba(35,126,186,.10)!important;
+    color:#a9ddf8!important;
+    cursor:pointer!important;
+    transition:.18s ease!important;
+  }
+
+  .history-expand-toggle svg{
+    width:15px!important;
+    height:15px!important;
+    transition:transform .2s ease!important;
+  }
+
+  .history-group-card.is-history-expanded{
+    border-color:rgba(42,211,181,.48)!important;
+    box-shadow:0 12px 34px rgba(0,0,0,.18)!important;
+  }
+
+  .history-group-card.is-history-expanded .history-expand-toggle{
+    background:rgba(31,203,160,.13)!important;
+    border-color:rgba(31,203,160,.38)!important;
+    color:#83f2d1!important;
+  }
+
+  .history-group-card.is-history-expanded .history-expand-toggle svg{
+    transform:rotate(180deg)!important;
+  }
+
+  /* Tudo operacional fica recolhido até selecionar/abrir a cotação. */
+  .history-group-card:not(.is-history-expanded) > .history-assignee-form,
+  .history-group-card:not(.is-history-expanded) > .quote-change-log,
+  .history-group-card:not(.is-history-expanded) > .notice-card,
+  .history-group-card:not(.is-history-expanded) > .history-scope-stack,
+  .history-group-card:not(.is-history-expanded) > .history-actions{
+    display:none!important;
+  }
+
+  .history-group-card.is-history-expanded > .history-assignee-form,
+  .history-group-card.is-history-expanded > .quote-change-log,
+  .history-group-card.is-history-expanded > .notice-card,
+  .history-group-card.is-history-expanded > .history-scope-stack,
+  .history-group-card.is-history-expanded > .history-actions{
+    animation:historyDetailsIn .18s ease both;
+  }
+
+  @keyframes historyDetailsIn{
+    from{opacity:0;transform:translateY(-5px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  /* Dá aparência de lista no estado fechado. */
+  .history-group-card:not(.is-history-expanded){
+    margin-bottom:9px!important;
+  }
+
+  .history-group-card:not(.is-history-expanded) > .history-meta-grid{
+    margin-bottom:0!important;
+  }
+}
+
+/* Mobile — opções do histórico: largura integral, leitura e ações compactas. */
+@media (max-width:760px){
+  .history-scope-stack,.subquote-history-block,.history-scope-block,.history-options-strip{min-width:0!important;max-width:100%!important;box-sizing:border-box!important}
+  .subquote-history-block{padding:12px!important;margin:12px 0!important;border-radius:16px!important}
+  .subquote-history-head{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+  .subquote-history-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;width:100%!important;gap:8px!important}
+  .subquote-history-actions>*{min-width:0!important;width:100%!important;white-space:normal!important;text-align:center!important;justify-content:center!important}
+  .subquote-history-title,.subquote-history-route{min-width:0!important;overflow-wrap:anywhere!important}
+  .history-scope-title{padding:10px!important;gap:6px!important}
+  .history-options-strip{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:10px!important}
+  .history-options-strip>.compact-history-option,
+  .compact-history-option,
+  .compact-history-option:not(:has(.combine-option-toggle)){
+    display:grid!important;grid-template-columns:54px minmax(0,1fr)!important;
+    grid-template-rows:auto auto auto!important;column-gap:10px!important;row-gap:10px!important;
+    padding:12px!important;width:100%!important;min-width:0!important;max-width:100%!important;
+    box-sizing:border-box!important;align-items:start!important;justify-items:stretch!important;
+    border-radius:14px!important;
+  }
+  .compact-history-option>.combine-option-toggle{grid-column:2!important;grid-row:1!important;justify-self:end!important;align-self:start!important;z-index:2!important}
+  .compact-history-option>.history-logo-seal,
+  .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{
+    grid-column:1!important;grid-row:1!important;width:52px!important;height:48px!important;min-width:0!important;
+    max-width:52px!important;overflow:hidden!important;
+  }
+  .compact-history-option>.option-select-copy,
+  .compact-history-option:not(:has(.combine-option-toggle))>.option-select-copy{
+    grid-column:1 / -1!important;grid-row:2!important;min-width:0!important;width:100%!important;
+    overflow-wrap:anywhere!important;word-break:normal!important;box-sizing:border-box!important;
+  }
+  .compact-history-option>.option-select-copy>strong{display:block!important;font-size:1rem!important;line-height:1.3!important;margin-bottom:5px!important}
+  .compact-history-option>.option-select-copy .profit-price-stack{display:flex!important;margin:5px 0 9px!important;min-width:0!important;max-width:100%!important;flex-wrap:wrap!important}
+  .compact-history-option .history-chip-row{display:flex!important;flex-wrap:wrap!important;gap:5px!important;min-width:0!important}
+  .compact-history-option .professional-option-details,
+  .compact-history-option .history-option-detail-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;width:100%!important;min-width:0!important}
+  .compact-history-option .professional-option-details>*,.compact-history-option .history-segment-row{min-width:0!important;overflow-wrap:anywhere!important}
+  .compact-history-option .history-segment-row{display:grid!important;grid-template-columns:minmax(0,1fr)!important;padding:9px!important;gap:5px!important}
+  .compact-history-option .history-segment-route,.compact-history-option .history-segment-schedule{min-width:0!important;flex-wrap:wrap!important}
+  .compact-history-option>.option-select-actions,
+  .compact-history-option:not(:has(.combine-option-toggle))>.option-select-actions{
+    grid-column:1 / -1!important;grid-row:3!important;display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;
+    width:100%!important;min-width:0!important;max-width:100%!important;
+    margin:0!important;justify-self:stretch!important;align-items:stretch!important;
+    padding-top:10px!important;border-top:1px solid rgba(121,175,218,.17)!important;
+  }
+  .compact-history-option>.option-select-actions>*{display:flex!important;width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;align-items:stretch!important;justify-content:center!important;margin:0!important}
+  .compact-history-option>.option-select-actions>a,
+  .compact-history-option>.option-select-actions>button,
+  .compact-history-option>.option-select-actions>form>button{
+    min-width:0!important;width:100%!important;min-height:38px!important;max-width:100%!important;
+    box-sizing:border-box!important;white-space:normal!important;overflow-wrap:normal!important;
+    text-align:center!important;display:flex!important;align-items:center!important;justify-content:center!important;
+    font-size:.73rem!important;line-height:1.2!important;padding:8px 6px!important;
+  }
+  .compact-history-option>.option-select-actions>form>button{height:100%!important}
+}
+
+
+/* V5.30 — cartão legível e franquias mistas no histórico */
+.history-bag-summary{display:flex;flex-direction:column;gap:5px;margin:11px 0 7px;padding:11px 13px;border-radius:12px;border:1px solid rgba(55,182,179,.32);background:rgba(9,108,105,.10);min-width:0}
+.history-bag-summary>strong{color:#b9f8ea;font-size:.82rem;overflow-wrap:anywhere}
+.history-bag-summary>span{font-size:.76rem;line-height:1.45;color:#bed3df;overflow-wrap:anywhere}
+.history-bag-summary b{color:#e8fff9}
+.history-baggage-detail .history-bag-extra{display:block;color:#8fe8d0;font-size:.72rem;margin-top:5px}
+.history-calc-type{display:block;margin-top:4px!important;color:#94c6e3!important}
+.compact-history-option>.option-select-copy{width:100%!important;min-width:0!important}
+.compact-history-option .professional-option-details{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+.compact-history-option .professional-option-details>div{min-width:0!important}
+.compact-history-option .professional-option-details strong{overflow-wrap:anywhere}
+.compact-history-option>.option-select-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important;max-width:100%!important}
+.compact-history-option>.option-select-actions>*{max-width:100%!important}
+@media(max-width:760px){
+ .compact-history-option .professional-option-details{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .compact-history-option .professional-option-details>.history-baggage-detail{grid-column:1/-1!important}
+ .compact-history-option>.option-select-actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+ .history-bag-summary{padding:10px!important}
+ .history-bag-summary>span{font-size:.74rem!important}
+}
+@media(max-width:380px){
+ .compact-history-option .professional-option-details{grid-template-columns:1fr!important}
+ .compact-history-option>.option-select-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
+@media(max-width:760px){
+ .history-group-card{margin:0 0 10px!important;padding:0!important;overflow:hidden!important;border-radius:14px!important}
+ .history-group-card>.history-card-head{display:grid!important;grid-template-columns:20px minmax(0,1fr)!important;gap:8px!important;padding:10px!important;min-height:0!important}
+ .history-group-card>.history-card-head .history-main-copy h2{font-size:.98rem!important;line-height:1.15!important;margin:3px 0!important}
+ .history-group-card>.history-card-head .history-main-copy>p{font-size:.72rem!important;line-height:1.2!important;margin:2px 0!important}
+ .history-group-card>.history-card-head .quote-author-line{font-size:.6rem!important;line-height:1.2!important;gap:4px!important;margin:4px 0!important}
+ .history-group-card>.history-card-head .history-total-box{grid-column:1/-1!important;display:flex!important;align-items:center!important;justify-content:space-between!important;margin:0!important;padding:7px 9px!important;min-height:36px!important;border:1px solid #b9d8ed!important;border-radius:9px!important}
+ .history-group-card>.history-card-head .history-total-box strong{font-size:1rem!important}
+ .history-group-card>.history-card-head .history-expand-toggle{width:auto!important;min-width:100px!important;min-height:34px!important;padding:6px 9px!important;font-size:.7rem!important}
+ .history-group-card>.history-meta-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:0!important;padding:5px 10px!important;margin:0!important}
+ .history-group-card>.history-meta-grid>div{display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:3px!important;flex:1 1 auto!important;padding:6px!important;min-height:0!important;border-radius:0!important}
+ .history-group-card>.history-meta-grid small{font-size:.54rem!important;line-height:1!important}
+ .history-group-card>.history-meta-grid strong{font-size:.72rem!important;line-height:1.1!important}
+ .history-group-card>.history-assignee-form{margin:0 10px 8px!important;padding:7px!important}
+ .history-group-card:not(.is-history-expanded)>.history-meta-grid,
+ .history-group-card:not(.is-history-expanded)>.history-assignee-form,
+ .history-group-card:not(.is-history-expanded)>.quote-change-log,
+ .history-group-card:not(.is-history-expanded)>.history-scope-stack,
+ .history-group-card:not(.is-history-expanded)>.history-actions,
+ .history-group-card:not(.is-history-expanded)>.notice-card{display:none!important}
+ .history-group-card:not(.is-history-expanded)>.history-card-head{margin-bottom:0!important}
+}
+html[data-theme="light"] .history-group-card>.history-card-head .history-main-copy :is(h2,strong){color:#163653!important}
+html[data-theme="light"] .history-group-card>.history-card-head .quote-author-line{color:#496983!important}
+
+@media(max-width:760px){
+ .history-group-card>.history-card-head .history-expand-toggle{display:inline-flex!important;gap:6px!important;align-items:center!important;justify-content:center!important;color:#164d7b!important;background:#fff!important;border-color:#caddec!important}
+ .history-group-card>.history-card-head .history-expand-toggle:after{content:"Abrir detalhes"!important;font-size:.67rem!important;font-weight:800!important;white-space:nowrap!important}
+ .history-group-card.is-history-expanded>.history-card-head .history-expand-toggle:after{content:"Fechar detalhes"!important}
+}
+/* Correção pontual do contraste no HISTÓRICO, exclusivamente no modo claro.
+   Não altera temas, layout, botões, badges de status nem lógica de velocidade. */
+html[data-theme="light"] body .quote-history-stack .history-group-card {
+  background:#ffffff!important;
+  border-color:#d0e0ed!important;
+  color:#17324b!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head {
+  background:#f3f8fd!important;
+  border-color:#cbddea!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .history-main-copy > p,
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .quote-author-line,
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .quote-author-line strong {
+  color:#355771!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .history-main-copy h2 {
+  color:#123450!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-card-head .history-main-copy .eyebrow {
+  color:#086c5e!important;
+  background:#def5ef!important;
+  border-color:#a9ddce!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid {
+  background:#f6fafd!important;
+  border-color:#d2e2ef!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid > div {
+  background:#f6fafd!important;
+  border-color:#d2e2ef!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid small {
+  color:#486882!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-group-card > .history-meta-grid strong {
+  color:#173b58!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .subquote-history-block {
+  background:#f7fbfe!important;
+  border-color:#c4ddeb!important;
+  color:#163952!important;
+  box-shadow:0 7px 20px rgba(22,58,91,.07)!important;
+}
+html[data-theme="light"] body .quote-history-stack .subquote-history-block.is-primary {border-color:#8dcfc1!important}
+html[data-theme="light"] body .quote-history-stack .subquote-history-block.is-subquote {border-color:#9dbce6!important}
+html[data-theme="light"] body .quote-history-stack .subquote-history-title h3,
+html[data-theme="light"] body .quote-history-stack .subquote-history-route,
+html[data-theme="light"] body .quote-history-stack .subquote-history-route strong,
+html[data-theme="light"] body .quote-history-stack .history-scope-title > span {
+  color:#173d5b!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .subquote-history-route span,
+html[data-theme="light"] body .quote-history-stack .history-scope-title > small {
+  color:#496d87!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .is-primary .subquote-kind-badge {
+  background:#dff5ee!important;
+  border-color:#9bd9c6!important;
+  color:#08644f!important;
+}
+html[data-theme="light"] body .quote-history-stack .is-subquote .subquote-kind-badge {
+  background:#e8f0fc!important;
+  border-color:#aecbef!important;
+  color:#174d8c!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-scope-block,
+html[data-theme="light"] body .quote-history-stack .compact-history-option {
+  background:#ffffff!important;
+  border-color:#cddfec!important;
+  color:#183b55!important;
+}
+html[data-theme="light"] body .quote-history-stack .history-scope-title {
+  background:#edf7fd!important;
+  border-color:#cddfec!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .option-select-copy > strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details b,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .history-segment-route strong {
+  color:#173b58!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details small,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details span,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .history-calc-type,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .option-select-copy > small {
+  color:#4b6b81!important;
+  opacity:1!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .professional-option-details > div,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .history-segment-row {
+  background:#f2f8fc!important;
+  border-color:#cfdfeb!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-card {
+  background:#f1edfb!important;
+  border-color:#d5c6f0!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-main strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-total strong,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-icon {
+  color:#603e93!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-main small,
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-payment-total small {
+  color:#634b7a!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-margin-chip {
+  background:#e7f8f0!important;
+  color:#0c7052!important;
+  border-color:#a5dcc6!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-sent-chip {
+  background:#eaf2ff!important;
+  color:#225eae!important;
+  border-color:#bdd5fb!important;
+}
+html[data-theme="light"] body .quote-history-stack .compact-history-option .profit-card-chip {
+  background:#f1ebfa!important;
+  color:#6a438f!important;
+  border-color:#d9c6ec!important;
+}
+html[data-theme="light"] body .quote-history-stack .quote-change-log {
+  background:#f3f8fc!important;
+  border-color:#ccdeeb!important;
+  color:#173b58!important;
+}
+html[data-theme="light"] body .quote-history-stack .quote-change-log summary,
+html[data-theme="light"] body .quote-history-stack .quote-change-item small {
+  color:#3a5d77!important;
+}
+html[data-theme="light"] body .history-filter-form label {color:#41647f!important}
+html[data-theme="light"] body .history-pager strong {color:#183b59!important}
+
+</style>/* Logotipos de companhias maiores, sem alteração de cores dos temas */
+@media(min-width:761px){
+ .compact-history-option>.history-logo-seal,
+ .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{width:96px!important;height:76px!important;min-width:96px!important;max-width:96px!important}
+ .compact-history-option{grid-template-columns:28px 104px minmax(0,1fr)!important}
+ .compact-history-option:not(:has(.combine-option-toggle)){grid-template-columns:104px minmax(0,1fr)!important}
+ .compact-history-option>.history-logo-seal img,.history-logo-image{width:90px!important;height:66px!important;max-width:90px!important;max-height:66px!important;object-fit:contain!important}
+}
+@media(max-width:760px){
+ .compact-history-option>.history-logo-seal,
+ .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{width:72px!important;height:60px!important;max-width:72px!important}
+ .compact-history-option{grid-template-columns:74px minmax(0,1fr)!important}
+ .compact-history-option .history-logo-image{width:67px!important;height:54px!important;max-width:67px!important;max-height:54px!important}
+}
+{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
+{% macro option_price(quote) -%}
+  {% set c = quote.commercial %}
+  {% set has_profit = c and (c.profit_value or 0) > 0 %}
+  <span class="profit-price-stack" data-commercial-summary data-quote-id="{{ quote.id }}" data-cost="{{ quote.total }}">
+    <span class="profit-cost-line"><span>Custo</span> <strong>{{ quote.total|money(quote.currency) }}</strong></span>
+    {% if has_profit %}
+      <span class="profit-sale-line"><span>Venda à vista</span> <strong>{{ (c.sale_value if c.sale_value is not none else quote.total)|money(quote.currency) }}</strong></span>
+      <span>
+        <span class="profit-margin-chip">Lucro {{ c.profit_value|money(quote.currency) }} • {{ '%.2f'|format(c.profit_percent or 0) }}%</span>
+        {% if c.sent_to_client_at %}<span class="profit-sent-chip">Enviada ao cliente</span>{% endif %}
+      </span>
+      {% if (c.card_installments or 1) > 1 %}
+        <span class="profit-payment-card">
+          <span class="profit-payment-icon">{{ c.card_installments }}x</span>
+          <span class="profit-payment-main">
+            <strong>{{ c.card_installments }}x de {{ (c.card_installment_value or 0)|money(quote.currency) }}</strong>
+            <small>{{ 'Cartão com juros' if c.card_interest_mode == 'with_interest' else 'Cartão sem juros' }}</small>
+          </span>
+          <span class="profit-payment-total">
+            <strong>{{ (c.card_total_value if c.card_total_value is not none else (c.sale_value or quote.total))|money(quote.currency) }}</strong>
+            <small>
+              {% if c.card_interest_mode == 'with_interest' %}
+                +{{ (c.card_difference_value or 0)|money(quote.currency) }} de juros
+                {% set base_sale = (c.sale_value or quote.total or 0) %}
+                {% if base_sale %}<span class="profit-interest-percent">{{ '%.2f'|format(((c.card_difference_value or 0) / base_sale) * 100) }}%</span>{% endif %}
+              {% else %}
+                mesmo valor do à vista
+              {% endif %}
+            </small>
+          </span>
+        </span>
+      {% else %}
+        <span class="profit-payment-card profit-payment-cash">
+          <span class="profit-payment-icon">1x</span>
+          <span class="profit-payment-main"><strong>Pagamento à vista</strong><small>Sem diferença de parcelamento</small></span>
+          <span class="profit-payment-total"><strong>{{ (c.sale_value or quote.total)|money(quote.currency) }}</strong><small>valor final</small></span>
+        </span>
+      {% endif %}
+    {% endif %}
+  </span>
+{%- endmacro %}
+
+{% macro option_saved_details(quote) -%}
+  {# Informações detalhadas permanecem na tela da opção calculada, não no histórico. #}
+  <div class="history-segment-list">
+    {% if quote.segment_rows %}
+      {% for row in quote.segment_rows %}
+      <div class="history-segment-row {% if row.status == 'flown' %}segment-flown{% elif row.status == 'not_flown' %}segment-unflown{% endif %}">
+        <div class="history-segment-route">
+          <span class="segment-number">Trecho {{ row.segment }}</span>
+          <strong>{{ row.route }}</strong>
+          {% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path.lstrip('/') }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}
+          {% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}
+        </div>
+        <div class="history-segment-schedule">
+          {# A data do trecho/Skip pertence a ESTA área do histórico. #}
+          {% if row.show_date_chip %}
+            <span class="segment-date-chip">{{ row.display_date }}</span>
+          {% endif %}
+          {% if row.schedules %}
+            {% for schedule in row.schedules %}<span>{{ schedule }}</span>{% endfor %}
+          {% elif row.status == 'not_flown' %}
+            <span class="schedule-muted">Sem horário — trecho não utilizado</span>
+          {% elif row.display_date %}
+            <span class="schedule-muted">Sem horário informado</span>
+          {% else %}
+            <span class="schedule-muted">Data e horário não informados</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="history-segment-row"><div class="history-segment-route"><strong>Rota não informada</strong></div><div class="history-segment-schedule"><span class="schedule-muted">Data e horário não informados</span></div></div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+<section class="page-hero">
+  <div>
+    <span class="eyebrow">HISTÓRICO ORGANIZADO</span>
+    <h1>Cotação principal e subcotações bem separadas.</h1>
+    <p>Cada subcotação tem seu próprio bloco. Dentro dela, as opções ficam uma embaixo da outra, do menor valor para o maior.</p>
+  </div>
+  <div class="page-actions">
+    <a class="secondary-button" href="/diagnostics/performance">⚡ Teste de velocidade</a>
+    <a class="primary-button" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Nova cotação</a>
+  </div>
+</section>
+
+<form class="history-filter-form card-panel" method="get" action="/calculations/history">
+  <div class="history-filter-search">
+    <label for="historySearch">Buscar</label>
+    <div class="history-filter-search-input"><svg class="ui-icon"><use href="#icon-search"></use></svg><input id="historySearch" name="q" value="{{ search_query }}" placeholder="Cliente, cotação, origem ou destino"></div>
+  </div>
+  <div class="history-filter-field">
+    <label for="historySort">Ordenar por</label>
+    <select id="historySort" name="sort">
+      <option value="modified_desc" {% if history_sort == 'modified_desc' %}selected{% endif %}>Modificação recente</option>
+      <option value="created_desc" {% if history_sort == 'created_desc' %}selected{% endif %}>Criação recente</option>
+      <option value="modified_asc" {% if history_sort == 'modified_asc' %}selected{% endif %}>Modificação antiga</option>
+      <option value="created_asc" {% if history_sort == 'created_asc' %}selected{% endif %}>Criação antiga</option>
+    </select>
+  </div>
+  <div class="history-filter-field">
+    <label for="historyDateField">Filtrar data de</label>
+    <select id="historyDateField" name="date_field">
+      <option value="modified" {% if history_date_field == 'modified' %}selected{% endif %}>Modificação</option>
+      <option value="created" {% if history_date_field == 'created' %}selected{% endif %}>Cadastro / cálculo</option>
+    </select>
+  </div>
+  <div class="history-filter-field"><label for="historyDateFrom">De</label><input id="historyDateFrom" type="date" name="date_from" value="{{ history_date_from }}"></div>
+  <div class="history-filter-field"><label for="historyDateTo">Até</label><input id="historyDateTo" type="date" name="date_to" value="{{ history_date_to }}"></div>
+  <div class="history-filter-actions"><button class="secondary-button" type="submit">Aplicar</button><a class="ghost-button" href="/calculations/history">Limpar</a></div>
+  {% if tags_ready|default(false) %}{{ tag_filter(all_tags, selected_tag_ids, "cotacao") }}{% endif %}
+</form>
+
+{% if history_load_errors|default(0) %}
+<div class="notice-card warning top-gap">
+  O histórico foi mantido aberto, mas {{ history_load_errors }} cotação(ões) apresentou(aram) dados antigos ou incompletos. Abra a cotação e salve novamente para normalizar os dados.
+</div>
+{% endif %}
+
+<form method="post" action="/calculations/bulk-delete" id="historyBulkForm"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>
+<p class="history-result-count">Mostrando até {{ page_size }} registros por página • {{ total_items }} registro(s) encontrado(s)</p>
+<p class="history-order-note"><strong>{% if history_sort == 'modified_desc' %}Modificadas recentemente primeiro.{% elif history_sort == 'created_desc' %}Criadas recentemente primeiro.{% elif history_sort == 'modified_asc' %}Modificadas há mais tempo primeiro.{% else %}Criadas há mais tempo primeiro.{% endif %}</strong> O histórico usa paginação otimizada e carrega somente os cards desta página.</p>
+<div class="history-stack-form">
+  <div class="history-toolbar card-panel compact-toolbar">
+    <label class="checkbox-line"><input type="checkbox" id="selectAllHistory"> Selecionar todas</label>
+    <span id="historySelectedCount">0 selecionadas</span>
+    <button class="secondary-button" type="submit" form="historyBulkForm" formaction="/cadastros/selecionar/cotacoes-aceitas"><svg class="ui-icon"><use href="#icon-check"></use></svg> Enviar para cotações aceitas</button>
+    <button class="secondary-button" type="submit" form="historyBulkForm" formaction="/cadastros/selecionar/voos"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Enviar para voos</button>
+    <button class="ghost-button danger" type="submit" form="historyBulkForm" formaction="/calculations/bulk-delete" onclick="return confirm('Excluir os itens selecionados?')"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir selecionadas</button>
+  </div>
+
+  <div class="quote-history-stack">
+    {% for entry in history_entries %}
+    {% if entry.kind == 'group' %}
+    {% set item = entry.card %}
+    {% set group = item.group %}
+    {% set base = item.base %}
+    {% set options = item.options %}
+    <article class="history-group-card card-panel">
+      <div class="history-card-head">
+        <label class="select-check"><input type="checkbox" name="group_ids" value="{{ group.id }}" data-history-check form="historyBulkForm"><span></span></label>
+        <div class="history-main-copy">
+          <span class="eyebrow">COTAÇÃO PRINCIPAL</span>
+          <h2>{{ group.quote_name }}</h2>
+          <p>{{ base.origin or '—' }} → {{ base.destination or '—' }} • {% if base.travel_type == 'one_way' %}Somente ida{% elif base.travel_type == 'multi_city' %}Multitrecho{% else %}Ida e volta{% endif %} • {{ base.passengers }} passageiro(s)</p>
+          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Criada por <strong>{{ group.user.name if group.user else 'Usuário não identificado' }}</strong> em {{ group.created_at|brt('%d/%m/%Y %H:%M') if group.created_at else '—' }} • Modificada em {{ group.updated_at|brt('%d/%m/%Y %H:%M') if group.updated_at else '—' }} • Responsável: <strong>{{ group.assigned_user.name if group.assigned_user else (group.user.name if group.user else 'Usuário não identificado') }}</strong></small>
+          {% if tags_ready|default(false) %}{{ tag_row("group", group.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
+        </div>
+        <div class="history-total-box">
+          <small>{{ options|length }} opção(ões)</small>
+          <strong>{% if options %}{{ options[0].total|money(options[0].currency) }}{% else %}—{% endif %}</strong>
+          <button class="history-expand-toggle" type="button" aria-label="Abrir voos calculados" aria-expanded="false" title="Abrir voos calculados">
+            <svg class="ui-icon"><use href="#icon-chevron"></use></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="history-meta-grid">
+        <div><small>Cliente</small><strong>{{ base.client_name or 'Não informado' }}</strong></div>
+        <div><small>Ida</small><strong>{{ base.departure_date|date_br }}</strong></div>
+        <div><small>Volta</small><strong>{{ base.return_date|date_br if base.travel_type == 'round_trip' else '—' }}</strong></div>
+        <div><small>Flexibilidade</small><strong>{% if base.flexibility_days|default(0) %}± {{ base.flexibility_days }} dia(s){% else %}Data fixa{% endif %}</strong></div>
+        <div><small>Bagagens</small><strong>Por opção</strong></div>
+      </div>
+      <form method="post" action="/calculations/group/{{ group.id }}/assign" class="history-assignee-form">
+        <input type="hidden" name="return_to" value="/calculations/history">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label><span>Responsável pela cotação</span><select name="assigned_user_id">{% for member in team_users %}<option value="{{ member.id }}" {% if group.assigned_user_id == member.id or (not group.assigned_user_id and group.user_id == member.id) %}selected{% endif %}>{{ member.name }}{% if group.user_id == member.id %} • criador{% endif %}</option>{% endfor %}</select></label>
+        <button class="secondary-button small-button button-assign" type="submit">Atualizar responsável</button>
+      </form>
+      {% if item.activities %}
+      <details class="quote-change-log">
+        <summary>Alterações recentes da cotação</summary>
+        <div class="quote-change-list">
+          {% for activity in item.activities %}
+          <div class="quote-change-item">
+            <span class="quote-change-dot"></span>
+            <span>{{ activity.message }}</span>
+            <small>{{ activity.created_at|brt('%d/%m/%Y - %H:%M') if activity.created_at else '' }}</small>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+      {% if item.load_error|default(false) %}<div class="notice-card warning compact-note">Esta cotação tem dados antigos ou incompletos. O histórico continua funcionando; use “Alterar cotação” e salve novamente para corrigir o registro.</div>{% endif %}
+
+      {% if item.option_variant_groups %}
+      <div class="history-scope-stack">
+        {% for variant_block in item.option_variant_groups %}
+        {% set combine_form_id = 'combineForm-' ~ group.id ~ '-' ~ loop.index %}
+        <section class="subquote-history-block {{ 'is-primary' if variant_block.is_primary else 'is-subquote' }}" data-variant="{{ variant_block.key }}">
+          <div class="subquote-history-head">
+            <div class="subquote-history-title">
+              <span class="subquote-kind-badge">{{ 'Cotação principal' if variant_block.is_primary else 'Subcotação ' ~ variant_block.subquote_number }}</span>
+              <h3>{{ variant_block.label }}</h3>
+              <div class="subquote-history-route">
+                <strong>{{ variant_block.origin or '—' }} → {{ variant_block.destination or '—' }}</strong>
+                <span>• {{ variant_block.travel_type_label }}</span>
+                <span>• {{ variant_block.passengers }} pagante(s)</span>
+                <span>• {{ variant_block.babies }} bebê(s)</span>
+                {% if variant_block.departure_date %}<span>• Ida {{ variant_block.departure_date|date_br }}</span>{% endif %}
+                {% if variant_block.return_date %}<span>• Volta {{ variant_block.return_date|date_br }}</span>{% endif %}
+                {% if variant_block.flexibility_days|default(0) %}<span>• Flexível ±{{ variant_block.flexibility_days }} dia(s)</span>{% endif %}
+              </div>
+            </div>
+            <div class="subquote-history-actions">
+              {% if variant_block.is_primary %}
+              <a class="secondary-button tiny-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_base=1">Alterar cotação</a>
+              {% else %}
+              <a class="secondary-button tiny-button button-edit" href="/calculations/group/{{ group.id }}/variant/{{ variant_block.key }}/edit">Editar subcotação</a>
+              {% endif %}
+              <a class="ghost-button tiny-button button-open" href="/calculations/new?group_id={{ group.id }}&variant_key={{ variant_block.key }}&calc=1">Calcular nesta rota</a>
+            </div>
+          </div>
+          {% if variant_block.scope_groups %}
+          {% for block in variant_block.scope_groups %}
+          <section class="history-scope-block" data-scope="{{ block["key"] }}">
+            <div class="history-scope-title"><span>{{ block["label"] }}</span>{% if block.is_cheapest_scope %}<b class="scope-best-badge">🏆 MENOR PREÇO GERAL</b>{% endif %}<small>{{ block["items"]|length }} opção(ões) • menor → maior</small></div>
+            <div class="history-options-strip">
+              {% for quote in block["items"] %}
+              {% set flight_chips = quote.flight_detail_chips|default([], true) %}
+              {% set flexible_schedule = quote.has_flexible_schedule|default(false) %}
+              <div class="mini-option-card option-select-card compact-history-option">
+                {% if quote.combine_eligible %}
+                <label class="combine-option-toggle" title="Selecionar esta opção para juntar">
+                  <input
+                    type="checkbox"
+                    name="quote_ids"
+                    value="{{ quote.id }}"
+                    form="{{ combine_form_id }}"
+                    class="js-combine-check"
+                    data-combine-scope="{{ quote.combine_scope_key }}"
+                    data-combine-cost="{{ quote.total }}"
+                    data-combine-sale="{{ quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value is not none else quote.total }}"
+                  >
+                  <span>Selecionar para juntar</span>
+                </label>
+                {% endif %}
+                <div class="history-logo-seal{% if quote.is_combined and quote.combined_logo_items %} combined-logo-host{% endif %}">
+                  {% if quote.is_combined and quote.combined_logo_items %}
+                  <div class="combined-logo-stack" aria-label="Companhias combinadas">
+                    {% for item in quote.combined_logo_items[:3] %}
+                    <span class="combined-logo-badge{% if not item.logo_path %} fallback{% endif %}" style="--i:{{ loop.index0 }};" title="{{ item.name }}">
+                      {% if item.logo_path %}
+                      <img src="/{{ item.logo_path.lstrip('/') }}" alt="{{ item.name }}">
+                      {% else %}
+                      <span>{{ item.initial }}</span>
+                      {% endif %}
+                    </span>
+                    {% endfor %}
+                    {% if quote.combined_logo_items|length > 3 %}
+                    <span class="combined-logo-badge combined-logo-more" style="--i:3;" title="+{{ quote.combined_logo_items|length - 3 }} companhia(s)">+{{ quote.combined_logo_items|length - 3 }}</span>
+                    {% endif %}
+                  </div>
+                  {% elif quote.airline and quote.airline.logo_path %}
+                  <img src="/{{ quote.airline.logo_path.lstrip('/') }}" alt="{{ quote.airline.name }}" class="history-logo-image">
+                  {% else %}
+                  <span>{{ (quote.airline.name[:1] if quote.airline else 'C')|upper }}</span>
+                  {% endif %}
+                </div>
+                <div class="option-select-copy">
+                  <strong>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }}</strong>{{ option_price(quote) }}
+                  <div class="history-chip-row">
+                    {% if quote.is_combined %}<span class="history-chip combined-chip">OPÇÃO COMBINADA</span>{% endif %}
+                    {% if quote.fare_brand %}<span class="history-chip fare-chip">{{ quote.fare_brand }}</span>{% endif %}
+                    {% if quote.cabin_class %}<span class="history-chip class-chip">{{ quote.cabin_class }}</span>{% endif %}
+                    <span class="history-chip scope-chip">{{ quote.scope_label }}</span><span class="history-chip">{{ quote.passengers }} passageiro(s)</span>
+                    {% if quote.skip_mode %}<span class="history-chip skip-chip">Voa trecho {{ quote.flown_segment }}</span>{% if quote.skip_display_date %}<span class="history-chip skip-date-chip">Data Skip: {{ quote.skip_display_date|date_br }}</span>{% endif %}{% endif %}
+                    {% if quote.skip_commission_value %}<span class="history-chip skip-commission-chip">Comissão {{ quote.skip_commission_value|money('BRL') }}</span>{% endif %}
+                    {% if quote.operation_scope_label %}<span class="history-chip operation-chip">{{ quote.operation_scope_label }}</span>{% endif %}
+                    {% if quote.partner_airline %}<span class="history-chip partner-chip">Parceira: {{ quote.partner_airline }}</span>{% endif %}
+                    {% if flexible_schedule %}<span class="history-chip flexibility-chip">Datas flexíveis</span>{% endif %}
+                  </div>
+                  {% if quote.is_combined and quote.combined_components %}
+                  <div class="combined-components">
+                    {% for component in quote.combined_components %}
+                    <span class="combined-component">
+                      {{ component.scope_label or component.scope_key }}
+                      • {{ component.airline }}
+                      • {{ component.cost|money('BRL') }}
+                    </span>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                  {{ option_saved_details(quote) }}
+                  {% if quote.flight_details %}
+                  <details class="dbm-saved-flight-options" aria-label="Alternativas de horários desta companhia">
+                    <summary>✈️ {{ quote.flight_details|length }} opção(ões) de horário · mesmo valor</summary>
+                    {% for o in quote.flight_details %}
+                    <div class="dbm-flight-opt-row"><span>{{ o.label }}{% if o.preferred %} ✓{% endif %}{% if o.stops %} · Via {{ o.stops|join(' / ') }}{% else %} · Direto{% endif %}</span>
+                      <small>{{ o.departure_date }} {{ o.departure_time }} → {{ o.arrival_date }} {{ o.arrival_time }}{% if o.duration_minutes is not none %} · {{ o.duration_minutes // 60 }}h{{ '%02d'|format(o.duration_minutes % 60) }}{% endif %}</small></div>
+                    {% endfor %}
+                  </details>
+                  {% endif %}
+                  {% set bag_known = quote.included_bags_per_passenger is not none and quote.included_bags_per_passenger|string != '' %}
+                  {% set bag_per_person = quote.included_bags_per_passenger|int if bag_known else 0 %}
+                  {% set bag_included = bag_per_person * (quote.passengers|int) %}
+                  {% set bag_extra = quote.bags|default(0, true)|int %}
+                  <div class="history-bag-summary" aria-label="Resumo de bagagens">
+                    <strong>Bagagens: {{ bag_included + bag_extra }} bagagem(ns)</strong>
+                    <span>{% if not bag_known %}{% if bag_extra %}{{ bag_extra }} bagagem(ns) adicional(is) + franquia da tarifa a confirmar{% else %}Franquia da tarifa a confirmar{% endif %}{% elif bag_extra and bag_included %}{{ bag_extra }} bagagem(ns) adicional(is) + {{ bag_included }} bagagem(ns) da tarifa{% elif bag_extra %}{{ bag_extra }} bagagem(ns) adicional(is){% elif bag_included %}{{ bag_included }} bagagem(ns) da tarifa{% else %}Sem bagagem despachada{% endif %}</span>
+                  </div>
+                  <small class="history-calc-type">Cálculo: {{ quote.exact_calculation_type or 'Não informado' }}{% if quote.extra_value_saved %} • Taxa {{ quote.extra_value_saved }}{% endif %}</small>
+                  <label class="dbm-entry-inline">Entrada (Pix/R$)
+        <input class="dbm-quick-entry" inputmode="decimal" type="text" aria-label="Entrada por Pix"
+         data-quote-id="{{ quote.id }}"
+         value="{{ ((quote.commercial.observations|from_json({})).get('entry_amount', 0) if quote.commercial else 0)|money('BRL') }}"
+         placeholder="R$ 0,00" title="Abra Editar lucro para confirmar alterações"></label>
+                  {% if quote.option_description %}<small class="history-option-note">{{ quote.option_description }}</small>{% endif %}
+                </div>
+                <div class="option-select-actions">
+                  <a class="ghost-button tiny-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a>
+                  {% if not quote.is_combined %}
+                  <a class="secondary-button tiny-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1">Editar cálculo</a>
+                  <a class="secondary-button tiny-button button-fare" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1#optionMetadataSection">Alterar tarifa</a>
+                  {% endif %}
+                  <button class="ghost-button tiny-button button-profit js-profit-open" data-commercial-button="1" data-commercial-meta="{{ quote.commercial.observations if quote.commercial and quote.commercial.observations else '{}' }}" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button>
+                  {% if not quote.is_combined %}
+                  <form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button tiny-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form>
+                  {% endif %}
+                  <form method="post" action="/calculations/option/{{ quote.id }}/delete" onsubmit="return confirm('Excluir somente esta opção de voo/cálculo? A cotação principal e as outras opções serão mantidas. Se esta opção já tiver sido aceita, a reserva continuará salva.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger tiny-button button-delete" type="submit">Excluir</button></form>
+                  <form method="post" action="/cadastros/cotacoes-aceitas/opcao/{{ quote.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary-button tiny-button button-accept" type="submit">Aceitar</button></form>
+                  <form method="post" action="/cadastros/voos/opcao/{{ quote.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button tiny-button button-flight" type="submit">Virar voo</button></form>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+          <form
+            id="{{ combine_form_id }}"
+            method="post"
+            action="/calculations/group/{{ group.id }}/combine"
+            class="combine-builder"
+            data-combine-builder
+          >
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="variant_key" value="{{ variant_block.key }}">
+            <div class="combine-builder-copy">
+              <div class="combine-builder-title">
+                <strong>Juntar opções e somar valores</strong>
+                <span>MESMA COTAÇÃO</span>
+              </div>
+              <small>Nas opções compatíveis aparece o botão <b>Selecionar para juntar</b>. Escolha <b>1 Só ida + 1 Só volta</b>, ou <b>Trechos diferentes</b> desta mesma cotação/subcotação. As opções originais permanecem salvas.</small>
+              <div class="combine-live">
+                <span>Selecionadas: <strong data-combine-count>0</strong></span>
+                <span>Custo somado: <strong data-combine-cost>R$ 0,00</strong></span>
+                <span data-combine-sale-wrap hidden>Venda somada: <strong data-combine-sale>R$ 0,00</strong></span>
+                <span class="combine-status invalid" data-combine-status>Selecione as opções compatíveis.</span>
+              </div>
+            </div>
+            <button class="secondary-button small-button button-combine" type="submit" data-combine-submit disabled>Juntar e somar</button>
+          </form>
+          {% else %}
+          <div class="subquote-empty-state">
+            <strong>Nenhuma opção calculada nesta {{ 'cotação principal' if variant_block.is_primary else 'subcotação' }}.</strong>
+            <p>Use “Calcular nesta rota” para adicionar a primeira opção.</p>
+          </div>
+          {% endif %}
+        </section>
+        {% endfor %}
+      </div>
+      {% elif options %}
+      <div class="history-scope-stack history-fallback-stack">
+        <section class="history-scope-block">
+          <div class="history-scope-title"><span>OPÇÕES CALCULADAS</span><small>{{ options|length }} opção(ões)</small></div>
+            <div class="history-options-strip">
+            {% for quote in options %}
+            <div class="mini-option-card option-select-card compact-history-option">
+              <div class="history-logo-seal{% if quote.is_combined and quote.combined_logo_items %} combined-logo-host{% endif %}">{% if quote.is_combined and quote.combined_logo_items %}<div class="combined-logo-stack" aria-label="Companhias combinadas">{% for item in quote.combined_logo_items[:3] %}<span class="combined-logo-badge{% if not item.logo_path %} fallback{% endif %}" style="--i:{{ loop.index0 }};" title="{{ item.name }}">{% if item.logo_path %}<img src="/{{ item.logo_path.lstrip('/') }}" alt="{{ item.name }}">{% else %}<span>{{ item.initial }}</span>{% endif %}</span>{% endfor %}{% if quote.combined_logo_items|length > 3 %}<span class="combined-logo-badge combined-logo-more" style="--i:3;" title="+{{ quote.combined_logo_items|length - 3 }} companhia(s)">+{{ quote.combined_logo_items|length - 3 }}</span>{% endif %}</div>{% elif quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path.lstrip('/') }}" alt="{{ quote.airline.name }}" class="history-logo-image">{% else %}<span>{{ (quote.airline.name[:1] if quote.airline else 'C')|upper }}</span>{% endif %}</div>
+              <div class="option-select-copy">
+                <strong>{{ quote.display_airline_name|default((quote.airline.name if quote.airline else 'Companhia'), true) }}</strong>{{ option_price(quote) }}
+                <div class="history-chip-row">
+                  <span class="history-chip scope-chip">{{ quote.scope_label|default('Cálculo', true) }}</span><span class="history-chip">{{ quote.passengers }} passageiro(s)</span>
+                  {% for route_item in quote.scope_route_items|default([], true) %}<span class="history-chip route-chip {% if route_item.status == 'flown' %}route-chip-flown{% elif route_item.status == 'not_flown' %}route-chip-unflown{% endif %}">{{ route_item.label }}{% if route_item.status == 'flown' %} • VOADO{% elif route_item.status == 'not_flown' %} • NÃO VOADO{% endif %}</span>{% endfor %}
+                </div>
+                {{ option_saved_details(quote) }}
+                <small>{{ quote.method_label|default('Cálculo', true) }}</small>
+              </div>
+              <div class="option-select-actions"><a class="ghost-button tiny-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a><a class="secondary-button tiny-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1">Editar</a><a class="secondary-button tiny-button button-fare" href="/calculations/new?group_id={{ group.id }}&edit_id={{ quote.id }}&calc=1#optionMetadataSection">Alterar tarifa</a><button class="ghost-button tiny-button button-profit js-profit-open" data-commercial-button="1" data-commercial-meta="{{ quote.commercial.observations if quote.commercial and quote.commercial.observations else '{}' }}" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button><form method="post" action="/calculations/option/{{ quote.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button tiny-button button-duplicate" type="submit">Duplicar voo/cálculo</button></form><form method="post" action="/calculations/option/{{ quote.id }}/delete" onsubmit="return confirm('Excluir somente esta opção de voo/cálculo? A cotação principal será mantida.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger tiny-button button-delete" type="submit">Excluir</button></form></div>
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+      </div>
+      {% endif %}
+
+      <div class="history-actions">
+        <a class="primary-button small-button button-open" href="/calculations/group/{{ group.id }}">Abrir opções</a>
+        <a class="secondary-button small-button button-edit" href="/calculations/new?group_id={{ group.id }}&edit_base=1&variant_key=primary">Alterar cotação</a>
+        <a class="secondary-button small-button button-open" href="/calculations/new?group_id={{ group.id }}&calc=1">Aba calculadora</a>
+        {% if options %}{% set first_profit_quote = options[0] %}<button class="secondary-button small-button button-profit-all js-profit-open" type="button" data-confirm-ignore="1" data-apply-all="1" data-quote-id="{{ first_profit_quote.id }}" data-airline="Todos os voos/opções" data-cost="{{ first_profit_quote.total }}" data-profit="{{ first_profit_quote.commercial.profit_value if first_profit_quote.commercial and first_profit_quote.commercial.profit_value is not none else 0 }}" data-percent="{{ first_profit_quote.commercial.profit_percent if first_profit_quote.commercial and first_profit_quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ first_profit_quote.commercial.card_installments if first_profit_quote.commercial else 1 }}" data-card-mode="{{ first_profit_quote.commercial.card_interest_mode if first_profit_quote.commercial else 'cash' }}" data-card-total="{{ first_profit_quote.commercial.card_total_value if first_profit_quote.commercial and first_profit_quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ first_profit_quote.commercial.card_difference_value if first_profit_quote.commercial and first_profit_quote.commercial.card_difference_value is not none else 0 }}" data-sent="1">Adicionar lucro em todos os voos</button>{% endif %}<form method="post" action="/calculations/group/{{ group.id }}/duplicate"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button small-button button-duplicate" type="submit">Duplicar cotação</button></form>
+        <form method="post" action="/cadastros/cotacoes-aceitas/{{ group.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary-button small-button button-accept" type="submit">Aceitar 1ª opção</button></form>
+        <form method="post" action="/cadastros/voos/{{ group.id }}/add"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary-button small-button button-flight" type="submit">Voo da 1ª opção</button></form>
+        {% if options %}
+        <form method="post" action="/quotes/group/prepare">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% for quote in options %}<input type="hidden" name="quote_ids" value="{{ quote.id }}">{% endfor %}
+          <button class="secondary-button small-button" type="submit">PDF em grupo</button>
+        </form>
+        {% endif %}
+        <form method="post" action="/calculations/group/{{ group.id }}/delete" onsubmit="return confirm('Excluir esta cotação principal e todas as opções?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button small-button danger button-delete" type="submit">Excluir</button></form>
+      </div>
+    </article>
+    {% else %}
+    {% set quote = entry.quote %}
+    <article class="history-group-card card-panel legacy-card">
+      <div class="history-card-head">
+        <label class="select-check"><input type="checkbox" name="quote_ids" value="{{ quote.id }}" data-history-check form="historyBulkForm"><span></span></label>
+        <div class="history-main-copy">
+          <span class="eyebrow">COTAÇÃO ANTIGA</span>
+          <h2>{{ quote.quote_name }}</h2>
+          <p>{{ quote.origin or '—' }} → {{ quote.destination or '—' }} • {{ quote.airline.name if quote.airline else 'Companhia' }}</p>
+          <small class="quote-author-line"><svg class="ui-icon"><use href="#icon-user"></use></svg> Feita por <strong>{{ quote.user.name if quote.user else 'Usuário não identificado' }}</strong> em {{ quote.created_at|brt('%d/%m/%Y %H:%M') if quote.created_at else '—' }}{% if quote.commercial and quote.commercial.updated_at %} • Modificada em {{ quote.commercial.updated_at|brt('%d/%m/%Y %H:%M') }}{% endif %}</small>
+          {% if tags_ready|default(false) %}{{ tag_row("quote", quote.id, entry.tags|default([]), "/calculations/history") }}{% endif %}
+        </div>
+        <div class="history-total-box"><small>Comercial</small>{{ option_price(quote) }}</div>
+      </div>
+      {{ option_saved_details(quote) }}
+      <div class="history-actions">
+        <a class="primary-button small-button button-open" href="/calculations/result/{{ quote.id }}">Abrir</a>
+        <a class="secondary-button small-button button-duplicate" href="/calculations/new?clone_id={{ quote.id }}">Duplicar como cotação principal</a>
+        <a class="ghost-button small-button button-edit" href="/calculations/new?edit_id={{ quote.id }}">Alterar</a><button class="ghost-button small-button button-profit js-profit-open" data-commercial-button="1" data-commercial-meta="{{ quote.commercial.observations if quote.commercial and quote.commercial.observations else '{}' }}" type="button" data-confirm-ignore="1" data-quote-id="{{ quote.id }}" data-airline="{{ quote.airline.name if quote.airline else 'Companhia' }}" data-cost="{{ quote.total }}" data-profit="{{ quote.commercial.profit_value if quote.commercial and quote.commercial.profit_value is not none else 0 }}" data-percent="{{ quote.commercial.profit_percent if quote.commercial and quote.commercial.profit_percent is not none else 0 }}" data-card-installments="{{ quote.commercial.card_installments if quote.commercial else 1 }}" data-card-mode="{{ quote.commercial.card_interest_mode if quote.commercial else 'cash' }}" data-card-total="{{ quote.commercial.card_total_value if quote.commercial and quote.commercial.card_total_value is not none else 0 }}" data-card-difference="{{ quote.commercial.card_difference_value if quote.commercial and quote.commercial.card_difference_value is not none else 0 }}" data-sent="{{ 1 if quote.commercial and quote.commercial.sent_to_client_at else 0 }}">{{ 'Editar lucro' if quote.commercial and (quote.commercial.profit_value or 0) > 0 else 'Adicionar lucro' }}</button>
+      </div>
+    </article>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if not history_entries %}
+  <div class="empty-state card-panel"><svg class="empty-icon"><use href="#icon-clock"></use></svg><h3>Nenhuma cotação encontrada.</h3><p>Crie uma cotação principal para começar a comparar companhias.</p></div>
+  {% endif %}
+  {% if total_pages > 1 %}
+  <nav class="history-pager" aria-label="Paginação do histórico">
+    {% if has_previous %}<a class="secondary-button small-button" href="/calculations/history?page={{ page - 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">← Anterior</a>{% endif %}
+    <strong>Página {{ page }} de {{ total_pages }}</strong>
+    {% if has_next %}<a class="secondary-button small-button" href="/calculations/history?page={{ page + 1 }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}&sort={{ history_sort|urlencode }}&date_field={{ history_date_field|urlencode }}{% if history_date_from %}&date_from={{ history_date_from|urlencode }}{% endif %}{% if history_date_to %}&date_to={{ history_date_to|urlencode }}{% endif %}{{ tag_query|default("") }}">Próxima →</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+
+{% include 'calculations/_profit_modal_shared.html' %}
+
+<script>
+(() => {
+  const moneyBRL = (value) => Number(value || 0).toLocaleString('pt-BR', {
+    style:'currency', currency:'BRL'
+  });
+
+  document.querySelectorAll('[data-combine-builder]').forEach((builder) => {
+    const submit = builder.querySelector('[data-combine-submit]');
+    const countNode = builder.querySelector('[data-combine-count]');
+    const costNode = builder.querySelector('[data-combine-cost]');
+    const saleNode = builder.querySelector('[data-combine-sale]');
+    const saleWrap = builder.querySelector('[data-combine-sale-wrap]');
+    const status = builder.querySelector('[data-combine-status]');
+    const checks = Array.from(document.querySelectorAll(`.js-combine-check[form="${builder.id}"]`));
+
+    function update(){
+      const selected = checks.filter(input => input.checked);
+      const scopes = selected.map(input => String(input.dataset.combineScope || ''));
+      const uniqueScopes = new Set(scopes);
+
+      const roundPair =
+        selected.length === 2 &&
+        uniqueScopes.size === 2 &&
+        uniqueScopes.has('outbound') &&
+        uniqueScopes.has('return');
+
+      const outboundSet =
+        selected.length >= 2 &&
+        scopes.every(scope => scope === 'outbound');
+
+      const returnSet =
+        selected.length >= 2 &&
+        scopes.every(scope => scope === 'return');
+
+      const segmentSet =
+        selected.length >= 2 &&
+        scopes.every(scope => /^segment_\d+$/.test(scope)) &&
+        uniqueScopes.size === selected.length;
+
+      const valid = roundPair || outboundSet || returnSet || segmentSet;
+      const cost = selected.reduce((sum, input) => sum + Number(input.dataset.combineCost || 0), 0);
+      const sale = selected.reduce((sum, input) => sum + Number(input.dataset.combineSale || input.dataset.combineCost || 0), 0);
+
+      countNode.textContent = String(selected.length);
+      costNode.textContent = moneyBRL(cost);
+      saleNode.textContent = moneyBRL(sale);
+      saleWrap.hidden = Math.abs(sale - cost) < 0.005;
+
+      submit.disabled = !valid;
+      status.classList.toggle('valid', valid);
+      status.classList.toggle('invalid', !valid);
+
+      if(roundPair){
+        status.textContent = 'Pronto: Só ida + Só volta.';
+        submit.textContent = 'Juntar ida + volta';
+      } else if(outboundSet){
+        status.textContent = `Pronto: ${selected.length} idas selecionadas.`;
+        submit.textContent = selected.length === 2 ? 'Juntar duas idas' : `Juntar ${selected.length} idas`;
+      } else if(returnSet){
+        status.textContent = `Pronto: ${selected.length} voltas selecionadas.`;
+        submit.textContent = selected.length === 2 ? 'Juntar duas voltas' : `Juntar ${selected.length} voltas`;
+      } else if(segmentSet){
+        status.textContent = `Pronto: ${selected.length} trechos diferentes.`;
+        submit.textContent = `Juntar ${selected.length} trechos`;
+      } else if(selected.length === 0){
+        status.textContent = 'Selecione as opções compatíveis.';
+        submit.textContent = 'Juntar e somar';
+      } else if(selected.length === 1){
+        status.textContent = 'Selecione mais uma opção.';
+        submit.textContent = 'Juntar e somar';
+      } else {
+        status.textContent = 'Seleção incompatível: use ida + volta, duas idas, duas voltas ou trechos diferentes.';
+        submit.textContent = 'Juntar e somar';
+      }
+    }
+
+    checks.forEach(input => input.addEventListener('change', update));
+    builder.addEventListener('submit', (event) => {
+      update();
+      if(submit.disabled){
+        event.preventDefault();
+        return;
+      }
+      const text = status.textContent || 'Juntar opções';
+      if(!window.confirm(`${text}\n\nAs opções originais serão mantidas e uma nova opção combinada será criada.`)){
+        event.preventDefault();
+      }
+    });
+    update();
+  });
+})();
+</script>
+
+
+<script>
+(() => {
+  const cards = Array.from(document.querySelectorAll('.history-group-card'));
+
+  function setExpanded(card, expanded, scroll = false){
+    if (!card) return;
+    card.classList.toggle('is-history-expanded', expanded);
+    const button = card.querySelector('.history-expand-toggle');
+    if (button) {
+      button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      button.setAttribute('aria-label', expanded ? 'Fechar voos calculados' : 'Abrir voos calculados');
+      button.title = expanded ? 'Fechar voos calculados' : 'Abrir voos calculados';
+    }
+    if (expanded && scroll) {
+      window.setTimeout(() => {
+        card.scrollIntoView({behavior:'smooth', block:'start'});
+      }, 60);
+    }
+  }
+
+  function openOnly(card){
+    cards.forEach(item => {
+      if (item !== card) setExpanded(item, false);
+    });
+    setExpanded(card, true);
+  }
+
+  cards.forEach(card => {
+    if (window.matchMedia('(max-width: 760px)').matches) setExpanded(card, false);
+    const head = card.querySelector(':scope > .history-card-head');
+    const meta = card.querySelector(':scope > .history-meta-grid');
+    const toggle = card.querySelector('.history-expand-toggle');
+
+    const handleAreaClick = (event) => {
+      if (event.target.closest('a,button,input,select,textarea,label,form,details,summary')) return;
+      const willOpen = !card.classList.contains('is-history-expanded');
+      if (willOpen) openOnly(card);
+      else setExpanded(card, false);
+    };
+
+    head?.addEventListener('click', handleAreaClick);
+    meta?.addEventListener('click', handleAreaClick);
+
+    toggle?.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const willOpen = !card.classList.contains('is-history-expanded');
+      if (willOpen) openOnly(card);
+      else setExpanded(card, false);
+    });
+
+    const bulkCheck = card.querySelector(':scope > .history-card-head input[data-history-check]');
+    bulkCheck?.addEventListener('change', () => {
+      if (bulkCheck.checked) openOnly(card);
+    });
+  });
+
+  // Se a URL vier com #group-123, permite abrir futuramente sem afetar o restante.
+})();
+</script>
+
+
+{% if tags_ready|default(false) %}{{ tag_assets(all_tags, csrf_token) }}{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/js/history-bulk.js?v=5.10.34" defer></script>{% endblock %}
+
+<style>
+.dbm-entry-inline{display:inline-flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:.8rem;font-weight:700;color:var(--text)}
+.dbm-quick-entry{width:128px;max-width:100%;border:1px solid #9acbc2;border-radius:8px;background:var(--panel);color:var(--text);padding:6px 8px;font-weight:850}
+html[data-theme="light"] .dbm-entry-inline{color:#154266}
+</style>
+<!-- DBM-MELHORIAS-20261101 -->

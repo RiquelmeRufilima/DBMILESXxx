@@ -1,0 +1,58 @@
+{% macro flight_choice_picker(quote, csrf_token) -%}
+{% set choices = quote.flight_details|default([], true) %}
+{% if choices %}
+<section class="dbm-flight-picker" data-dbm-flight-picker data-quote-id="{{ quote.id }}" data-csrf-token="{{ csrf_token }}" aria-label="Escolher horários da cotação">
+  <div class="dbm-flight-picker-heading">
+    <strong>✈️ Escolha o horário</strong>
+    <small>{{ choices|length }} opção(ões) • mesma companhia, tarifa e preço deste cálculo</small>
+  </div>
+  {% set keys = namespace(values=[]) %}
+  {% for f in choices %}{% if f.segment_key not in keys.values %}{% set keys.values = keys.values + [f.segment_key] %}{% endif %}{% endfor %}
+  {% for segment_key in keys.values %}
+    {% set options = choices|selectattr('segment_key','equalto',segment_key)|list %}
+    <div class="dbm-flight-direction">
+      <div class="dbm-flight-direction-title"><b>{{ options[0].label|default('Trecho')|upper }}</b><span>{{ options[0].origin|default('—') }} → {{ options[0].destination|default('—') }}</span><small>{{ options|length }} horário(s)</small></div>
+      {% for f in options %}
+      {% set side_index = loop.index %}
+      {% set saved_index = f._source_index|default(-1) %}
+      <article class="dbm-flight-choice{% if f.preferred %} is-selected{% endif %}">
+        <label class="dbm-flight-choice-main">
+          <input type="radio" name="flight-choice-{{ quote.id }}-{{ segment_key }}" value="{{ saved_index }}" data-segment-key="{{ segment_key }}" {% if f.preferred %}checked{% endif %} {% if saved_index < 0 %}disabled title="Horário legado: edite o cálculo para poder selecionar"{% endif %}>
+          <span class="dbm-flight-choice-info">
+            <span class="dbm-flight-choice-airline">
+              {% if quote.airline and quote.airline.logo_path %}<img src="/{{ quote.airline.logo_path.lstrip('/') }}" alt="" loading="lazy">{% endif %}
+              <b>{{ quote.airline.name if quote.airline else 'Companhia' }}</b>
+              <small>Opção {{ side_index }}</small>
+            </span>
+            <span class="dbm-flight-choice-grid">
+              <span class="dbm-flight-choice-time"><strong>{{ f.departure_time or '--:--' }}</strong><small>{{ f.origin or 'Origem' }}{% if f.departure_date %} · {{ f.departure_date|date_br }}{% endif %}</small></span>
+              <span class="dbm-flight-choice-stops"><b>{% if f.stops %}{{ f.stops|length }} parada(s){% else %}Direto{% endif %}</b><small>{% if f.stops %}Via {{ f.stops|join(' · ') }}{% else %}Sem conexão{% endif %}</small></span>
+              <span class="dbm-flight-choice-time"><strong>{{ f.arrival_time or '--:--' }}{% if f.departure_date and f.arrival_date and f.arrival_date > f.departure_date %}<sup>+1</sup>{% endif %}</strong><small>{{ f.destination or 'Destino' }}{% if f.arrival_date %} · {{ f.arrival_date|date_br }}{% endif %}</small></span>
+              <span class="dbm-flight-choice-duration"><b>{% if f.duration_minutes is not none %}{{ f.duration_minutes // 60 }}h {{ '%02d'|format(f.duration_minutes % 60) }}m{% else %}—{% endif %}</b><small>Duração</small></span>
+              <span class="dbm-flight-choice-baggage" title="Bagagens conforme tarifa e adicionais deste cálculo">🧳 <span>Bagagem do cálculo</span></span>
+            </span>
+          </span>
+          <span class="dbm-flight-choice-marker">{% if f.preferred %}Selecionada{% else %}Escolher{% endif %}</span>
+        </label>
+        {% if f.stops or f.legs %}
+          <details class="dbm-flight-connection-details">
+            <summary>Detalhes da viagem{% if f.stops %} e da conexão{% endif %}</summary>
+            <div class="dbm-flight-connection-body">
+              {% if f.stops %}<p><b>Conexão:</b> {{ f.stops|join(' → ') }}</p>{% endif %}
+              {% for leg in f.legs|default([], true) %}
+                {% if leg.departure or leg.arrival %}<p>✈ {{ leg.origin }} → {{ leg.destination }} • {{ leg.departure|replace('T',' ') if leg.departure else 'Horário não informado' }} → {{ leg.arrival|replace('T',' ') if leg.arrival else 'Horário não informado' }}</p>{% endif %}
+              {% endfor %}
+              {% for mins in f.wait_minutes|default([], true) %}
+                {% if mins is not none %}<p>⏱ Espera {{ loop.index }}: {{ mins // 60 }}h {{ '%02d'|format(mins % 60) }}m</p>{% endif %}
+              {% endfor %}
+            </div>
+          </details>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  {% endfor %}
+  <p class="dbm-flight-choice-feedback" role="status" aria-live="polite" hidden></p>
+</section>
+{% endif %}
+{%- endmacro %}

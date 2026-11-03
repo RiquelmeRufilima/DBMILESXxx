@@ -1,0 +1,41 @@
+{
+  "package": "V5 seletor de voo visual",
+  "baseline": "V4 horarios e mensagens; correção da bagagem V4 opcional",
+  "files": [
+    {
+      "path": "app/routers/calculations.py",
+      "original_sha256": "47bc86ec7c0be52d6c07ec1aeb63757edcfba6d54829f9f79a760b6efbdd5316",
+      "updated_sha256": "d4941ea06462bf9bb1364d9ba642c0ec966a39145b332bdbe972d8d384638bb1"
+    },
+    {
+      "path": "app/templates/calculations/group.html",
+      "original_sha256": "7fea62389ea2690d7cf99291f5cbe46a8bbd20c54957c8bad60128164555a87d",
+      "updated_sha256": "70d09ef595edace20e68be8f1a247fccb614822fd16ea4818809da74526e44f2"
+    },
+    {
+      "path": "app/templates/calculations/history.html",
+      "original_sha256": "83955448a1d14a6d9d011513b68e69d98fa8106397b41cbab832bebe4b772557",
+      "updated_sha256": "a42bcac8905d6368a95e2d9fa46a34d8fe1071073dc02dbe4b9b08c251a56d2e"
+    },
+    {
+      "path": "app/templates/partials/flight_choice_picker.html",
+      "original_sha256": null,
+      "updated_sha256": "a134977d455103a1a02ee84cb1ffb0ea455ed919e7b55fc0ef8fe8f80ebc5545"
+    },
+    {
+      "path": "app/static/css/dbm-flight-picker-20261103.css",
+      "original_sha256": null,
+      "updated_sha256": "a2db499ee0b2d5b49ee15201487fd898d665c02875f3a52d340534d945bacac4"
+    },
+    {
+      "path": "app/static/js/dbm-flight-picker-20261103.js",
+      "original_sha256": null,
+      "updated_sha256": "f6b51f0ecc107a7ec498e949c95808a25e5daaef8ee32f83bc8ab1a0fb9e1da7"
+    },
+    {
+      "path": "tests/test_selecao_visual_voos_v5.py",
+      "original_sha256": null,
+      "updated_sha256": "a979479a37e086d543a4e62f08137ec89f9731103e3c6ba9dc864d3bfc2722ff"
+    }
+  ]
+}

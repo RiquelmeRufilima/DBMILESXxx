@@ -88,9 +88,7 @@
           const where=itin.bags_applies_to||'all';
           const showExtra=extraQty>0&&checkbox.checked&&(where==='all'||where===side.key);
           if(showExtra){
-            const extraLabel=where==='all'&&sides.length>1
-              ?`+ ${extraQty} bagagem(ns) adicional(is) na cotação (sentido não especificado)`
-              :`+ ${extraQty} bagagem(ns) adicional(is) neste sentido`;
+            const extraLabel=`+ ${extraQty} bagagem(ns) adicional(is) neste sentido`;
             y=wrap(extraLabel,108,y,885,'19px Arial','#527c91',27,2)+4;
           }
         }

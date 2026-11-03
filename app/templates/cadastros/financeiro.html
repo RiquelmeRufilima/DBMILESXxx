@@ -54,7 +54,7 @@
           <div><small>Entradas</small><strong class="positive-value">{{ totals.cash_in_total|money }}</strong></div>
           <div><small>Saídas</small><strong class="negative-value">{{ totals.cash_out_total|money }}</strong></div>
           <div><small>Ticket médio</small><strong>{{ totals.average_ticket|money }}</strong></div>
-          <div><small>Margem</small><strong>{{ '%.1f'|format(totals.margin_percent) }}%</strong></div>
+          <div><small>Margem</small><strong>{{ totals.margin_percent|percent_br(1) }}%</strong></div>
         </div>
       </article>
 

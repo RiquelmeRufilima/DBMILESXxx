@@ -1263,6 +1263,11 @@ def _quote_flight_details(quote: WebQuote, data: dict[str, Any], scope_data: dic
             "origin": _clean_code(segment.get("origin")), "destination": _clean_code(segment.get("destination")),
             "departure_date": dep_date, "departure_time": dep_time,
             "arrival_date": arr_date, "arrival_time": arr_time,
+            # Mesmo formato de _normalize_flight_details: o seletor de horários
+            # do histórico lê estes campos e não pode receber chaves ausentes.
+            "stops": [], "legs": [], "duration_minutes": None, "wait_minutes": [],
+            "preferred": not any(d.get("segment_key") == key for d in details),
+            "_source_index": -1,
         })
 
     if details:
@@ -4070,6 +4075,8 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     breakdown = _safe_json(quote.breakdown_json, {})
     segments = _safe_json(quote.trip.segments_json, []) if quote.trip else []
     commercial_meta = _safe_json(quote.commercial.observations, {}) if quote.commercial else {}
+    if not isinstance(commercial_meta, dict):
+        commercial_meta = {}
     group_children = 0
     if link and link.group_id:
         group_row = db.get(QuoteGroup, link.group_id)

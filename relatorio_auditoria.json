@@ -1,0 +1,144 @@
+{
+  "codigo": "/workspaces/DBMILESXxx",
+  "checks_locais": [
+    {
+      "nivel": "ALTO",
+      "item": "Arquivos locais",
+      "observacao": "A pasta /uploads é servida diretamente: arquivos conhecidos podem ser baixados sem sessão."
+    },
+    {
+      "nivel": "MÉDIO",
+      "item": "Diagnóstico do banco",
+      "observacao": "A rota /health/db pode revelar a mensagem interna da exceção."
+    },
+    {
+      "nivel": "MÉDIO",
+      "item": "CSP global",
+      "observacao": "A política CSP não parece ser aplicada a todas as páginas HTML."
+    },
+    {
+      "nivel": "OK",
+      "item": "Cabeçalhos",
+      "observacao": "HSTS e nosniff estão definidos no código; confirme resposta real HTTPS."
+    },
+    {
+      "nivel": "OK",
+      "item": "Cookie de sessão",
+      "observacao": "Secure é ativado por padrão em produção, mas verifique configurações reais."
+    },
+    {
+      "nivel": "OK",
+      "item": "Senhas e CSRF",
+      "observacao": "Bcrypt e comparação constante foram encontrados."
+    },
+    {
+      "nivel": "MÉDIO",
+      "item": "Deploy",
+      "observacao": "tests/ não está excluída por .vercelignore; o deploy pode incluir testes desnecessariamente."
+    }
+  ],
+  "medicoes": [
+    {
+      "nome": "Inicialização (/health)",
+      "caminho": "/health",
+      "status": 200,
+      "media_ms": 120.8,
+      "mediana_ms": 98.5,
+      "amostras": [
+        208.4,
+        55.5,
+        98.5
+      ]
+    },
+    {
+      "nome": "Página de login",
+      "caminho": "/login",
+      "status": 200,
+      "media_ms": 51.5,
+      "mediana_ms": 47.1,
+      "amostras": [
+        44.6,
+        47.1,
+        62.9
+      ]
+    },
+    {
+      "nome": "Histórico protegido",
+      "caminho": "/calculations/history",
+      "status": 200,
+      "media_ms": 139.7,
+      "mediana_ms": 57.8,
+      "amostras": [
+        319.0,
+        57.8,
+        42.2
+      ]
+    },
+    {
+      "nome": "Diagnóstico protegido",
+      "caminho": "/diagnostics/performance",
+      "status": 200,
+      "media_ms": 78.2,
+      "mediana_ms": 51.6,
+      "amostras": [
+        150.4,
+        32.7,
+        51.6
+      ]
+    },
+    {
+      "nome": "CSS estático",
+      "caminho": "/static/css/app.css",
+      "status": 404,
+      "media_ms": 155.6,
+      "mediana_ms": 37.5,
+      "amostras": [
+        392.3,
+        37.5,
+        37.0
+      ]
+    }
+  ],
+  "checks_online": [
+    {
+      "nivel": "MÉDIO",
+      "item": "X-Content-Type-Options",
+      "observacao": "Ausente na resposta"
+    },
+    {
+      "nivel": "MÉDIO",
+      "item": "X-Frame-Options",
+      "observacao": "Ausente na resposta"
+    },
+    {
+      "nivel": "MÉDIO",
+      "item": "Referrer-Policy",
+      "observacao": "Ausente na resposta"
+    },
+    {
+      "nivel": "OK",
+      "item": "HSTS",
+      "observacao": "max-age=63072000; includeSubDomains; preload"
+    },
+    {
+      "nivel": "MÉDIO",
+      "item": "CSP página de login",
+      "observacao": "Não encontrada na resposta HTML"
+    },
+    {
+      "nivel": "ALTO",
+      "item": "Acesso anônimo /calculations/history",
+      "observacao": "HTTP 200 (esperado bloqueio ou redirecionamento)"
+    },
+    {
+      "nivel": "ALTO",
+      "item": "Acesso anônimo /diagnostics/performance",
+      "observacao": "HTTP 200 (esperado bloqueio ou redirecionamento)"
+    },
+    {
+      "nivel": "INFO",
+      "item": "Documentação da API",
+      "observacao": "Swagger/OpenAPI disponível publicamente"
+    }
+  ]
+}

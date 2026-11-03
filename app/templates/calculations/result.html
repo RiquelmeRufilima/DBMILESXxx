@@ -483,45 +483,59 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function getBaggageLines(){
    const paid=Math.max(1,Number(passengers)||1);
    const added=Math.max(0,Number(baggage)||0);
-   const original=Number(fareIncluded);
-   const fallback=Number.isFinite(original)&&original>0?original:0;
+   const n=Number(fareIncluded);
+   const fallback=Number.isFinite(n)&&n>0?n:0;
    const mode=selectedPriceMode();
    const segments=itinerarySides.length?itinerarySides:[{key:'one_way',included_bags:String(fareIncluded||'')}];
    const franchisePerSide=segments.map(s=>{
-     const n=Number(s.included_bags);
-     return s.included_bags==null||s.included_bags===''?fallback:(Number.isFinite(n)&&n>0?n:0);
+     const v=Number(s.included_bags);
+     return s.included_bags==null||s.included_bags===''?fallback:(Number.isFinite(v)&&v>0?v:0);
    });
-   // Percurso completo: o mesmo adicional em cada SENTIDO principal,
-   // nunca em cada conexão. Apenas apresentação; não muda o custo calculado.
+   // O adicional vale para cada sentido PRINCIPAL selecionado;
+   // etapas de conexão nunca multiplicam a franquia ou o adicional.
    const scope=String(itineraryData.bags_applies_to||'all');
-   const extraCount=scope==='all'?added*segments.length:(segments.some(s=>s.key===scope)?added:0);
-   const baseIncluded=franchisePerSide.reduce((sum,bags)=>sum+bags*paid,0);
-   const total=baseIncluded+extraCount;
-   if(bagModeBox)bagModeBox.hidden=total===0;
-   if(total===0)return '';
+   const extrasFor=side=>scope==='all'||scope===side.key?added:0;
+   const counts=segments.map((side,i)=>franchisePerSide[i]*paid+extrasFor(side));
+   if(bagModeBox)bagModeBox.hidden=counts.every(total=>total===0);
+   if(counts.every(total=>total===0))return '';
    const line=txt=>`✅ +${txt}\n`;
-   if(mode==='total')return line(bagQty(total));
-   if(mode==='per_person'){
-     const base=franchisePerSide.reduce((sum,bags)=>sum+bags,0);
-     return (base>0?line(`${bagQty(base)} por passageiro no percurso`):'')+
-       (extraCount>0?line(`${bagQty(extraCount)} adicionais no percurso`):'');
-   }
    const labelOf=(side,i)=>side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`;
+   // Quantidade total: malas que podem ser levadas em UM sentido.
+   // Ida e volta com a mesma franquia não são malas físicas distintas.
+   if(mode==='total'){
+     if(counts.every(total=>total===counts[0]))return line(bagQty(counts[0]));
+     // Franquias diferentes não podem ser resumidas como se fossem iguais.
+     return segments.map((side,i)=>counts[i]>0?line(`${labelOf(side,i)}: ${bagQty(counts[i])}`):'').join('');
+   }
+   if(mode==='per_person'){
+     const allSame=franchisePerSide.every(qty=>qty===franchisePerSide[0]);
+     const extraSame=segments.every(side=>extrasFor(side)===extrasFor(segments[0]));
+     if(allSame&&extraSame){
+       const base=franchisePerSide[0];
+       const extras=extrasFor(segments[0]);
+       return (base>0?line(`${bagQty(base)} por passageiro`):'')+
+         (extras>0?line(`${bagQty(extras)} adicionais por sentido`):'');
+     }
+     // Caso varie entre ida/volta, explicita o sentido para não confundir.
+     return segments.map((side,i)=>{
+       const base=franchisePerSide[i],extras=extrasFor(side),label=labelOf(side,i);
+       return (base>0?line(`${label}: ${bagQty(base)} por passageiro`):'')+
+         (extras>0?line(`${label}: ${bagQty(extras)} adicionais`):'');
+     }).join('');
+   }
    const lines=[];
    segments.forEach((side,i)=>{
-     const included=franchisePerSide[i];
-     // 'all' representa a mesma quantidade EM CADA SENTIDO principal.
-     const extras=(scope==='all'||scope===side.key)?added:0;
-     if(included*paid+extras===0)return;
      const label=labelOf(side,i);
+     const included=franchisePerSide[i];
+     const extras=extrasFor(side);
+     if(included*paid+extras===0)return;
      if(mode==='per_person_leg'){
        if(included)lines.push(line(`${label}: ${bagQty(included)} por passageiro`).trimEnd());
-       if(extras)lines.push(line(`${label}: ${bagQty(extras)} adicionais na cotação`).trimEnd());
+       if(extras)lines.push(line(`${label}: ${bagQty(extras)} adicionais`).trimEnd());
      }else{
        lines.push(line(`${label}: ${bagQty(included*paid+extras)}`).trimEnd());
      }
    });
-
    return lines.length?lines.join('\n')+'\n':'';
  }
  function itineraryExtraDetails(){

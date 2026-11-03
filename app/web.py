@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Request
@@ -34,14 +36,83 @@ THEME_PRESETS = {
 }
 
 
+def parse_number(value, default: float = 0.0) -> float:
+    """Converte números salvos em formatos variados sem derrubar a tela.
+
+    Aceita 1200.5, "1200.50", "1.200,50", "R$ 1.200,50", "1,5" e None.
+    Qualquer valor inválido (texto, dict, lista, NaN/infinito) vira ``default``.
+    """
+    if value is None or isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        number = float(value)
+    else:
+        text = str(value).strip()
+        text = re.sub(r"[^\d,.\-]", "", text)
+        if not text or text in {"-", ",", "."}:
+            return default
+        if "," in text and "." in text:
+            # O separador que aparece por último é o decimal.
+            if text.rfind(",") > text.rfind("."):
+                text = text.replace(".", "").replace(",", ".")
+            else:
+                text = text.replace(",", "")
+        elif "," in text:
+            text = text.replace(".", "").replace(",", ".")
+        elif text.count(".") > 1:
+            text = text.replace(".", "")
+        try:
+            number = float(text)
+        except ValueError:
+            return default
+    if math.isnan(number) or math.isinf(number):
+        return default
+    return number
+
+
 def money(value, currency: str = "BRL") -> str:
     symbols = {"BRL": "R$", "USD": "US$", "EUR": "€", "GBP": "£"}
-    try:
-        number = float(value or 0)
-    except (TypeError, ValueError):
-        number = 0.0
+    currency = str(currency or "BRL").strip().upper() or "BRL"
+    number = parse_number(value)
     formatted = f"{number:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"{symbols.get(currency, currency)} {formatted}"
+
+
+def percent_br(value, digits: int = 2) -> str:
+    """Percentual no padrão brasileiro: 27,50."""
+    number = parse_number(value)
+    return f"{number:,.{int(digits)}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def commercial_meta(value) -> dict:
+    """Metadados comerciais (entrada Pix, ancoragem, maquininha) sempre como dict.
+
+    O campo ``observations`` também recebe texto livre das observações do PDF;
+    nesses casos não existe metadado e a tela não pode quebrar.
+    """
+    if isinstance(value, dict):
+        return value
+    if value in (None, ""):
+        return {}
+    try:
+        parsed = json.loads(str(value))
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def commercial_meta_json(value) -> str:
+    meta = commercial_meta(value)
+    safe = {
+        "anchor_value": parse_number(meta.get("anchor_value")),
+        "machine_name": str(meta.get("machine_name") or "")[:120],
+        "entry_amount": parse_number(meta.get("entry_amount")),
+    }
+    return json.dumps(safe, ensure_ascii=False)
+
+
+def entry_amount(value) -> float:
+    return max(0.0, parse_number(commercial_meta(value).get("entry_amount")))
 
 
 def date_br(value) -> str:
@@ -107,6 +178,10 @@ def date_time_br(value, time_value=None) -> str:
 
 
 templates.env.filters["money"] = money
+templates.env.filters["percent_br"] = percent_br
+templates.env.filters["commercial_meta"] = commercial_meta
+templates.env.filters["commercial_meta_json"] = commercial_meta_json
+templates.env.filters["entry_amount"] = entry_amount
 templates.env.filters["date_br"] = date_br
 templates.env.filters["date_time_br"] = date_time_br
 templates.env.filters["brt"] = brt
@@ -229,25 +304,6 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
         "flashes": flashes,
         **kwargs,
     }
-# Adicione esta função no seu arquivo web.py
-
-def format_money(value: float, currency: str = "BRL") -> str:
-    """Lógica para formatação de campos numéricos (moedas)."""
-    try:
-        val = float(value or 0.0)
-    except (ValueError, TypeError):
-        return "R$ 0,00"
-
-    if currency == "BRL" or not currency:
-        # Formata para o padrão brasileiro: R$ 1.234,56
-        return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    elif currency == "USD":
-        return f"US$ {val:,.2f}"
-    elif currency == "EUR":
-        return f"€ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    else:
-        return f"{currency} {val:,.2f}"
-
-# Registre o filtro no ambiente do Jinja2 logo após instanciar o templates:
-# templates = Jinja2Templates(directory=TEMPLATES_DIR)
-templates.env.filters["money"] = format_money
+def format_money(value, currency: str = "BRL") -> str:
+    """Compatibilidade: mesmo formato brasileiro do filtro ``money``."""
+    return money(value, currency or "BRL")
