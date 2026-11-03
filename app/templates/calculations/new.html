@@ -689,7 +689,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       <input type="hidden" name="itinerary_json" id="dbmItineraryJson" value="">
       <script type="application/json" id="dbmItineraryInitial">{{ (field_values.get('_itinerary_v1', {}) if field_values is defined else {})|tojson }}</script>
       <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
-      <script defer src="/static/js/flight-itinerary-20261102.js?v=20261102.3"></script>
+      <script defer src="/static/js/flight-itinerary-20261102.js?v=20261102.4"></script>
       <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
 
       <div class="form-section soft segment-scope-panel">
@@ -971,10 +971,20 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       <div id="segmentRows"></div>
     </div>
 
-    <div class="form-grid cols-2">
-      <label>Passageiros pagantes<input type="number" name="passengers" value="{{ base.passengers }}" min="1" max="100" required></label>
+    {% set base_children = base.children|default(0)|int %}
+    <div class="form-grid cols-3 dbm-pax-visible" id="paxSplit" aria-label="Passageiros separados em adultos, crianças e bebês">
+      <label>Adultos pagantes<input type="number" name="adults" id="paxAdults" value="{{ [base.passengers|int - base_children, 1]|max }}" min="1" max="100" required></label>
+      <label>Crianças pagantes<input type="number" name="children" id="paxChildren" value="{{ base_children }}" min="0" max="99"></label>
       <label>Bebês<input type="number" name="babies" value="{{ base.babies }}" min="0" max="100"></label>
     </div>
+    <input type="hidden" name="passengers" id="paxTotal" value="{{ base.passengers }}">
+    <small id="paxTotalHint" class="muted">Passageiros pagantes: {{ base.passengers }}</small>
+    <script>(()=>{
+      const adults=document.getElementById('paxAdults'),kids=document.getElementById('paxChildren');
+      const total=document.getElementById('paxTotal'),hint=document.getElementById('paxTotalHint');
+      const sync=()=>{const n=Math.max(1,(Number(adults.value)||0)+(Number(kids.value)||0));total.value=n;hint.textContent=`Passageiros pagantes: ${n} (adultos + crianças)`};
+      [adults,kids].forEach(input=>input.addEventListener('input',sync));sync();
+    })();</script>
     <div class="notice-card muted compact-note">
       <strong>Bagagens serão definidas no cálculo.</strong><br>
       A quantidade de bagagens fica editável em cada companhia/opção, sem alterar os dados fixos da cotação.

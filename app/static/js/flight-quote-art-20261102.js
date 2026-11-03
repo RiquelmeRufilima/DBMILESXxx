@@ -91,14 +91,17 @@
     const footerStart=Math.max(y+5,height-270);
     line(65,footerStart,1015,footerStart,'#afcede',3);
     const sale=Number(data.sale||0);
-    fill('VALOR À VISTA',67,footerStart+51,'bold 21px Arial','#506f82');
-    fill(money(sale),68,footerStart+110,'bold 48px Arial','#087753');
+    const defined=data.sale!==null&&data.sale!==undefined&&Number.isFinite(Number(data.sale));
+    if(defined){
+      fill('VALOR À VISTA',67,footerStart+51,'bold 21px Arial','#506f82');
+      fill(money(sale),68,footerStart+110,'bold 48px Arial','#087753');
+    }
     const maxChoice=Number(document.getElementById('dbmCompactMaxInstallments')?.value||0);
     const maxRate=typeof window.dbmFlightPaymentPreview==='function'&&maxChoice>1
       ?window.dbmFlightPaymentPreview(maxChoice):null;
     const chosenN=maxRate&&Number.isFinite(maxRate)?maxChoice:Number(data.installments||1);
     const chosenValue=maxRate&&Number.isFinite(maxRate)?maxRate:Number(data.installment_value||0);
-    if(pay.checked && chosenN>1 && chosenValue>0){
+    if(defined && pay.checked && chosenN>1 && chosenValue>0){
       fill(`OU ATÉ ${chosenN}x DE ${money(chosenValue)}`,68,footerStart+151,'bold 26px Arial','#0d598a');
     }
     fill('Valores sujeitos a alteração até a confirmação da reserva.',66,height-49,'20px Arial','#5a7485');
@@ -159,7 +162,7 @@
   document.addEventListener('dbm:commercial-saved',event=>{
     const record=event.detail||{};
     if(String(record.quote_id||'')!==String(data.quote_id||''))return;
-    if(record.removed){data.sale=Number(data.cost||data.sale||0);data.installments=1;data.installment_value=0;}
+    if(record.removed){data.sale=null;data.installments=1;data.installment_value=0;}
     else{
       if(Number(record.sale_value)>0)data.sale=Number(record.sale_value);
       data.installments=Number(record.card_installments||1);

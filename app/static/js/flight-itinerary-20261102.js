@@ -177,7 +177,12 @@
   const bagSelect = form.querySelector('[name="included_bags_per_passenger"]');
   function optionsLike(select,value) {
     if(!select) return '';
-    return [...select.options].map(o=>`<option value="${esc(o.value)}" ${String(o.value)===String(value)?'selected':''}>${esc(o.textContent)}</option>`).join('');
+    const items=[...select.options];
+    // Não perde uma tarifa salva anteriormente, mesmo que tenha sido
+    // personalizada e já não conste da lista atual.
+    const custom=value && !items.some(o=>String(o.value)===String(value))
+      ? `<option value="${esc(value)}" selected>${esc(value)} (salva)</option>` : '';
+    return custom+items.map(o=>`<option value="${esc(o.value)}" ${String(o.value)===String(value)?'selected':''}>${esc(o.textContent)}</option>`).join('');
   }
   function sideConditions(side) {
     const cabin=side.cabin ?? (side.legs[0]?.cabin || globalCabin);
@@ -186,7 +191,7 @@
     return `<div class="dbm-side-conditions">
       <div class="dbm-itinerary-grid dbm-condition-grid">
         <label>Classe<select data-side-field="cabin">${optionsLike(cabinSelect,cabin)}</select></label>
-        <label>Tarifa<input data-side-field="fare" type="text" maxlength="70" value="${esc(fare)}" placeholder="Ex.: Light, Flex, Full"></label>
+        <label>Tarifa<select data-side-field="fare">${optionsLike(fareSelect,fare)}</select></label>
         <label>Bagagem incluída<select data-side-field="included_bags">${optionsLike(bagSelect,bags)}</select></label>
       </div></div>`;
   }
