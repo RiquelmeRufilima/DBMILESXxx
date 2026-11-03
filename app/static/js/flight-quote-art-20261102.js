@@ -14,7 +14,29 @@
   const checkbox=area.querySelector('#dbmArtShowBagPrices');
   const pay=area.querySelector('#dbmArtShowPayments');
   const itin=data.itinerary && typeof data.itinerary==='object'?data.itinerary:{};
-  const sides=Array.isArray(itin.sides)?itin.sides:[];
+  const saved=Array.isArray(data.flight_options)?data.flight_options:[];
+  const preferred=new Map();
+  saved.filter(o=>o&&o.preferred).concat(saved).forEach(o=>{
+    if(o&&o.segment_key&&!preferred.has(o.segment_key))preferred.set(o.segment_key,o);
+  });
+  const baseSides=Array.isArray(itin.sides)?itin.sides:[];
+  const sides=baseSides.map(base=>{
+    const chosen=preferred.get(base.key);
+    if(!chosen)return base;
+    const stops=Array.isArray(chosen.stops)?chosen.stops:[];
+    const codes=[base.origin,...stops,base.destination];
+    const legs=codes.slice(0,-1).map((code,i)=>{
+      const detail=(Array.isArray(chosen.legs)?chosen.legs[i]:null)||{};
+      const previous=(Array.isArray(base.legs)?base.legs[0]:null)||{};
+      return {...detail,origin:code,destination:codes[i+1],partner:previous.partner||data.airline};
+    });
+    if(legs.length===1){
+      if(!legs[0].departure&&chosen.departure_date&&chosen.departure_time)legs[0].departure=chosen.departure_date+'T'+chosen.departure_time;
+      if(!legs[0].arrival&&chosen.arrival_date&&chosen.arrival_time)legs[0].arrival=chosen.arrival_date+'T'+chosen.arrival_time;
+    }
+    return {...base,status:stops.length?'stops':'direct',stops,legs,
+      duration_minutes:chosen.duration_minutes??null,wait_minutes:chosen.wait_minutes||[]};
+  });
   function fill(text,x,y,font,color){ctx.font=font;ctx.fillStyle=color;ctx.fillText(String(text||''),x,y);}
   function line(x1,y1,x2,y2,color='#d9e7f3',w=2){ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
   function wrap(text,x,y,maxWidth,font,color,lineHeight=31,maxLines=2){
@@ -64,7 +86,7 @@
           y=wrap(label,108,y,885,'19px Arial','#527c91',27,2)+4;
           const extraQty=Math.max(0,Number(data.extra_bags_quantity||0));
           const where=itin.bags_applies_to||'all';
-          const showExtra=extraQty>0&&checkbox.checked&&(where==='all'?i===0:where===side.key);
+          const showExtra=extraQty>0&&checkbox.checked&&(where==='all'||where===side.key);
           if(showExtra){
             const extraLabel=where==='all'&&sides.length>1
               ?`+ ${extraQty} bagagem(ns) adicional(is) na cotação (sentido não especificado)`
@@ -96,7 +118,7 @@
       fill('VALOR À VISTA',67,footerStart+51,'bold 21px Arial','#506f82');
       fill(money(sale),68,footerStart+110,'bold 48px Arial','#087753');
     }
-    const maxChoice=Number(document.getElementById('dbmCompactMaxInstallments')?.value||0);
+    const maxChoice=Number(document.getElementById('dbmMessageMaxInstallments')?.value||document.getElementById('dbmCompactMaxInstallments')?.value||0);
     const maxRate=typeof window.dbmFlightPaymentPreview==='function'&&maxChoice>1
       ?window.dbmFlightPaymentPreview(maxChoice):null;
     const chosenN=maxRate&&Number.isFinite(maxRate)?maxChoice:Number(data.installments||1);

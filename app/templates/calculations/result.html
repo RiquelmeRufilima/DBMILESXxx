@@ -255,21 +255,31 @@
   <div class="dbm-share-options" aria-label="Opções da mensagem de cotação">
     <div class="dbm-message-new-settings" id="dbmMessageSettings" aria-label="Configurações opcionais da mensagem">
       <div class="dbm-message-heading">⚙️ Configurações da mensagem</div>
-      <label class="dbm-message-max">Máximo de parcelas para o cliente
-        <select id="dbmMessageMaxInstallments" aria-label="Máximo de parcelas para o cliente">
-          <option value="3">3x</option><option value="6">6x</option><option value="10">10x</option><option value="12" selected>12x</option><option value="15">15x</option>
-        </select>
-      </label>
-      <label><input type="checkbox" id="dbmMessageShowAllInstallments"> Mostrar todas as parcelas até o máximo escolhido</label>
-      <label><input type="checkbox" id="dbmMessageShowTimes"> Mostrar horários e duração (se informados)</label>
-      <label><input type="checkbox" id="dbmMessageShowFare"> Mostrar tarifa e classe (se informadas)</label>
-      <fieldset id="dbmBaggageModes"><legend>Como mostrar as bagagens</legend>
-        <label><input type="radio" name="dbmMessagePriceMode" value="total" checked> Quantidade total de bagagens</label>
-        <label><input type="radio" name="dbmMessagePriceMode" value="per_person"> Bagagem por passageiro</label>
-        <label><input type="radio" name="dbmMessagePriceMode" value="per_leg"> Bagagem por trecho</label>
-        <label><input type="radio" name="dbmMessagePriceMode" value="per_person_leg"> Por passageiro e por trecho</label>
-      </fieldset>
-      <small>As bagagens incluem a franquia da tarifa mais as adicionais. Conexões não duplicam bagagens.</small>
+      <div class="dbm-msg-section" aria-label="Parcelamento ao cliente">
+        <div class="dbm-msg-section-title">💳 Parcelamento para o cliente</div>
+        <label class="dbm-msg-max" for="dbmMessageMaxInstallments"><span>Máximo de parcelas</span>
+          <select id="dbmMessageMaxInstallments" aria-label="Máximo de parcelas para o cliente">
+            <option value="3">3x</option><option value="6">6x</option><option value="10">10x</option><option value="12" selected>12x</option><option value="15">15x</option>
+          </select>
+        </label>
+        <label class="dbm-msg-row" for="dbmMessageShowAllInstallments"><input type="checkbox" id="dbmMessageShowAllInstallments"><span>Mostrar todas as parcelas até o máximo escolhido</span></label>
+      </div>
+      <div class="dbm-msg-section" aria-label="Informações opcionais">
+        <div class="dbm-msg-section-title">✈️ Detalhes opcionais do voo</div>
+        <label class="dbm-msg-row" for="dbmMessageShowTimes"><input type="checkbox" id="dbmMessageShowTimes"><span>Mostrar horários e duração, quando informados</span></label>
+        <label class="dbm-msg-row" for="dbmMessageShowFare"><input type="checkbox" id="dbmMessageShowFare"><span>Mostrar tarifa e classe, quando informadas</span></label>
+      </div>
+      <div class="dbm-msg-section" style="grid-column:1/-1" aria-label="Bagagens na mensagem">
+        <div class="dbm-msg-section-title">🧳 Como mostrar as bagagens</div>
+        <fieldset id="dbmBaggageModes">
+          <legend class="sr-only">Formato da bagagem</legend>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="total" checked><span>Quantidade total de bagagens</span></label>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="per_person"><span>Bagagem por passageiro</span></label>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="per_leg"><span>Bagagem por trecho</span></label>
+          <label class="dbm-msg-row"><input type="radio" name="dbmMessagePriceMode" value="per_person_leg"><span>Por passageiro e por trecho</span></label>
+        </fieldset>
+      </div>
+      <p class="dbm-msg-note">A franquia da tarifa e as bagagens adicionais são consideradas juntas. Uma conexão não cria bagagem adicional. Sem bagagem informada, essa escolha fica oculta.</p>
     </div>
     <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
     <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
@@ -319,13 +329,14 @@
        'name':quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name,
        'origin':quote.origin,'destination':quote.destination,
        'airline':quote.airline.name if quote.airline else '',
-       'itinerary':inputs.get('_itinerary_v1', {}), 'extra_bags_quantity':quote.bags,
+       'itinerary':inputs.get('_itinerary_v1', {}), 'flight_options':quote.flight_details, 'extra_bags_quantity':quote.bags,
        'sale':quote.commercial.sale_value if quote.commercial and quote.commercial.profit_value is not none else none,
        'cost':quote.total,
        'installments':quote.commercial.card_installments if quote.commercial else 1,
        'installment_value':quote.commercial.card_installment_value if quote.commercial else 0}|tojson }}</script>
   <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
-  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261102.4"></script>
+  <link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
+  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261103.7"></script>
 </section>
 <style>
 .dbm-message-new-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;padding:12px;border:1px solid #365e7d;border-radius:11px;background:rgba(21,67,101,.2)}
@@ -456,6 +467,16 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  let itineraryData={};
  try { const raw=JSON.parse(includedBags||'{}');itineraryData=raw._itinerary_v1||{}; } catch(_){}
  const itinerarySides=Array.isArray(itineraryData.sides)?itineraryData.sides:[];
+ const availableFlightOptions={{ (quote.flight_details or [])|tojson }};
+ function chosenFlightOptions(){
+   const seen=new Set(), answer=[];
+   availableFlightOptions.filter(f=>f&&f.preferred).concat(availableFlightOptions).forEach(f=>{
+     if(!f||seen.has(f.segment_key))return;
+     seen.add(f.segment_key);answer.push(f);
+   });
+   return answer;
+ }
+
  const bagModeBox=document.getElementById('dbmBaggageModes');
  const saleKnown=()=>typeof profitDefined!=='undefined'?!!profitDefined:{{ (quote.commercial is not none and quote.commercial.profit_value is not none)|tojson }};
  const bagQty=n=>`${n} ${n===1?'bagagem de 23kg inclusa':'bagagens de 23kg inclusas'}`;
@@ -470,25 +491,27 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      const n=Number(s.included_bags);
      return s.included_bags==null||s.included_bags===''?fallback:(Number.isFinite(n)&&n>0?n:0);
    });
-   // A mesma mala na ida e na volta não é duas malas distintas.
-   const baseIncluded=Math.max(fallback,...franchisePerSide)*paid;
-   const total=baseIncluded+added;
+   // Percurso completo: o mesmo adicional em cada SENTIDO principal,
+   // nunca em cada conexão. Apenas apresentação; não muda o custo calculado.
+   const scope=String(itineraryData.bags_applies_to||'all');
+   const extraCount=scope==='all'?added*segments.length:(segments.some(s=>s.key===scope)?added:0);
+   const baseIncluded=franchisePerSide.reduce((sum,bags)=>sum+bags*paid,0);
+   const total=baseIncluded+extraCount;
    if(bagModeBox)bagModeBox.hidden=total===0;
    if(total===0)return '';
    const line=txt=>`✅ +${txt}\n`;
    if(mode==='total')return line(bagQty(total));
    if(mode==='per_person'){
-     const base=Math.max(fallback,...franchisePerSide);
-     return (base>0?line(`${bagQty(base)} por passageiro`):'')+
-       (added>0?line(`${bagQty(added)} adicionais na cotação`):'');
+     const base=franchisePerSide.reduce((sum,bags)=>sum+bags,0);
+     return (base>0?line(`${bagQty(base)} por passageiro no percurso`):'')+
+       (extraCount>0?line(`${bagQty(extraCount)} adicionais no percurso`):'');
    }
-   const scope=String(itineraryData.bags_applies_to||'all');
    const labelOf=(side,i)=>side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`;
    const lines=[];
    segments.forEach((side,i)=>{
      const included=franchisePerSide[i];
-     // 'all' representa uma quantidade no percurso inteiro, não uma cópia por conexão.
-     const extras=scope!=='all'&&scope===side.key?added:0;
+     // 'all' representa a mesma quantidade EM CADA SENTIDO principal.
+     const extras=(scope==='all'||scope===side.key)?added:0;
      if(included*paid+extras===0)return;
      const label=labelOf(side,i);
      if(mode==='per_person_leg'){
@@ -498,7 +521,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
        lines.push(line(`${label}: ${bagQty(included*paid+extras)}`).trimEnd());
      }
    });
-   if(scope==='all'&&added>0)lines.push(line(`Percurso completo: ${bagQty(added)} adicionais`).trimEnd());
+
    return lines.length?lines.join('\n')+'\n':'';
  }
  function itineraryExtraDetails(){
@@ -514,7 +537,24 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      }
    }
    if(showTimes.checked){
-     itinerarySides.forEach((side,i)=>{
+     const selected=chosenFlightOptions();
+     const keysWithSchedule=new Set();
+     selected.forEach((option,i)=>{
+       const legs=Array.isArray(option.legs)?option.legs:[];
+       const hasDates=option.departure_date||option.arrival_date||legs.some(l=>l.departure||l.arrival);
+       if(!hasDates)return;
+       keysWithSchedule.add(option.segment_key);
+       const title=option.label||`Trecho ${i+1}`;
+       const format=v=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v||'')?v.slice(8,10)+'/'+v.slice(5,7)+' '+v.slice(11,16):v||'—';
+       const stops=Array.isArray(option.stops)?option.stops:[];
+       text+=`🕒 ${title}${stops.length?' • Via '+stops.join(' / '):' • Direto'}:\n`;
+       const filled=legs.filter(l=>l.departure||l.arrival);
+       if(filled.length){filled.forEach(l=>text+=`  ${l.origin||'?'} → ${l.destination||'?'}: ${format(l.departure)} → ${format(l.arrival)}\n`);}
+       else text+=`  ${option.origin||'?'} → ${option.destination||'?'}: ${option.departure_date||''} ${option.departure_time||''} → ${option.arrival_date||''} ${option.arrival_time||''}\n`;
+       if(Number.isInteger(option.duration_minutes))text+=`⏱️ Duração total: ${Math.floor(option.duration_minutes/60)}h${String(option.duration_minutes%60).padStart(2,'0')}\n`;
+       if(Array.isArray(option.wait_minutes)&&option.wait_minutes.length&&option.wait_minutes.every(Number.isInteger))text+=`⏳ Conexão: ${option.wait_minutes.map(m=>Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')).join(' • ')}\n`;
+     });
+     itinerarySides.filter(side=>!keysWithSchedule.has(side.key)).forEach((side,i)=>{
        const legs=Array.isArray(side.legs)?side.legs:[];
        const head=side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`;
        const filled=legs.filter(leg=>leg.departure||leg.arrival);

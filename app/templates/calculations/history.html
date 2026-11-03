@@ -822,6 +822,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
 }
 {% endblock %}
 {% block content %}
+<link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
 {% macro option_price(quote) -%}
   {% set c = quote.commercial %}
   {% set has_profit = c and (c.profit_value or 0) > 0 %}
@@ -1109,6 +1110,15 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
                   </div>
                   {% endif %}
                   {{ option_saved_details(quote) }}
+                  {% if quote.flight_details %}
+                  <details class="dbm-saved-flight-options" aria-label="Alternativas de horários desta companhia">
+                    <summary>✈️ {{ quote.flight_details|length }} opção(ões) de horário · mesmo valor</summary>
+                    {% for o in quote.flight_details %}
+                    <div class="dbm-flight-opt-row"><span>{{ o.label }}{% if o.preferred %} ✓{% endif %}{% if o.stops %} · Via {{ o.stops|join(' / ') }}{% else %} · Direto{% endif %}</span>
+                      <small>{{ o.departure_date }} {{ o.departure_time }} → {{ o.arrival_date }} {{ o.arrival_time }}{% if o.duration_minutes is not none %} · {{ o.duration_minutes // 60 }}h{{ '%02d'|format(o.duration_minutes % 60) }}{% endif %}</small></div>
+                    {% endfor %}
+                  </details>
+                  {% endif %}
                   {% set bag_known = quote.included_bags_per_passenger is not none and quote.included_bags_per_passenger|string != '' %}
                   {% set bag_per_person = quote.included_bags_per_passenger|int if bag_known else 0 %}
                   {% set bag_included = bag_per_person * (quote.passengers|int) %}

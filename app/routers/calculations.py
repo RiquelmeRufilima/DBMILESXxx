@@ -1607,8 +1607,64 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
         arrival_date = _clean_date_value(item.get("arrival_date"))
         arrival_time = _clean_time_value(item.get("arrival_time"))
 
-        # Todos os campos são opcionais; uma linha totalmente vazia não é salva.
-        if not any([departure_date, departure_time, arrival_date, arrival_time]):
+        # Cada alternativa pertence ao MESMO cálculo e à MESMA companhia.
+        # As conexões e horários são metadados; não alteram o preço nem bagagens.
+        raw_stops = item.get("stops") if isinstance(item.get("stops"), list) else []
+        stops = []
+        for raw_stop in raw_stops[:4]:
+            code = _clean_code(raw_stop)
+            if code and re.fullmatch(r"[A-Z]{3}", code) and code not in (segment["origin"], segment["destination"]) and code not in stops:
+                stops.append(code)
+        airports = [segment["origin"], *stops, segment["destination"]]
+        raw_legs = item.get("legs") if isinstance(item.get("legs"), list) else []
+        normalized_legs = []
+        valid_times = bool(raw_legs and len(raw_legs) == len(airports) - 1)
+        for leg_index in range(len(airports) - 1):
+            src = raw_legs[leg_index] if leg_index < len(raw_legs) and isinstance(raw_legs[leg_index], dict) else {}
+            dep = str(src.get("departure") or "")[:16]
+            arr = str(src.get("arrival") or "")[:16]
+            tz_dep = str(src.get("origin_tz") or "")[:6]
+            tz_arr = str(src.get("destination_tz") or "")[:6]
+            try:
+                dep = datetime.strptime(dep, "%Y-%m-%dT%H:%M").strftime("%Y-%m-%dT%H:%M") if dep else ""
+                arr = datetime.strptime(arr, "%Y-%m-%dT%H:%M").strftime("%Y-%m-%dT%H:%M") if arr else ""
+            except ValueError:
+                dep, arr = "", ""
+            if not re.fullmatch(r"[+-](?:0\d|1[0-4]):(?:00|30|45)", tz_dep): tz_dep = ""
+            if not re.fullmatch(r"[+-](?:0\d|1[0-4]):(?:00|30|45)", tz_arr): tz_arr = ""
+            normalized_legs.append({"origin": airports[leg_index], "destination": airports[leg_index + 1],
+                                    "departure": dep, "arrival": arr, "origin_tz": tz_dep, "destination_tz": tz_arr})
+            if not dep or not arr or not tz_dep or not tz_arr: valid_times = False
+        def utc(schedule_time, offset):
+            if not schedule_time or not offset:return None
+            dt = datetime.strptime(schedule_time, "%Y-%m-%dT%H:%M")
+            sign = 1 if offset[0] == "+" else -1
+            minutes = int(offset[1:3]) * 60 + int(offset[4:6])
+            return dt - timedelta(minutes=sign * minutes)
+        waits = []
+        duration = None
+        if valid_times:
+            for leg_index, leg in enumerate(normalized_legs):
+                dep = utc(leg["departure"], leg["origin_tz"])
+                arr = utc(leg["arrival"], leg["destination_tz"])
+                if arr is None or dep is None or arr < dep: valid_times = False
+                if leg_index:
+                    prev = normalized_legs[leg_index - 1]
+                    prev_arr = utc(prev["arrival"], prev["destination_tz"])
+                    wait = int((dep - prev_arr).total_seconds() // 60) if dep and prev_arr else -1
+                    waits.append(wait if wait >= 0 else None)
+                    if wait < 0:valid_times = False
+            if valid_times:
+                duration = int((utc(normalized_legs[-1]["arrival"], normalized_legs[-1]["destination_tz"]) -
+                                utc(normalized_legs[0]["departure"], normalized_legs[0]["origin_tz"])).total_seconds() // 60)
+        if normalized_legs and normalized_legs[0]["departure"]:
+            departure_date = normalized_legs[0]["departure"][:10]
+            departure_time = normalized_legs[0]["departure"][11:16]
+        if normalized_legs and normalized_legs[-1]["arrival"]:
+            arrival_date = normalized_legs[-1]["arrival"][:10]
+            arrival_time = normalized_legs[-1]["arrival"][11:16]
+        if not any([departure_date, departure_time, arrival_date, arrival_time, stops,
+                    any(leg.get("departure") or leg.get("arrival") for leg in normalized_legs)]):
             continue
         if not arrival_date and departure_date and arrival_time:
             arrival_date = departure_date
@@ -1623,7 +1679,23 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
             "departure_time": departure_time,
             "arrival_date": arrival_date,
             "arrival_time": arrival_time,
+            "stops": stops,
+            "legs": normalized_legs,
+            "duration_minutes": duration,
+            "wait_minutes": waits if valid_times else [],
+            "preferred": bool(item.get("preferred")),
         })
+    # Uma única opção destacada por sentido. Cotações antigas usam a primeira.
+    seen = set()
+    for row in normalized:
+        key = row["segment_key"]
+        if key not in seen:
+            chosen = next((opt for opt in normalized if opt["segment_key"] == key and opt["preferred"]), None)
+            if chosen is None:chosen = next(opt for opt in normalized if opt["segment_key"] == key)
+            chosen["preferred"] = True
+            seen.add(key)
+        if row is not next((opt for opt in normalized if opt["segment_key"] == key and opt["preferred"]), None):
+            row["preferred"] = False
     return normalized
 
 
@@ -1670,6 +1742,12 @@ def _flight_detail_chips(details: Any) -> list[str]:
         schedule = departure
         if arrival:
             schedule = f"{departure} → {arrival}" if departure else f"Chegada {arrival}"
+        if item.get("preferred"): label += " ✓"
+        if item.get("stops"):
+            label += " via " + " / ".join(item["stops"])
+        if isinstance(item.get("duration_minutes"), int):
+            minutes = item["duration_minutes"]
+            label += f" • {minutes // 60}h{minutes % 60:02d}"
         chips.append(f"{label} • {schedule}" if schedule else label)
     return chips
 
@@ -3837,7 +3915,15 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     await publish_quote_activity(user.company_id, payload)
     request.session["active_quote_group_id"] = group.id
     flash(request, "Opção atualizada dentro da cotação principal." if option_id else "Opção calculada e adicionada à cotação principal. Você pode trocar o card da companhia e calcular outra opção.", "success")
-    return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
+    # Salvar: permanecer no formulário de edição com o ID recém salvo.
+    # Salvar e fechar: voltar ao cartão de opções do mesmo grupo.
+    save_destination = str(form.get("save_destination") or "stay").strip()
+    if save_destination == "close":
+        return RedirectResponse(f"/calculations/group/{group.id}", status_code=303)
+    return RedirectResponse(
+        f"/calculations/new?group_id={group.id}&variant_key={variant_key}&edit_id={quote.id}&calc=1&saved=1",
+        status_code=303,
+    )
 
 
 @router.get("/group/{group_id}")

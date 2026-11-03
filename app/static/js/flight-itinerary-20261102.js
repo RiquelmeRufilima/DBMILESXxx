@@ -101,14 +101,11 @@
   datesCard.open = true;
   const schedule = document.createElement('details');
   schedule.className = 'dbm-itinerary-schedules dbm-reference-schedules';
-  schedule.open = true;
-  schedule.innerHTML = '<summary>◢ &nbsp; Horários do voo (opcionais)</summary><div class="dbm-reference-timing" id="dbmItinerarySchedules"></div>';
-  if (note) note.closest('.dbm-itinerary-observation').insertAdjacentElement('afterend', schedule);
-  else datesCard.insertAdjacentElement('afterend', schedule);
-  const alternatives = document.createElement('div');
-  alternatives.className = 'dbm-reference-alternatives';
-  schedule.append(alternatives);
-  alternatives.append(flightCard);
+  schedule.open = false;
+  schedule.innerHTML = '<summary>▸ Editar horários anteriores (compatibilidade, opcional)</summary><div class="dbm-reference-timing" id="dbmItinerarySchedules"></div>';
+  // Uma única área de horários. Mantém os dados antigos editáveis, recolhidos,
+  // dentro do painel das novas opções, sem exibir dois formulários concorrentes.
+  flightPanel.append(schedule);
   const schedulesBox = schedule.querySelector('#dbmItinerarySchedules');
 
   const partnerGrid = partnerArea.querySelector('.partner-segment-grid');
@@ -330,14 +327,33 @@
     activeSegments().forEach((seg,i)=>{const input=partnerGrid?.querySelector(`[data-segment="${i+1}"]`);const s=model.sides[seg.key];if(input&&s?.legs?.[0]?.partner!==undefined&&input.value!==s.legs[0].partner)input.value=s.legs[0].partner;});
     hidden.value=JSON.stringify({version:2,sides:activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean),bags_applies_to:model.bags_applies_to,charge_extra_bags:false});
   }
+  const suggestedFareBags=(fare)=>{
+    const key=String(fare||'').toLowerCase().trim();
+    const company=(document.querySelector('.calc-selected-airline h2')?.textContent||'').toLowerCase();
+    if(key==='business'&&(company.includes('gol')||company.includes('smiles')))return '2';
+    const map={'light':'0','sem bagagem':'0','azul':'0','basic':'0',
+      'com bagagem':'1','classic':'1','flex':'1','plus':'1','standard':'1','full':'1',
+      'mais azul':'1','azul super':'2','business':'3',
+      'premium business':'2','premium business full':'2','turbinada':'1'};
+    return Object.prototype.hasOwnProperty.call(map,key)?map[key]:null;
+  };
   function topologyChanged(target,side,root){
     if(['cabin','fare','included_bags'].includes(target.dataset.sideField)){
       side[target.dataset.sideField]=target.value;
+      if(target.dataset.sideField==='fare'){
+        const hint=suggestedFareBags(target.value);
+        if(hint!==null){
+          side.included_bags=hint;
+          const select=root.querySelector('[data-side-field="included_bags"]');
+          if(select)select.value=hint;
+        }
+      }
       // Mantém os inputs originais compatíveis com os cálculos antigos.
       const first=activeSegments()[0];
       if(first?.key===side.key){
         const master=target.dataset.sideField==='cabin'?cabinSelect:target.dataset.sideField==='fare'?fareSelect:bagSelect;
         if(master && [...master.options].some(o=>o.value===target.value)) master.value=target.value;
+        if(target.dataset.sideField==='fare' && bagSelect && [...bagSelect.options].some(o=>o.value===side.included_bags)) bagSelect.value=side.included_bags;
       }
       saveHidden();return true;}
     if(target.dataset.sideField==='status'){

@@ -4,6 +4,7 @@
 {% block eyebrow %}MOTOR DE CÁLCULO{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/css/quote-new-ux.css?v=20261029">
+<link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
 <style>
 /* V5.9.5 - botões bonitos de escopo, forçado nesta tela para evitar cache antigo */
 .segment-scope-panel{border:1px solid rgba(93,188,255,.18)!important;background:linear-gradient(135deg,rgba(44,118,255,.08),rgba(19,197,144,.055))!important;border-radius:24px!important;}
@@ -689,7 +690,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       <input type="hidden" name="itinerary_json" id="dbmItineraryJson" value="">
       <script type="application/json" id="dbmItineraryInitial">{{ (field_values.get('_itinerary_v1', {}) if field_values is defined else {})|tojson }}</script>
       <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
-      <script defer src="/static/js/flight-itinerary-20261102.js?v=20261102.4"></script>
+      <script defer src="/static/js/flight-itinerary-20261102.js?v=20261103.8"></script>
       <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
 
       <div class="form-section soft segment-scope-panel">
@@ -829,14 +830,14 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
             </select>
           </label>
           <label>Tarifa
-            <select name="fare_brand">
+            <select name="fare_brand" data-fare-airline="{{ airline_name_l|e }}">
               {% set calc_key_l = (selected_type.legacy_key|lower) if selected_type and selected_type.legacy_key else '' %}
               {% if 'latam' in airline_name_l %}
-                {% set fares = ['Light','Standard','Full','Premium Business Full'] %}
+                {% set fares = ['Light','Plus','Standard','Full','Premium Business','Premium Business Full'] %}
               {% elif 'smiles' in airline_name_l or calc_key_l == 'gol_smiles' %}
-                {% set fares = ['Light','Turbinada'] %}
+                {% set fares = ['Light','Classic','Flex','Business','Turbinada'] %}
               {% elif 'gol' in airline_name_l or calc_key_l == 'gol_desagio' %}
-                {% set fares = ['Light','Classic','Flex'] %}
+                {% set fares = ['Light','Classic','Flex','Business'] %}
               {% elif 'azul' in airline_name_l or 'tudoazul' in airline_name_l or 'tudo azul' in airline_name_l %}
                 {% if 'pelo mundo' in airline_name_l or 'pelomundo' in calc_key_l or 'liminar' in airline_name_l %}
                   {% set fares = ['Sem bagagem','Com bagagem'] %}
@@ -845,6 +846,9 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
                 {% endif %}
               {% else %}
                 {% set fares = ['Com bagagem','Sem bagagem'] %}
+              {% endif %}
+              {% if meta.get('fare_brand') and meta.get('fare_brand') not in fares %}
+                <option value="{{ meta.get('fare_brand')|e }}" selected>{{ meta.get('fare_brand')|e }} (salva)</option>
               {% endif %}
               {% for fare in fares %}
                 <option value="{{ fare }}" {% if meta.get('fare_brand') == fare %}selected{% endif %}>{{ fare }}</option>
@@ -916,7 +920,8 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
 
       <div class="sticky-form-actions">
         <a class="ghost-button button-open" href="/calculations/group/{{ group.id }}">Ver opções salvas</a>
-        <button class="primary-button large button-save" type="submit" id="saveCalculationButton"><svg class="ui-icon"><use href="#icon-calculator"></use></svg><span id="saveCalculationLabel">{{ 'Salvar alteração da opção' if option_id else 'Calcular e salvar opção' }}</span></button>
+        <button class="primary-button large button-save" type="submit" id="saveCalculationButton" name="save_destination" value="stay"><svg class="ui-icon"><use href="#icon-calculator"></use></svg><span id="saveCalculationLabel">{{ 'Salvar alteração da opção' if option_id else 'Calcular e salvar opção' }}</span></button>
+        <button class="secondary-button large" type="submit" name="save_destination" value="close">Salvar e fechar</button>
       </div>
     </form>
     {% else %}
@@ -1213,43 +1218,118 @@ document.addEventListener('person-selected', function(event) {
     return [{key, label:segmentLabel(key,0), route:''}];
   }
   function markTouched(){ if(touchedInput) touchedInput.value = '1'; }
+  const zoneValues = ['', '-05:00','-04:00','-03:00','-02:00','-01:00','+00:00','+01:00','+02:00','+03:00','+04:00','+05:00','+05:30','+06:00','+07:00','+08:00','+09:00','+10:00','+11:00','+12:00','+13:00'];
+  function zoneSelect(value, field){
+    const values = value && !zoneValues.includes(value) ? [...zoneValues,value] : zoneValues;
+    return `<select data-leg-field="${field}">${values.map(v=>`<option value="${esc(v)}" ${v===value?'selected':''}>${v?'UTC'+v:'Fuso horário (opcional)'}</option>`).join('')}</select>`;
+  }
+  function optionStages(row,detail,choice){
+    const count = Math.max(0, Math.min(4,Number(detail.stop_count || detail.stops?.length || 0)));
+    const stops = Array.isArray(detail.stops) ? detail.stops.slice(0,count) : [];
+    while(stops.length<count)stops.push('');
+    const route = (choice?.route || '').split('→').map(v=>v.trim());
+    const airports = [route[0]||'Origem',...stops.map(v=>v||'Parada'),route[1]||'Destino'];
+    const legs = Array.isArray(detail.legs)?detail.legs:[];
+    const fields = airports.slice(0,-1).map((from,i)=>{
+      const leg=legs[i]||{};
+      return `<section class="dbm-flight-option-leg" data-option-leg="${i}">
+        <strong>✈️ Etapa ${i+1} • ${esc(from)} → ${esc(airports[i+1])}</strong>
+        <div class="dbm-flight-leg-fields">
+          <label>Saída<input type="datetime-local" data-leg-field="departure" value="${esc(leg.departure||'')}"></label>
+          <label>Fuso saída${zoneSelect(leg.origin_tz||'','origin_tz')}</label>
+          <label>Chegada<input type="datetime-local" data-leg-field="arrival" value="${esc(leg.arrival||'')}"></label>
+          <label>Fuso chegada${zoneSelect(leg.destination_tz||'','destination_tz')}</label>
+        </div>
+      </section>`;
+    }).join('');
+    return `<details class="dbm-flight-option-more" ${detail._expanded||count>0?'open':''}>
+       <summary>🛫 Conexões, horários das etapas e fusos (opcionais)</summary>
+       <div class="dbm-flight-option-stop-grid">
+         <label>Quantidade de paradas desta opção<select data-detail-field="stop_count">${Array.from({length:5},(_,i)=>`<option value="${i}" ${i===count?'selected':''}>${i===0?'Direto':i+' parada(s)'}</option>`).join('')}</select></label>
+         ${stops.map((stop,i)=>`<label>Parada ${i+1} • aeroporto IATA<input data-stop-index="${i}" maxlength="3" value="${esc(stop)}" placeholder="Ex.: BSB"></label>`).join('')}
+       </div>
+       <div class="dbm-flight-option-legs">${fields}</div>
+       <div class="dbm-flight-option-preview" data-option-preview></div>
+     </details>`;
+  }
   function collectRows(){
-    return Array.from(rowsBox.querySelectorAll('[data-flight-detail-row]')).map(row => ({
-      segment_key:row.querySelector('[data-detail-field="segment_key"]')?.value || '',
-      departure_date:row.querySelector('[data-detail-field="departure_date"]')?.value || '',
-      departure_time:row.querySelector('[data-detail-field="departure_time"]')?.value || '',
-      arrival_date:row.querySelector('[data-detail-field="arrival_date"]')?.value || '',
-      arrival_time:row.querySelector('[data-detail-field="arrival_time"]')?.value || ''
-    })).filter(item => item.departure_date || item.departure_time || item.arrival_date || item.arrival_time);
+    return Array.from(rowsBox.querySelectorAll('[data-flight-detail-row]')).map(row => {
+      const value = field => row.querySelector(`[data-detail-field="${field}"]`)?.value || '';
+      const stops = Array.from(row.querySelectorAll('[data-stop-index]')).map(el=>el.value.trim().toUpperCase());
+      const stages = Array.from(row.querySelectorAll('[data-option-leg]')).map(stage=>{
+        const field = key=>stage.querySelector(`[data-leg-field="${key}"]`)?.value || '';
+        return {departure:field('departure'),arrival:field('arrival'),origin_tz:field('origin_tz'),destination_tz:field('destination_tz')};
+      });
+      return {segment_key:value('segment_key'),departure_date:value('departure_date'),departure_time:value('departure_time'),
+        arrival_date:value('arrival_date'),arrival_time:value('arrival_time'),stops,
+        stop_count:Number(value('stop_count'))||0,preferred:!!row.querySelector('[data-detail-preferred]')?.checked,
+        legs:stages};
+    });
   }
-  function syncHidden(){
-    hiddenInput.value = JSON.stringify(collectRows());
-  }
-  function rowHtml(detail, index){
-    const choices = segmentChoices();
-    const chosen = choices.some(choice => choice.key === detail.segment_key) ? detail.segment_key : (choices[0]?.key || 'outbound');
-    const options = choices.map(choice => `<option value="${esc(choice.key)}" ${choice.key===chosen?'selected':''}>${esc(choice.label)}${choice.route ? ` • ${esc(choice.route)}` : ''}</option>`).join('');
+  function syncHidden(){hiddenInput.value=JSON.stringify(collectRows());}
+  function rowHtml(detail,index,number){
+    const choices=segmentChoices();
+    const chosen=choices.some(c=>c.key===detail.segment_key)?detail.segment_key:(choices[0]?.key||'outbound');
+    const choice=choices.find(c=>c.key===chosen);
+    const options=choices.map(c=>`<option value="${esc(c.key)}" ${c.key===chosen?'selected':''}>${esc(c.label)}${c.route?' • '+esc(c.route):''}</option>`).join('');
     return `<article class="flight-detail-row" data-flight-detail-row>
-      <div class="flight-detail-row-head"><span>Opção ${index+1}</span><small>Todos os campos são opcionais</small><button type="button" class="ghost-button danger tiny-button" data-remove-flight-detail>Excluir</button></div>
+      <div class="flight-detail-row-head"><span>Opção ${number} • ${esc(choice?.label||'Voo')}</span>
+       <small>Mesma companhia, tarifa e preço deste cálculo</small>
+       <label class="dbm-flight-preferred"><input type="radio" data-detail-preferred name="dbmPreferredFlight_${esc(chosen)}" ${detail.preferred?'checked':''}>Destacar</label>
+       <button type="button" class="ghost-button danger tiny-button" data-remove-flight-detail>Excluir</button></div>
       <div class="flight-detail-grid">
         <label>Trecho<select data-detail-field="segment_key">${options}</select></label>
-        <label>Data de embarque<input type="date" data-detail-field="departure_date" value="${esc(detail.departure_date || '')}"></label>
-        <label>Hora de embarque<input type="time" data-detail-field="departure_time" value="${esc(detail.departure_time || '')}"></label>
-        <label>Data de desembarque<input type="date" data-detail-field="arrival_date" value="${esc(detail.arrival_date || '')}"></label>
-        <label>Hora de desembarque<input type="time" data-detail-field="arrival_time" value="${esc(detail.arrival_time || '')}"></label>
-      </div>
+        <label>Data de embarque<input type="date" data-detail-field="departure_date" value="${esc(detail.departure_date||'')}"></label>
+        <label>Hora de embarque<input type="time" data-detail-field="departure_time" value="${esc(detail.departure_time||'')}"></label>
+        <label>Data de desembarque<input type="date" data-detail-field="arrival_date" value="${esc(detail.arrival_date||'')}"></label>
+        <label>Hora de desembarque<input type="time" data-detail-field="arrival_time" value="${esc(detail.arrival_time||'')}"></label>
+      </div>${optionStages(null,detail,choice)}
     </article>`;
   }
+  function selectedByScope(items){
+    const chosen = new Map();
+    for(const item of items){if(item.preferred && !chosen.has(item.segment_key))chosen.set(item.segment_key,item);}
+    for(const item of items){if(!chosen.has(item.segment_key))chosen.set(item.segment_key,item);}
+    items.forEach(item=>item.preferred=chosen.get(item.segment_key)===item);
+    return items;
+  }
+  function previewRows(){
+    rowsBox.querySelectorAll('[data-flight-detail-row]').forEach(row=>{
+      const el=row.querySelector('[data-option-preview]');if(!el)return;
+      const stages=Array.from(row.querySelectorAll('[data-option-leg]')).map(stage=>{
+        const val=key=>stage.querySelector(`[data-leg-field="${key}"]`)?.value||'';
+        return {dep:val('departure'),arr:val('arrival'),depTz:val('origin_tz'),arrTz:val('destination_tz')};
+      });
+      const unix=(v,tz)=>{
+        if(!v||!tz||!/^[-+]\d\d:\d\d$/.test(tz))return null;
+        const ms=Date.parse(v+':00Z');
+        const delta=(tz[0]==='+'?1:-1)*(Number(tz.slice(1,3))*60+Number(tz.slice(4,6)))*60000;
+        return Number.isFinite(ms)?ms-delta:null;
+      };
+      const fmt=n=>Math.floor(n/60)+'h'+String(n%60).padStart(2,'0');
+      if(!stages.length){el.textContent='';return;}
+      const first=unix(stages[0].dep,stages[0].depTz),last=unix(stages.at(-1).arr,stages.at(-1).arrTz);
+      if(first===null||last===null||last<first){el.textContent='Duração opcional: preencha as datas, horas e fusos para calcular.';return;}
+      const waits=[];let valid=true;
+      for(let i=0;i<stages.length;i++){
+        const a=unix(stages[i].dep,stages[i].depTz),b=unix(stages[i].arr,stages[i].arrTz);
+        if(a===null||b===null||b<a)valid=false;
+        if(i){const prev=unix(stages[i-1].arr,stages[i-1].arrTz);const wait=a!==null&&prev!==null?Math.round((a-prev)/60000):-1;waits.push(wait);if(wait<0)valid=false;}
+      }
+      el.textContent=valid?`⏱️ Duração total ${fmt(Math.round((last-first)/60000))}${waits.length?' • Espera(s): '+waits.map(fmt).join(', '):' • Direto'}`:'Duração opcional: revise horários e fusos das etapas.';
+    });
+  }
   function render(){
-    const items = Array.isArray(detailsByScope[activeScopeKey]) ? detailsByScope[activeScopeKey] : [];
-    rowsBox.innerHTML = items.length
-      ? items.map(rowHtml).join('')
-      : '<div class="flight-details-empty"><strong>Nenhum horário informado.</strong><span>A cotação pode ser salva normalmente sem esses dados.</span></div>';
-    syncHidden();
+    const items=Array.isArray(detailsByScope[activeScopeKey])?detailsByScope[activeScopeKey]:[];
+    selectedByScope(items);
+    const numbers={};
+    rowsBox.innerHTML=items.length?items.map((item,i)=>{
+      const key=item.segment_key||segmentChoices()[0]?.key||'outbound';numbers[key]=(numbers[key]||0)+1;
+      return rowHtml(item,i,numbers[key]);
+    }).join(''):'<div class="flight-details-empty"><strong>Nenhum horário informado.</strong><span>Adicione alternativas apenas quando precisar. Não altera o preço.</span></div>';
+    previewRows();syncHidden();
   }
-  function saveActive(){
-    detailsByScope[activeScopeKey] = collectRows();
-  }
+  function saveActive(){detailsByScope[activeScopeKey]=collectRows();}
 
   addButton?.addEventListener('click', () => {
     markTouched();
@@ -1271,13 +1351,19 @@ document.addEventListener('person-selected', function(event) {
     const remove = event.target.closest('[data-remove-flight-detail]');
     if(!remove) return;
     markTouched();
-    event.preventDefault();
     remove.closest('[data-flight-detail-row]')?.remove();
     saveActive();
     render();
   });
-  rowsBox.addEventListener('input', () => { markTouched(); saveActive(); syncHidden(); });
-  rowsBox.addEventListener('change', () => { markTouched(); saveActive(); syncHidden(); });
+  rowsBox.addEventListener('input', () => { markTouched(); saveActive(); previewRows(); syncHidden(); });
+  rowsBox.addEventListener('change', event => {
+    markTouched();saveActive();
+    if(event.target.matches('[data-detail-field="stop_count"], [data-stop-index], [data-detail-field="segment_key"]')){
+      // Recria só as etapas da alternativa após mudar sua rota.
+      render();return;
+    }
+    previewRows();syncHidden();
+  });
   document.addEventListener('calculation-scope-will-change', () => saveActive());
   document.addEventListener('calculation-scope-changed', event => {
     activeScopeKey = event.detail?.to || scopeInput.value || activeScopeKey;
@@ -1522,19 +1608,23 @@ document.addEventListener('person-selected', function(event) {
   const includedSelect = document.getElementById('includedBagsFare');
   const suggestedBags = {
     'light': '0', 'sem bagagem': '0', 'com bagagem': '1',
-    'turbinada': '1', 'classic': '1', 'flex': '1',
-    'standard': '1', 'full': '1', 'premium business full': '2',
+    'turbinada': '1', 'classic': '1', 'flex': '1', 'plus': '1',
+    'standard': '1', 'full': '1', 'premium business': '2', 'premium business full': '2',
     'azul': '0', 'mais azul': '1', 'azul super': '2', 'business': '3'
   };
   fareSelect?.addEventListener('change', () => {
     if (!includedSelect) return;
-    const suggestion = suggestedBags[fareSelect.value.trim().toLowerCase()];
+    const brand=String(fareSelect.value||'').trim().toLowerCase();
+    const company=String(fareSelect.dataset.fareAirline||'').toLowerCase();
+    const suggestion=brand==='business'&&company.includes('gol')?'2':suggestedBags[brand];
     includedSelect.value = suggestion === undefined ? '' : suggestion;
   });
   // Ao abrir o cálculo, a tarifa já vem preenchida (ex.: Classic) sem disparar
   // "change"; preenche a franquia sugerida se ainda estiver "A confirmar".
   if (fareSelect && includedSelect && includedSelect.value === '') {
-    const initial = suggestedBags[String(fareSelect.value || '').trim().toLowerCase()];
+    const brand=String(fareSelect.value||'').trim().toLowerCase();
+    const company=String(fareSelect.dataset.fareAirline||'').toLowerCase();
+    const initial=brand==='business'&&company.includes('gol')?'2':suggestedBags[brand];
     if (initial !== undefined) includedSelect.value = initial;
   }
   const moneyHints = /taxa|valor|pre[cç]o|custo|dinheiro|milheiro|bagagem|comiss[aã]o|tarifa|adicional|imposto/i;
