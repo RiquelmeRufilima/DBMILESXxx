@@ -27,6 +27,30 @@ BR_AIRPORTS: dict[str, str] = {
     "PHB":"Parnaíba","CPV":"Campina Grande","DOU":"Dourados","RRJ":"Rio de Janeiro/Jacarepaguá","VAG":"Varginha",
 }
 
+# Fusos dos aeroportos brasileiros (o Brasil não tem horário de verão desde 2019).
+# Padrão -03:00; abaixo só as exceções. Usado para calcular a duração do voo
+# quando o fuso não foi preenchido no cálculo.
+BR_AIRPORT_CODES: frozenset[str] = frozenset(BR_AIRPORTS) | {"RIO", "SAO", "BHZ"}
+BR_AIRPORT_UTC_OFFSETS: dict[str, str] = {
+    # -04:00 — AM, RO, RR, MT, MS
+    "MAO": "-04:00", "TBT": "-04:00", "PVH": "-04:00", "JPR": "-04:00", "BVH": "-04:00",
+    "BVB": "-04:00", "CGB": "-04:00", "AFL": "-04:00", "BPG": "-04:00", "OPS": "-04:00",
+    "ROO": "-04:00", "CGR": "-04:00", "CMG": "-04:00", "BYO": "-04:00",
+    "DOU": "-04:00", "PMG": "-04:00", "TGQ": "-04:00", "PBQ": "-04:00", "OAL": "-04:00",
+    # -05:00 — Acre
+    "RBR": "-05:00", "CZS": "-05:00",
+    # -02:00 — Fernando de Noronha
+    "FEN": "-02:00",
+}
+
+
+def br_airport_utc_offset(code: str | None) -> str:
+    """Fuso de um aeroporto brasileiro; vazio para aeroportos fora do Brasil."""
+    code = str(code or "").strip().upper()
+    if code not in BR_AIRPORT_CODES and code not in BR_AIRPORT_UTC_OFFSETS:
+        return ""
+    return BR_AIRPORT_UTC_OFFSETS.get(code, "-03:00")
+
 
 # Aeroportos internacionais mais usados nas emissões da agência.
 # BR_AIRPORTS é mantido por compatibilidade com as telas antigas, mas agora

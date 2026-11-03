@@ -46,7 +46,17 @@ def test_conexao_invalida_e_horarios_incompletos_nao_inventam_duracao():
         {"departure":"2026-12-01T11:00", "arrival":"2026-12-01T12:30"}]}]
     out=_normalize_flight_details(raw,_parts(),"round_trip")
     assert out[0]['stops']==['BSB']
-    assert out[0]['duration_minutes'] is None
+    # Aeroportos brasileiros têm fuso fixo: FOR → BSB → GRU (todos -03:00) = 4h30.
+    assert out[0]['duration_minutes'] == 270
+    assert out[0]['wait_minutes'] == [90]
+    # Internacional sem fuso informado: não inventa duração (horário de verão lá fora).
+    intl=[{"key":"outbound","origin":"GRU","destination":"LIS"}]
+    raw_intl=[{"segment_key":"outbound","stops":["MAD"],"legs":[
+        {"departure":"2026-12-01T08:00","arrival":"2026-12-01T22:00"},
+        {"departure":"2026-12-01T23:30","arrival":"2026-12-02T00:40"}]}]
+    out_intl=_normalize_flight_details(raw_intl,intl,"one_way")
+    assert out_intl[0]['duration_minutes'] is None
+    assert out_intl[0]['wait_minutes'] == [90]  # espera usa horário local do mesmo aeroporto
 
 
 def test_modo_claro_e_painel_compacto_preservados():

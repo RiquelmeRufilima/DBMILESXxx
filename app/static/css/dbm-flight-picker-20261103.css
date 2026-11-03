@@ -13,3 +13,18 @@ html[data-theme=light] .dbm-flight-picker{background:#f9fcff;color:#16324c;borde
 .option-airline:has(> .dbm-flight-picker){flex-wrap:wrap!important}
 .option-airline>.dbm-flight-picker{flex:1 0 100%!important;width:100%!important;max-width:100%!important;grid-column:1/-1!important;box-sizing:border-box;margin:10px 0 0}
 .option-airline>.dbm-flight-picker .dbm-flight-choice-airline b,.option-airline>.dbm-flight-picker .dbm-flight-choice-marker{white-space:nowrap}
+
+/* 03/11 v4: quadro só com embarque, paradas, desembarque, duração e esperas. */
+.dbm-flight-picker .dbm-flight-choice-grid{flex:1;min-width:0;grid-template-columns:minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) minmax(70px,.7fr)!important}
+.dbm-flight-picker .dbm-flight-choice-time>small:first-child,.dbm-flight-picker .dbm-flight-choice-duration>small{font-size:.6rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#7fa2bb}
+.dbm-flight-picker .dbm-flight-choice-duration b{font-size:1rem}
+.dbm-flight-picker .dbm-flight-choice-stops b{font-size:.8rem;color:#ffd38a}
+.dbm-flight-picker .dbm-flight-choice-stops{text-align:center;position:relative;padding-top:4px;border-top:2px dashed rgba(120,175,220,.35)}
+.dbm-flight-waits{display:flex;flex-wrap:wrap;gap:6px;margin:0 10px 10px 37px}
+.dbm-flight-picker.is-single .dbm-flight-waits{margin-left:10px}
+.dbm-flight-wait{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:999px;background:rgba(255,190,90,.1);border:1px solid rgba(255,190,90,.28);color:#ffd9a3;font-size:.7rem;font-weight:700}
+.dbm-flight-picker.is-single .dbm-flight-choice{border-color:rgba(127,176,215,.22)}
+@media(max-width:950px){.dbm-flight-picker .dbm-flight-choice-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+@media(max-width:560px){.dbm-flight-picker .dbm-flight-choice-grid{grid-template-columns:1fr 1fr!important}.dbm-flight-picker .dbm-flight-choice-stops{grid-column:1/-1;grid-row:2;border-top:0}.dbm-flight-waits{margin-left:10px}}
+html[data-theme=light] .dbm-flight-wait{background:#fff6e8;border-color:#f3cf98;color:#7a4b06}
+html[data-theme=light] .dbm-flight-picker .dbm-flight-choice-stops b{color:#a1600a}

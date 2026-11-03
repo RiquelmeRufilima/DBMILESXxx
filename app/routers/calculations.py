@@ -38,7 +38,7 @@ from ..security import validate_csrf_token
 from ..services.calculator import CalculationResult, calculate
 from ..services.flight_itinerary import normalize_itinerary
 from ..services.tags import delete_links_for_targets, list_tags, tags_for_targets, targets_matching_tag_text, targets_with_all_tags
-from ..services.travel_data import BR_AIRPORTS
+from ..services.travel_data import BR_AIRPORTS, br_airport_utc_offset
 from ..services.schema_migrations import ensure_runtime_schema
 from ..services.quote_activity import record_quote_activity, publish_quote_activity
 from ..web import context, flash, templates
@@ -1566,6 +1566,24 @@ def _flight_segment_label(segment_key: str, index: int = 0) -> str:
     return f"Trecho {index + 1}" if index >= 0 else "Voo"
 
 
+def _local_connection_waits(legs: list[dict[str, Any]]) -> list[int | None]:
+    """Espera em cada conexão usando horários locais.
+
+    Chegada e nova saída acontecem no MESMO aeroporto, então o fuso não muda
+    a conta. Permite mostrar a espera mesmo sem os fusos preenchidos.
+    """
+    waits: list[int | None] = []
+    for index in range(1, len(legs)):
+        prev_arrival = str(legs[index - 1].get("arrival") or "")
+        departure = str(legs[index].get("departure") or "")
+        try:
+            minutes = int((datetime.strptime(departure, "%Y-%m-%dT%H:%M") - datetime.strptime(prev_arrival, "%Y-%m-%dT%H:%M")).total_seconds() // 60)
+        except ValueError:
+            minutes = -1
+        waits.append(minutes if minutes >= 0 else None)
+    return waits if any(item is not None for item in waits) else []
+
+
 def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]], scope_key: str) -> list[dict[str, Any]]:
     """Normaliza datas e horários opcionais sem exigir migração de banco.
 
@@ -1637,6 +1655,9 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
                 dep, arr = "", ""
             if not re.fullmatch(r"[+-](?:0\d|1[0-4]):(?:00|30|45)", tz_dep): tz_dep = ""
             if not re.fullmatch(r"[+-](?:0\d|1[0-4]):(?:00|30|45)", tz_arr): tz_arr = ""
+            # Sem fuso informado: aeroportos brasileiros têm fuso fixo (sem horário de verão).
+            tz_dep = tz_dep or br_airport_utc_offset(airports[leg_index])
+            tz_arr = tz_arr or br_airport_utc_offset(airports[leg_index + 1])
             normalized_legs.append({"origin": airports[leg_index], "destination": airports[leg_index + 1],
                                     "departure": dep, "arrival": arr, "origin_tz": tz_dep, "destination_tz": tz_arr})
             if not dep or not arr or not tz_dep or not tz_arr: valid_times = False
@@ -1673,6 +1694,16 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
             continue
         if not arrival_date and departure_date and arrival_time:
             arrival_date = departure_date
+        if duration is None and departure_date and departure_time and arrival_date and arrival_time:
+            # Sem trechos detalhados: duração pelo embarque/desembarque do próprio
+            # horário, quando os dois aeroportos têm fuso conhecido.
+            try:
+                start = utc(f"{departure_date}T{departure_time}", br_airport_utc_offset(segment["origin"]))
+                finish = utc(f"{arrival_date}T{arrival_time}", br_airport_utc_offset(segment["destination"]))
+            except ValueError:
+                start = finish = None
+            if start and finish and finish > start:
+                duration = int((finish - start).total_seconds() // 60)
 
         normalized.append({
             "segment_key": segment_key,
@@ -1687,7 +1718,7 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
             "stops": stops,
             "legs": normalized_legs,
             "duration_minutes": duration,
-            "wait_minutes": waits if valid_times else [],
+            "wait_minutes": waits if valid_times else _local_connection_waits(normalized_legs),
             "preferred": bool(item.get("preferred")),
             "_source_index": source_index,
         })
