@@ -1595,7 +1595,7 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
     default_key = segments[0]["key"]
     normalized: list[dict[str, Any]] = []
 
-    for item in items[:20]:
+    for source_index, item in enumerate(items[:20]):
         if not isinstance(item, dict):
             continue
         segment_key = str(item.get("segment_key") or item.get("kind") or default_key).strip()
@@ -1684,6 +1684,7 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
             "duration_minutes": duration,
             "wait_minutes": waits if valid_times else [],
             "preferred": bool(item.get("preferred")),
+            "_source_index": source_index,
         })
     # Uma única opção destacada por sentido. Cotações antigas usam a primeira.
     seen = set()
@@ -4323,7 +4324,18 @@ def history(
 
     # Cards da página são carregados em lote, eliminando N+1.
     page_groups = [groups_by_id[gid] for gid in selected_group_ids if gid in groups_by_id]
-    group_cards_batch = _history_group_cards_batch(db, user, page_groups)
+
+    try:
+        group_cards_batch = _history_group_cards_batch(db, user, page_groups)
+    except Exception:
+        logger.exception("Falha no lote de cartões do histórico; tentando carregar os grupos isoladamente")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        group_cards_batch = {item.id: _safe_history_group_card(db, user, item) for item in page_groups}
+        for item in group_cards_batch.values():
+            item["load_error"] = True
 
     history_entries: list[dict[str, Any]] = []
     history_load_errors = 0
@@ -4390,6 +4402,50 @@ def history(
     )
 
 
+
+
+
+@router.post("/option/{quote_id}/flight-choice")
+async def save_flight_choice(quote_id: int, request: Request, db: Session = Depends(get_db)):
+    """Destaca só uma alternativa do sentido escolhido, sem alterar cálculo nem reservas.
+
+    Persiste a preferência no JSON existente. Nunca substitui outras chaves
+    de input_json, inclusive dados de versões antigas e campos desconhecidos.
+    """
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login novamente."}, status_code=401)
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada. Atualize a página."}, status_code=403)
+    quote = db.get(WebQuote, quote_id)
+    if not _quote_allowed(user, quote):
+        return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
+    try:
+        chosen_index = int(str(form.get("option_index") or ""))
+    except (ValueError, TypeError):
+        return JSONResponse({"ok": False, "message": "Alternativa inválida."}, status_code=422)
+    segment_key = str(form.get("segment_key") or "").strip()[:80]
+    data = _quote_input_data(quote)
+    choices = data.get("_flight_details")
+    if not isinstance(choices, list) or not 0 <= chosen_index < len(choices) or chosen_index >= 20:
+        return JSONResponse({"ok": False, "message": "Essa alternativa não está salva no cálculo."}, status_code=422)
+    chosen = choices[chosen_index]
+    if not isinstance(chosen, dict) or not segment_key or str(chosen.get("segment_key") or chosen.get("kind") or "").strip() != segment_key:
+        return JSONResponse({"ok": False, "message": "Alternativa ou sentido divergente."}, status_code=422)
+    scope = _fallback_scope_data(quote, data)
+    segments = scope.get("segments") if isinstance(scope.get("segments"), list) else []
+    normalized = _normalize_flight_details(choices, segments, str(scope.get("key") or "one_way"))
+    if not any(row.get("_source_index") == chosen_index and row.get("segment_key") == segment_key for row in normalized):
+        return JSONResponse({"ok": False, "message": "Horário incompleto ou indisponível. Edite o cálculo."}, status_code=422)
+    # Alterar somente preferred, sem normalizar ou sobrescrever quaisquer
+    # paradas, fusos, dados financeiros e campos legados.
+    for index, row in enumerate(choices):
+        if isinstance(row, dict) and str(row.get("segment_key") or row.get("kind") or "").strip() == segment_key:
+            row["preferred"] = index == chosen_index
+    quote.input_json = json.dumps(data, ensure_ascii=False)
+    db.commit()
+    return JSONResponse({"ok": True, "selected_index": chosen_index, "segment_key": segment_key})
 
 @router.post("/option/{quote_id}/delete")
 async def delete_option(quote_id: int, request: Request, db: Session = Depends(get_db)):
