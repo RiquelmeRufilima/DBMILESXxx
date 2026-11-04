@@ -146,7 +146,7 @@
     {{ flight_route_list(quote.segment_rows, with_toggle=true, extra_class='result-segment-list') }}
     {% endif %}
     {% endif %}
-    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=1">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
+    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=2">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
   </div>
 
   <div class="card-panel">
@@ -237,10 +237,11 @@
         <div class="dbm-msg-section-title">💳 Parcelamento para o cliente</div>
         <label class="dbm-msg-max" for="dbmMessageMaxInstallments"><span>Máximo de parcelas</span>
           <select id="dbmMessageMaxInstallments" aria-label="Máximo de parcelas para o cliente">
-            <option value="3">3x</option><option value="6">6x</option><option value="10">10x</option><option value="12" selected>12x</option><option value="15">15x</option>
+            {% for n in range(1, 16) %}<option value="{{ n }}" {% if n == 12 %}selected{% endif %}>{{ n }}x</option>{% endfor %}
           </select>
         </label>
-        <label class="dbm-msg-row" for="dbmMessageShowAllInstallments"><input type="checkbox" id="dbmMessageShowAllInstallments"><span>Mostrar todas as parcelas até o máximo escolhido</span></label>
+        <label class="dbm-msg-row" for="dbmMessageShowAllInstallments"><input type="checkbox" id="dbmMessageShowAllInstallments"><span>Mostrar todas as parcelas (de 1x até o máximo), com e sem juros</span></label>
+        <label class="dbm-msg-row" for="dbmMessageHideInterestWord"><input type="checkbox" id="dbmMessageHideInterestWord"><span>Ocultar as palavras “com juros”</span></label>
       </div>
       <div class="dbm-msg-section" aria-label="Informações opcionais">
         <div class="dbm-msg-section-title">✈️ Detalhes opcionais do voo</div>
@@ -263,8 +264,8 @@
     <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
       <strong class="dbm-pay-title">Formas de pagamento na mensagem</strong>
       <div class="dbm-pay-row" data-pay="cash"><button type="button" class="dbm-eye" data-eye="cash" aria-pressed="true" title="Mostrar/ocultar">👁️</button><span>À vista</span><small id="dbmPayCashPreview"></small></div>
-      <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="24" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
-      <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="24" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
+      <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="15" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
+      <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="15" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
       <small>Clique no olho para mostrar ou ocultar cada opção. O total com juros é calculado pela taxa da máquina salva na cotação; você pode digitar outro valor.</small>
     </div>
   </div>
@@ -379,9 +380,22 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const babies = {{ quote.babies|tojson }};
  const children = {{ (group_children|default(0))|tojson }};
  const name = {{ (quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name)|tojson }};
- const route = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
+ const routeFallback = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
  const scope = {{ (quote.scope_label or '')|tojson }};
  const segments = {{ (quote.segment_rows or [])|tojson }};
+ // Ida e volta (ou um único trecho): a rota da mensagem mostra só o 1º trecho,
+ // ex.: "VCP ✈️ FOR" em vez de "VCP ✈️ VCP". Multitrecho mantém a rota completa.
+ const route = (()=>{
+   const rows=Array.isArray(segments)?segments:[];
+   const first=rows[0];
+   if(!first)return routeFallback;
+   const flight=first.flight||{};
+   const origin=flight.origin||first.origin, destination=flight.destination||first.destination;
+   const last=rows[rows.length-1], lastFlight=last.flight||{};
+   const backHome=rows.length>1&&(lastFlight.destination||last.destination)===(first.origin||origin);
+   const useFirst=rows.length===1||/volta|round/i.test(scope)||backHome;
+   return useFirst&&origin&&destination&&origin!=='?'&&destination!=='?'?`${origin} ✈️ ${destination}`:routeFallback;
+ })();
  let commercialMeta = {{ (commercial_meta or {})|tojson }};
  const skipRecord = {{ (quote.is_skip_record or false)|tojson }};
  let cardSaved = {
@@ -423,11 +437,11 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  }
  function paymentLines(perPerson,paid,displaySale){
    const m=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-   const freeN=Math.max(2,Number(payFreeN.value)||2), intN=Math.max(2,Number(payIntN.value)||2);
+   const freeN=Math.min(15,Math.max(2,Number(payFreeN.value)||2)), intN=Math.min(15,Math.max(2,Number(payIntN.value)||2));
    const intTotal=perPerson?interestTotal()/paid:interestTotal();
    const card=[];
    if(payState.free)card.push(`em até ${freeN}x de R$ ${m(displaySale/freeN)} sem juros`);
-   if(payState.interest)card.push(`em até ${intN}x de R$ ${m(intTotal/intN)} com juros`);
+   if(payState.interest)card.push(`em até ${intN}x de R$ ${m(intTotal/intN)}${interestWord()}`);
    const lines=[];
    if(payState.cash||!card.length)lines.push(`💰 Por: R$ *${m(displaySale)}*${card.length?' à vista':''}`);
    card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
@@ -528,9 +542,19 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
        text+=`🕒 ${title}${stops.length?' • Via '+stops.join(' / '):' • Direto'}:\n`;
        const filled=legs.filter(l=>l.departure||l.arrival);
        if(filled.length){filled.forEach(l=>text+=`  ${l.origin||'?'} → ${l.destination||'?'}: ${format(l.departure)} → ${format(l.arrival)}\n`);}
-       else text+=`  ${option.origin||'?'} → ${option.destination||'?'}: ${option.departure_date||''} ${option.departure_time||''} → ${option.arrival_date||''} ${option.arrival_time||''}\n`;
+       else{
+         // Só embarque e desembarque (etapa 6): datas no padrão brasileiro.
+         const br=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?v.slice(8,10)+'/'+v.slice(5,7):'';
+         const dep=[br(option.departure_date),option.departure_time||''].filter(Boolean).join(' ');
+         const arr=[br(option.arrival_date)!==br(option.departure_date)?br(option.arrival_date):'',option.arrival_time||''].filter(Boolean).join(' ');
+         text+=`  ${option.origin||'?'} → ${option.destination||'?'}: ${dep||'—'}${arr?' → '+arr:''}\n`;
+       }
        if(Number.isInteger(option.duration_minutes))text+=`⏱️ Duração total: ${Math.floor(option.duration_minutes/60)}h${String(option.duration_minutes%60).padStart(2,'0')}\n`;
-       if(Array.isArray(option.wait_minutes)&&option.wait_minutes.length&&option.wait_minutes.every(Number.isInteger))text+=`⏳ Conexão: ${option.wait_minutes.map(m=>Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')).join(' • ')}\n`;
+       if(Array.isArray(option.wait_minutes)&&option.wait_minutes.some(Number.isInteger)){
+         // Espera em cada conexão, com o aeroporto: "⏳ Espera: BSB 1h28 • GRU 2h55".
+         const waits=option.wait_minutes.map((m,k)=>Number.isInteger(m)?`${stops[k]||'conexão'} ${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`:'').filter(Boolean);
+         if(waits.length)text+=`⏳ Espera: ${waits.join(' • ')}\n`;
+       }
      });
      itinerarySides.filter(side=>!keysWithSchedule.has(side.key)).forEach((side,i)=>{
        const legs=Array.isArray(side.legs)?side.legs:[];
@@ -549,21 +573,59 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    }
    return text;
  }
- function installmentList(){
+ const msgHideInterestWord = document.getElementById('dbmMessageHideInterestWord');
+ // " com juros" pode ser ocultado na mensagem (opção nas configurações).
+ function interestWord(){return msgHideInterestWord?.checked?'':' com juros';}
+ function maxInstallmentsChosen(){
    const supported=typeof window.dbmFlightMaxInstallments==='function'?window.dbmFlightMaxInstallments():15;
-   const max=Math.max(2,Math.min(15,supported,Number(msgMaxInstallments?.value||12)));
+   return Math.max(1,Math.min(15,supported||15,Number(msgMaxInstallments?.value||12)));
+ }
+ // Parcela com juros para N vezes, pela taxa da máquina salva na cotação.
+ function interestInstallment(n){
    const entry=Math.max(0,Number(commercialMeta.entry_amount||0));
    const financed=Math.max(0,sale-entry);
+   const rate=n===1?0:machineRate(n);
+   if(rate<0||rate>=100)return null;
+   const total=n===1?financed:Math.round(financed/(1-rate/100)*100)/100;
+   return total/n;
+ }
+ function installmentList(from=1){
+   const max=maxInstallmentsChosen();
    const money=n=>Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    const lines=[];
-   for(let n=1;n<=max;n++){
-     const rate=n===1?0:machineRate(n);
-     if(rate<0||rate>=100)continue;
-     const total=n===1?financed:Math.round(financed/(1-rate/100)*100)/100;
-     lines.push(`• ${n}x de R$ ${money(total/n)}${n===1?' à vista':' com juros'}`);
+   for(let n=Math.max(1,from);n<=max;n++){
+     const value=interestInstallment(n);
+     if(value===null)continue;
+     lines.push(`• ${n}x de R$ ${money(value)}${n===1?' à vista':interestWord()}`);
    }
-   return lines.length?'💳 Parcelamento disponível:\n'+lines.join('\n'):' ';
+   return lines;
  }
+ // "Mostrar todas as parcelas": lista de 1x até o máximo escolhido (até 15x).
+ // Com sem juros + com juros: "em até Nx sem juros" e, embaixo, as parcelas
+ // com juros a partir de N+1.
+ function fullPaymentBlock(displaySale){
+   const m=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+   const max=maxInstallmentsChosen();
+   const freeN=Math.min(15,Math.max(2,Number(payFreeN.value)||2));
+   const lines=[];
+   if(payState.cash)lines.push(`💰 Por: R$ *${m(displaySale)}* à vista`);
+   const startAt=payState.cash?2:1;
+   if(payState.free&&payState.interest){
+     lines.push(`${lines.length?'💳 ou em até':'💰 Por: em até'} ${freeN}x de R$ ${m(displaySale/freeN)} sem juros`);
+     const rest=installmentList(freeN+1);
+     if(rest.length)lines.push(`💳 ou parcelado${interestWord()}:`,...rest);
+   }else if(payState.free){
+     const freeLines=[];
+     for(let n=startAt;n<=freeN;n++)freeLines.push(`• ${n}x de R$ ${m(displaySale/n)}${n===1?' à vista':' sem juros'}`);
+     if(freeLines.length)lines.push(`💳 ${lines.length?'ou no cartão ':''}sem juros:`,...freeLines);
+   }else if(payState.interest){
+     const list=installmentList(startAt);
+     if(list.length)lines.push(`💳 ${lines.length?'ou parcelado':'Parcelamento'}${interestWord()}:`,...list);
+   }
+   if(!lines.length)lines.push(`💰 Por: R$ *${m(displaySale)}*`);
+   return lines.join('\n')+'\n';
+ }
+
 
  const plural = (n, singular, pluralWord) => `${n} ${Number(n)===1?singular:pluralWord}`;
  const dateBR = value => /^\d{4}-\d{2}-\d{2}/.test(value||'') ? value.slice(0,10).split('-').reverse().join('/') : (value||'');
@@ -613,12 +675,8 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const benefits=`✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bagText}${optionalDetails}${obs?`✅ ${obs}\n`:''}`;
    let payText='';
    if(saleKnown()){
-     if(msgShowAll?.checked && payState.interest){
-       // Mantém à vista e sem juros quando selecionados; substitui somente
-       // a linha com juros pelo desdobramento completo de parcelas.
-       const current=paymentLines(false,paid,displaySale).trimEnd().split('\n');
-       payText=current.filter(line=>!line.includes('com juros')).join('\n')+'\n'+installmentList()+'\n';
-     }else payText=paymentLines(false,paid,displaySale);
+     const summary=paymentLines(false,paid,displaySale);
+     payText=msgShowAll?.checked&&(payState.free||payState.interest)?fullPaymentBlock(displaySale):summary;
    }
    const price=`👥 Valor total para ${people}.\n${saleKnown()?'\n'+discount+payText:''}`;
    const warning=`_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
@@ -628,7 +686,9 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      header=`✈️ ${skipBlocks.length>1?'Voos':'Voo'} de *${title}*\n${skipBlocks.join('\n\n')}\n`;
    } else {
      const selectedFlights=sections(false);
-     const flightInfo=selectedFlights.length && showTimes.checked && !itinerarySides.some(s=>(s.legs||[]).some(l=>l.departure||l.arrival))?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
+     // Com horário principal informado (etapa 6), o bloco 🕒 já mostra tudo: evita repetir.
+     const hasMainSchedule=chosenFlightOptions().some(o=>o.departure_time||o.arrival_time||o.departure_date);
+     const flightInfo=selectedFlights.length && showTimes.checked && !hasMainSchedule && !itinerarySides.some(s=>(s.legs||[]).some(l=>l.departure||l.arrival))?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
      header=`🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}`;
    }
    return `✈️ COTAÇÃO - *${name}*\n\n${header}\n${benefits}\n${price}\n${warning}`;
@@ -711,7 +771,8 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  priceSwitches.forEach(input=>input.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()}));
  showTimes.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
  msgShowFare?.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
- msgShowAll?.addEventListener('change',()=>{if(msgShowAll.checked){payState.interest=true;syncEyes()}if(!editor.dataset.edited)editor.value=template()});
+ msgShowAll?.addEventListener('change',()=>{if(msgShowAll.checked&&!payState.free&&!payState.interest){payState.interest=true;syncEyes()}if(!editor.dataset.edited)editor.value=template()});
+ msgHideInterestWord?.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
  function syncMessageMaxAvailability(){
    if(!msgMaxInstallments)return;
    const supported=typeof window.dbmFlightMaxInstallments==='function'?window.dbmFlightMaxInstallments():15;

@@ -867,13 +867,14 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       </div>
 
       <div class="optional-bottom-stack" aria-label="Informações opcionais da opção">
-        <details class="optional-bottom-card">
-          <summary><span class="optional-summary-step">6</span><span><strong>Datas desta opção</strong><small>Opcional · Informe somente se esta opção tiver datas diferentes.</small></span><span class="optional-summary-pill">Opcional</span></summary>
+        <details class="optional-bottom-card" id="mainFlightCard">
+          <summary><span class="optional-summary-step">6</span><span><strong>Datas e horários da opção principal</strong><small>Opcional · Embarque, desembarque, conexões, esperas e duração de cada trecho.</small></span><span class="optional-summary-pill">Opcional</span></summary>
           <div class="optional-bottom-content">
       <input type="hidden" name="option_dates_touched" id="optionDatesTouched" value="0">
       <div class="form-section soft option-date-panel" id="optionDatePanel">
-        <div class="section-title"><span class="step-badge">6</span><div><h3>Datas desta opção <span class="optional-pill">opcional</span></h3><p>Você pode manter as datas da cotação principal, trocar somente nesta opção ou deixar sem data.</p></div></div>
-        <div class="form-grid cols-2 option-date-grid">
+        <div class="section-title"><span class="step-badge">6</span><div><h3>Datas e horários da opção principal <span class="optional-pill">opcional</span></h3><p>Preencha só o que tiver. Sem paradas = voo direto. A data de embarque também vira a data desta opção.</p></div></div>
+        <div class="dbm-main-flight-rows" id="mainFlightRows"></div>
+        <div class="form-grid cols-2 option-date-grid" hidden aria-hidden="true">
           <label id="optionDepartureDateLabel">Data de ida desta opção
             <input type="date" name="option_departure_date" id="optionDepartureDate" value="{{ option_departure_date or '' }}">
             <small>Não altera a data principal da cotação.</small>
@@ -883,13 +884,13 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
             <small>Use somente quando houver volta ou último trecho.</small>
           </label>
         </div>
-        <div class="option-date-actions"><button type="button" class="ghost-button tiny-button" id="clearOptionDates">Limpar datas desta opção</button></div>
+        <div class="option-date-actions"><button type="button" class="ghost-button tiny-button" id="clearOptionDates">Limpar datas e horários da opção principal</button></div>
       </div>
 
           </div>
         </details>
         <details class="optional-bottom-card">
-          <summary><span class="optional-summary-step">7</span><span><strong>Horários e possibilidades de voo</strong><small>Opcional · Adicione horários e alternativas somente quando precisar.</small></span><span class="optional-summary-pill">Opcional</span></summary>
+          <summary><span class="optional-summary-step">7</span><span><strong>Outras opções de horário</strong><small>Opcional · Mesmo voo e mesmo preço em outros horários ou com outras paradas.</small></span><span class="optional-summary-pill">Opcional</span></summary>
           <div class="optional-bottom-content">
       <div class="form-section soft flight-details-panel" id="flightDetailsPanel">
         <input type="hidden" name="flight_details_json" id="flightDetailsJson" value="[]">
@@ -897,18 +898,18 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <script type="application/json" id="flightDetailsInitial">{{ (option_flight_details or [])|tojson }}</script>
         <script type="application/json" id="routeScopesData">{{ (route_scopes or [])|tojson }}</script>
         <script type="application/json" id="iataCityGroups">{{ iata_city_groups|tojson }}</script>
-        <link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=1">
+        <link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=2">
         <script src="/static/js/dbm-iata-groups-20261104.js?v=1" defer></script>
         <div class="section-title flight-details-title">
           <span class="step-badge">7</span>
           <div>
-            <h3>Horários e possibilidades de voo <span class="optional-pill">opcional</span></h3>
-            <p>Adicione horários por trecho. Em ida e volta, você pode ter Ida • Opção 1, Ida • Opção 2, Volta • Opção 1, Volta • Opção 2. Em multitrecho, cada Trecho pode ter quantas opções de horário forem necessárias.</p>
+            <h3>Outras opções de horário <span class="optional-pill">opcional</span></h3>
+            <p>O horário principal fica na etapa 6. Aqui entram as alternativas do mesmo voo (mesma companhia, tarifa e preço). Marque “Destacar” para transformar uma alternativa no horário principal.</p>
           </div>
         </div>
         <div class="flight-details-helper">
-          <span>Exemplo: <b>Ida • Opção 1 • 31/08 08:20 → 10:45</b></span>
-          <span>As possibilidades aparecerão como selos pequenos no histórico.</span>
+          <span>Exemplo: <b>Ida • Opção 2 • 31/08 16:45 → 21:00</b></span>
+          <span>As alternativas aparecem em “Escolha o horário” nas opções salvas e no histórico.</span>
         </div>
         <div class="flight-details-rows" id="flightDetailsRows"></div>
         <div class="flight-details-actions">
@@ -1161,6 +1162,7 @@ document.addEventListener('person-selected', function(event) {
     if(optionDatesTouched) optionDatesTouched.value = '1';
     if(departureInput) departureInput.value = '';
     if(returnInput) returnInput.value = '';
+    document.dispatchEvent(new CustomEvent('dbm-clear-main-flight'));
   });
   [skipEditOrigin, skipEditDestination, skipEditDate].forEach(field => {
     field?.addEventListener('input', () => updateSkipPanel(input.value));
@@ -1171,13 +1173,21 @@ document.addEventListener('person-selected', function(event) {
 })();
 
 (function(){
+  // Horários do voo desta opção.
+  // Etapa 6 = horário PRINCIPAL de cada trecho (o item "preferred").
+  // Etapa 7 = outras opções de horário do mesmo voo (alternativas).
+  // Tudo continua salvo no mesmo flight_details_json de antes.
   const rowsBox = document.getElementById('flightDetailsRows');
+  const mainBox = document.getElementById('mainFlightRows');
   const addButton = document.getElementById('addFlightDetail');
   const clearButton = document.getElementById('clearFlightDetails');
   const hiddenInput = document.getElementById('flightDetailsJson');
   const touchedInput = document.getElementById('flightDetailsTouched');
   const scopeInput = document.getElementById('scopeKeyInput');
   const form = document.getElementById('quoteForm');
+  const optionDeparture = document.getElementById('optionDepartureDate');
+  const optionReturn = document.getElementById('optionReturnDate');
+  const optionDatesTouched = document.getElementById('optionDatesTouched');
   if(!rowsBox || !hiddenInput || !scopeInput || !form) return;
 
   function readJson(id, fallback){
@@ -1226,16 +1236,60 @@ document.addEventListener('person-selected', function(event) {
     const values = value && !zoneValues.includes(value) ? [...zoneValues,value] : zoneValues;
     return `<select data-leg-field="${field}">${values.map(v=>`<option value="${esc(v)}" ${v===value?'selected':''}>${v?'UTC'+v:'Fuso horário (opcional)'}</option>`).join('')}</select>`;
   }
-  function optionStages(row,detail,choice){
-    const count = Math.max(0, Math.min(4,Number(detail.stop_count || detail.stops?.length || 0)));
+  const minutesText = v => (v===null||v===undefined||v==='') ? '' : (typeof v==='number' ? `${Math.floor(v/60)}h${String(v%60).padStart(2,'0')}` : String(v));
+  function routeParts(choice, detail){
+    const route = (choice?.route || '').split('→').map(v=>v.trim());
+    return {
+      from:(detail.origin_airport||'').trim() || route[0] || '',
+      to:(detail.destination_airport||'').trim() || route[1] || '',
+      routeFrom:route[0]||'', routeTo:route[1]||''
+    };
+  }
+  function stopsOf(detail){
+    const count = Math.max(0, Math.min(4,Number(detail.stop_count ?? detail.stops?.length ?? 0) || 0));
     const stops = Array.isArray(detail.stops) ? detail.stops.slice(0,count) : [];
     while(stops.length<count)stops.push('');
-    const route = (choice?.route || '').split('→').map(v=>v.trim());
-    const fromCode = (detail.origin_airport||'').trim() || route[0];
-    const toCode = (detail.destination_airport||'').trim() || route[1];
-    const airports = [fromCode||'Origem',...stops.map(v=>v||'Parada'),toCode||'Destino'];
-    const stopWaits = Array.isArray(detail.stop_waits) ? detail.stop_waits : [];
-    const waitText = v => (v===null||v===undefined||v==='') ? '' : (typeof v==='number' ? `${Math.floor(v/60)}h${String(v%60).padStart(2,'0')}` : String(v));
+    return stops;
+  }
+  function stopFields(detail){
+    const stops = stopsOf(detail);
+    const waits = Array.isArray(detail.stop_waits) ? detail.stop_waits : [];
+    return stops.map((stop,i)=>`<label>Conexão ${i+1} • aeroporto IATA<input class="iata-search" data-iata-group data-stop-index="${i}" maxlength="3" value="${esc(stop)}" placeholder="Ex.: BSB ou SAO"></label>
+         <label>Espera em ${esc(stop||'conexão '+(i+1))}<input data-stop-wait-index="${i}" value="${esc(minutesText(waits[i]))}" placeholder="Ex.: 1h28" inputmode="text"></label>`).join('');
+  }
+  function stopCountSelect(count){
+    return `<select data-detail-field="stop_count">${Array.from({length:5},(_,i)=>`<option value="${i}" ${i===count?'selected':''}>${i===0?'Direto':i+' parada(s)'}</option>`).join('')}</select>`;
+  }
+  function airportFields(detail, parts){
+    return `<label>Aeroporto de origem desta opção<input class="iata-search" data-iata-group data-detail-field="origin_airport" maxlength="3" value="${esc(detail.origin_airport||'')}" placeholder="${esc(parts.routeFrom||'Ex.: GRU')}"></label>
+        <label>Aeroporto de destino desta opção<input class="iata-search" data-iata-group data-detail-field="destination_airport" maxlength="3" value="${esc(detail.destination_airport||'')}" placeholder="${esc(parts.routeTo||'Ex.: FOR')}"></label>`;
+  }
+
+  // ---------- Etapa 6: horário principal (compacto) ----------
+  function mainRowHtml(detail, choice){
+    const parts = routeParts(choice, detail);
+    const stops = stopsOf(detail);
+    const legs = Array.isArray(detail.legs) ? detail.legs : [];
+    const airportsOpen = !!(detail.origin_airport || detail.destination_airport);
+    return `<article class="flight-detail-row dbm-main-row" data-flight-detail-row data-main-row data-legs="${esc(JSON.stringify(legs))}">
+      <input type="hidden" data-detail-field="segment_key" value="${esc(choice.key)}">
+      <div class="dbm-main-head"><b>${esc(choice.label)}</b><span>${esc(parts.from||'Origem')} → ${esc(parts.to||'Destino')}</span>${stops.length?`<em class="is-connection">${stops.length} parada${stops.length>1?'s':''}</em>`:'<em class="is-direct">Direto</em>'}</div>
+      <div class="dbm-main-grid">
+        <label>Embarque<span class="dbm-pair"><input type="date" data-detail-field="departure_date" value="${esc(detail.departure_date||'')}"><input type="time" data-detail-field="departure_time" value="${esc(detail.departure_time||'')}"></span></label>
+        <label>Desembarque<span class="dbm-pair"><input type="date" data-detail-field="arrival_date" value="${esc(detail.arrival_date||'')}"><input type="time" data-detail-field="arrival_time" value="${esc(detail.arrival_time||'')}"></span></label>
+        <label>Paradas${stopCountSelect(stops.length)}</label>
+        <label>Duração total<input data-detail-field="duration_manual" value="${esc(minutesText(detail.duration_manual))}" placeholder="Ex.: 7h52"></label>
+      </div>
+      ${stops.length?`<div class="dbm-main-stops">${stopFields(detail)}</div>`:''}
+      <details class="dbm-main-airports" ${airportsOpen?'open':''}><summary>Aeroportos específicos desta opção <small>(ex.: SAO → GRU, VCP…)</small></summary><div class="dbm-main-airports-grid">${airportFields(detail, parts)}</div></details>
+    </article>`;
+  }
+
+  // ---------- Etapa 7: alternativas ----------
+  function optionStages(detail,choice){
+    const stops = stopsOf(detail);
+    const parts = routeParts(choice, detail);
+    const airports = [parts.from||'Origem',...stops.map(v=>v||'Parada'),parts.to||'Destino'];
     const legs = Array.isArray(detail.legs)?detail.legs:[];
     const fields = airports.slice(0,-1).map((from,i)=>{
       const leg=legs[i]||{};
@@ -1249,57 +1303,67 @@ document.addEventListener('person-selected', function(event) {
         </div>
       </section>`;
     }).join('');
-    return `<details class="dbm-flight-option-more" ${detail._expanded||count>0?'open':''}>
+    return `<details class="dbm-flight-option-more" ${detail._expanded||stops.length>0?'open':''}>
        <summary>🛫 Conexões, esperas, duração e horários das etapas (opcionais)</summary>
        <div class="dbm-flight-option-stop-grid">
-         <label>Quantidade de paradas desta opção<select data-detail-field="stop_count">${Array.from({length:5},(_,i)=>`<option value="${i}" ${i===count?'selected':''}>${i===0?'Direto':i+' parada(s)'}</option>`).join('')}</select></label>
-         ${stops.map((stop,i)=>`<label>Conexão ${i+1} • aeroporto IATA<input class="iata-search" data-iata-group data-stop-index="${i}" maxlength="3" value="${esc(stop)}" placeholder="Ex.: BSB ou SAO"></label>
-         <label>Espera em ${esc(stop||'conexão '+(i+1))}<input data-stop-wait-index="${i}" value="${esc(waitText(stopWaits[i]))}" placeholder="Ex.: 1h28" inputmode="text"></label>`).join('')}
-         <label>Duração total<input data-detail-field="duration_manual" value="${esc(waitText(detail.duration_manual))}" placeholder="Ex.: 7h52"><small>Se os horários e fusos forem preenchidos, a duração é calculada automaticamente.</small></label>
+         <label>Quantidade de paradas desta opção${stopCountSelect(stops.length)}</label>
+         ${stopFields(detail)}
+         <label>Duração total<input data-detail-field="duration_manual" value="${esc(minutesText(detail.duration_manual))}" placeholder="Ex.: 7h52"><small>Se os horários e fusos forem preenchidos, a duração é calculada automaticamente.</small></label>
        </div>
        <div class="dbm-flight-option-legs">${fields}</div>
        <div class="dbm-flight-option-preview" data-option-preview></div>
      </details>`;
   }
-  function collectRows(){
-    return Array.from(rowsBox.querySelectorAll('[data-flight-detail-row]')).map(row => {
-      const value = field => row.querySelector(`[data-detail-field="${field}"]`)?.value || '';
-      const stops = Array.from(row.querySelectorAll('[data-stop-index]')).map(el=>el.value.trim().toUpperCase());
-      const stages = Array.from(row.querySelectorAll('[data-option-leg]')).map(stage=>{
-        const field = key=>stage.querySelector(`[data-leg-field="${key}"]`)?.value || '';
-        return {departure:field('departure'),arrival:field('arrival'),origin_tz:field('origin_tz'),destination_tz:field('destination_tz')};
-      });
-      const stopWaits = Array.from(row.querySelectorAll('[data-stop-wait-index]')).map(el=>el.value.trim());
-      return {segment_key:value('segment_key'),departure_date:value('departure_date'),departure_time:value('departure_time'),
-        arrival_date:value('arrival_date'),arrival_time:value('arrival_time'),stops,stop_waits:stopWaits,
-        origin_airport:value('origin_airport').trim().toUpperCase(),destination_airport:value('destination_airport').trim().toUpperCase(),
-        duration_manual:value('duration_manual').trim(),
-        stop_count:Number(value('stop_count'))||0,preferred:!!row.querySelector('[data-detail-preferred]')?.checked,
-        legs:stages};
-    });
-  }
-  function syncHidden(){hiddenInput.value=JSON.stringify(collectRows());}
   function rowHtml(detail,index,number){
     const choices=segmentChoices();
     const chosen=choices.some(c=>c.key===detail.segment_key)?detail.segment_key:(choices[0]?.key||'outbound');
     const choice=choices.find(c=>c.key===chosen);
     const options=choices.map(c=>`<option value="${esc(c.key)}" ${c.key===chosen?'selected':''}>${esc(c.label)}${c.route?' • '+esc(c.route):''}</option>`).join('');
     return `<article class="flight-detail-row" data-flight-detail-row>
-      <div class="flight-detail-row-head"><span>Opção ${number} • ${esc(choice?.label||'Voo')}</span>
+      <div class="flight-detail-row-head"><span>Alternativa ${number} • ${esc(choice?.label||'Voo')}</span>
        <small>Mesma companhia, tarifa e preço deste cálculo</small>
-       <label class="dbm-flight-preferred"><input type="radio" data-detail-preferred name="dbmPreferredFlight_${esc(chosen)}" ${detail.preferred?'checked':''}>Destacar</label>
+       <label class="dbm-flight-preferred" title="Transformar no horário principal (etapa 6)"><input type="radio" data-detail-preferred name="dbmPreferredFlight_${esc(chosen)}">Destacar</label>
        <button type="button" class="ghost-button danger tiny-button" data-remove-flight-detail>Excluir</button></div>
       <div class="flight-detail-grid">
         <label>Trecho<select data-detail-field="segment_key">${options}</select></label>
-        <label>Aeroporto de origem desta opção<input class="iata-search" data-iata-group data-detail-field="origin_airport" maxlength="3" value="${esc(detail.origin_airport||'')}" placeholder="${esc(((choice?.route||'').split('→')[0]||'').trim()||'Ex.: GRU')}"></label>
-        <label>Aeroporto de destino desta opção<input class="iata-search" data-iata-group data-detail-field="destination_airport" maxlength="3" value="${esc(detail.destination_airport||'')}" placeholder="${esc(((choice?.route||'').split('→')[1]||'').trim()||'Ex.: FOR')}"></label>
+        ${airportFields(detail, routeParts(choice, detail))}
         <label>Data de embarque<input type="date" data-detail-field="departure_date" value="${esc(detail.departure_date||'')}"></label>
         <label>Hora de embarque<input type="time" data-detail-field="departure_time" value="${esc(detail.departure_time||'')}"></label>
         <label>Data de desembarque<input type="date" data-detail-field="arrival_date" value="${esc(detail.arrival_date||'')}"></label>
         <label>Hora de desembarque<input type="time" data-detail-field="arrival_time" value="${esc(detail.arrival_time||'')}"></label>
-      </div>${optionStages(null,detail,choice)}
+      </div>${optionStages(detail,choice)}
     </article>`;
   }
+
+  // ---------- Coleta (etapa 6 primeiro, depois etapa 7) ----------
+  function allRows(){
+    return [...(mainBox?mainBox.querySelectorAll('[data-flight-detail-row]'):[]), ...rowsBox.querySelectorAll('[data-flight-detail-row]')];
+  }
+  function collectRows(){
+    const rows = allRows();
+    const promoted = new Set(rows.filter(r=>r.dataset.promote==='1').map(r=>r.querySelector('[data-detail-field="segment_key"]')?.value||''));
+    return rows.map(row => {
+      const value = field => row.querySelector(`[data-detail-field="${field}"]`)?.value || '';
+      const stops = Array.from(row.querySelectorAll('[data-stop-index]')).map(el=>el.value.trim().toUpperCase());
+      const stopWaits = Array.from(row.querySelectorAll('[data-stop-wait-index]')).map(el=>el.value.trim());
+      const stageEls = Array.from(row.querySelectorAll('[data-option-leg]'));
+      let legs = stageEls.map(stage=>{
+        const field = key=>stage.querySelector(`[data-leg-field="${key}"]`)?.value || '';
+        return {departure:field('departure'),arrival:field('arrival'),origin_tz:field('origin_tz'),destination_tz:field('destination_tz')};
+      });
+      if(!stageEls.length){try{legs=JSON.parse(row.dataset.legs||'[]')||[];}catch(_){legs=[];}}
+      const segmentKey = value('segment_key');
+      const isMain = row.hasAttribute('data-main-row');
+      return {segment_key:segmentKey,departure_date:value('departure_date'),departure_time:value('departure_time'),
+        arrival_date:value('arrival_date'),arrival_time:value('arrival_time'),stops,stop_waits:stopWaits,
+        origin_airport:value('origin_airport').trim().toUpperCase(),destination_airport:value('destination_airport').trim().toUpperCase(),
+        duration_manual:value('duration_manual').trim(),
+        stop_count:Number(value('stop_count'))||0,
+        preferred:isMain ? !promoted.has(segmentKey) : row.dataset.promote==='1',
+        legs};
+    });
+  }
+  function syncHidden(){hiddenInput.value=JSON.stringify(collectRows());}
   function selectedByScope(items){
     const chosen = new Map();
     for(const item of items){if(item.preferred && !chosen.has(item.segment_key))chosen.set(item.segment_key,item);}
@@ -1344,15 +1408,38 @@ document.addEventListener('person-selected', function(event) {
   function renderRows(){
     const items=Array.isArray(detailsByScope[activeScopeKey])?detailsByScope[activeScopeKey]:[];
     selectedByScope(items);
+    const choices=segmentChoices();
+    // Um horário principal por trecho (vazio quando ainda não informado).
+    const mains=choices.map(choice=>{
+      let item=items.find(i=>i.preferred&&i.segment_key===choice.key);
+      if(!item){item={segment_key:choice.key,preferred:true};items.push(item);}
+      return {item,choice};
+    });
+    const mainSet=new Set(mains.map(m=>m.item));
+    const alts=items.filter(i=>!mainSet.has(i));
+    detailsByScope[activeScopeKey]=[...mains.map(m=>m.item),...alts];
+    if(mainBox) mainBox.innerHTML=mains.map(m=>mainRowHtml(m.item,m.choice)).join('');
     const numbers={};
-    rowsBox.innerHTML=items.length?items.map((item,i)=>{
-      const key=item.segment_key||segmentChoices()[0]?.key||'outbound';numbers[key]=(numbers[key]||0)+1;
-      return rowHtml(item,i,numbers[key]);
-    }).join(''):'<div class="flight-details-empty"><strong>Nenhum horário informado.</strong><span>Adicione alternativas apenas quando precisar. Não altera o preço.</span></div>';
+    rowsBox.innerHTML=alts.length?alts.map((item,i)=>{
+      const key=item.segment_key||choices[0]?.key||'outbound';numbers[key]=(numbers[key]||0)+1;
+      return rowHtml(item,i,numbers[key]+1);
+    }).join(''):'<div class="flight-details-empty"><strong>Nenhuma outra opção de horário.</strong><span>O horário principal fica na etapa 6. Adicione alternativas só quando houver.</span></div>';
     previewRows();syncHidden();
     window.dbmIataGroups?.refresh(rowsBox);
+    if(mainBox) window.dbmIataGroups?.refresh(mainBox);
   }
   function saveActive(){detailsByScope[activeScopeKey]=collectRows();}
+  function syncOptionDates(target){
+    // A data de embarque do horário principal também é a data desta opção.
+    const row=target.closest('[data-main-row]');if(!row||!target.matches('[data-detail-field="departure_date"]'))return;
+    const keys=segmentChoices().map(c=>c.key);
+    const key=row.querySelector('[data-detail-field="segment_key"]')?.value;
+    const index=keys.indexOf(key);
+    if(index===0&&optionDeparture){optionDeparture.value=target.value;}
+    else if(index>0&&index===keys.length-1&&optionReturn){optionReturn.value=target.value;}
+    else return;
+    if(optionDatesTouched)optionDatesTouched.value='1';
+  }
 
   addButton?.addEventListener('click', () => {
     markTouched();
@@ -1360,14 +1447,22 @@ document.addEventListener('person-selected', function(event) {
     const items = detailsByScope[activeScopeKey] || [];
     if(items.length >= 20){ window.alert('É possível adicionar até 20 possibilidades por cálculo.'); return; }
     const firstChoice = segmentChoices()[0]?.key || 'outbound';
-    items.push({segment_key:firstChoice,departure_date:'',departure_time:'',arrival_date:'',arrival_time:''});
+    items.push({segment_key:firstChoice,preferred:false,departure_date:'',departure_time:'',arrival_date:'',arrival_time:''});
     detailsByScope[activeScopeKey] = items;
     render();
-    rowsBox.querySelector('[data-flight-detail-row]:last-child input')?.focus();
+    rowsBox.querySelector('[data-flight-detail-row]:last-child input:not([type=hidden])')?.focus();
   });
   clearButton?.addEventListener('click', () => {
     markTouched();
-    detailsByScope[activeScopeKey] = [];
+    saveActive();
+    // "Limpar" da etapa 7 remove só as alternativas; o horário principal fica.
+    detailsByScope[activeScopeKey] = (detailsByScope[activeScopeKey]||[]).filter(item=>item.preferred);
+    render();
+  });
+  document.addEventListener('dbm-clear-main-flight', () => {
+    markTouched();
+    saveActive();
+    detailsByScope[activeScopeKey] = (detailsByScope[activeScopeKey]||[]).map(item=>item.preferred?{segment_key:item.segment_key,preferred:true}:item);
     render();
   });
   rowsBox.addEventListener('click', event => {
@@ -1378,15 +1473,20 @@ document.addEventListener('person-selected', function(event) {
     saveActive();
     render();
   });
-  rowsBox.addEventListener('input', () => { if(rendering)return; markTouched(); saveActive(); previewRows(); syncHidden(); });
-  rowsBox.addEventListener('change', event => {
-    if(rendering)return;
-    markTouched();saveActive();
-    if(event.target.matches('[data-detail-field="stop_count"], [data-stop-index], [data-detail-field="segment_key"]')){
-      // Recria só as etapas da alternativa após mudar sua rota.
-      render();return;
-    }
-    previewRows();syncHidden();
+  [rowsBox, mainBox].filter(Boolean).forEach(box=>{
+    box.addEventListener('input', event => { if(rendering)return; markTouched(); syncOptionDates(event.target); saveActive(); previewRows(); syncHidden(); });
+    box.addEventListener('change', event => {
+      if(rendering)return;
+      if(event.target.matches('[data-detail-preferred]')){
+        // Alternativa destacada vira o horário principal; o antigo vira alternativa.
+        event.target.closest('[data-flight-detail-row]').dataset.promote='1';
+      }
+      markTouched();syncOptionDates(event.target);saveActive();
+      if(event.target.matches('[data-detail-field="stop_count"], [data-stop-index], [data-detail-field="segment_key"], [data-detail-preferred]')){
+        render();return;
+      }
+      previewRows();syncHidden();
+    });
   });
   document.addEventListener('calculation-scope-will-change', () => saveActive());
   document.addEventListener('calculation-scope-changed', event => {

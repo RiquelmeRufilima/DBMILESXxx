@@ -98,3 +98,27 @@ html[data-theme=light] .dbm-iata-chip span{color:#4e6f88}
 html[data-theme=light] .dbm-iata-chip.is-active{background:#1677c9;color:#fff}
 html[data-theme=light] .dbm-iata-group-airports small{color:#8a5208}
 #flightDetailsPanel .flight-detail-grid,#flightDetailsPanel .dbm-flight-option-stop-grid{align-items:start!important}
+
+/* Etapa 6 da calculadora: horário principal compacto por trecho. */
+.dbm-main-flight-rows{display:grid;gap:10px;margin:4px 0 8px}
+.dbm-main-row{padding:10px 12px!important;border-radius:12px;border:1px solid rgba(90,160,217,.3);background:rgba(7,29,51,.45)}
+.dbm-main-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:.8rem}
+.dbm-main-head b{color:#68cbff;text-transform:uppercase;letter-spacing:.05em}
+.dbm-main-head span{font-weight:850;color:#e7f5ff}
+.dbm-main-head em{font-style:normal;font-size:.64rem;font-weight:850;padding:2px 8px;border-radius:999px}
+.dbm-main-head em.is-direct{background:rgba(48,211,143,.12);border:1px solid rgba(48,211,143,.3);color:#8ff5c9}
+.dbm-main-head em.is-connection{background:rgba(255,190,90,.1);border:1px solid rgba(255,190,90,.3);color:#ffd9a3}
+.dbm-main-grid{display:grid;grid-template-columns:minmax(220px,1.3fr) minmax(220px,1.3fr) minmax(120px,.7fr) minmax(110px,.6fr);gap:8px 10px;align-items:start}
+.dbm-main-grid>label,.dbm-main-stops>label,.dbm-main-airports-grid>label{display:grid;gap:4px;font-size:.72rem;font-weight:800;min-width:0}
+.dbm-pair{display:grid;grid-template-columns:1.3fr 1fr;gap:6px}
+.dbm-main-stops{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 10px;margin-top:8px;padding-top:8px;border-top:1px dashed rgba(120,175,220,.25)}
+.dbm-main-airports{margin-top:8px;font-size:.72rem}
+.dbm-main-airports summary{cursor:pointer;color:#9bd9fb;font-weight:800}
+.dbm-main-airports summary small{color:#88a8c0;font-weight:600}
+.dbm-main-airports-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin-top:6px}
+@media(max-width:900px){.dbm-main-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.dbm-main-grid,.dbm-main-airports-grid{grid-template-columns:1fr}}
+html[data-theme=light] .dbm-main-row{background:#f9fcff;border-color:#c2d9ed}
+html[data-theme=light] .dbm-main-head span{color:#16324c}
+.option-airline .dbm-alt-row{grid-template-columns:18px auto minmax(0,1fr) auto auto;gap:10px}
+.option-airline .dbm-alt-row .dbm-flight-choice-marker{display:none}
