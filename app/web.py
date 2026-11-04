@@ -178,6 +178,9 @@ def date_time_br(value, time_value=None) -> str:
 
 
 templates.env.filters["money"] = money
+from .services.travel_data import IATA_CITY_GROUPS, airport_city_label  # noqa: E402
+templates.env.filters["airport_city"] = airport_city_label
+templates.env.globals["iata_city_groups"] = IATA_CITY_GROUPS
 templates.env.filters["percent_br"] = percent_br
 templates.env.filters["commercial_meta"] = commercial_meta
 templates.env.filters["commercial_meta_json"] = commercial_meta_json

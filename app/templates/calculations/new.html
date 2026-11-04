@@ -896,6 +896,9 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <input type="hidden" name="flight_details_touched" id="flightDetailsTouched" value="0">
         <script type="application/json" id="flightDetailsInitial">{{ (option_flight_details or [])|tojson }}</script>
         <script type="application/json" id="routeScopesData">{{ (route_scopes or [])|tojson }}</script>
+        <script type="application/json" id="iataCityGroups">{{ iata_city_groups|tojson }}</script>
+        <link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=1">
+        <script src="/static/js/dbm-iata-groups-20261104.js?v=1" defer></script>
         <div class="section-title flight-details-title">
           <span class="step-badge">7</span>
           <div>
@@ -1228,7 +1231,11 @@ document.addEventListener('person-selected', function(event) {
     const stops = Array.isArray(detail.stops) ? detail.stops.slice(0,count) : [];
     while(stops.length<count)stops.push('');
     const route = (choice?.route || '').split('→').map(v=>v.trim());
-    const airports = [route[0]||'Origem',...stops.map(v=>v||'Parada'),route[1]||'Destino'];
+    const fromCode = (detail.origin_airport||'').trim() || route[0];
+    const toCode = (detail.destination_airport||'').trim() || route[1];
+    const airports = [fromCode||'Origem',...stops.map(v=>v||'Parada'),toCode||'Destino'];
+    const stopWaits = Array.isArray(detail.stop_waits) ? detail.stop_waits : [];
+    const waitText = v => (v===null||v===undefined||v==='') ? '' : (typeof v==='number' ? `${Math.floor(v/60)}h${String(v%60).padStart(2,'0')}` : String(v));
     const legs = Array.isArray(detail.legs)?detail.legs:[];
     const fields = airports.slice(0,-1).map((from,i)=>{
       const leg=legs[i]||{};
@@ -1243,10 +1250,12 @@ document.addEventListener('person-selected', function(event) {
       </section>`;
     }).join('');
     return `<details class="dbm-flight-option-more" ${detail._expanded||count>0?'open':''}>
-       <summary>🛫 Conexões, horários das etapas e fusos (opcionais)</summary>
+       <summary>🛫 Conexões, esperas, duração e horários das etapas (opcionais)</summary>
        <div class="dbm-flight-option-stop-grid">
          <label>Quantidade de paradas desta opção<select data-detail-field="stop_count">${Array.from({length:5},(_,i)=>`<option value="${i}" ${i===count?'selected':''}>${i===0?'Direto':i+' parada(s)'}</option>`).join('')}</select></label>
-         ${stops.map((stop,i)=>`<label>Parada ${i+1} • aeroporto IATA<input data-stop-index="${i}" maxlength="3" value="${esc(stop)}" placeholder="Ex.: BSB"></label>`).join('')}
+         ${stops.map((stop,i)=>`<label>Conexão ${i+1} • aeroporto IATA<input class="iata-search" data-iata-group data-stop-index="${i}" maxlength="3" value="${esc(stop)}" placeholder="Ex.: BSB ou SAO"></label>
+         <label>Espera em ${esc(stop||'conexão '+(i+1))}<input data-stop-wait-index="${i}" value="${esc(waitText(stopWaits[i]))}" placeholder="Ex.: 1h28" inputmode="text"></label>`).join('')}
+         <label>Duração total<input data-detail-field="duration_manual" value="${esc(waitText(detail.duration_manual))}" placeholder="Ex.: 7h52"><small>Se os horários e fusos forem preenchidos, a duração é calculada automaticamente.</small></label>
        </div>
        <div class="dbm-flight-option-legs">${fields}</div>
        <div class="dbm-flight-option-preview" data-option-preview></div>
@@ -1260,8 +1269,11 @@ document.addEventListener('person-selected', function(event) {
         const field = key=>stage.querySelector(`[data-leg-field="${key}"]`)?.value || '';
         return {departure:field('departure'),arrival:field('arrival'),origin_tz:field('origin_tz'),destination_tz:field('destination_tz')};
       });
+      const stopWaits = Array.from(row.querySelectorAll('[data-stop-wait-index]')).map(el=>el.value.trim());
       return {segment_key:value('segment_key'),departure_date:value('departure_date'),departure_time:value('departure_time'),
-        arrival_date:value('arrival_date'),arrival_time:value('arrival_time'),stops,
+        arrival_date:value('arrival_date'),arrival_time:value('arrival_time'),stops,stop_waits:stopWaits,
+        origin_airport:value('origin_airport').trim().toUpperCase(),destination_airport:value('destination_airport').trim().toUpperCase(),
+        duration_manual:value('duration_manual').trim(),
         stop_count:Number(value('stop_count'))||0,preferred:!!row.querySelector('[data-detail-preferred]')?.checked,
         legs:stages};
     });
@@ -1279,6 +1291,8 @@ document.addEventListener('person-selected', function(event) {
        <button type="button" class="ghost-button danger tiny-button" data-remove-flight-detail>Excluir</button></div>
       <div class="flight-detail-grid">
         <label>Trecho<select data-detail-field="segment_key">${options}</select></label>
+        <label>Aeroporto de origem desta opção<input class="iata-search" data-iata-group data-detail-field="origin_airport" maxlength="3" value="${esc(detail.origin_airport||'')}" placeholder="${esc(((choice?.route||'').split('→')[0]||'').trim()||'Ex.: GRU')}"></label>
+        <label>Aeroporto de destino desta opção<input class="iata-search" data-iata-group data-detail-field="destination_airport" maxlength="3" value="${esc(detail.destination_airport||'')}" placeholder="${esc(((choice?.route||'').split('→')[1]||'').trim()||'Ex.: FOR')}"></label>
         <label>Data de embarque<input type="date" data-detail-field="departure_date" value="${esc(detail.departure_date||'')}"></label>
         <label>Hora de embarque<input type="time" data-detail-field="departure_time" value="${esc(detail.departure_time||'')}"></label>
         <label>Data de desembarque<input type="date" data-detail-field="arrival_date" value="${esc(detail.arrival_date||'')}"></label>
@@ -1319,7 +1333,15 @@ document.addEventListener('person-selected', function(event) {
       el.textContent=valid?`⏱️ Duração total ${fmt(Math.round((last-first)/60000))}${waits.length?' • Espera(s): '+waits.map(fmt).join(', '):' • Direto'}`:'Duração opcional: revise horários e fusos das etapas.';
     });
   }
+  let rendering=false;
   function render(){
+    // Redesenhar remove o campo com foco; o navegador dispara "change" nesse
+    // momento e chamaria render() de novo no meio da troca. Ignora a reentrada.
+    if(rendering)return;
+    rendering=true;
+    try{renderRows();}finally{rendering=false;}
+  }
+  function renderRows(){
     const items=Array.isArray(detailsByScope[activeScopeKey])?detailsByScope[activeScopeKey]:[];
     selectedByScope(items);
     const numbers={};
@@ -1328,6 +1350,7 @@ document.addEventListener('person-selected', function(event) {
       return rowHtml(item,i,numbers[key]);
     }).join(''):'<div class="flight-details-empty"><strong>Nenhum horário informado.</strong><span>Adicione alternativas apenas quando precisar. Não altera o preço.</span></div>';
     previewRows();syncHidden();
+    window.dbmIataGroups?.refresh(rowsBox);
   }
   function saveActive(){detailsByScope[activeScopeKey]=collectRows();}
 
@@ -1355,8 +1378,9 @@ document.addEventListener('person-selected', function(event) {
     saveActive();
     render();
   });
-  rowsBox.addEventListener('input', () => { markTouched(); saveActive(); previewRows(); syncHidden(); });
+  rowsBox.addEventListener('input', () => { if(rendering)return; markTouched(); saveActive(); previewRows(); syncHidden(); });
   rowsBox.addEventListener('change', event => {
+    if(rendering)return;
     markTouched();saveActive();
     if(event.target.matches('[data-detail-field="stop_count"], [data-stop-index], [data-detail-field="segment_key"]')){
       // Recria só as etapas da alternativa após mudar sua rota.

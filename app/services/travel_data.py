@@ -83,6 +83,8 @@ INTERNATIONAL_AIRPORTS: dict[str, str] = {
     "ASU":"Assunção", "AEP":"Buenos Aires/Aeroparque", "COR":"Córdoba", "MDZ":"Mendoza",
     "UIO":"Quito", "GYE":"Guayaquil", "MDE":"Medellín", "CTG":"Cartagena",
     "CUR":"Curaçao", "AUA":"Aruba", "NAS":"Nassau", "HAV":"Havana",
+    "STN":"Londres/Stansted", "LTN":"Londres/Luton", "LCY":"Londres/London City",
+    "SEN":"Londres/Southend", "BVA":"Paris/Beauvais", "CIA":"Roma/Ciampino",
 }
 # Aeroportos e aeródromos civis portugueses com código IATA.
 # Inclui Portugal continental, Madeira e todos os aeroportos dos Açores.
@@ -116,7 +118,49 @@ PORTUGAL_AIRPORTS: dict[str, str] = {
     "CVU":"Corvo",
 }
 
-AIRPORTS: dict[str, str] = {**BR_AIRPORTS, **INTERNATIONAL_AIRPORTS, **PORTUGAL_AIRPORTS}
+# Códigos IATA de CIDADE/REGIÃO: agrupam aeroportos (não são aeroportos).
+# Na calculadora funcionam como filtro: ao escolher um deles, aparece a
+# segunda seleção com os aeroportos específicos. "Portugal" é só um grupo
+# de localização — POR não é código IATA, por isso o grupo não tem código.
+IATA_CITY_GROUPS: list[dict] = [
+    {"key": "NYC", "code": "NYC", "name": "Nova York", "airports": [
+        {"code": "JFK", "name": "John F. Kennedy"}, {"code": "LGA", "name": "LaGuardia"}, {"code": "EWR", "name": "Newark"}]},
+    {"key": "RIO", "code": "RIO", "name": "Rio de Janeiro", "airports": [
+        {"code": "GIG", "name": "Galeão"}, {"code": "SDU", "name": "Santos Dumont"}]},
+    {"key": "SAO", "code": "SAO", "name": "São Paulo", "airports": [
+        {"code": "GRU", "name": "Guarulhos"}, {"code": "CGH", "name": "Congonhas"}, {"code": "VCP", "name": "Viracopos"}]},
+    {"key": "LON", "code": "LON", "name": "Londres", "airports": [
+        {"code": "LHR", "name": "Heathrow"}, {"code": "LGW", "name": "Gatwick"}, {"code": "STN", "name": "Stansted"},
+        {"code": "LTN", "name": "Luton"}, {"code": "LCY", "name": "London City"}, {"code": "SEN", "name": "Southend"}]},
+    {"key": "PAR", "code": "PAR", "name": "Paris", "airports": [
+        {"code": "CDG", "name": "Charles de Gaulle"}, {"code": "ORY", "name": "Orly"}, {"code": "BVA", "name": "Beauvais"}]},
+    {"key": "PT", "code": "", "name": "Portugal", "airports": [
+        {"code": "OPO", "name": "Porto"}, {"code": "LIS", "name": "Lisboa"}, {"code": "FAO", "name": "Faro"},
+        {"code": "BYJ", "name": "Beja"}, {"code": "CAT", "name": "Cascais"}, {"code": "BGC", "name": "Bragança"}]},
+    {"key": "ROM", "code": "ROM", "name": "Roma", "airports": [
+        {"code": "FCO", "name": "Fiumicino"}, {"code": "CIA", "name": "Ciampino"}]},
+]
+IATA_CITY_CODES: dict[str, str] = {
+    group["code"]: f"{group['name']} (todos os aeroportos)" for group in IATA_CITY_GROUPS if group["code"]
+}
+
+AIRPORTS: dict[str, str] = {**BR_AIRPORTS, **INTERNATIONAL_AIRPORTS, **PORTUGAL_AIRPORTS, **IATA_CITY_CODES}
+
+
+def airport_city_label(code: str | None) -> str:
+    """Nome amigável para exibir abaixo do código: "São Paulo (Guarulhos)"."""
+    code = str(code or "").strip().upper()
+    for group in IATA_CITY_GROUPS:
+        if group["code"] and group["code"] == code:
+            return group["name"]
+        for airport in group["airports"]:
+            if airport["code"] == code:
+                return f"{group['name']} ({airport['name']})" if group["code"] else airport["name"]
+    name = AIRPORTS.get(code, "")
+    if "/" in name:
+        city, _, airport = name.partition("/")
+        return f"{city.strip()} ({airport.strip()})"
+    return name
 BR_AIRPORTS = AIRPORTS
 
 AIRLINE_OPTIONS: list[dict[str, str]] = [

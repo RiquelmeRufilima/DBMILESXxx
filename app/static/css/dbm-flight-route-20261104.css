@@ -1,0 +1,100 @@
+/* DBMILESX 04/11/2026 — bloco visual do trecho de voo.
+   Restrito ao bloco de voo: não altera bagagens, tarifas, valores nem o card. */
+.dbm-route-list{display:grid!important;gap:10px!important;margin-top:10px!important}
+.history-segment-row.dbm-route-row{display:block!important;grid-template-columns:none!important;padding:10px 14px 12px!important;border-radius:14px!important;border:1px solid rgba(129,167,206,.2)!important;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015))!important}
+.history-segment-row.dbm-route-row.segment-flown{border-color:rgba(30,213,156,.4)!important}
+.history-segment-row.dbm-route-row.segment-unflown{border-color:rgba(255,91,110,.35)!important;opacity:.85}
+
+.dbm-route-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;font-size:.72rem}
+.dbm-route-head .segment-number{font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#8fb3cd}
+.dbm-route-head em{font-style:normal;font-weight:900;font-size:.64rem;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.06)}
+.dbm-route-kind{padding:2px 8px;border-radius:999px;font-weight:850;font-size:.66rem}
+.dbm-route-kind.is-direct{background:rgba(48,211,143,.12);border:1px solid rgba(48,211,143,.3);color:#8ff5c9}
+.dbm-route-kind.is-connection{background:rgba(255,190,90,.1);border:1px solid rgba(255,190,90,.3);color:#ffd9a3}
+.dbm-route-date{margin-left:auto;padding:3px 9px;border-radius:999px;background:rgba(57,131,255,.12);border:1px solid rgba(87,163,255,.26);font-weight:850;color:#cfe6ff}
+.dbm-route-alt{font-size:.64rem;color:#7fc8f5;font-weight:800}
+
+.dbm-route-body{display:grid;grid-template-columns:minmax(80px,auto) minmax(140px,1fr) minmax(80px,auto) auto;align-items:center;gap:6px 14px}
+.dbm-route-body.no-duration{grid-template-columns:minmax(80px,auto) minmax(140px,1fr) minmax(80px,auto)}
+.dbm-route-end{display:grid;gap:1px;min-width:0}
+.dbm-route-end.is-destination{text-align:right}
+.dbm-route-code{font-size:1.45rem;font-weight:950;letter-spacing:.02em;line-height:1.05;color:#f2faff}
+.dbm-route-end small{font-size:.68rem;color:#93b2c9;line-height:1.25;overflow-wrap:anywhere}
+.dbm-route-time{font-size:.95rem;font-weight:900;color:#dff3ff}
+.dbm-route-time sup{font-size:.6rem;color:#ffad8b;margin-left:2px}
+
+.dbm-route-mid{display:grid;justify-items:center;gap:3px;min-width:0}
+.dbm-route-track{position:relative;display:flex;justify-content:space-around;align-items:center;width:100%;min-height:52px}
+.dbm-route-track:before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;margin-top:2px;background:linear-gradient(90deg,rgba(120,175,220,.25),rgba(120,175,220,.6),rgba(120,175,220,.25))}
+.dbm-route-track.is-direct{min-height:30px}
+.dbm-route-arrow{position:absolute;right:-2px;top:50%;margin-top:-3px;width:0;height:0;border-left:9px solid rgba(120,175,220,.75);border-top:5px solid transparent;border-bottom:5px solid transparent}
+.dbm-route-stop{position:relative;z-index:1;display:grid;justify-items:center;gap:2px}
+.dbm-route-dot{width:11px;height:11px;border-radius:50%;background:#0b2034;border:2px solid #ffc46b;box-shadow:0 0 0 3px rgba(255,196,107,.12)}
+.dbm-route-stop>b{font-size:.74rem;font-weight:900;color:#ffd9a3}
+.dbm-route-wait{font-size:.62rem;font-weight:850;padding:2px 7px;border-radius:7px;background:rgba(255,190,90,.12);border:1px solid rgba(255,190,90,.35);color:#ffd9a3;white-space:nowrap}
+.dbm-route-wait.is-empty{visibility:hidden;padding:0;border:0;height:16px}
+.dbm-route-label{font-size:.68rem;font-weight:850;color:#9cc5e0}
+
+.dbm-route-duration{display:grid;justify-items:center;padding:6px 11px;border-radius:10px;border:1px solid rgba(255,140,120,.45);background:rgba(255,120,100,.07)}
+.dbm-route-duration b{font-size:1rem;font-weight:950;color:#ffd2c7}
+.dbm-route-duration small{font-size:.58rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;color:#f2a796}
+
+@media(max-width:640px){
+  .dbm-route-body,.dbm-route-body.no-duration{grid-template-columns:minmax(60px,auto) minmax(0,1fr) minmax(60px,auto)}
+  .dbm-route-duration{grid-column:1/-1;justify-self:start;display:flex;gap:6px;align-items:baseline;padding:4px 9px}
+  .dbm-route-code{font-size:1.2rem}
+  .dbm-route-date{margin-left:0}
+}
+
+html[data-theme=light] .history-segment-row.dbm-route-row{background:#fff!important;border-color:#d1e1ee!important}
+html[data-theme=light] .dbm-route-code{color:#10283d}
+html[data-theme=light] .dbm-route-time{color:#173a57}
+html[data-theme=light] .dbm-route-end small,html[data-theme=light] .dbm-route-label{color:#53748b}
+html[data-theme=light] .dbm-route-dot{background:#fff;border-color:#e09a2b}
+html[data-theme=light] .dbm-route-stop>b,html[data-theme=light] .dbm-route-wait{color:#8a5208}
+html[data-theme=light] .dbm-route-wait{background:#fff6e8;border-color:#f3cf98}
+html[data-theme=light] .dbm-route-kind.is-direct{color:#0b7a50;background:#e9fbf3}
+html[data-theme=light] .dbm-route-kind.is-connection{color:#8a5208;background:#fff6e8}
+html[data-theme=light] .dbm-route-date{color:#1d4f7a;background:#eef6ff}
+html[data-theme=light] .dbm-route-duration{background:#fff3f0}
+html[data-theme=light] .dbm-route-duration b{color:#a3341d}
+html[data-theme=light] .dbm-route-duration small{color:#b5523c}
+html[data-theme=light] .dbm-route-head .segment-number{color:#4f7290}
+
+/* Alternativas de horário do mesmo voo (estilo lista compacta). */
+.dbm-alt-picker .dbm-flight-choice{margin:6px 0}
+.dbm-alt-row{display:grid!important;grid-template-columns:18px minmax(64px,auto) minmax(120px,1fr) minmax(64px,auto) minmax(56px,auto) auto;align-items:center;gap:12px;padding:9px 12px!important;margin:0!important;cursor:pointer;font-weight:normal!important}
+.dbm-alt-row>input[type=radio]{width:17px!important;height:17px!important;margin:0!important;accent-color:#21b8fe}
+.dbm-alt-time{display:grid;font-size:1.05rem;font-weight:900;color:#eef8ff;white-space:nowrap}
+.dbm-alt-time small{font-size:.64rem;font-weight:800;color:#88a8c0}
+.dbm-alt-time sup{font-size:.58rem;color:#ffad8b;margin-left:2px}
+.dbm-alt-stops{display:grid;justify-items:center;gap:3px;min-width:0;text-align:center}
+.dbm-alt-stops b{font-size:.72rem;color:#cfe6ff}
+.dbm-alt-stops small{font-size:.62rem;color:#ffd9a3;font-weight:750}
+.dbm-alt-line{position:relative;display:flex;justify-content:space-evenly;align-items:center;width:min(130px,100%);height:8px}
+.dbm-alt-line:before{content:"";position:absolute;left:0;right:0;top:50%;height:1.5px;background:rgba(150,190,225,.6)}
+.dbm-alt-line em{position:relative;width:7px;height:7px;border-radius:50%;background:#0b2034;border:1.5px solid #ffc46b}
+.dbm-alt-duration{font-size:.86rem;font-weight:850;color:#9fc4de;white-space:nowrap}
+@media(max-width:640px){.dbm-alt-row{grid-template-columns:18px 1fr 1fr 1fr;row-gap:6px}.dbm-alt-duration{grid-column:2/4}.dbm-alt-row .dbm-flight-choice-marker{grid-column:4;grid-row:2;justify-self:end}}
+html[data-theme=light] .dbm-alt-time{color:#10283d}
+html[data-theme=light] .dbm-alt-stops b{color:#1d4f7a}
+html[data-theme=light] .dbm-alt-stops small{color:#8a5208}
+html[data-theme=light] .dbm-alt-line em{background:#fff}
+.dbm-alt-picker{max-width:860px}
+
+/* Calculadora: filtro por cidade/região → aeroportos específicos. */
+.dbm-iata-group{display:grid;gap:6px;margin-top:5px}
+.dbm-iata-group-select{min-height:32px!important;padding:4px 8px!important;font-size:.74rem!important;max-width:260px}
+.dbm-iata-group-airports{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.dbm-iata-group-airports small{width:100%;font-size:.66rem;color:#ffd9a3;font-weight:800}
+.dbm-iata-chip{display:inline-flex;align-items:baseline;gap:5px;padding:5px 9px;border-radius:999px;border:1px solid rgba(110,170,220,.35);background:rgba(20,60,95,.45);color:#d8eeff;font:inherit;font-size:.72rem;cursor:pointer}
+.dbm-iata-chip b{font-weight:950;letter-spacing:.03em}
+.dbm-iata-chip span{font-size:.64rem;color:#9fc0d8}
+.dbm-iata-chip:hover{border-color:#3cb4f0}
+.dbm-iata-chip.is-active{background:#1677c9;border-color:#3cb4f0;color:#fff}
+.dbm-iata-chip.is-active span{color:#e3f3ff}
+html[data-theme=light] .dbm-iata-chip{background:#eef6ff;color:#173a57;border-color:#bcd6ee}
+html[data-theme=light] .dbm-iata-chip span{color:#4e6f88}
+html[data-theme=light] .dbm-iata-chip.is-active{background:#1677c9;color:#fff}
+html[data-theme=light] .dbm-iata-group-airports small{color:#8a5208}
+#flightDetailsPanel .flight-detail-grid,#flightDetailsPanel .dbm-flight-option-stop-grid{align-items:start!important}

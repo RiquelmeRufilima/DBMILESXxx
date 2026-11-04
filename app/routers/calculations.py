@@ -1566,6 +1566,34 @@ def _flight_segment_label(segment_key: str, index: int = 0) -> str:
     return f"Trecho {index + 1}" if index >= 0 else "Voo"
 
 
+def _flight_airport_code(value: Any) -> str:
+    """Código IATA de 3 letras escolhido na opção; qualquer outra coisa vira vazio."""
+    code = _clean_code(value)
+    return code if re.fullmatch(r"[A-Z]{3}", code) else ""
+
+
+def _duration_minutes_value(value: Any) -> int | None:
+    """Aceita 472, "7:52", "7h52", "7h 52min", "1h28min" ou "45min"."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        minutes = int(value)
+        return minutes if 0 < minutes <= 7 * 24 * 60 else None
+    text = str(value).strip().lower().replace(" ", "")
+    if not text:
+        return None
+    match = re.fullmatch(r"(\d{1,3})[:h](\d{1,2})?(?:m|min)?", text)
+    if match:
+        minutes = int(match.group(1)) * 60 + int(match.group(2) or 0)
+    elif re.fullmatch(r"\d{1,4}(?:m|min)", text):
+        minutes = int(re.sub(r"\D", "", text))
+    elif text.isdigit():
+        minutes = int(text)
+    else:
+        return None
+    return minutes if 0 < minutes <= 7 * 24 * 60 else None
+
+
 def _local_connection_waits(legs: list[dict[str, Any]]) -> list[int | None]:
     """Espera em cada conexão usando horários locais.
 
@@ -1625,6 +1653,12 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
         if segment_key not in by_key:
             segment_key = default_key
         segment = by_key[segment_key]
+        # Aeroporto específico escolhido NESTA opção (ex.: cotação SAO → FOR,
+        # opção 1 em GRU e opção 2 em VCP). Vazio = usa o da cotação.
+        origin_airport = _flight_airport_code(item.get("origin_airport"))
+        destination_airport = _flight_airport_code(item.get("destination_airport"))
+        origin = origin_airport or segment["origin"]
+        destination = destination_airport or segment["destination"]
         departure_date = _clean_date_value(item.get("departure_date") or item.get("date"))
         departure_time = _clean_time_value(item.get("departure_time"))
         arrival_date = _clean_date_value(item.get("arrival_date"))
@@ -1636,9 +1670,9 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
         stops = []
         for raw_stop in raw_stops[:4]:
             code = _clean_code(raw_stop)
-            if code and re.fullmatch(r"[A-Z]{3}", code) and code not in (segment["origin"], segment["destination"]) and code not in stops:
+            if code and re.fullmatch(r"[A-Z]{3}", code) and code not in (origin, destination) and code not in stops:
                 stops.append(code)
-        airports = [segment["origin"], *stops, segment["destination"]]
+        airports = [origin, *stops, destination]
         raw_legs = item.get("legs") if isinstance(item.get("legs"), list) else []
         normalized_legs = []
         valid_times = bool(raw_legs and len(raw_legs) == len(airports) - 1)
@@ -1689,7 +1723,11 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
         if normalized_legs and normalized_legs[-1]["arrival"]:
             arrival_date = normalized_legs[-1]["arrival"][:10]
             arrival_time = normalized_legs[-1]["arrival"][11:16]
+        manual_duration = _duration_minutes_value(item.get("duration_manual"))
+        raw_manual_waits = item.get("stop_waits") if isinstance(item.get("stop_waits"), list) else []
+        manual_waits = [_duration_minutes_value(value) for value in raw_manual_waits[:len(stops)]]
         if not any([departure_date, departure_time, arrival_date, arrival_time, stops,
+                    origin_airport, destination_airport, manual_duration,
                     any(leg.get("departure") or leg.get("arrival") for leg in normalized_legs)]):
             continue
         if not arrival_date and departure_date and arrival_time:
@@ -1698,19 +1736,34 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
             # Sem trechos detalhados: duração pelo embarque/desembarque do próprio
             # horário, quando os dois aeroportos têm fuso conhecido.
             try:
-                start = utc(f"{departure_date}T{departure_time}", br_airport_utc_offset(segment["origin"]))
-                finish = utc(f"{arrival_date}T{arrival_time}", br_airport_utc_offset(segment["destination"]))
+                start = utc(f"{departure_date}T{departure_time}", br_airport_utc_offset(origin))
+                finish = utc(f"{arrival_date}T{arrival_time}", br_airport_utc_offset(destination))
             except ValueError:
                 start = finish = None
             if start and finish and finish > start:
                 duration = int((finish - start).total_seconds() // 60)
+        duration_is_manual = False
+        if duration is None and manual_duration:
+            duration, duration_is_manual = manual_duration, True
+        computed_waits = waits if valid_times else _local_connection_waits(normalized_legs)
+        final_waits: list[int | None] = []
+        for wait_index in range(len(stops)):
+            computed = computed_waits[wait_index] if wait_index < len(computed_waits) else None
+            manual = manual_waits[wait_index] if wait_index < len(manual_waits) else None
+            final_waits.append(computed if computed is not None else manual)
+        if not any(value is not None for value in final_waits):
+            final_waits = []
 
         normalized.append({
             "segment_key": segment_key,
             "kind": "ida" if segment_key in {"outbound", "one_way"} else ("volta" if segment_key == "return" else "trecho"),
             "label": segment["label"],
-            "origin": segment["origin"],
-            "destination": segment["destination"],
+            "origin": origin,
+            "destination": destination,
+            "origin_airport": origin_airport,
+            "destination_airport": destination_airport,
+            "route_origin": segment["origin"],
+            "route_destination": segment["destination"],
             "departure_date": departure_date,
             "departure_time": departure_time,
             "arrival_date": arrival_date,
@@ -1718,7 +1771,11 @@ def _normalize_flight_details(raw: Any, selected_segments: list[dict[str, Any]],
             "stops": stops,
             "legs": normalized_legs,
             "duration_minutes": duration,
-            "wait_minutes": waits if valid_times else _local_connection_waits(normalized_legs),
+            "duration_manual": manual_duration if duration_is_manual else (manual_duration or None),
+            "wait_minutes": final_waits,
+            "stop_waits": manual_waits,
+            # Regra: sem parada cadastrada = voo direto (inclui registros antigos).
+            "is_direct": not stops,
             "preferred": bool(item.get("preferred")),
             "_source_index": source_index,
         })
@@ -1818,6 +1875,45 @@ def _detail_schedule_text(item: dict[str, Any]) -> str:
     return ""
 
 
+def _flight_view(flight: Any, origin: str, destination: str, display_date: str) -> dict[str, Any]:
+    """Dados prontos para o bloco visual do voo (direto ou com conexões).
+
+    Sem alternativa salva (cotações antigas) o voo é tratado como DIRETO e
+    mostra só origem → destino e a data, sem horários fictícios.
+    """
+    item = flight if isinstance(flight, dict) else {}
+    raw_stops = item.get("stops") if isinstance(item.get("stops"), list) else []
+    stops = [str(stop).strip().upper() for stop in raw_stops if str(stop or "").strip()]
+    raw_waits = item.get("wait_minutes") if isinstance(item.get("wait_minutes"), list) else []
+    waits = [value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None for value in raw_waits]
+    waits = (waits + [None] * len(stops))[:len(stops)]
+    duration = item.get("duration_minutes")
+    if not isinstance(duration, int) or isinstance(duration, bool) or duration <= 0:
+        duration = None
+    dep_date = _clean_date_value(item.get("departure_date"))
+    arr_date = _clean_date_value(item.get("arrival_date"))
+    day_offset = 0
+    if dep_date and arr_date:
+        try:
+            day_offset = (datetime.strptime(arr_date, "%Y-%m-%d") - datetime.strptime(dep_date, "%Y-%m-%d")).days
+        except ValueError:
+            day_offset = 0
+    real_origin = _clean_code(item.get("origin")) or origin
+    real_destination = _clean_code(item.get("destination")) or destination
+    return {
+        "origin": real_origin if real_origin != "?" else "",
+        "destination": real_destination if real_destination != "?" else "",
+        "stops": stops,
+        "waits": waits,
+        "is_direct": not stops,
+        "departure_time": _clean_time_value(item.get("departure_time")),
+        "arrival_time": _clean_time_value(item.get("arrival_time")),
+        "date": _display_full_date(dep_date) or display_date,
+        "day_offset": max(0, min(day_offset, 3)),
+        "duration_minutes": duration,
+    }
+
+
 def _history_segment_rows(
     segments: Any,
     details: Any,
@@ -1870,7 +1966,12 @@ def _history_segment_rows(
         display_date = _display_full_date(fallback_date)
         if not schedules and display_date and (not skip_mode or status == "flown"):
             schedules = [display_date]
+        # Voo exibido no bloco visual: a alternativa destacada (ou a primeira).
+        flight = next((item for item in matched if item.get("preferred")), matched[0] if matched else None)
+        flight_view = _flight_view(flight, origin, destination, display_date)
         rows.append({
+            "flight": flight_view,
+            "alternatives": len(matched),
             "segment": idx,
             "key": key,
             "origin": origin,
@@ -1887,6 +1988,8 @@ def _history_segment_rows(
             if not isinstance(item, dict):
                 continue
             rows.append({
+                "flight": _flight_view(item, _clean_code(item.get("origin")) or "?", _clean_code(item.get("destination")) or "?", _display_full_date(item.get("departure_date") or item.get("date"))),
+                "alternatives": 1,
                 "segment": idx,
                 "key": str(item.get("segment_key") or f"segment_{idx}"),
                 "origin": _clean_code(item.get("origin")) or "?",

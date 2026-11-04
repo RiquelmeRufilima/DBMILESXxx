@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/flight_choice_picker.html" import flight_choice_picker %}
+{% from "partials/flight_route.html" import flight_route_list %}
 {% block title %}Resultado | DBMILESX
 {% endblock %}
 {% block eyebrow %}RESULTADO{% endblock %}
@@ -142,35 +143,10 @@
     
     <!-- TRECHOS COM O BOTÃO DO OLHINHO INTEGRADO -->
     {% if quote.segment_rows %}
-    <div class="history-segment-list result-segment-list">
-      {% for row in quote.segment_rows %}
-      <div class="history-segment-row {% if row.status == 'flown' %}segment-flown{% elif row.status == 'not_flown' %}segment-unflown{% endif %}" id="segment-row-{{ loop.index }}">
-        <div class="history-segment-route">
-          <!-- Botão do Olhinho para ocultar/exibir o trecho -->
-          <button type="button" class="toggle-segment-visibility" onclick="toggleSegment({{ loop.index }})" title="Ocultar/Exibir trecho">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-          </button>
-          
-          <span class="segment-number">Trecho {{ row.segment }}</span>
-          <strong>{{ row.route }}</strong>
-          {% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}
-          {% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}
-        </div>
-        <div class="history-segment-schedule">
-          {% if row.schedules %}
-            {% for schedule in row.schedules %}<span>{{ schedule }}</span>{% endfor %}
-          {% elif row.status == 'not_flown' %}
-            <span class="schedule-muted">Sem horário — trecho não utilizado</span>
-          {% else %}
-            <span class="schedule-muted">Data e horário não informados</span>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
+    {{ flight_route_list(quote.segment_rows, with_toggle=true, extra_class='result-segment-list') }}
     {% endif %}
     {% endif %}
-    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
+    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=1">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
   </div>
 
   <div class="card-panel">

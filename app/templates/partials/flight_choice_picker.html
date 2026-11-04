@@ -1,60 +1,54 @@
+{% from "partials/flight_route.html" import fmt_minutes %}
 {% macro flight_choice_picker(quote, csrf_token) -%}
 {#
-  Quadro de horários do voo calculado.
-  - É SEMPRE o mesmo voo (mesma companhia, tarifa, preço e bagagem); só mudam
-    embarque/desembarque e paradas. Por isso mostra apenas: horários, paradas,
-    duração e tempo de espera em cada conexão.
-  - Com 1 horário por trecho: "Horário do voo" (sem escolha).
-  - Com 2+ horários em algum trecho: "Escolha o horário" (rádio para escolher).
+  Alternativas de horário do MESMO voo (mesma companhia, tarifa, preço e
+  bagagem). Aparece só quando algum trecho tem 2+ horários; com 1 horário o
+  bloco do trecho (partials/flight_route.html) já mostra tudo.
+  Cada linha: embarque · paradas · desembarque (+1) · duração · esperas.
 #}
 {% set all_choices = (quote.flight_details|default([], true))|select('mapping')|list %}
 {% set state = namespace(keys=[], multiple=false, items=[]) %}
 {% for f in all_choices %}
-  {% if f.get('departure_time') or f.get('arrival_time') %}
+  {% if f.get('departure_time') or f.get('arrival_time') or f.get('stops') %}
     {% set state.items = state.items + [f] %}
     {% if f.get('segment_key') in state.keys %}{% set state.multiple = true %}{% else %}{% set state.keys = state.keys + [f.get('segment_key')] %}{% endif %}
   {% endif %}
 {% endfor %}
 {% set choices = state.items %}
-{% if choices %}
-<section class="dbm-flight-picker{% if not state.multiple %} is-single{% endif %}" data-dbm-flight-picker data-quote-id="{{ quote.id }}" data-csrf-token="{{ csrf_token }}" aria-label="Horários do voo">
+{% if choices and state.multiple %}
+<section class="dbm-flight-picker dbm-alt-picker" data-dbm-flight-picker data-quote-id="{{ quote.id }}" data-csrf-token="{{ csrf_token }}" aria-label="Escolher horário">
   <div class="dbm-flight-picker-heading">
-    <strong>✈️ {{ 'Escolha o horário' if state.multiple else 'Horário do voo' }}</strong>
-    {% if state.multiple %}<small>mesmo voo e mesmo preço • muda só o horário e as paradas</small>{% endif %}
+    <strong>✈️ Escolha o horário</strong>
+    <small>mesmo voo e mesmo preço • muda só o horário e as paradas</small>
   </div>
   {% for segment_key in state.keys %}
     {% set options = choices|selectattr('segment_key','equalto',segment_key)|list %}
-    {% set selectable = options|length > 1 %}
+    {% if options|length > 1 %}
     <div class="dbm-flight-direction">
-      <div class="dbm-flight-direction-title"><b>{{ options[0].get('label') or 'Trecho' }}</b><span>{{ options[0].get('origin') or '—' }} → {{ options[0].get('destination') or '—' }}</span>{% if selectable %}<small>{{ options|length }} horários</small>{% endif %}</div>
+      <div class="dbm-flight-direction-title"><b>{{ options[0].get('label') or 'Trecho' }}</b><span>{{ options[0].get('origin') or '—' }} → {{ options[0].get('destination') or '—' }}</span><small>{{ options|length }} horários</small></div>
       {% for f in options %}
       {% set saved_index = f.get('_source_index', -1)|int(-1) %}
       {% set f_stops = f.get('stops') if f.get('stops') is iterable and f.get('stops') is not string else [] %}
       {% set f_duration = f.get('duration_minutes') %}
       {% set f_waits = f.get('wait_minutes') if f.get('wait_minutes') is iterable and f.get('wait_minutes') is not string else [] %}
-      {% set is_selected = f.get('preferred') and selectable %}
-      <article class="dbm-flight-choice{% if is_selected %} is-selected{% endif %}">
-        <label class="dbm-flight-choice-main">
-          {% if selectable %}<input type="radio" name="flight-choice-{{ quote.id }}-{{ segment_key }}" value="{{ saved_index }}" data-segment-key="{{ segment_key }}" {% if f.get('preferred') %}checked{% endif %} {% if saved_index < 0 %}disabled title="Horário antigo: edite o cálculo para poder selecionar"{% endif %}>{% endif %}
-          <span class="dbm-flight-choice-grid">
-            <span class="dbm-flight-choice-time"><small>Embarque</small><strong>{{ f.get('departure_time') or '--:--' }}</strong><small>{{ f.get('origin') or 'Origem' }}{% if f.get('departure_date') %} · {{ f.get('departure_date')|date_br }}{% endif %}</small></span>
-            <span class="dbm-flight-choice-stops"><b>{% if f_stops %}{{ f_stops|length }} parada{{ 's' if f_stops|length > 1 }}{% else %}Direto{% endif %}</b>{% if f_stops %}<small>{{ f_stops|join(' · ') }}</small>{% endif %}</span>
-            <span class="dbm-flight-choice-time"><small>Desembarque</small><strong>{{ f.get('arrival_time') or '--:--' }}{% if f.get('departure_date') and f.get('arrival_date') and f.get('arrival_date')|string > f.get('departure_date')|string %}<sup>+1</sup>{% endif %}</strong><small>{{ f.get('destination') or 'Destino' }}{% if f.get('arrival_date') %} · {{ f.get('arrival_date')|date_br }}{% endif %}</small></span>
-            <span class="dbm-flight-choice-duration"><small>Duração</small><b>{% if f_duration is number and f_duration > 0 %}{{ f_duration // 60 }}h{{ '%02d'|format(f_duration % 60) }}{% else %}—{% endif %}</b></span>
+      {% set plus_days = 1 if (f.get('departure_date') and f.get('arrival_date') and f.get('arrival_date')|string > f.get('departure_date')|string) else 0 %}
+      <article class="dbm-flight-choice{% if f.get('preferred') %} is-selected{% endif %}">
+        <label class="dbm-alt-row">
+          <input type="radio" name="flight-choice-{{ quote.id }}-{{ segment_key }}" value="{{ saved_index }}" data-segment-key="{{ segment_key }}" {% if f.get('preferred') %}checked{% endif %} {% if saved_index < 0 %}disabled title="Horário antigo: edite o cálculo para poder selecionar"{% endif %}>
+          <span class="dbm-alt-time">{{ f.get('departure_time') or '' }}<small>{{ f.get('origin') or '' }}</small></span>
+          <span class="dbm-alt-stops">
+            <b>{% if f_stops %}{{ f_stops|length }} parada{{ 's' if f_stops|length > 1 }}{% else %}Direto{% endif %}</b>
+            <i class="dbm-alt-line">{% for stop in f_stops %}<em title="{{ stop }}"></em>{% endfor %}</i>
+            {% if f_stops %}<small>{% for stop in f_stops %}{% set wait = f_waits[loop.index0] if loop.index0 < f_waits|length else none %}{{ stop }}{% if wait is number %} · {{ fmt_minutes(wait) }} de espera{% endif %}{% if not loop.last %}  |  {% endif %}{% endfor %}</small>{% endif %}
           </span>
-          {% if selectable %}<span class="dbm-flight-choice-marker">{% if f.get('preferred') %}Selecionada{% else %}Escolher{% endif %}</span>{% endif %}
+          <span class="dbm-alt-time">{{ f.get('arrival_time') or '' }}{% if plus_days %}<sup>+1</sup>{% endif %}<small>{{ f.get('destination') or '' }}</small></span>
+          <span class="dbm-alt-duration">{% if f_duration is number and f_duration > 0 %}{{ fmt_minutes(f_duration) }}{% endif %}</span>
+          <span class="dbm-flight-choice-marker">{% if f.get('preferred') %}Selecionada{% else %}Escolher{% endif %}</span>
         </label>
-        {% if f_stops %}
-        <div class="dbm-flight-waits">
-          {% for stop in f_stops %}
-            {% set wait = f_waits[loop.index0] if loop.index0 < f_waits|length else none %}
-            <span class="dbm-flight-wait">⏱ Espera em <b>{{ stop }}:</b> {% if wait is number %}{{ wait // 60 }}h{{ '%02d'|format(wait % 60) }}{% else %}não informada{% endif %}</span>
-          {% endfor %}
-        </div>
-        {% endif %}
       </article>
       {% endfor %}
     </div>
+    {% endif %}
   {% endfor %}
   <p class="dbm-flight-choice-feedback" role="status" aria-live="polite" hidden></p>
 </section>

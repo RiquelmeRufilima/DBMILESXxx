@@ -58,7 +58,7 @@ def test_selecao_visual_em_opcoes_e_historico_preserva_dados(started_app):
         assert updated['_flight_details'][1]['stops']==['BSB']
     again=client.get(f'/calculations/group/{group_id}')
     assert again.status_code==200
-    assert 'Escolha o horário' in again.text and 'Selecionada' in again.text and 'Espera em <b>BSB:</b> 1h25' in again.text
+    assert 'Escolha o horário' in again.text and 'Selecionada' in again.text and 'BSB · 1h25 de espera' in again.text
     bad=client.post(f'/calculations/option/{quote_id}/flight-choice',data={'csrf_token':token,'option_index':'55','segment_key':'outbound'})
     assert bad.status_code==422
     stranger_comp=make_company('V5 outra empresa')

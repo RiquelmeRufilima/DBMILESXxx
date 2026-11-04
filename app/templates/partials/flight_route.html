@@ -1,0 +1,71 @@
+{#
+  Bloco visual do trecho de voo (opções salvas, histórico e cálculo aberto).
+  Mostra: trajeto em sequência (origem → conexões → destino), se é direto ou
+  com conexão, espera em cada conexão, duração total e horários de embarque e
+  desembarque QUANDO informados. Bagagens, tarifas e valores ficam fora daqui.
+  Regra: sem parada cadastrada = voo direto (inclui cotações antigas).
+#}
+{% macro fmt_minutes(value) -%}{{ value // 60 }}h{% if value % 60 %}{{ '%02d'|format(value % 60) }}{% endif %}{%- endmacro %}
+
+{% macro flight_route_row(row, toggle_index=none) -%}
+{% set f = row.flight if row.flight is mapping else {} %}
+{% set origin = f.get('origin') or row.origin %}
+{% set destination = f.get('destination') or row.destination %}
+{% set stops = f.get('stops') or [] %}
+{% set waits = f.get('waits') or [] %}
+{% set show_times = row.status != 'not_flown' %}
+<div class="history-segment-row dbm-route-row {% if row.status == 'flown' %}segment-flown{% elif row.status == 'not_flown' %}segment-unflown{% endif %}"{% if toggle_index is not none %} id="segment-row-{{ toggle_index }}"{% endif %}>
+  <div class="dbm-route-head">
+    {% if toggle_index is not none %}<button type="button" class="toggle-segment-visibility" onclick="toggleSegment({{ toggle_index }})" title="Ocultar/Exibir trecho"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>{% endif %}
+    <span class="segment-number">Trecho {{ row.segment }}</span>
+    <span class="dbm-route-kind {{ 'is-direct' if not stops else 'is-connection' }}">{% if not stops %}Voo direto{% else %}Com conexão{% endif %}</span>
+    {% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path.lstrip('/') }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}
+    {% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}
+    {% if show_times and (f.get('date') or row.display_date) %}<span class="dbm-route-date">{{ f.get('date') or row.display_date }}</span>{% endif %}
+    {% if row.alternatives|default(0) > 1 %}<span class="dbm-route-alt">{{ row.alternatives }} horários • veja abaixo</span>{% endif %}
+  </div>
+  <div class="dbm-route-body{% if not (show_times and f.get('duration_minutes')) %} no-duration{% endif %}">
+    <div class="dbm-route-end">
+      {% if show_times and f.get('departure_time') %}<span class="dbm-route-time">{{ f.get('departure_time') }}</span>{% endif %}
+      <b class="dbm-route-code">{{ origin or '—' }}</b>
+      <small>{{ origin|airport_city }}</small>
+    </div>
+    <div class="dbm-route-mid">
+      {% if stops %}
+      <div class="dbm-route-track" style="--stops:{{ stops|length }}">
+        {% for stop in stops %}
+        {% set wait = waits[loop.index0] if loop.index0 < waits|length else none %}
+        <span class="dbm-route-stop">
+          {% if show_times and wait is number %}<span class="dbm-route-wait" title="Tempo de espera em {{ stop }}">{{ fmt_minutes(wait) }} de espera</span>{% else %}<span class="dbm-route-wait is-empty"></span>{% endif %}
+          <i class="dbm-route-dot" aria-hidden="true"></i>
+          <b title="{{ stop|airport_city }}">{{ stop }}</b>
+        </span>
+        {% endfor %}
+      </div>
+      <span class="dbm-route-label">{{ stops|length }} parada{{ 's' if stops|length > 1 }}</span>
+      {% else %}
+      <div class="dbm-route-track is-direct"><span class="dbm-route-arrow" aria-hidden="true"></span></div>
+      <span class="dbm-route-label">Direto</span>
+      {% endif %}
+    </div>
+    <div class="dbm-route-end is-destination">
+      {% if show_times and f.get('arrival_time') %}<span class="dbm-route-time">{{ f.get('arrival_time') }}{% if f.get('day_offset') %}<sup>+{{ f.get('day_offset') }}</sup>{% endif %}</span>{% endif %}
+      <b class="dbm-route-code">{{ destination or '—' }}</b>
+      <small>{{ destination|airport_city }}</small>
+    </div>
+    {% if show_times and f.get('duration_minutes') %}
+    <div class="dbm-route-duration"><b>{{ fmt_minutes(f.get('duration_minutes')) }}</b><small>Duração</small></div>
+    {% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro flight_route_list(rows, with_toggle=false, extra_class='') -%}
+<div class="history-segment-list dbm-route-list {{ extra_class }}">
+  {% if rows %}
+    {% for row in rows %}{{ flight_route_row(row, loop.index if with_toggle else none) }}{% endfor %}
+  {% else %}
+    <div class="history-segment-row dbm-route-row"><div class="dbm-route-head"><span class="segment-number">Trecho</span></div><div class="dbm-route-body no-duration"><div class="dbm-route-end"><b class="dbm-route-code">—</b><small>Rota não informada</small></div></div></div>
+  {% endif %}
+</div>
+{%- endmacro %}
