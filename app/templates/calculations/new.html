@@ -897,7 +897,8 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <input type="hidden" name="flight_details_touched" id="flightDetailsTouched" value="0">
         <script type="application/json" id="flightDetailsInitial">{{ (option_flight_details or [])|tojson }}</script>
         <script type="application/json" id="routeScopesData">{{ (route_scopes or [])|tojson }}</script>
-        <script type="application/json" id="iataCityGroups">{{ iata_city_groups|tojson }}</script>
+        <script type="application/json" id="iataCityGroups">{{ (iata_city_groups|default([]))|tojson }}</script>
+        <script type="application/json" id="brAirportOffsets">{{ (br_airport_offsets|default({}))|tojson }}</script>
         <link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=2">
         <script src="/static/js/dbm-iata-groups-20261104.js?v=1" defer></script>
         <div class="section-title flight-details-title">
@@ -1224,7 +1225,8 @@ document.addEventListener('person-selected', function(event) {
       return segments.map((segment,index) => ({
         key:String(segment.key || `segment_${index+1}`),
         label:segmentLabel(String(segment.key || ''), index),
-        route:[segment.origin,segment.destination].filter(Boolean).join(' → ')
+        route:[segment.origin,segment.destination].filter(Boolean).join(' → '),
+        date:String(segment.date || segment.departure_date || '').slice(0,10)
       }));
     }
     const key = activeScopeKey === 'return' ? 'return' : (activeScopeKey === 'round_trip' ? 'outbound' : activeScopeKey);
@@ -1266,7 +1268,15 @@ document.addEventListener('person-selected', function(event) {
   }
 
   // ---------- Etapa 6: horário principal (compacto) ----------
+  function defaultDateFor(choice){
+    // Mesma data informada ao criar a cotação (pode ser alterada aqui).
+    const keys=segmentChoices().map(c=>c.key);const index=keys.indexOf(choice.key);
+    if(index===0&&optionDeparture?.value)return optionDeparture.value;
+    if(index>0&&index===keys.length-1&&optionReturn?.value)return optionReturn.value;
+    return choice.date||'';
+  }
   function mainRowHtml(detail, choice){
+    if(!detail.departure_date){const d=defaultDateFor(choice);if(d)detail.departure_date=d;}
     const parts = routeParts(choice, detail);
     const stops = stopsOf(detail);
     const legs = Array.isArray(detail.legs) ? detail.legs : [];
@@ -1424,11 +1434,28 @@ document.addEventListener('person-selected', function(event) {
       const key=item.segment_key||choices[0]?.key||'outbound';numbers[key]=(numbers[key]||0)+1;
       return rowHtml(item,i,numbers[key]+1);
     }).join(''):'<div class="flight-details-empty"><strong>Nenhuma outra opção de horário.</strong><span>O horário principal fica na etapa 6. Adicione alternativas só quando houver.</span></div>';
+    allRows().forEach(row=>{const f=row.querySelector('[data-detail-field="duration_manual"]');if(f&&!f.value)autoDuration(row);});
     previewRows();syncHidden();
     window.dbmIataGroups?.refresh(rowsBox);
     if(mainBox) window.dbmIataGroups?.refresh(mainBox);
   }
   function saveActive(){detailsByScope[activeScopeKey]=collectRows();}
+  const brOffsets = readJson('brAirportOffsets', {});
+  function autoDuration(row){
+    // Duração automática quando embarque e desembarque estão preenchidos e os
+    // dois aeroportos têm fuso conhecido (Brasil). Não sobrescreve o que foi digitado.
+    const field=row.querySelector('[data-detail-field="duration_manual"]');if(!field||field.dataset.manual==='1')return;
+    const val=k=>row.querySelector(`[data-detail-field="${k}"]`)?.value||'';
+    const dd=val('departure_date'),dt=val('departure_time'),ad=val('arrival_date')||val('departure_date'),at=val('arrival_time');
+    const choice=segmentChoices().find(c=>c.key===val('segment_key'))||segmentChoices()[0];
+    const parts=routeParts(choice||{}, {origin_airport:val('origin_airport'),destination_airport:val('destination_airport')});
+    const offFrom=brOffsets[(parts.from||'').toUpperCase()],offTo=brOffsets[(parts.to||'').toUpperCase()];
+    if(!(dd&&dt&&ad&&at&&offFrom&&offTo)){if(field.dataset.auto==='1'){field.value='';field.dataset.auto='0';}return;}
+    const utc=(d,t,off)=>Date.parse(`${d}T${t}:00${off}`);
+    const minutes=Math.round((utc(ad,at,offTo)-utc(dd,dt,offFrom))/60000);
+    if(!Number.isFinite(minutes)||minutes<=0)return;
+    field.value=`${Math.floor(minutes/60)}h${String(minutes%60).padStart(2,'0')}`;field.dataset.auto='1';
+  }
   function syncOptionDates(target){
     // A data de embarque do horário principal também é a data desta opção.
     const row=target.closest('[data-main-row]');if(!row||!target.matches('[data-detail-field="departure_date"]'))return;
@@ -1474,14 +1501,21 @@ document.addEventListener('person-selected', function(event) {
     render();
   });
   [rowsBox, mainBox].filter(Boolean).forEach(box=>{
-    box.addEventListener('input', event => { if(rendering)return; markTouched(); syncOptionDates(event.target); saveActive(); previewRows(); syncHidden(); });
+    box.addEventListener('input', event => {
+      if(rendering)return; markTouched(); syncOptionDates(event.target);
+      if(event.target.matches('[data-detail-field="duration_manual"]')){event.target.dataset.manual=event.target.value.trim()?'1':'0';event.target.dataset.auto='0';}
+      else{const row=event.target.closest('[data-flight-detail-row]');if(row)autoDuration(row);}
+      saveActive(); previewRows(); syncHidden();
+    });
     box.addEventListener('change', event => {
       if(rendering)return;
       if(event.target.matches('[data-detail-preferred]')){
         // Alternativa destacada vira o horário principal; o antigo vira alternativa.
         event.target.closest('[data-flight-detail-row]').dataset.promote='1';
       }
-      markTouched();syncOptionDates(event.target);saveActive();
+      markTouched();syncOptionDates(event.target);
+      {const row=event.target.closest('[data-flight-detail-row]');if(row&&!event.target.matches('[data-detail-field="duration_manual"]'))autoDuration(row);}
+      saveActive();
       if(event.target.matches('[data-detail-field="stop_count"], [data-stop-index], [data-detail-field="segment_key"], [data-detail-preferred]')){
         render();return;
       }

@@ -16,6 +16,8 @@
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="/static/css/dbm-light-and-compact-20261030.css?v=20261101.1">
 <style>
+    /* Proteção: blocos de CSS/JS nunca aparecem como texto na tela (ex.: Safari no celular). */
+    body style,body script,body template{display:none!important}
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
     .dbm-modal-overlay.is-open{display:flex}
     .dbm-modal{width:min(560px,96vw);border-radius:24px;border:1px solid rgba(110,185,255,.18);background:linear-gradient(180deg,rgba(13,28,55,.98),rgba(8,18,37,.98));box-shadow:0 24px 80px rgba(0,0,0,.42);overflow:hidden}

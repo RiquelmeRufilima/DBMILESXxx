@@ -808,7 +808,7 @@ html[data-theme="light"] body .quote-history-stack .quote-change-item small {
 html[data-theme="light"] body .history-filter-form label {color:#41647f!important}
 html[data-theme="light"] body .history-pager strong {color:#183b59!important}
 
-</style>/* Logotipos de companhias maiores, sem alteração de cores dos temas */
+</style><style>/* Logotipos de companhias maiores, sem alteração de cores dos temas */
 @media(min-width:761px){
  .compact-history-option>.history-logo-seal,
  .compact-history-option:not(:has(.combine-option-toggle))>.history-logo-seal{width:96px!important;height:76px!important;min-width:96px!important;max-width:96px!important}
@@ -822,6 +822,12 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
  .compact-history-option{grid-template-columns:74px minmax(0,1fr)!important}
  .compact-history-option .history-logo-image{width:67px!important;height:54px!important;max-width:67px!important;max-height:54px!important}
 }
+/* Celular: filtros do histórico nunca passam da largura da tela. */
+.history-filter-form{max-width:100%;box-sizing:border-box}
+.history-filter-form>*{min-width:0}
+.history-filter-form input,.history-filter-form select{min-width:0!important;max-width:100%!important;width:100%;box-sizing:border-box}
+@media(max-width:760px){.history-filter-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}}
+</style>
 {% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">

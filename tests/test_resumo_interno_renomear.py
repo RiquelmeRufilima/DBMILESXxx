@@ -41,7 +41,8 @@ def test_detalhes_so_quando_presentes():
     template = Path('app/templates/calculations/result.html').read_text(encoding='utf-8')
     assert "if(skipRecord){" in template
     assert "row.status==='flown'" in template
-    assert "if(Array.isArray(row.schedules)&&row.schedules.length)" in template
+    assert "row.status==='flown'&&Array.isArray(row.schedules)&&row.schedules.length" in template
+    assert "(não voado)" in template and "Valor cheio" in template
     assert "if(Number(baggage)>0)" in template
     assert "if(maxBag!==null)" in template
     assert "['systems','consolidators'].includes(catalogCategory)" in template

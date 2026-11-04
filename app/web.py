@@ -178,7 +178,9 @@ def date_time_br(value, time_value=None) -> str:
 
 
 templates.env.filters["money"] = money
-from .services.travel_data import IATA_CITY_GROUPS, airport_city_label  # noqa: E402
+from .services.travel_data import IATA_CITY_GROUPS, airport_city_label, BR_AIRPORT_CODES, br_airport_utc_offset  # noqa: E402
+# Fusos fixos dos aeroportos brasileiros (sem horário de verão) para calcular a duração na tela.
+templates.env.globals["br_airport_offsets"] = {code: br_airport_utc_offset(code) for code in sorted(BR_AIRPORT_CODES)}
 templates.env.filters["airport_city"] = airport_city_label
 templates.env.globals["iata_city_groups"] = IATA_CITY_GROUPS
 templates.env.filters["percent_br"] = percent_br

@@ -139,6 +139,8 @@ def only_once_replace(text, before, after, label):
 
 def patch_result(raw):
     s=raw
+    # Versão mais nova do resumo interno (04/11/2026): não sobrescrever.
+    if 'RESUMO_INTERNO_V2_20261104' in s: return s
     if 'function internalTemplate(){' not in s:
         if 'Custo total: ${formatMoney(cost)}' in s: return s
         raise RuntimeError('A função internalTemplate não foi localizada.')
