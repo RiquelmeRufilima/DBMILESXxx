@@ -208,6 +208,38 @@ def safe_from_json(value, default=None):
 templates.env.filters["from_json"] = safe_from_json
 
 
+def company_member_names(user) -> list[str]:
+    """Nomes dos usuários ativos da mesma empresa (para selects de responsável).
+
+    Sem empresa, devolve só o próprio usuário. Nunca derruba a página.
+    """
+    if user is None:
+        return []
+    own = str(getattr(user, "name", "") or "").strip()
+    try:
+        from .models import WebUser
+        db = object_session(user)
+        company_id = getattr(user, "company_id", None)
+        if db is None or not company_id:
+            return [own] if own else []
+        rows = db.scalars(
+            select(WebUser.name).where(WebUser.company_id == company_id, WebUser.active.is_(True)).order_by(WebUser.name)
+        ).all()
+        names = [str(name).strip() for name in rows if str(name or "").strip()]
+        if own and own not in names:
+            names.insert(0, own)
+        return list(dict.fromkeys(names))
+    except Exception:
+        try:
+            object_session(user).rollback()
+        except Exception:
+            pass
+        return [own] if own else []
+
+
+templates.env.globals["company_member_names"] = company_member_names
+
+
 def flash(request: Request, message: str, kind: str = "info") -> None:
     # Reatribui a lista (em vez de .append) para a sessão perceber a mudança;
     # com o Starlette novo, mensagens seguidas se perdiam.
@@ -220,7 +252,6 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
     flashes = request.session.pop("flashes", [])
     preference = None
     profile = None
-    all_notifications = []
     if user is not None:
         # Relacionamentos opcionais podem não existir ainda em bancos antigos/Neon
         # durante um deploy. O layout nunca deve derrubar a aplicação por isso.
@@ -235,21 +266,29 @@ def context(request: Request, *, user=None, **kwargs) -> dict:
         except Exception:
             if db is not None:
                 db.rollback()
+    # Sininho: só a CONTAGEM de não lidas, feita no banco. Antes todas as
+    # notificações do usuário eram carregadas em toda página só para contar.
+    # Atualizações automáticas de cotação pertencem ao chat e não entram.
+    unread_count = 0
+    if user is not None:
         try:
-            all_notifications = list(getattr(user, "notifications", []) or [])
+            from .models import Notification
+            db = object_session(user)
+            if db is not None:
+                title = func.lower(func.trim(Notification.title))
+                unread_count = int(db.scalar(
+                    select(func.count(Notification.id)).where(
+                        Notification.user_id == user.id,
+                        Notification.read.is_(False),
+                        func.lower(func.coalesce(Notification.kind, "")) != "quote",
+                        ~title.like("atualização de cotação%"),
+                        ~title.like("atualizacao de cotacao%"),
+                    )
+                ) or 0)
         except Exception:
             if db is not None:
                 db.rollback()
-            all_notifications = []
-    # Atualizações automáticas de cotação pertencem ao fluxo visual do chat,
-    # não ao sininho. Também escondemos registros antigos já gravados no banco.
-    notifications = [
-        item for item in all_notifications
-        if str(getattr(item, "kind", "") or "").lower() != "quote"
-        and not str(getattr(item, "title", "") or "").strip().lower().startswith("atualização de cotação")
-        and not str(getattr(item, "title", "") or "").strip().lower().startswith("atualizacao de cotacao")
-    ]
-    unread_count = sum(1 for item in notifications if not item.read)
+            unread_count = 0
 
     pending_task_count = 0
     if user is not None:
