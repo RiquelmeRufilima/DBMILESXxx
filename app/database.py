@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
@@ -25,15 +26,25 @@ elif IS_VERCEL:
 else:
     connect_args = {}
 
+if not DATABASE_URL.startswith("sqlite"):
+    # Compatível com o pooler do Neon (PgBouncer): sem prepared statements no servidor.
+    connect_args["prepare_threshold"] = None
+
 engine_options = {
     "connect_args": connect_args,
     "pool_pre_ping": True,
     "future": True,
 }
 if IS_VERCEL and not DATABASE_URL.startswith("sqlite"):
-    # Evita manter pools locais presos a instâncias serverless diferentes.
-    # Se o provedor oferecer URL de pooler (Neon/Supabase), use-a em DATABASE_URL.
-    engine_options["poolclass"] = NullPool
+    # Desempenho: antes cada pedido abria uma conexão NOVA com o Neon (TCP + TLS +
+    # autenticação = várias idas e voltas pela rede). Agora a instância do Vercel
+    # reaproveita uma conexão aberta entre pedidos. pool_pre_ping descarta
+    # conexões que o Neon encerrou; pool_recycle renova antes do tempo limite.
+    # Para voltar ao modo antigo: variável DB_POOL_MODE=null no Vercel.
+    if os.getenv("DB_POOL_MODE", "").strip().lower() == "null":
+        engine_options["poolclass"] = NullPool
+    else:
+        engine_options.update(pool_size=1, max_overflow=4, pool_recycle=240, pool_timeout=10)
 
 engine = create_engine(DATABASE_URL, **engine_options)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
