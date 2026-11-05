@@ -5,7 +5,7 @@
 .perf-shell{max-width:1100px;margin:0 auto}
 .perf-intro{margin:12px 0 20px;color:var(--muted)}
 .perf-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:18px 0}
-.perf-summary .card-panel{padding:17px}.perf-summary small{display:block;color:var(--muted);font-size:.79rem;margin-bottom:6px}.perf-summary strong{font-size:1.65rem;color:var(--text)}
+.perf-summary .card-panel{padding:17px}.perf-db-card{margin-bottom:18px}.perf-db-advice{margin:4px 0 0;padding:11px 13px;border-radius:12px;background:rgba(255,190,90,.1);border:1px solid rgba(255,190,90,.35);color:#ffd9a3;font-size:.86rem;line-height:1.5}html[data-theme=light] .perf-db-advice{background:#fff6e8;color:#7a4b06;border-color:#f3cf98}.perf-summary small{display:block;color:var(--muted);font-size:.79rem;margin-bottom:6px}.perf-summary strong{font-size:1.65rem;color:var(--text)}
 .perf-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.perf-table{width:100%;border-collapse:collapse}
 .perf-table th,.perf-table td{padding:12px;text-align:left;border-bottom:1px solid var(--border)}.perf-table th{font-size:.8rem;color:var(--muted)}
 .perf-table td{font-variant-numeric:tabular-nums}.perf-scroll{overflow-x:auto}
@@ -24,6 +24,17 @@
     <article class="card-panel"><small>Resposta inicial desta página</small><strong id="perfTtfb">—</strong></article>
     <article class="card-panel"><small>Conexão</small><strong id="perfConnection" style="font-size:1rem">—</strong></article>
   </div>
+  <article class="card-panel perf-db-card" id="perfDbCard">
+    <h2>Servidor e banco de dados</h2>
+    <p class="perf-help">Cada consulta ao banco atravessa a distância entre o servidor do Vercel e o banco do Neon. Os dois precisam estar na mesma região.</p>
+    <div class="perf-summary perf-db-grid">
+      <article class="card-panel"><small>Tempo de 1 consulta</small><strong id="perfDbLatency">…</strong></article>
+      <article class="card-panel"><small>Região do servidor (Vercel)</small><strong id="perfServerRegion" style="font-size:1rem">…</strong></article>
+      <article class="card-panel"><small>Região do banco (Neon)</small><strong id="perfDbRegion" style="font-size:1rem">…</strong></article>
+      <article class="card-panel"><small>Situação</small><strong id="perfDbStatus" style="font-size:1rem">…</strong></article>
+    </div>
+    <p class="perf-db-advice" id="perfDbAdvice" hidden></p>
+  </article>
   <article class="card-panel">
     <h2>Teste de páginas pesadas</h2>
     <p class="perf-help">Clique para testar. O navegador fará uma leitura de cada página em sequência, com sua sessão atual. Os tempos incluem rede, servidor e processamento da resposta. Resultados podem variar pela conexão, pelo tamanho do histórico e pelo servidor.</p>
@@ -108,5 +119,25 @@
     catch{const box=document.createElement('textarea');box.value=lastReport;document.body.append(box);box.select();document.execCommand('copy');box.remove();status.textContent='Relatório copiado.';}
   });
 })();
+
+  // Servidor x banco: mostra regiões e latência e diz o que corrigir.
+  (async()=>{
+    const $=id=>document.getElementById(id);
+    try{
+      const r=await fetch('/health/db',{cache:'no-store',credentials:'same-origin'});const d=await r.json();
+      if(d.status!=='ok'){$('perfDbStatus').textContent='Banco indisponível';return;}
+      const ms=Number(d.latencia_consulta_ms||0);
+      $('perfDbLatency').textContent=`${Math.round(ms)} ms`;
+      $('perfServerRegion').textContent=d.regiao_servidor_vercel;
+      $('perfDbRegion').textContent=d.regiao_banco_neon;
+      const advice=$('perfDbAdvice');
+      if(d.mesma_regiao||ms<15){$('perfDbStatus').textContent='✅ Próximos';}
+      else if(d.regiao_vercel_ideal&&d.regiao_vercel_ideal!=='—'){
+        $('perfDbStatus').textContent='⚠️ Regiões diferentes';
+        advice.hidden=false;
+        advice.innerHTML=`O servidor está em <b>${d.regiao_servidor_vercel}</b> e o banco em <b>${d.regiao_banco_neon}</b>: cada consulta leva ~${Math.round(ms)} ms. No arquivo <code>vercel.json</code>, adicione <code>"regions": ["${d.regiao_vercel_ideal}"]</code> (ou no Vercel: Settings → Functions → Function Region → <b>${d.regiao_vercel_ideal}</b>) e faça um novo deploy.`;
+      }else{$('perfDbStatus').textContent=ms>40?'⚠️ Latência alta':'OK';}
+    }catch(_){$('perfDbStatus').textContent='Não foi possível medir';}
+  })();
 </script>
 {% endblock %}
