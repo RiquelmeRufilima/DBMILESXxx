@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import re
@@ -241,10 +242,17 @@ def _safe_json(raw: str | None, default):
         return default
 
 
-def _normalized_token(value: Any) -> str:
-    text = unicodedata.normalize("NFKD", str(value or ""))
+@functools.lru_cache(maxsize=8192)
+def _normalized_token_text(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text)
     text = "".join(char for char in text if not unicodedata.combining(char))
     return re.sub(r"[^a-z0-9]+", "_", text.casefold()).strip("_")
+
+
+def _normalized_token(value: Any) -> str:
+    # Memória: os mesmos nomes de chave se repetem em todas as opções do
+    # histórico; normalizar cada um só uma vez deixa a página bem mais rápida.
+    return _normalized_token_text(str(value or ""))
 
 
 def _normalize_travel_type(value: Any, *, segments: Any = None, return_date: Any = None) -> str:
@@ -1095,20 +1103,28 @@ def _quote_input_data(quote: WebQuote | None) -> dict[str, Any]:
 
 
 def _nested_value(payload: Any, aliases: set[str], *, depth: int = 0) -> Any:
+    # Mesmo resultado de antes; os nomes procurados são normalizados uma vez só.
+    return _nested_value_normalized(payload, frozenset(_normalized_token(alias) for alias in aliases), depth)
+
+
+def _nested_value_normalized(payload: Any, normalized_aliases: frozenset, depth: int = 0) -> Any:
     if depth > 5:
         return None
-    normalized_aliases = {_normalized_token(alias) for alias in aliases}
     if isinstance(payload, dict):
         for key, value in payload.items():
             if _normalized_token(key) in normalized_aliases and value not in (None, "", [], {}):
                 return value
         for value in payload.values():
-            found = _nested_value(value, aliases, depth=depth + 1)
+            if not isinstance(value, (dict, list)):
+                continue
+            found = _nested_value_normalized(value, normalized_aliases, depth + 1)
             if found not in (None, "", [], {}):
                 return found
     elif isinstance(payload, list):
         for value in payload[:30]:
-            found = _nested_value(value, aliases, depth=depth + 1)
+            if not isinstance(value, (dict, list)):
+                continue
+            found = _nested_value_normalized(value, normalized_aliases, depth + 1)
             if found not in (None, "", [], {}):
                 return found
     return None
@@ -1536,6 +1552,12 @@ def _clean_date_value(value: Any) -> str:
     text = str(value or "").strip()[:10]
     if not text:
         return ""
+    return _valid_iso_date(text)
+
+
+@functools.lru_cache(maxsize=4096)
+def _valid_iso_date(text: str) -> str:
+    # As mesmas datas se repetem em todas as opções do histórico: valida uma vez só.
     try:
         datetime.strptime(text, "%Y-%m-%d")
         return text
@@ -4316,7 +4338,8 @@ def history(
     # Select "Todos" envia string vazia; não permitir erro HTTP 422.
     raw_user_id = str(user_id or "").strip().lower()
     requested_user_id = int(raw_user_id) if raw_user_id.isdecimal() else None
-    team_ids = {member.id for member in _team_users(db, user)} | {user.id}
+    history_team_users = _team_users(db, user)  # uma consulta só (filtro + select da tela)
+    team_ids = {member.id for member in history_team_users} | {user.id}
     chosen_user_id = requested_user_id if requested_user_id in team_ids else None
     stage = stage if stage in {"all", "cadastradas", "calculadas", "lancadas"} else "all"
     if chosen_user_id is not None:
@@ -4522,7 +4545,7 @@ def history(
             legacy_quotes=legacy_quotes,
             search_query=q,
             history_load_errors=history_load_errors,
-            team_users=_team_users(db, user),
+            team_users=history_team_users,
             page=page,
             page_size=page_size,
             total_items=total_items,
