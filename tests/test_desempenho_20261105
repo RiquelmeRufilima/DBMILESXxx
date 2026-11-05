@@ -1,1 +1,31 @@
 
+"""Otimizações de 05/11/2026: mesmos resultados, menos trabalho."""
+from app.database import SessionLocal
+from app.models import Notification
+from app.routers.calculations import _nested_value, _clean_date_value
+from test_security import started_app, make_company, make_user, logged
+
+
+def test_busca_aninhada_mantem_resultado():
+    payload = {"_meta": {"Tarifa": "Light"}, "x": [{"classe_voo": "Executiva"}], "n": 5}
+    assert _nested_value(payload, {"fare_brand", "tarifa"}) == "Light"
+    assert _nested_value(payload, {"cabin_class", "classe_voo"}) == "Executiva"
+    assert _nested_value(payload, {"inexistente"}) is None
+    assert _nested_value({"a": {"b": {"c": {"d": {"e": {"f": {"tarifa": "longe"}}}}}}}, {"tarifa"}) is None  # profundidade > 5
+    assert _clean_date_value("2026-11-05T10:00") == "2026-11-05" and _clean_date_value("05/11/2026") == ""
+
+
+def test_sininho_conta_no_banco_sem_atualizacoes_de_cotacao(started_app):
+    comp = make_company("Sininho 20261105")
+    uid = make_user("sininho-20261105@example.com", company_id=comp, role="admin", owner=True)
+    with SessionLocal() as db:
+        db.add_all([
+            Notification(user_id=uid, title="Nova tarefa", message="x", kind="info"),
+            Notification(user_id=uid, title="Lida", message="x", kind="info", read=True),
+            Notification(user_id=uid, title="Atualização de cotação", message="x", kind="info"),
+            Notification(user_id=uid, title="Qualquer", message="x", kind="quote"),
+        ])
+        db.commit()
+    page = logged(started_app, "sininho-20261105@example.com").get("/dashboard")
+    assert page.status_code == 200
+    assert '<span>1</span>' in page.text  # só a "Nova tarefa" conta
