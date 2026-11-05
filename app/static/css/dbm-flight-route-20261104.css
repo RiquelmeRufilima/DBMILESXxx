@@ -1,5 +1,5 @@
-/* DBMILESX 04/11/2026 — bloco visual do trecho de voo.
-   Restrito ao bloco de voo: não altera bagagens, tarifas, valores nem o card. */
+/* DBMILESX 04/11/2026 â€” bloco visual do trecho de voo.
+   Restrito ao bloco de voo: nÃ£o altera bagagens, tarifas, valores nem o card. */
 .dbm-route-list{display:grid!important;gap:10px!important;margin-top:10px!important}
 .history-segment-row.dbm-route-row{display:block!important;grid-template-columns:none!important;padding:10px 14px 12px!important;border-radius:14px!important;border:1px solid rgba(129,167,206,.2)!important;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015))!important}
 .history-segment-row.dbm-route-row.segment-flown{border-color:rgba(30,213,156,.4)!important}
@@ -61,7 +61,7 @@ html[data-theme=light] .dbm-route-duration b{color:#a3341d}
 html[data-theme=light] .dbm-route-duration small{color:#b5523c}
 html[data-theme=light] .dbm-route-head .segment-number{color:#4f7290}
 
-/* Alternativas de horário do mesmo voo (estilo lista compacta). */
+/* Alternativas de horÃ¡rio do mesmo voo (estilo lista compacta). */
 .dbm-alt-picker .dbm-flight-choice{margin:6px 0}
 .dbm-alt-row{display:grid!important;grid-template-columns:18px minmax(64px,auto) minmax(120px,1fr) minmax(64px,auto) minmax(56px,auto) auto;align-items:center;gap:12px;padding:9px 12px!important;margin:0!important;cursor:pointer;font-weight:normal!important}
 .dbm-alt-row>input[type=radio]{width:17px!important;height:17px!important;margin:0!important;accent-color:#21b8fe}
@@ -82,7 +82,7 @@ html[data-theme=light] .dbm-alt-stops small{color:#8a5208}
 html[data-theme=light] .dbm-alt-line em{background:#fff}
 .dbm-alt-picker{max-width:860px}
 
-/* Calculadora: filtro por cidade/região → aeroportos específicos. */
+/* Calculadora: filtro por cidade/regiÃ£o â†’ aeroportos especÃ­ficos. */
 .dbm-iata-group{display:grid;gap:6px;margin-top:5px}
 .dbm-iata-group-select{min-height:32px!important;padding:4px 8px!important;font-size:.74rem!important;max-width:260px}
 .dbm-iata-group-airports{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
@@ -99,7 +99,7 @@ html[data-theme=light] .dbm-iata-chip.is-active{background:#1677c9;color:#fff}
 html[data-theme=light] .dbm-iata-group-airports small{color:#8a5208}
 #flightDetailsPanel .flight-detail-grid,#flightDetailsPanel .dbm-flight-option-stop-grid{align-items:start!important}
 
-/* Etapa 6 da calculadora: horário principal compacto por trecho. */
+/* Etapa 6 da calculadora: horÃ¡rio principal compacto por trecho. */
 .dbm-main-flight-rows{display:grid;gap:10px;margin:4px 0 8px}
 .dbm-main-row{padding:10px 12px!important;border-radius:12px;border:1px solid rgba(90,160,217,.3);background:rgba(7,29,51,.45)}
 .dbm-main-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:.8rem}
@@ -122,3 +122,8 @@ html[data-theme=light] .dbm-main-row{background:#f9fcff;border-color:#c2d9ed}
 html[data-theme=light] .dbm-main-head span{color:#16324c}
 .option-airline .dbm-alt-row{grid-template-columns:18px auto minmax(0,1fr) auto auto;gap:10px}
 .option-airline .dbm-alt-row .dbm-flight-choice-marker{display:none}
+
+/* Aviso: ancoragem menor/igual Ã  venda (o "De:" nÃ£o aparece na mensagem). */
+.dbm-anchor-hint{display:block;margin:4px 0 6px;padding:7px 10px;border-radius:9px;background:rgba(255,190,90,.1);border:1px solid rgba(255,190,90,.35);color:#ffd9a3;font-size:.74rem;font-weight:700}
+.dbm-anchor-hint[hidden]{display:none}
+html[data-theme=light] .dbm-anchor-hint{background:#fff6e8;color:#8a5208;border-color:#f3cf98}
