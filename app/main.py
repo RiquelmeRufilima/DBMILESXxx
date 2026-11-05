@@ -248,17 +248,51 @@ async def unhandled_exception_handler(request, exc):
 @app.get("/health")
 def health():
     # Não toca no banco: serve para confirmar que a Function/FastAPI iniciou.
-    return {"status": "ok", "app": APP_NAME, "version": "5.10.35-subcotacoes-separadas-historico-vertical"}
+    return {"status": "ok", "app": APP_NAME, "version": "5.11.0-20261104-voos-login-claro"}
+
+
+# Região AWS do Neon -> região equivalente do Vercel (funções).
+_NEON_TO_VERCEL = {
+    "sa-east-1": "gru1", "us-east-1": "iad1", "us-east-2": "cle1", "us-west-2": "pdx1",
+    "eu-central-1": "fra1", "eu-west-2": "lhr1", "eu-west-1": "dub1", "ap-southeast-1": "sin1",
+    "ap-southeast-2": "syd1", "ap-northeast-1": "hnd1", "ap-south-1": "bom1", "ca-central-1": "yul1",
+}
 
 
 @app.get("/health/db")
 def health_db():
-    """Testa o Neon/PostgreSQL sem expor credenciais."""
+    """Testa o Neon/PostgreSQL sem expor credenciais e mede a latência.
+
+    Mostra a região do servidor (Vercel) e a do banco (Neon) para conferir se
+    estão próximas: cada consulta atravessa essa distância.
+    """
+    import os
+    import re as _re
+    import time as _time
+    from urllib.parse import urlparse
     try:
         from sqlalchemy import text
+        timings = []
         with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return {"status": "ok", "database": "connected"}
+            for _ in range(3):
+                started = _time.perf_counter()
+                conn.execute(text("SELECT 1"))
+                timings.append((_time.perf_counter() - started) * 1000)
+        host = urlparse(str(engine.url.render_as_string(hide_password=True)).replace("postgresql+psycopg", "postgresql")).hostname or ""
+        match = _re.search(r"\.([a-z]{2}-[a-z]+-\d)\.", host)
+        db_region = match.group(1) if match else ""
+        server_region = os.getenv("VERCEL_REGION", "")
+        ideal = _NEON_TO_VERCEL.get(db_region, "")
+        return {
+            "status": "ok",
+            "database": "connected",
+            "latencia_consulta_ms": round(min(timings), 1),
+            "regiao_servidor_vercel": server_region or "local",
+            "regiao_banco_neon": db_region or "desconhecida",
+            "regiao_vercel_ideal": ideal or "—",
+            "mesma_regiao": bool(ideal and server_region == ideal),
+            "pooler_neon": "-pooler" in host,
+        }
     except Exception:
         logger.exception("Falha no teste do banco hospedado")
         return JSONResponse(
