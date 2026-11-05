@@ -65,7 +65,14 @@
         <input name="affiliate" value="{{ data.affiliate or '' }}" placeholder="Opcional">
       </label>
       <label>Usuário
-        <input name="user_name" value="{{ data.user_name or user.name }}" placeholder="Opcional">
+        {# Membros da empresa; um nome antigo salvo continua aparecendo para não se perder. #}
+        {% set current_user_name = data.user_name or user.name %}
+        {% set member_names = company_member_names(user) %}
+        <select name="user_name">
+          {% if current_user_name and current_user_name not in member_names %}<option value="{{ current_user_name }}" selected>{{ current_user_name }}</option>{% endif %}
+          {% for member_name in member_names %}<option value="{{ member_name }}" {% if member_name == current_user_name %}selected{% endif %}>{{ member_name }}</option>{% endfor %}
+          <option value="" {% if not current_user_name %}selected{% endif %}>Não informar</option>
+        </select>
       </label>
       <div class="total-display"><span>Valor Total</span><strong id="topTotal">R$ 0,00</strong></div>
     </div>
@@ -531,6 +538,7 @@ function defaultFlight(kind='ida'){
   return {kind,label,segment_key:kind==='volta'?'return':'outbound',schedule_option_number:1,selected_schedule:true,bags_personal:1,bags_carry:1,bags_checked:0,connections:'Direto',checkin_status:'pendente',class:'Econômica',stops:[]};
 }
 function openFlightModal(kind='ida', index=null){
+  {const d=document.getElementById('f_duration');if(d){d.dataset.manual='0';d.dataset.auto='0';}}
   editFlightIndex=index;
   const f=index!==null?flights[index]:defaultFlight(kind);
   const dep=f.departure_date||f.date||'';
@@ -1093,4 +1101,46 @@ if (trackingQuery.get('tab') === 'orcamento') {
 </script>
 {{ tag_assets(internal_tags, csrf_token) }}
 <script src="/static/js/quote-consistent-dates-20261030.js?v=20261030.7" defer></script>
+<script type="application/json" id="brAirportOffsets">{{ (br_airport_offsets|default({}))|tojson }}</script>
+<script>
+/* Duração automática do voo (modal "Voo de Ida/Volta" e trechos de parada):
+   calcula pelo embarque e pela chegada quando os dois aeroportos são do Brasil
+   (fuso fixo). Não sobrescreve uma duração digitada à mão. */
+(function(){
+  let offsets={};try{offsets=JSON.parse(document.getElementById('brAirportOffsets')?.textContent||'{}')||{};}catch(_){offsets={};}
+  const code=v=>{const m=String(v||'').toUpperCase().match(/\b([A-Z]{3})\b/);return m?m[1]:'';};
+  function minutesBetween(dd,dt,ad,at,from,to){
+    const a=offsets[code(from)],b=offsets[code(to)];
+    if(!(dd&&dt&&at&&a&&b))return null;
+    const start=Date.parse(`${dd}T${dt}:00${a}`),end=Date.parse(`${ad||dd}T${at}:00${b}`);
+    const m=Math.round((end-start)/60000);
+    return Number.isFinite(m)&&m>0&&m<7*24*60?m:null;
+  }
+  const hhmm=m=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+  function fill(field,minutes){
+    if(!field||field.dataset.manual==='1')return;
+    if(minutes===null){if(field.dataset.auto==='1'){field.value='';field.dataset.auto='0';}return;}
+    field.value=hhmm(minutes);field.dataset.auto='1';
+  }
+  const $=id=>document.getElementById(id);
+  function main(){
+    fill($('f_duration'),minutesBetween($('f_departure_date')?.value,$('f_departure_time')?.value,$('f_arrival_date')?.value,$('f_arrival_time')?.value,$('f_origin')?.value,$('f_destination')?.value));
+  }
+  function stopRow(row){
+    const v=k=>row.querySelector(`[data-k="${k}"]`)?.value||'';
+    fill(row.querySelector('[data-k="duration"]'),minutesBetween(v('departure_date'),v('departure_time'),v('arrival_date'),v('arrival_time'),v('origin'),v('destination')));
+  }
+  const watched=['f_departure_date','f_departure_time','f_arrival_date','f_arrival_time','f_origin','f_destination'];
+  document.addEventListener('input',onEdit,true);document.addEventListener('change',onEdit,true);
+  document.addEventListener('airport-selected',onEdit,true);
+  function onEdit(e){
+    const t=e.target;if(!(t instanceof Element))return;
+    if(t.id==='f_duration'){if(e.type==='input'){t.dataset.manual=t.value.trim()?'1':'0';t.dataset.auto='0';}return;}
+    if(t.matches('.stop-edit-row [data-k="duration"]')){if(e.type==='input'){t.dataset.manual=t.value.trim()?'1':'0';t.dataset.auto='0';}return;}
+    if(watched.includes(t.id))main();
+    const row=t.closest('.stop-edit-row');if(row)stopRow(row);
+  }
+  window.dbmRecalcFlightDuration=main;
+})();
+</script>
 {% endblock %}
