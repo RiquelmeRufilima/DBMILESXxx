@@ -452,33 +452,43 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     const table=currentMachine(); if(!table)return;
     const value=num(input.value); if(value<0||value>=60){machineSaveStatus.textContent='A taxa fixa deve ficar entre 0 e 60%.';return;}
     table.fixed={...fixedBands(table),[input.dataset.fixedBand]:value};
-    machineSaveStatus.textContent='Taxa fixa atualizada. Clique em Salvar tabelas.';recalcMachine();
+    recalcMachine();persistMachines('Taxa fixa salva.');
   }));
   document.getElementById('profitRateUpdate')?.addEventListener('click',()=>{
     const table=currentMachine();const installment=Number(machineRateInstallment.value);const rate=num(machineEditRate.value);
     if(!table||!Number.isInteger(installment)||installment<1||installment>24||rate<0||rate>=60){machineSaveStatus.textContent='Revise a parcela (1 a 24) e a taxa (0 a 60%).';return;}
     const newName=machineEditName.value.trim();
     if(newName && newName!==table.name && !machines.some(entry=>entry!==table&&entry.name.toLowerCase()===newName.toLowerCase()))table.name=newName;
-    table.rates[String(installment)]=rate;refreshMachines(table.name);machineSaveStatus.textContent='Taxa atualizada. Clique em Salvar tabelas.';recalcMachine();
+    table.rates[String(installment)]=rate;refreshMachines(table.name);recalcMachine();persistMachines('Taxa salva.');
   });
   document.getElementById('profitMachineCreate')?.addEventListener('click',()=>{
     if(machines.length>=20){machineSaveStatus.textContent='Limite de 20 máquinas.';return;}
     const name=window.prompt('Nome da nova máquina:');if(!name?.trim())return;
     if(machines.some(t=>t.name.toLowerCase()===name.trim().toLowerCase())){machineSaveStatus.textContent='Já existe uma tabela com esse nome.';return;}
-    machines.push({name:name.trim().slice(0,48),rates:{1:0},fixed:{'1-6':0,'7-12':0,'13-18':0}});refreshMachines(name.trim().slice(0,48));machineSaveStatus.textContent='Preencha as taxas e salve.';
+    machines.push({name:name.trim().slice(0,48),rates:{1:0},fixed:{'1-6':0,'7-12':0,'13-18':0}});refreshMachines(name.trim().slice(0,48));updateMachineInputs();
+    persistMachines('Nova máquina salva. Preencha as taxas de cada parcela.');
   });
   document.getElementById('profitMachineDelete')?.addEventListener('click',()=>{
     if(machines.length<=1){machineSaveStatus.textContent='Mantenha pelo menos uma tabela.';return;}
-    if(window.confirm(`Excluir a tabela ${machineSelect.value}?`)){machines=machines.filter(t=>t.name!==machineSelect.value);refreshMachines();}
+    if(window.confirm(`Excluir a tabela ${machineSelect.value}?`)){machines=machines.filter(t=>t.name!==machineSelect.value);refreshMachines();persistMachines('Tabela excluída.');}
   });
-  document.getElementById('profitMachineSave')?.addEventListener('click',async()=>{
+  // Tabelas de máquina ficam salvas no usuário: cada criação/edição/exclusão
+  // grava sozinha (antes era preciso lembrar de clicar em "Salvar tabelas").
+  let machineSaveChain=Promise.resolve();
+  function persistMachines(okMessage){
     machineSaveStatus.textContent='Salvando...';
-    try{
-      const res=await fetch('/calculations/machine-fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({tables:machines,csrf_token:form.querySelector('[name="csrf_token"]').value})});
-      const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Não foi possível salvar.');
-      machines=data.tables;refreshMachines(machineSelect.value);machineSaveStatus.textContent='Tabelas salvas no seu usuário.';
-    }catch(e){machineSaveStatus.textContent=e.message||'Erro ao salvar.'}
-  });
+    machineSaveChain=machineSaveChain.then(async()=>{
+      try{
+        const res=await fetch('/calculations/machine-fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({tables:machines,csrf_token:form.querySelector('[name="csrf_token"]').value})});
+        const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Não foi possível salvar.');
+        const selected=machineSelect.value;machines=data.tables;refreshMachines(selected);updateMachineInputs();
+        machineSaveStatus.textContent=okMessage||'Tabelas salvas no seu usuário.';
+        document.dispatchEvent(new CustomEvent('dbm:machine-tables-saved',{detail:{tables:machines}}));
+      }catch(e){machineSaveStatus.textContent=e.message||'Erro ao salvar.'}
+    });
+    return machineSaveChain;
+  }
+  document.getElementById('profitMachineSave')?.addEventListener('click',()=>persistMachines('Tabelas salvas no seu usuário.'));
 
 
   cardTotal?.addEventListener('focus', () => {

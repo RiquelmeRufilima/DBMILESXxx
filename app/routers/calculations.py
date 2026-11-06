@@ -1922,10 +1922,14 @@ def _flight_view(flight: Any, origin: str, destination: str, display_date: str) 
             day_offset = 0
     real_origin = _clean_code(item.get("origin")) or origin
     real_destination = _clean_code(item.get("destination")) or destination
+    # Cidade de cada parada para a mensagem ("Parada em Roma FCO").
+    from ..services.travel_data import airport_city_label
+    stop_cities = [str(airport_city_label(code) or "").split(" (")[0].split("/")[0].strip() for code in stops]
     return {
         "origin": real_origin if real_origin != "?" else "",
         "destination": real_destination if real_destination != "?" else "",
         "stops": stops,
+        "stop_cities": stop_cities,
         "waits": waits,
         "is_direct": not stops,
         "departure_time": _clean_time_value(item.get("departure_time")),
@@ -4741,7 +4745,24 @@ async def update_machine_fee_tables(request: Request, db: Session = Depends(get_
             valid_rates[str(int(key))] = round(value, 4)
         if not valid_rates:
             return JSONResponse({"ok": False, "message": "Cadastre uma taxa para cada tabela."}, status_code=400)
-        cleaned.append({"name": name, "rates": valid_rates})
+        # Taxa fixa por faixa de parcelas (1-6, 7-12, 13-18). Antes era descartada
+        # ao salvar e a tabela voltava com os valores padrão.
+        valid_fixed = {}
+        fixed = entry.get('fixed')
+        if isinstance(fixed, dict):
+            for band, value in fixed.items():
+                if not re.fullmatch(r"\d{1,2}-\d{1,2}", str(band)):
+                    continue
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    continue
+                if 0 <= value < 60 and value == value:
+                    valid_fixed[str(band)] = round(value, 4)
+        table = {"name": name, "rates": valid_rates}
+        if valid_fixed:
+            table["fixed"] = valid_fixed
+        cleaned.append(table)
     preference = user.preference
     if preference is None:
         preference = UserPreference(user_id=user.id)
@@ -4755,6 +4776,38 @@ async def update_machine_fee_tables(request: Request, db: Session = Depends(get_
     preference.settings_json = json.dumps(settings, ensure_ascii=False)
     db.commit()
     return {"ok": True, "tables": cleaned}
+
+
+@router.post("/option/{quote_id}/machine")
+async def save_option_machine(quote_id: int, request: Request, db: Session = Depends(get_db)):
+    """Troca só a maquininha (tabela de juros) da cotação.
+
+    Usado pelo seletor da tela de mensagem; mantém sincronizado com "Editar lucro".
+    """
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    try:
+        data = await request.json()
+    except (ValueError, TypeError):
+        data = {}
+    if not validate_csrf_token(request.session, str(data.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada. Atualize a página."}, status_code=403)
+    quote = db.scalar(select(WebQuote).where(WebQuote.id == quote_id).options(selectinload(WebQuote.commercial)))
+    if not _quote_allowed(user, quote):
+        return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
+    name = " ".join(str(data.get("machine_name") or "").split())[:48]
+    if name and name.casefold() not in {str(t.get("name") or "").casefold() for t in _machine_tables(user)}:
+        return JSONResponse({"ok": False, "message": "Maquininha não encontrada."}, status_code=400)
+    commercial = quote.commercial or QuoteCommercial(quote_id=quote.id)
+    meta = _safe_json(commercial.observations, {})
+    if not isinstance(meta, dict):
+        meta = {}
+    meta["machine_name"] = name
+    commercial.observations = json.dumps(meta, ensure_ascii=False)
+    db.add(commercial)
+    db.commit()
+    return {"ok": True, "machine_name": name}
 
 
 @router.post("/option/{quote_id}/profit")

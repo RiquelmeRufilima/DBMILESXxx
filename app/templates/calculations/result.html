@@ -146,7 +146,7 @@
     {{ flight_route_list(quote.segment_rows, with_toggle=true, extra_class='result-segment-list') }}
     {% endif %}
     {% endif %}
-    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=3">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
+    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=4">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
   </div>
 
   <div class="card-panel">
@@ -246,6 +246,7 @@
       <div class="dbm-msg-section" aria-label="Informações opcionais">
         <div class="dbm-msg-section-title">✈️ Detalhes opcionais do voo</div>
         <label class="dbm-msg-row" for="dbmMessageShowTimes"><input type="checkbox" id="dbmMessageShowTimes"><span>Mostrar horários e duração, quando informados</span></label>
+        <label class="dbm-msg-row" for="dbmMessageShowStops"><input type="checkbox" id="dbmMessageShowStops"><span>Mostrar só as paradas (ex.: “Ida: Parada em Roma FCO”)</span></label>
         <label class="dbm-msg-row" for="dbmMessageShowFare"><input type="checkbox" id="dbmMessageShowFare"><span>Mostrar tarifa e classe, quando informadas</span></label>
       </div>
       <div class="dbm-msg-section" style="grid-column:1/-1" aria-label="Bagagens na mensagem">
@@ -263,6 +264,7 @@
     <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
     <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
       <strong class="dbm-pay-title">Formas de pagamento na mensagem</strong>
+      {% if not shared_view|default(false) %}<div class="dbm-pay-row dbm-machine-row"><span>💳 Maquininha</span><select id="dbmMessageMachine" aria-label="Maquininha usada nos juros"><option value="">Mercado Pago</option></select><small id="dbmMachineStatus">Mesma tabela do “Editar lucro”.</small></div>{% endif %}
       <div class="dbm-pay-row" data-pay="cash"><button type="button" class="dbm-eye" data-eye="cash" aria-pressed="true" title="Mostrar/ocultar">👁️</button><span>À vista</span><small id="dbmPayCashPreview"></small></div>
       <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="15" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
       <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="15" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
@@ -454,6 +456,21 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function syncEyes(){document.querySelectorAll('.dbm-eye').forEach(btn=>{const on=!!payState[btn.dataset.eye];btn.setAttribute('aria-pressed',String(on));btn.textContent=on?'👁️':'🙈';btn.closest('.dbm-pay-row').classList.toggle('is-hidden',!on);});}
  const priceSwitches = document.querySelectorAll('[name="dbmMessagePriceMode"]');
  const showTimes = document.getElementById('dbmMessageShowTimes');
+ const showStopsOnly = document.getElementById('dbmMessageShowStops');
+ // "📍 Informações sobre os voos": só as paradas de cada trecho (etapa 6).
+ function stopsOnlyBlock(){
+   const rows=(Array.isArray(segments)?segments:[]).filter(r=>r&&r.status!=='not_flown');
+   if(!rows.length)return '';
+   const label=(row,i)=>['outbound','one_way','ida'].includes(row.key)?'Ida':['return','volta'].includes(row.key)?'Volta':`Trecho ${row.segment||i+1}`;
+   const lines=rows.map((row,i)=>{
+     const f=row.flight||{};const stops=Array.isArray(f.stops)?f.stops:[];const cities=Array.isArray(f.stop_cities)?f.stop_cities:[];
+     if(!stops.length)return `🛬 ${label(row,i)}: Voo direto`;
+     const parts=stops.map((code,k)=>[cities[k]&&cities[k]!==code?cities[k]:'',code].filter(Boolean).join(' '));
+     const list=parts.length>1?parts.slice(0,-1).join(', ')+' e '+parts.at(-1):parts[0];
+     return `🛬 ${label(row,i)}: ${stops.length>1?'Paradas':'Parada'} em ${list}`;
+   });
+   return `📍 Informações sobre os voos:\n${lines.join('\n')}\n`;
+ }
  const msgMaxInstallments = document.getElementById('dbmMessageMaxInstallments');
  const msgShowAll = document.getElementById('dbmMessageShowAllInstallments');
  const msgShowFare = document.getElementById('dbmMessageShowFare');
@@ -691,13 +708,13 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    let header;
    const skipBlocks=skipRecord?skipFlightBlocks():[];
    if(skipRecord && skipBlocks.length){
-     header=`✈️ ${skipBlocks.length>1?'Voos':'Voo'} de *${title}*\n${skipBlocks.join('\n\n')}\n`;
+     header=`✈️ ${skipBlocks.length>1?'Voos':'Voo'} de *${title}*\n${skipBlocks.join('\n\n')}\n${showStopsOnly?.checked?'\n'+stopsOnlyBlock():''}`;
    } else {
      const selectedFlights=sections(false);
      // Com horário principal informado (etapa 6), o bloco 🕒 já mostra tudo: evita repetir.
      const hasMainSchedule=chosenFlightOptions().some(o=>o.departure_time||o.arrival_time||o.departure_date);
      const flightInfo=selectedFlights.length && showTimes.checked && !hasMainSchedule && !itinerarySides.some(s=>(s.legs||[]).some(l=>l.departure||l.arrival))?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
-     header=`🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}`;
+     header=`🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}${showStopsOnly?.checked?'\n'+stopsOnlyBlock():''}`;
    }
    return `✈️ COTAÇÃO - *${name}*\n\n${header}\n${benefits}\n${price}\n${warning}`;
  }
@@ -799,6 +816,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  note.addEventListener('input',()=>{if(!editor.dataset.edited)editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();});
  priceSwitches.forEach(input=>input.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()}));
  showTimes.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
+ showStopsOnly?.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
  msgShowFare?.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
  msgShowAll?.addEventListener('change',()=>{if(msgShowAll.checked&&!payState.free&&!payState.interest){payState.interest=true;syncEyes()}if(!editor.dataset.edited)editor.value=template()});
  msgHideInterestWord?.addEventListener('change',()=>{if(!editor.dataset.edited)editor.value=template()});
@@ -840,9 +858,36 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||'',machine_fee_value:Number(item.machine_fee_value||0),net_profit_value:Number(item.net_profit_value||0)};
      cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
    }
+   paintMachineSelect?.();
    refreshClient();internalEditor.value=internalTemplate();
  });
- fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;refreshClient();document.dispatchEvent(new Event('dbm:machine-fees-loaded'));}}).catch(()=>{});
+ // Maquininha da mensagem: mesma tabela salva na cotação ("Editar lucro").
+ const machineSelectMsg=document.getElementById('dbmMessageMachine');
+ const machineStatusMsg=document.getElementById('dbmMachineStatus');
+ function paintMachineSelect(){
+   if(!machineSelectMsg)return;
+   const current=commercialMeta.machine_name&&machineTables.some(t=>t.name===commercialMeta.machine_name)?commercialMeta.machine_name:(machineTables[0]?.name||'');
+   machineSelectMsg.replaceChildren(...machineTables.map(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=t.name;return o;}));
+   machineSelectMsg.value=current;
+ }
+ function syncProfitButtonsMeta(){
+   document.querySelectorAll('.js-profit-open[data-quote-id="{{ quote.id }}"]').forEach(btn=>{
+     let meta={};try{meta=JSON.parse(btn.dataset.commercialMeta||'{}')||{}}catch(_){meta={}}
+     meta.machine_name=commercialMeta.machine_name||'';btn.dataset.commercialMeta=JSON.stringify(meta);
+   });
+ }
+ machineSelectMsg?.addEventListener('change',async()=>{
+   commercialMeta={...commercialMeta,machine_name:machineSelectMsg.value};
+   syncProfitButtonsMeta();refreshClient();syncMessageMaxAvailability?.();
+   if(machineStatusMsg)machineStatusMsg.textContent='Salvando…';
+   try{
+     const r=await fetch('/calculations/option/{{ quote.id }}/machine',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({machine_name:machineSelectMsg.value,csrf_token:{{ csrf_token|tojson }}})});
+     const j=await r.json();if(!r.ok||!j.ok)throw Error(j.message||'Não foi possível salvar.');
+     if(machineStatusMsg)machineStatusMsg.textContent='Salvo na cotação ✓';
+   }catch(e){if(machineStatusMsg)machineStatusMsg.textContent=e.message||'Erro ao salvar.';}
+ });
+ document.addEventListener('dbm:machine-tables-saved',e=>{if(Array.isArray(e.detail?.tables)&&e.detail.tables.length){machineTables=e.detail.tables;paintMachineSelect();refreshClient();}});
+ fetch('/calculations/machine-fees',{credentials:'same-origin'}).then(r=>r.json()).then(d=>{if(d&&d.ok&&Array.isArray(d.tables)&&d.tables.length){machineTables=d.tables;paintMachineSelect();refreshClient();document.dispatchEvent(new Event('dbm:machine-fees-loaded'));}}).catch(()=>{});
  internalEditor.addEventListener('input',()=>internalEditor.dataset.edited='1');
  editor.addEventListener('input',()=>editor.dataset.edited='1');
  document.getElementById('copyQuoteMessage').addEventListener('click',async()=>{

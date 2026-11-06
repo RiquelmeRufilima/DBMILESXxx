@@ -232,11 +232,7 @@
     const count=side.stops.length;
     return `<section class="dbm-itinerary-side" data-side="${esc(side.key)}">
       <div class="dbm-itinerary-sidehead"><b>✈️ ${label} • ${esc(side.origin)} → ${esc(side.destination)}</b><small>Todos os campos opcionais</small></div>
-      <div class="dbm-itinerary-grid dbm-status-grid">
-        <label>Status do voo<select data-side-field="status"><option value="direct" ${side.status!=='stops'?'selected':''}>Direto / sem conexão informada</option><option value="stops" ${side.status==='stops'?'selected':''}>Com parada(s)</option></select></label>
-        ${side.status==='stops'?`<label>Quantidade de paradas<select data-side-field="stop_count">${Array.from({length:4},(_,i)=>`<option value="${i+1}" ${count===i+1?'selected':''}>${i+1}</option>`).join('')}</select></label>`:''}
-        ${side.status==='stops'?side.stops.map((stop,i)=>`<label>Parada ${i+1} • aeroporto IATA<input data-stop="${i}" value="${esc(stop)}" maxlength="3" placeholder="Ex.: BSB"></label>`).join(''):''}
-      </div>
+      ${/* Paradas e status ficam só na etapa 6 (horário principal); aqui são preenchidos sozinhos ao salvar. */''}
       ${sideConditions(side)}
     </section>`;
   }
@@ -323,7 +319,24 @@
     });
 
   }
+  // As paradas da etapa 6 (horário principal de cada trecho) são a fonte da
+  // verdade: copia para cá para a arte e as mensagens antigas continuarem certas.
+  function syncStopsFromMainFlight(){
+    let details=[];
+    try{details=JSON.parse(document.getElementById('flightDetailsJson')?.value||'[]')||[];}catch(_){details=[];}
+    if(!Array.isArray(details)||!details.length)return;
+    activeSegments().forEach(seg=>{
+      const side=model.sides[seg.key];if(!side)return;
+      const main=details.find(d=>d&&d.segment_key===seg.key&&d.preferred)||details.find(d=>d&&d.segment_key===seg.key);
+      if(!main)return;
+      const stops=(Array.isArray(main.stops)?main.stops:[]).map(v=>String(v||'').trim().toUpperCase()).filter(v=>/^[A-Z]{3}$/.test(v));
+      const changed=stops.join(',')!==(side.status==='stops'?side.stops:[]).join(',');
+      side.status=stops.length?'stops':'direct';side.stops=stops;
+      if(changed)rebuildLegs(side);
+    });
+  }
   function saveHidden(){
+    try{syncStopsFromMainFlight();}catch(_){}
     activeSegments().forEach((seg,i)=>{const input=partnerGrid?.querySelector(`[data-segment="${i+1}"]`);const s=model.sides[seg.key];if(input&&s?.legs?.[0]?.partner!==undefined&&input.value!==s.legs[0].partner)input.value=s.legs[0].partner;});
     hidden.value=JSON.stringify({version:2,sides:activeSegments().map(seg=>model.sides[seg.key]).filter(Boolean),bags_applies_to:model.bags_applies_to,charge_extra_bags:false});
   }

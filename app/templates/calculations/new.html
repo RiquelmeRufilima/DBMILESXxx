@@ -690,7 +690,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       <input type="hidden" name="itinerary_json" id="dbmItineraryJson" value="">
       <script type="application/json" id="dbmItineraryInitial">{{ (field_values.get('_itinerary_v1', {}) if field_values is defined else {})|tojson }}</script>
       <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
-      <script defer src="/static/js/flight-itinerary-20261102.js?v=20261103.8"></script>
+      <script defer src="/static/js/flight-itinerary-20261102.js?v=20261106.1"></script>
       <script type="application/json" id="partnerAirlineOptionsJson">{{ partner_airline_options|tojson }}</script>
 
       <div class="form-section soft segment-scope-panel">
@@ -899,7 +899,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <script type="application/json" id="routeScopesData">{{ (route_scopes or [])|tojson }}</script>
         <script type="application/json" id="iataCityGroups">{{ (iata_city_groups|default([]))|tojson }}</script>
         <script type="application/json" id="brAirportOffsets">{{ (br_airport_offsets|default({}))|tojson }}</script>
-        <link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=3">
+        <link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=4">
         <script src="/static/js/dbm-iata-groups-20261104.js?v=1" defer></script>
         <div class="section-title flight-details-title">
           <span class="step-badge">7</span>
