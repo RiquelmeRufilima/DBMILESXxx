@@ -20,6 +20,7 @@ from ..models import Airline, CalculationField, CalculationType
 from ..security import validate_csrf_token
 from ..services.formula_engine import validate_formula
 from ..services.airline_logos import logo_from_name
+from ..services.seed import ensure_catalog_airlines
 from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
 from ..services.uploads import AIRLINE_IMAGE_EXTENSIONS, delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
@@ -303,6 +304,7 @@ def airline_list(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
+    ensure_catalog_airlines(db)
     airlines = db.scalars(
         select(Airline)
         .where(Airline.active.is_(True), _visibility(user))

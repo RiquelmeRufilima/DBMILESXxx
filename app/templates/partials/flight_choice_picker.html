@@ -9,7 +9,9 @@
 {% set all_choices = (quote.flight_details|default([], true))|select('mapping')|list %}
 {% set state = namespace(keys=[], multiple=false, items=[]) %}
 {% for f in all_choices %}
-  {% if f.get('departure_time') or f.get('arrival_time') or f.get('stops') %}
+  {# Conta igual ao aviso "N horários • veja abaixo" do trecho: uma opção só
+     com a data (sem hora) também entra, senão a lista some. #}
+  {% if f.get('departure_time') or f.get('arrival_time') or f.get('stops') or f.get('departure_date') or f.get('arrival_date') %}
     {% set state.items = state.items + [f] %}
     {% if f.get('segment_key') in state.keys %}{% set state.multiple = true %}{% else %}{% set state.keys = state.keys + [f.get('segment_key')] %}{% endif %}
   {% endif %}
@@ -35,13 +37,14 @@
       <article class="dbm-flight-choice{% if f.get('preferred') %} is-selected{% endif %}">
         <label class="dbm-alt-row">
           <input type="radio" name="flight-choice-{{ quote.id }}-{{ segment_key }}" value="{{ saved_index }}" data-segment-key="{{ segment_key }}" {% if f.get('preferred') %}checked{% endif %} {% if saved_index < 0 %}disabled title="Horário antigo: edite o cálculo para poder selecionar"{% endif %}>
-          <span class="dbm-alt-time">{{ f.get('departure_time') or '' }}<small>{{ f.get('origin') or '' }}</small></span>
+          {% set f_date = (f.get('departure_date') or '')|string %}
+          <span class="dbm-alt-time">{% if f.get('departure_time') %}{{ f.get('departure_time') }}{% elif f_date|length >= 10 %}<span class="dbm-alt-nodate" title="Horário não informado">{{ f_date[8:10] }}/{{ f_date[5:7] }}</span>{% else %}<span class="dbm-alt-nodate">--:--</span>{% endif %}<small>{{ f.get('origin') or '' }}</small></span>
           <span class="dbm-alt-stops">
             <b>{% if f_stops %}{{ f_stops|length }} parada{{ 's' if f_stops|length > 1 }}{% else %}Direto{% endif %}</b>
             <i class="dbm-alt-line">{% for stop in f_stops %}<em title="{{ stop }}"></em>{% endfor %}</i>
             {% if f_stops %}<small>{% for stop in f_stops %}{% set wait = f_waits[loop.index0] if loop.index0 < f_waits|length else none %}{{ stop }}{% if wait is number %} · {{ fmt_minutes(wait) }} de espera{% endif %}{% if not loop.last %}  |  {% endif %}{% endfor %}</small>{% endif %}
           </span>
-          <span class="dbm-alt-time">{{ f.get('arrival_time') or '' }}{% if plus_days %}<sup>+1</sup>{% endif %}<small>{{ f.get('destination') or '' }}</small></span>
+          <span class="dbm-alt-time">{% if f.get('arrival_time') %}{{ f.get('arrival_time') }}{% else %}<span class="dbm-alt-nodate">--:--</span>{% endif %}{% if plus_days %}<sup>+1</sup>{% endif %}<small>{{ f.get('destination') or '' }}</small></span>
           <span class="dbm-alt-duration">{% if f_duration is number and f_duration > 0 %}{{ fmt_minutes(f_duration) }}{% endif %}</span>
           <span class="dbm-flight-choice-marker">{% if f.get('preferred') %}Selecionada{% else %}Escolher{% endif %}</span>
         </label>

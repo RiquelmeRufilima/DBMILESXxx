@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+import logging
+
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session, selectinload
 
 from ..config import AIRLINE_IMAGE_DIR, AIRLINE_UPLOAD_DIR, BASE_DIR
-from ..models import Airline, CalculationField, CalculationType
-from .travel_data import AIRLINE_OPTIONS
+from ..models import Airline, CalculationField, CalculationType, WebQuote
+from .travel_data import AIRLINE_OPTIONS, NATIONAL_AIRLINE_SLUGS, NO_MILES_AIRLINE_SLUGS
 
 
 BUILTINS = [
@@ -219,11 +221,25 @@ def _copy_logo(filename: str) -> str | None:
     return None
 
 
+def _site_value_type(slug: str) -> dict:
+    """Cotação pelo valor total do site, com desconto opcional."""
+    return {
+        "name": "Valor do site", "slug": f"{slug}-valor-site", "legacy_key": "valor_site",
+        "description": "Companhia sem programa de milhas: valor total do site menos o desconto (%) informado.",
+        "fields": [
+            ("valor_site", "Valor total no site", "money", "0", 0, None, 0.01, None),
+            ("desconto_site", "Desconto (%)", "percent", "0", 0, 100, 1, None),
+            ("bagagem_unitaria", "Bagagem adicional por unidade", "money", "0", 0, None, 1, None),
+        ],
+    }
+
+
 def _generic_airline_builtin(item: dict[str, str]) -> dict:
     slug = item["slug"]
-    return {
-        "name": item["name"], "slug": slug, "legacy_code": None, "color": "#26c5e6", "logo": item.get("logo") or f"{slug}.png",
-        "types": [{
+    if slug in NO_MILES_AIRLINE_SLUGS:
+        types = [_site_value_type(slug)]
+    else:
+        types = [{
             "name": "Cálculo padrão", "slug": f"{slug}-padrao", "legacy_key": None,
             "description": "Regra genérica editável: (milhas * milheiro) + taxa. Pode ser usada como base para cotações manuais.",
             "fields": [
@@ -232,7 +248,10 @@ def _generic_airline_builtin(item: dict[str, str]) -> dict:
                 ("taxa", "Taxa", "number", "0", 0, None, 0.01, None),
                 ("bagagem_unitaria", "Bagagem adicional por unidade", "money", "0", 0, None, 1, None),
             ],
-        }],
+        }]
+    return {
+        "name": item["name"], "slug": slug, "legacy_code": None, "color": "#26c5e6", "logo": item.get("logo") or f"{slug}.png",
+        "types": types,
     }
 
 def _builtin_market_scope(slug: str) -> str:
@@ -245,7 +264,7 @@ def _builtin_market_scope(slug: str) -> str:
     token = str(slug or "").strip().lower()
     if token in {"azul", "gol", "latam"}:
         return "both"
-    if token in {"voepass"}:
+    if token in NATIONAL_AIRLINE_SLUGS:
         return "national"
     return "international"
 
@@ -257,9 +276,64 @@ for _item in AIRLINE_OPTIONS:
         EXTRA_BUILTINS.append(_generic_airline_builtin(_item))
 
 
-def seed_builtin_airlines(db: Session) -> None:
-    for item in BUILTINS + EXTRA_BUILTINS:
-        airline = db.scalar(select(Airline).where(Airline.slug == item["slug"], Airline.builtin.is_(True)))
+logger = logging.getLogger(__name__)
+
+
+def _expected_catalog() -> list[dict]:
+    return BUILTINS + EXTRA_BUILTINS
+
+
+def _new_calc_type(type_item: dict, *, is_default: bool) -> CalculationType:
+    calc_type = CalculationType(
+        name=type_item["name"],
+        slug=type_item["slug"],
+        description=type_item["description"],
+        formula="(milhas * milheiro) + taxa",
+        apply_mode="total",
+        legacy_key=type_item["legacy_key"],
+        active=True,
+        is_default=is_default,
+    )
+    _fill_fields(calc_type, type_item)
+    return calc_type
+
+
+def _fill_fields(calc_type: CalculationType, type_item: dict) -> None:
+    for field_index, field_data in enumerate(type_item["fields"]):
+        key, label, field_type, default, min_value, max_value, step, options = field_data
+        calc_type.fields.append(
+            CalculationField(
+                key=key,
+                label=label,
+                field_type=field_type,
+                default_value=str(default) if default is not None else None,
+                required=False,
+                min_value=min_value,
+                max_value=max_value,
+                step=step,
+                options_json=json.dumps(options, ensure_ascii=False) if options else None,
+                order_index=field_index,
+            )
+        )
+
+
+def seed_builtin_airlines(db: Session) -> int:
+    """Cria/completa as companhias padrão. Retorna quantos itens foram criados.
+
+    Carrega tudo em uma única consulta (importante no Neon/Vercel, onde cada
+    ida ao banco custa caro) e só insere o que estiver faltando.
+    """
+    existing = {
+        airline.slug: airline
+        for airline in db.scalars(
+            select(Airline)
+            .where(Airline.builtin.is_(True))
+            .options(selectinload(Airline.calculation_types).selectinload(CalculationType.fields))
+        ).all()
+    }
+    created = 0
+    for item in _expected_catalog():
+        airline = existing.get(item["slug"])
         if airline is None:
             airline = Airline(
                 name=item["name"],
@@ -274,7 +348,8 @@ def seed_builtin_airlines(db: Session) -> None:
                 logo_path=_copy_logo(item["logo"]),
             )
             db.add(airline)
-            db.flush()
+            existing[item["slug"]] = airline
+            created += 1
         else:
             # Não sobrescreve uma identidade visual ou perfil operacional que
             # o administrador já editou.
@@ -288,39 +363,64 @@ def seed_builtin_airlines(db: Session) -> None:
                     airline.logo_path = resolved_logo
 
         existing_types = {calc.slug: calc for calc in airline.calculation_types}
+        had_types = bool(existing_types)
         for index, type_item in enumerate(item["types"]):
             calc_type = existing_types.get(type_item["slug"])
             if calc_type is None:
-                calc_type = CalculationType(
-                    airline_id=airline.id,
-                    name=type_item["name"],
-                    slug=type_item["slug"],
-                    description=type_item["description"],
-                    formula="(milhas * milheiro) + taxa",
-                    apply_mode="total",
-                    legacy_key=type_item["legacy_key"],
-                    active=True,
-                    is_default=index == 0,
-                )
-                db.add(calc_type)
-                db.flush()
-
-            if not calc_type.fields:
-                for field_index, field_data in enumerate(type_item["fields"]):
-                    key, label, field_type, default, min_value, max_value, step, options = field_data
-                    db.add(
-                        CalculationField(
-                            calculation_type_id=calc_type.id,
-                            key=key,
-                            label=label,
-                            field_type=field_type,
-                            default_value=str(default) if default is not None else None,
-                            required=False,
-                            min_value=min_value,
-                            max_value=max_value,
-                            step=step,
-                            options_json=json.dumps(options, ensure_ascii=False) if options else None,
-                            order_index=field_index,
-                        )
-                    )
+                site_value = type_item.get("legacy_key") == "valor_site"
+                # Companhia sem milhas que já existia com o "Cálculo padrão"
+                # automático: o "Valor do site" passa a ser o padrão.
+                make_default = (not had_types and index == 0) or site_value
+                if site_value:
+                    for other in airline.calculation_types:
+                        if other.slug == f"{item['slug']}-padrao":
+                            other.is_default = False
+                            # Companhia sem milhas: o cálculo de milhas automático
+                            # sai da lista, a menos que alguma cotação já o use.
+                            if other.id is not None and not db.scalar(
+                                select(WebQuote.id).where(WebQuote.calculation_type_id == other.id).limit(1)
+                            ):
+                                other.active = False
+                airline.calculation_types.append(_new_calc_type(type_item, is_default=make_default))
+                created += 1
+            elif not calc_type.fields:
+                _fill_fields(calc_type, type_item)
     db.commit()
+    return created
+
+
+_CATALOG_READY = False
+
+
+def ensure_catalog_airlines(db: Session) -> None:
+    """Garante no banco as companhias do catálogo (uma vez por processo).
+
+    Na Vercel o startup não roda o seed; por isso as companhias novas do
+    catálogo nunca chegavam ao Neon. A verificação é uma consulta leve; só
+    quando falta algo o seed completo roda (com trava no PostgreSQL para dois
+    acessos simultâneos não duplicarem a companhia).
+    """
+    global _CATALOG_READY
+    if _CATALOG_READY:
+        return
+    try:
+        rows = db.execute(
+            select(Airline.slug, CalculationType.slug)
+            .join(CalculationType, CalculationType.airline_id == Airline.id, isouter=True)
+            .where(Airline.builtin.is_(True))
+        ).all()
+        have_airlines = {row[0] for row in rows}
+        have_types = {row[1] for row in rows if row[1]}
+        missing = any(
+            item["slug"] not in have_airlines or any(t["slug"] not in have_types for t in item["types"])
+            for item in _expected_catalog()
+        )
+        if missing:
+            if db.get_bind().dialect.name == "postgresql":
+                db.execute(text("SELECT pg_advisory_xact_lock(740611)"))
+            created = seed_builtin_airlines(db)
+            logger.info("Catálogo de companhias completado: %s itens criados.", created)
+        _CATALOG_READY = True
+    except Exception:  # nunca derruba a tela por causa do catálogo
+        db.rollback()
+        logger.exception("Não foi possível completar o catálogo de companhias.")

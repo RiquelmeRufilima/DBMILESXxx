@@ -132,3 +132,4 @@ html[data-theme=light] .dbm-anchor-hint{background:#fff6e8;color:#8a5208;border-
 .dbm-machine-row select{min-height:30px;padding:3px 8px;border-radius:8px;font-size:.78rem;max-width:220px}
 .dbm-machine-row small{font-size:.7rem;color:var(--muted)}
 .dbm-msg-machine-logo{width:24px;height:24px;border-radius:6px;object-fit:contain;background:#fff;padding:2px;border:1px solid var(--border)}
+.dbm-alt-nodate{opacity:.62;font-size:.92rem;font-weight:800}

@@ -69,6 +69,11 @@ DEFAULT_FIELD_DEFINITIONS: dict[str, list[dict[str, Any]]] = {
         {"key": "desagio", "label": "Percentual de deságio", "field_type": "percent", "default_value": "0", "min_value": 0, "max_value": 100, "step": 1},
         {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
+    "valor_site": [
+        {"key": "valor_site", "label": "Valor total no site", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "desconto_site", "label": "Desconto (%)", "field_type": "percent", "default_value": "0", "min_value": 0, "max_value": 100, "step": 1},
+        {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "0", "min_value": 0, "step": 1},
+    ],
     "azul_pontos": [
         {"key": "milhas", "label": "Pontos/Milhas totais em milheiros", "field_type": "miles", "default_value": "0", "min_value": 0, "step": 0.001},
         {"key": "milheiro", "label": "Valor do milheiro", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
@@ -2777,6 +2782,8 @@ def new_calculation(request: Request, db: Session = Depends(get_db)):
         "variant_key": request.query_params.get("variant_key"),
         "db": db,
     }
+    from ..services.seed import ensure_catalog_airlines
+    ensure_catalog_airlines(db)
     try:
         return _new_calculation_impl(request, **params)
     except Exception as first_exc:

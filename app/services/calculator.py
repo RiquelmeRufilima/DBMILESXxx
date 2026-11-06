@@ -79,6 +79,19 @@ def _legacy_calculation(
             "modo": "total",
         }
 
+    elif key == "valor_site":
+        # Companhia sem programa de milhas: valor total do site − desconto (%).
+        full_value = _num(values, "valor_site")
+        discount_percent = _num(values, "desconto_site")
+        discount = full_value * (discount_percent / 100)
+        base = full_value - discount
+        details = {
+            "valor_site": full_value,
+            "desconto_percentual": discount_percent,
+            "desconto": discount,
+            "modo": "total",
+        }
+
     elif key == "azul_pontos":
         value_points = milhas * milheiro
         base = value_points + taxa
@@ -171,7 +184,7 @@ def calculate(
         }
     )
 
-    if airline.engine_type == "legacy" and calculation_type.legacy_key:
+    if calculation_type.legacy_key and (airline.engine_type == "legacy" or calculation_type.legacy_key == "valor_site"):
         return _legacy_calculation(
             calculation_type.legacy_key,
             values,

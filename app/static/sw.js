@@ -1,4 +1,4 @@
-const CACHE = 'dbmilesx-v5-28-static-20261104b';
+const CACHE = 'dbmilesx-v5-29-static-20261106';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE)); });
 self.addEventListener('activate', e => e.waitUntil((async () => {
   for (const key of await caches.keys()) if (key !== CACHE) await caches.delete(key);
