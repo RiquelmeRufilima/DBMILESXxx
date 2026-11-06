@@ -307,6 +307,19 @@
       <button class="secondary-button small-button" type="button" id="dbmArtShare">Compartilhar</button>
     </div>
   </section>
+  {# Dados extras da arte: agência, companhia, cidades e passageiros. #}
+  {% set art_company = user.company if user and user.company else none %}
+  {% set art_names = {} %}
+  {% for row in (quote.segment_rows or []) %}{% set f = row.flight if row.flight is mapping else {} %}{% for code in [f.get('origin') or row.origin, f.get('destination') or row.destination] + (f.get('stops') or []) %}{% if code %}{% set _ = art_names.update({code: code|airport_city}) %}{% endif %}{% endfor %}{% endfor %}
+  <script id="dbmFlightArtBrand" type="application/json">{{ {
+       'company_name': art_company.name if art_company else 'ISI VIAGENS',
+       'company_cnpj': art_company.cnpj if art_company and art_company.cnpj else '',
+       'company_phone': art_company.phone if art_company and art_company.phone else '',
+       'company_logo': ('/' ~ art_company.logo_path.lstrip('/')) if art_company and art_company.logo_path else '',
+       'airline_logo': ('/' ~ quote.airline.logo_path.lstrip('/')) if quote.airline and quote.airline.logo_path else '',
+       'airport_names': art_names,
+       'segments': quote.segment_rows or [],
+       'passengers': quote.passengers or 1, 'babies': quote.babies or 0}|tojson }}</script>
   <script id="dbmFlightArtData" type="application/json">{{ {'quote_id':quote.id,
        'name':quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name,
        'origin':quote.origin,'destination':quote.destination,
@@ -318,7 +331,7 @@
        'installment_value':quote.commercial.card_installment_value if quote.commercial else 0}|tojson }}</script>
   <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
   <link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
-  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261103.7"></script>
+  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261106.2"></script>
 </section>
 <style>
 .dbm-message-new-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;padding:12px;border:1px solid #365e7d;border-radius:11px;background:rgba(21,67,101,.2)}

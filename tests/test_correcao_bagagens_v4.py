@@ -46,5 +46,6 @@ assert.match(run(multi).text,/TRECHO 1/);assert.match(run(multi).text,/TRECHO 2/
 
 def test_arte_percurso_completo_em_cada_sentido():
     art=(ROOT/'app/static/js/flight-quote-art-20261102.js').read_text(encoding='utf8')
-    assert "const showExtra=extraQty>0&&checkbox.checked&&(where==='all'||where===side.key)" in art
+    # Adicional mostrado em CADA sentido (ou só no escolhido), apenas com a opção marcada.
+    assert "if(extra>0&&checkbox.checked&&(where==='all'||where===side.key))" in art
     assert 'na cotação (sentido não especificado)' not in art
