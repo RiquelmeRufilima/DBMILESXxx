@@ -548,7 +548,7 @@ async def update_airline_profile(airline_id: int, request: Request, db: Session 
     airline.market_scope = market_scope
     airline.partner_airlines_json = json.dumps(partners, ensure_ascii=False)
     db.commit()
-    flash(request, "Operação e parcerias salvas com sucesso.", "success")
+    flash(request, "Operação salva com sucesso.", "success")
     return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
 
 

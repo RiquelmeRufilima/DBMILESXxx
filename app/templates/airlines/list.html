@@ -42,7 +42,7 @@
     <div class="airline-scope-row">
       <span class="airline-scope-chip">{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</span>
       {% set partner_list = airline.partner_airlines_json|default('[]') %}
-      {% if partner_list and partner_list != '[]' %}<span class="airline-scope-chip airline-partner-count">Parcerias configuradas</span>{% endif %}
+      {% if partner_list and partner_list != '[]' %}<span class="airline-scope-chip airline-partner-count">Operadoras configuradas</span>{% endif %}
     </div>
     <p>{{ airline.calculation_types|length }} tipo(s) de cálculo disponível(is).</p>
     <div class="airline-types">{% for type in airline.calculation_types[:3] %}<span>{{ type.name }}</span>{% endfor %}</div>

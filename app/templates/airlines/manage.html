@@ -22,7 +22,7 @@
     <h1>{{ airline.name }}</h1>
     <p>{{ airline.calculation_types|selectattr('active')|list|length }} tipo(s) de cálculo ativo(s).</p>
     {% if selected_partner_names %}
-    <div class="partner-name-chips">{% for partner in selected_partner_names[:10] %}<span>Parceira: {{ partner }}</span>{% endfor %}</div>
+    <div class="partner-name-chips">{% for partner in selected_partner_names[:10] %}<span>Opera: {{ partner }}</span>{% endfor %}</div>
     {% endif %}
   </div>
   <div class="action-cluster">
@@ -65,9 +65,9 @@
 <section class="panel airline-profile-editor">
   <div class="panel-heading">
     <div>
-      <span class="eyebrow">OPERAÇÃO E PARCERIAS</span>
-      <h2>Nacional, internacional e companhias parceiras</h2>
-      <p>Parcerias são opcionais e podem ser usadas em qualquer tipo de operação.</p>
+      <span class="eyebrow">OPERAÇÃO</span>
+      <h2>Nacional, internacional e companhias que operam os voos</h2>
+      <p>"Operado por" é opcional e pode ser usado em qualquer tipo de operação.</p>
     </div>
   </div>
   <form method="post" action="/airlines/{{ airline.id }}/profile" class="form-stack">
@@ -81,7 +81,7 @@
         </select>
         <small>Se escolher Nacional + internacional, o tipo da operação será selecionável em cada cálculo.</small>
       </label>
-      <label>Parceiras habituais <span class="optional-pill">opcional</span>
+      <label>Operadoras habituais <span class="optional-pill">opcional</span>
         <select name="partner_airlines" multiple size="10">
           {% for partner in partner_airlines %}
           <option value="{{ partner.name }}" {% if partner.name in selected_partner_names %}selected{% endif %}>{{ partner.name }}{% if partner.market_scope == 'national' %} • Nacional{% elif partner.market_scope == 'international' %} • Internacional{% else %} • Nacional + internacional{% endif %}</option>
@@ -90,11 +90,11 @@
         <small>Todas as companhias cadastradas no sistema aparecem aqui. Use Ctrl para marcar várias no computador.</small>
       </label>
     </div>
-    <label>Outras parceiras não cadastradas <span class="optional-pill">opcional</span>
+    <label>Outras operadoras não cadastradas <span class="optional-pill">opcional</span>
       <textarea name="partner_airlines_extra" rows="3" placeholder="Uma por linha ou separadas por vírgula">{{ manual_partner_names|join('\n') }}</textarea>
     </label>
     <div class="profile-note">Na tela de cálculo, todas as companhias cadastradas continuarão disponíveis como sugestão e você também poderá digitar uma parceira manualmente.</div>
-    <div class="form-actions"><button class="primary-button" type="submit">Salvar operação e parcerias</button></div>
+    <div class="form-actions"><button class="primary-button" type="submit">Salvar operação</button></div>
   </form>
 </section>
 

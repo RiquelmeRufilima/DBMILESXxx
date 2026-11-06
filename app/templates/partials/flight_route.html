@@ -19,7 +19,7 @@
     {% if toggle_index is not none %}<button type="button" class="toggle-segment-visibility" onclick="toggleSegment({{ toggle_index }})" title="Ocultar/Exibir trecho"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>{% endif %}
     <span class="segment-number">Trecho {{ row.segment }}</span>
     <span class="dbm-route-kind {{ 'is-direct' if not stops else 'is-connection' }}">{% if not stops %}Voo direto{% else %}Com conexão{% endif %}</span>
-    {% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path.lstrip('/') }}" alt="{{ row.partner_airline }}">{% endif %}<span>Parceira: {{ row.partner_airline }}</span></span>{% endif %}
+    {% if row.partner_airline %}<span class="segment-partner-badge">{% if row.partner_logo_path %}<img src="/{{ row.partner_logo_path.lstrip('/') }}" alt="{{ row.partner_airline }}">{% endif %}<span>Operado por: {{ row.partner_airline }}</span></span>{% endif %}
     {% if row.status != 'neutral' %}<em>{{ row.status_label }}</em>{% endif %}
     {# A data aparece também no trecho NÃO VOADO do Skip (importante para a emissão). #}
     {% if f.get('date') or row.display_date %}<span class="dbm-route-date">{{ f.get('date') or row.display_date }}</span>{% endif %}

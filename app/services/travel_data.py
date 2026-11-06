@@ -207,9 +207,46 @@ AIRLINE_OPTIONS: list[dict[str, str]] = [
     {"name":"Turkish Airlines","slug":"turkish","logo":"turkish.png"},
     {"name":"United Airlines","slug":"united","logo":"united.png"},
     {"name":"Voepass","slug":"voepass","logo":"voepass.png"},
+    # Companhias acrescentadas em 06/11/2026 (sem logo no catálogo: aparece só o nome).
+    {"name":"Aer Lingus","slug":"aerlingus","logo":""},
+    {"name":"Air Transat","slug":"airtransat","logo":""},
+    {"name":"Air India","slug":"airindia","logo":""},
+    {"name":"Austrian Airlines","slug":"austrian","logo":""},
+    {"name":"Azores Airlines","slug":"azores","logo":""},
+    {"name":"Brussels Airlines","slug":"brussels","logo":""},
+    {"name":"Cathay Pacific","slug":"cathay","logo":""},
+    {"name":"Edelweiss","slug":"edelweiss","logo":""},
+    {"name":"Etihad Airways","slug":"etihad","logo":""},
+    {"name":"EuroAtlantic Airways","slug":"euroatlantic","logo":""},
+    {"name":"Finnair","slug":"finnair","logo":""},
+    {"name":"Flybondi","slug":"flybondi","logo":""},
+    {"name":"Iberojet","slug":"iberojet","logo":""},
+    {"name":"JetBlue","slug":"jetblue","logo":""},
+    {"name":"Level","slug":"level","logo":""},
+    {"name":"LOT Polish Airlines","slug":"lot","logo":""},
+    {"name":"Norse Atlantic Airways","slug":"norse","logo":""},
+    {"name":"Paranair","slug":"paranair","logo":""},
+    {"name":"Plus Ultra","slug":"plusultra","logo":""},
+    {"name":"Saudia","slug":"saudia","logo":""},
+    {"name":"Sky High","slug":"skyhigh","logo":""},
+    {"name":"Virgin Atlantic","slug":"virgin","logo":""},
+    {"name":"World2Fly","slug":"world2fly","logo":""},
+    {"name":"Alaska Airlines","slug":"alaska","logo":""},
+    {"name":"Air Arabia","slug":"airarabia","logo":""},
+    {"name":"Air Premia","slug":"airpremia","logo":""},
+    {"name":"Asiana Airlines","slug":"asiana","logo":""},
+    {"name":"China Eastern","slug":"chinaeastern","logo":""},
+    {"name":"China Southern","slug":"chinasouthern","logo":""},
+    {"name":"EVA Air","slug":"eva","logo":""},
+    {"name":"Thai Airways","slug":"thai","logo":""},
+    {"name":"Vietnam Airlines","slug":"vietnam","logo":""},
+    {"name":"Kenya Airways","slug":"kenya","logo":""},
+    {"name":"EgyptAir","slug":"egyptair","logo":""},
 ]
 
 CHECKIN_LINKS: dict[str, str] = {
+    "euroatlantic":"https://www.euroatlantic.pt/","azores":"https://www.azoresairlines.pt/pt/check-in","flybondi":"https://flybondi.com/br",
+    "paranair":"https://www.paranair.com/","etihad":"https://www.etihad.com/pt-br/manage/check-in","finnair":"https://www.finnair.com/br-pt/check-in",
     "aerolineas":"https://www.aerolineas.com.ar/check-in","aeromexico":"https://aeromexico.com/pt-br/check-in",
     "aircanada":"https://www.aircanada.com/ca/en/aco/home/ssci.html","airchina":"https://www.airchina.com/",
     "aireuropa":"https://www.aireuropa.com/br/pt/aea/gestoes/check-in.html","airfrance":"https://wwws.airfrance.com.br/check-in",
@@ -245,6 +282,21 @@ ALIASES: dict[str, str] = {
     "singapore airlines":"singapore","sky":"sky","south african":"southafrican","southafrican":"southafrican","swiss":"swiss","taag":"taag",
     "tap":"tap","tap air portugal":"tap","turkish":"turkish","united":"united","voepass":"voepass",
 }
+
+# Apelidos das companhias acrescentadas em 06/11/2026 (reconhece o nome digitado).
+ALIASES.update({
+    "euroatlantic": "euroatlantic", "euroatlantic airways": "euroatlantic", "euro atlantic": "euroatlantic",
+    "azores airlines": "azores", "azores": "azores", "sata": "azores",
+    "flybondi": "flybondi", "paranair": "paranair", "etihad": "etihad", "etihad airways": "etihad",
+    "finnair": "finnair", "aer lingus": "aerlingus", "air transat": "airtransat", "air india": "airindia",
+    "austrian": "austrian", "austrian airlines": "austrian", "brussels airlines": "brussels", "cathay pacific": "cathay",
+    "edelweiss": "edelweiss", "iberojet": "iberojet", "jetblue": "jetblue", "lot polish": "lot", "norse atlantic": "norse",
+    "plus ultra": "plusultra", "saudia": "saudia", "virgin atlantic": "virgin", "world2fly": "world2fly",
+    "alaska airlines": "alaska", "air arabia": "airarabia", "air premia": "airpremia", "asiana": "asiana",
+    "china eastern": "chinaeastern", "china southern": "chinasouthern", "eva air": "eva", "thai airways": "thai",
+    "vietnam airlines": "vietnam", "kenya airways": "kenya", "egyptair": "egyptair", "sky high": "skyhigh",
+})
+
 
 def airline_key(name: str | None) -> str:
     text = (name or "").strip().lower()

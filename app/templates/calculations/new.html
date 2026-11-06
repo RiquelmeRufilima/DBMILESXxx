@@ -572,8 +572,8 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
           <div class="operation-panel-icon">✈</div>
           <div class="operation-panel-copy">
             <span class="operation-kicker">OPERAÇÃO DO VOO</span>
-            <h3>Nacional, internacional e parcerias</h3>
-            <p>Defina o tipo desta opção e, somente se houver, escolha a companhia parceira. A parceria continua opcional.</p>
+            <h3>Nacional, internacional e operado por</h3>
+            <p>Defina o tipo desta opção e, somente se for o caso, escolha a companhia que opera o voo. É opcional.</p>
           </div>
           <div class="operation-current-profile">
             {% if operation_profile.market_scope == 'national' %}
@@ -596,12 +596,12 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
                 <option value="international" {% if saved_operation_scope == 'international' %}selected{% endif %}>🌎 Internacional</option>
               </select>
             </span>
-            <small>Você pode usar parceria tanto em voo nacional quanto internacional.</small>
+            <small>Vale tanto para voo nacional quanto internacional.</small>
           </label>
 
           <div class="operation-pro-field partner-combobox-field">
             <span class="operation-pro-label">
-              Companhia parceira principal
+              Operado por (principal)
               <em class="optional-pill">opcional</em>
             </span>
 
@@ -642,7 +642,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <div class="partner-airline-panel partner-airline-panel-always" id="partnerAirlineField">
           <div class="partner-panel-heading professional">
             <div>
-              <strong>Parceira por trecho</strong>
+              <strong>Operado por, em cada trecho</strong>
               <small>Use apenas quando um trecho for operado por uma companhia diferente.</small>
             </div>
             <span class="optional-pill">opcional</span>
@@ -667,7 +667,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
                     class="partner-segment-input partner-combobox-input"
                     data-segment="{{ row.segment }}"
                     value="{{ row.partner_airline }}"
-                    placeholder="Nenhuma parceira"
+                    placeholder="Operado pela própria companhia"
                     autocomplete="off"
                     spellcheck="false"
                   >
@@ -1643,7 +1643,7 @@ document.addEventListener('person-selected', function(event) {
               <strong></strong>
               <small></small>
             </span>
-            <span class="partner-option-badge ${item.configured ? 'configured' : ''}">${item.configured ? 'PARCEIRA' : 'CADASTRADA'}</span>
+            <span class="partner-option-badge ${item.configured ? 'configured' : ''}">${item.configured ? 'HABITUAL' : 'CADASTRADA'}</span>
           `;
           button.querySelector('strong').textContent = item.name;
           button.querySelector('small').textContent = item.market_label;

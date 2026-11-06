@@ -2386,9 +2386,29 @@ def _partner_airline_options(airlines: list[Airline], selected_airline: Airline 
             "logo_path": "",
             "color": "",
             "market_scope": "both",
-            "market_label": "Parceira cadastrada",
+            "market_label": "Operadora cadastrada",
             "builtin": False,
             "configured": True,
+        }
+
+    # Catálogo de companhias (ex.: EuroAtlantic): também podem ser "operado por",
+    # mesmo sem estarem cadastradas na empresa.
+    from ..services.travel_data import AIRLINE_OPTIONS
+    selected_token = _normalized_token(getattr(selected_airline, "name", "") or "") if selected_airline is not None else ""
+    for option in AIRLINE_OPTIONS:
+        name = str(option.get("name") or "").strip()
+        token = _normalized_token(name)
+        if not token or token in by_token or token == selected_token:
+            continue
+        by_token[token] = {
+            "id": 0,
+            "name": name,
+            "logo_path": "",
+            "color": "",
+            "market_scope": "both",
+            "market_label": "Catálogo",
+            "builtin": False,
+            "configured": False,
         }
 
     rows = list(by_token.values())

@@ -223,7 +223,7 @@
     extraPartners.innerHTML=sides.map((side)=>side.legs.map((leg,i)=>
       `<label class="dbm-partner-route" data-partner-side="${esc(side.key)}" data-partner-leg="${i}">
       <span>${side.key==='return'?'Volta':side.key==='outbound'||side.key==='one_way'?'Ida':'Trecho'} • ${esc(leg.origin)} → ${esc(leg.destination)}</span>
-      <input list="dbmItineraryPartners" placeholder="Parceria opcional" value="${esc(leg.partner)}" data-partner-edit></label>`
+      <input list="dbmItineraryPartners" placeholder="Operado por (opcional)" value="${esc(leg.partner)}" data-partner-edit></label>`
     ).join('')).join('');
   }
   function sideHTML(segment){
@@ -439,7 +439,7 @@
     if(!source?.legs.length)return;
     const recipients=sides.filter(s=>target==='all'||(target==='return'?s.key==='return':s.key!=='return'));
     if(!recipients.length)return;
-    if(!confirm('Repetir parceria, classe, tarifa e bagagem incluída do primeiro trecho? Não serão alterados horários, rotas nem bagagem paga.'))return;
+    if(!confirm('Repetir "operado por", classe, tarifa e bagagem incluída do primeiro trecho? Não serão alterados horários, rotas nem bagagem paga.'))return;
     const first=source.legs[0];
     recipients.forEach(side=>{
       ['cabin','fare','included_bags'].forEach(key=>{side[key]=source[key]??''});
