@@ -146,7 +146,7 @@
     {{ flight_route_list(quote.segment_rows, with_toggle=true, extra_class='result-segment-list') }}
     {% endif %}
     {% endif %}
-    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=2">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
+    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=3">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
   </div>
 
   <div class="card-panel">
@@ -278,6 +278,7 @@
     <div id="dbmCompactInstallmentsList" aria-live="polite"></div>
   </details>
   <label for="quoteClientMessage"><strong>Mensagem para o cliente</strong></label>
+  <small class="dbm-anchor-hint" id="dbmAnchorHint" hidden></small>
   <textarea id="quoteClientMessage" rows="16" spellcheck="true"></textarea>
   <label for="quoteInternalMessage"><strong>Resumo interno — custo, lucro e origem da cotação</strong></label>
   <p class="quote-share-muted">Somente para uso interno: revise os dados antes de encaminhar. O texto do cliente acima não inclui valores de custo.</p>
@@ -663,6 +664,13 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const displayCompare=compare;
    const moneyPlain=value=>Number(value||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    const discount=saleKnown()&&displayCompare>displaySale?`De: R$ ~${moneyPlain(displayCompare)}~\n\n`:'';
+   // Ancoragem igual ou menor que a venda não gera "De:" — avisa para não passar despercebido.
+   const anchorHint=document.getElementById('dbmAnchorHint');
+   if(anchorHint){
+     const low=saleKnown()&&displayCompare>0&&displayCompare<=displaySale;
+     anchorHint.hidden=!low;
+     if(low)anchorHint.textContent=`⚠️ O “De:” não aparece: o valor de comparação/ancoragem (R$ ${moneyPlain(displayCompare)}) é menor ou igual ao valor de venda (R$ ${moneyPlain(displaySale)}). Aumente a ancoragem em “Editar lucro”.`;
+   }
    // Crianças e bebês só aparecem quando existirem; sem eles fica "N passageiros".
    const kids=Math.max(0,Math.min(Number(children)||0,paid-1));
    const groups=kids>0?[plural(paid-kids,'adulto','adultos'),plural(kids,'criança','crianças')]:[plural(passengers,'passageiro','passageiros')];
