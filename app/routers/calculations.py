@@ -4762,6 +4762,11 @@ async def update_machine_fee_tables(request: Request, db: Session = Depends(get_
         table = {"name": name, "rates": valid_rates}
         if valid_fixed:
             table["fixed"] = valid_fixed
+        # Imagem opcional da máquina (já reduzida no navegador). Só imagem
+        # embutida PNG/JPEG/WEBP e pequena; qualquer outra coisa é ignorada.
+        logo = str(entry.get("logo") or "")
+        if logo and len(logo) <= 70000 and re.fullmatch(r"data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+", logo):
+            table["logo"] = logo
         cleaned.append(table)
     preference = user.preference
     if preference is None:

@@ -146,7 +146,7 @@
     {{ flight_route_list(quote.segment_rows, with_toggle=true, extra_class='result-segment-list') }}
     {% endif %}
     {% endif %}
-    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=4">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
+    {% if not shared_view|default(false) %}<link rel="stylesheet" href="/static/css/dbm-flight-picker-20261103.css?v=3"><link rel="stylesheet" href="/static/css/dbm-flight-route-20261104.css?v=5">{{ flight_choice_picker(quote, csrf_token) }}<script src="/static/js/dbm-flight-picker-20261103.js?v=1" defer></script>{% endif %}
   </div>
 
   <div class="card-panel">
@@ -264,7 +264,7 @@
     <small>O trecho efetivamente voado no Skip é sempre mostrado, mesmo com a opção de horários desmarcada.</small>
     <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
       <strong class="dbm-pay-title">Formas de pagamento na mensagem</strong>
-      {% if not shared_view|default(false) %}<div class="dbm-pay-row dbm-machine-row"><span>💳 Maquininha</span><select id="dbmMessageMachine" aria-label="Maquininha usada nos juros"><option value="">Mercado Pago</option></select><small id="dbmMachineStatus">Mesma tabela do “Editar lucro”.</small></div>{% endif %}
+      {% if not shared_view|default(false) %}<div class="dbm-pay-row dbm-machine-row"><span>💳 Maquininha</span><img id="dbmMessageMachineLogo" class="dbm-msg-machine-logo" alt="" hidden><select id="dbmMessageMachine" aria-label="Maquininha usada nos juros"><option value="">Mercado Pago</option></select><small id="dbmMachineStatus">Mesma tabela do “Editar lucro”.</small></div>{% endif %}
       <div class="dbm-pay-row" data-pay="cash"><button type="button" class="dbm-eye" data-eye="cash" aria-pressed="true" title="Mostrar/ocultar">👁️</button><span>À vista</span><small id="dbmPayCashPreview"></small></div>
       <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="15" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
       <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="15" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
@@ -436,20 +436,31 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const n=Math.max(1,Number(payIntN.value)||1);
    if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)===n && Number(cardSaved.total)>0)return Number(cardSaved.total);
    const rate=machineRate(n);
-   return rate>0&&rate<100?Math.round(sale/(1-rate/100)*100)/100:sale;
+   const base=Math.max(0,sale-entryAmount());
+   return rate>0&&rate<100?Math.round(base/(1-rate/100)*100)/100:base;
  }
+ // Entrada no Pix/dinheiro (salva no "Editar lucro"): o cartão parcela só o restante.
+ function entryAmount(){return Math.max(0,Math.min(sale,Number(commercialMeta.entry_amount||0)));}
  function paymentLines(perPerson,paid,displaySale){
    const m=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    const freeN=Math.min(15,Math.max(2,Number(payFreeN.value)||2)), intN=Math.min(15,Math.max(2,Number(payIntN.value)||2));
    const intTotal=perPerson?interestTotal()/paid:interestTotal();
+   // Entrada no Pix na mesma proporção do valor exibido (total ou por pessoa).
+   const entry=sale>0?entryAmount()*displaySale/sale:0;
+   const rest=Math.max(0,displaySale-entry);
    const card=[];
-   if(payState.free)card.push(`em até ${freeN}x de R$ ${m(displaySale/freeN)} sem juros`);
+   if(payState.free)card.push(`em até ${freeN}x de R$ ${m(rest/freeN)} sem juros`);
    if(payState.interest)card.push(`em até ${intN}x de R$ ${m(intTotal/intN)}${interestWord()}`);
    const lines=[];
    if(payState.cash||!card.length)lines.push(`💰 Por: R$ *${m(displaySale)}*${card.length?' à vista':''}`);
-   card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
+   if(entry>0&&card.length){
+     lines.push(`${lines.length?'💠 ou':'💰 Por:'} entrada de R$ ${m(entry)} no Pix`);
+     card.forEach((text,i)=>lines.push(`💳 ${i?'ou o':'+ o'} restante no cartão ${text}`));
+   }else{
+     card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
+   }
    document.getElementById('dbmPayCashPreview').textContent=`R$ ${m(displaySale)}`;
-   document.getElementById('dbmPayFreePreview').textContent=`${freeN}x de R$ ${m(displaySale/freeN)}`;
+   document.getElementById('dbmPayFreePreview').textContent=`${freeN}x de R$ ${m(rest/freeN)}`;
    document.getElementById('dbmPayIntPreview').textContent=`${intN}x de R$ ${m(intTotal/intN)}`;
    return lines.join('\n')+'\n';
  }
@@ -627,6 +638,8 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const freeN=Math.min(15,Math.max(2,Number(payFreeN.value)||2));
    const lines=[];
    if(payState.cash)lines.push(`💰 Por: R$ *${m(displaySale)}* à vista`);
+   const entry=sale>0?entryAmount()*displaySale/sale:0;
+   if(entry>0&&(payState.free||payState.interest)){lines.push(`${lines.length?'💠 ou':'💰 Por:'} entrada de R$ ${m(entry)} no Pix + o restante no cartão:`);displaySale=Math.max(0,displaySale-entry);}
    const startAt=payState.cash?2:1;
    if(payState.free&&payState.interest){
      lines.push(`${lines.length?'💳 ou em até':'💰 Por: em até'} ${freeN}x de R$ ${m(displaySale/freeN)} sem juros`);
@@ -855,7 +868,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    else{
      if(Number(item.sale_value)>0)sale=Number(item.sale_value);
      profit=Number(item.profit_value||0);profitDefined=item.profit_value!==null&&item.profit_value!==undefined&&item.profit_value!=="";
-     commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||'',machine_fee_value:Number(item.machine_fee_value||0),net_profit_value:Number(item.net_profit_value||0)};
+     commercialMeta={...commercialMeta,anchor_value:Number(item.anchor_value||0),machine_name:item.machine_name||'',machine_fee_value:Number(item.machine_fee_value||0),net_profit_value:Number(item.net_profit_value||0),entry_amount:Number(item.entry_amount||0)};
      cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
    }
    paintMachineSelect?.();
@@ -869,6 +882,8 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const current=commercialMeta.machine_name&&machineTables.some(t=>t.name===commercialMeta.machine_name)?commercialMeta.machine_name:(machineTables[0]?.name||'');
    machineSelectMsg.replaceChildren(...machineTables.map(t=>{const o=document.createElement('option');o.value=t.name;o.textContent=t.name;return o;}));
    machineSelectMsg.value=current;
+   const logo=document.getElementById('dbmMessageMachineLogo');const t=machineTables.find(x=>x.name===current);
+   if(logo){if(t?.logo){logo.src=t.logo;logo.hidden=false;}else{logo.removeAttribute('src');logo.hidden=true;}}
  }
  function syncProfitButtonsMeta(){
    document.querySelectorAll('.js-profit-open[data-quote-id="{{ quote.id }}"]').forEach(btn=>{
@@ -877,7 +892,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    });
  }
  machineSelectMsg?.addEventListener('change',async()=>{
-   commercialMeta={...commercialMeta,machine_name:machineSelectMsg.value};
+   commercialMeta={...commercialMeta,machine_name:machineSelectMsg.value};paintMachineSelect();
    syncProfitButtonsMeta();refreshClient();syncMessageMaxAvailability?.();
    if(machineStatusMsg)machineStatusMsg.textContent='Salvando…';
    try{

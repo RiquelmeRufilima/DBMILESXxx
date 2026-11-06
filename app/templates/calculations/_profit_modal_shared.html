@@ -30,6 +30,34 @@
 .dbm-machine-manager .profit-grid{margin:9px 0}
 .dbm-machine-manager input,.dbm-anchor-panel input{width:100%;padding:10px;border:1px solid var(--border,#315273);border-radius:10px;background:var(--panel-2,#081e32);color:var(--text,#fff)}
 .dbm-machine-actions{display:flex;gap:7px;flex-wrap:wrap}
+.dbm-machine-pick{display:flex;align-items:center;gap:8px}.dbm-machine-pick select{flex:1;min-width:0}
+.dbm-machine-logo{width:34px;height:34px;border-radius:9px;object-fit:contain;background:#fff;padding:3px;border:1px solid var(--border,#315273);flex:none}
+.dbm-machine-dialog{border:0;padding:0;background:transparent;max-width:min(440px,calc(100vw - 32px));width:100%;color:var(--text,#eaf6ff)}
+.dbm-machine-dialog::backdrop{background:rgba(2,10,20,.62);backdrop-filter:blur(3px)}
+.dbm-machine-dialog-box{display:grid;gap:14px;padding:20px;border-radius:18px;border:1px solid var(--border,#315273);background:linear-gradient(180deg,#0f2a42,#0a1d30);box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.dbm-machine-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dbm-machine-dialog-head strong{font-size:1.08rem}
+.dbm-machine-dialog-x{width:34px;height:34px;border-radius:10px;border:1px solid var(--border,#315273);background:transparent;color:inherit;font-size:1.2rem;cursor:pointer}
+.dbm-machine-dialog-field{display:grid;gap:6px;font-size:.8rem;font-weight:800}
+.dbm-machine-dialog-field input{width:100%;padding:11px 12px;border-radius:11px;border:1px solid var(--border,#315273);background:#071827;color:inherit;font:inherit;font-weight:700}
+.dbm-machine-dialog-field input:focus{outline:2px solid var(--cyan,#26c5e6);outline-offset:1px}
+.dbm-machine-dialog-image{display:flex;gap:12px;align-items:center}
+.dbm-machine-dialog-image>div{display:grid;gap:6px;justify-items:start}
+.dbm-machine-dialog-image small{color:var(--muted,#91acc1);font-size:.7rem}
+.dbm-machine-dialog-preview{width:64px;height:64px;border-radius:14px;display:grid;place-items:center;background:#fff;border:1px dashed var(--border,#315273);overflow:hidden;font-size:1.6rem;flex:none}
+.dbm-machine-dialog-preview img{width:100%;height:100%;object-fit:contain}
+.dbm-machine-dialog-upload{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;border:1px solid var(--border,#315273);font-size:.78rem;font-weight:800;cursor:pointer}
+.dbm-machine-dialog-upload input{display:none}
+.dbm-machine-dialog-remove{border:0;background:none;color:#ff8a8a;font-size:.72rem;font-weight:800;cursor:pointer;padding:0}
+.dbm-machine-dialog-error{color:#ff8a8a;font-size:.75rem;min-height:1em}
+.dbm-machine-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+html[data-theme="light"] .dbm-machine-dialog{color:#14304a}
+html[data-theme="light"] .dbm-machine-dialog::backdrop{background:rgba(20,40,60,.35)}
+html[data-theme="light"] .dbm-machine-dialog-box{background:#fff;border-color:#c7dce9;box-shadow:0 24px 60px rgba(20,50,80,.22)}
+html[data-theme="light"] .dbm-machine-dialog-field input{background:#f6fafd;border-color:#bdd6e7;color:#14304a}
+html[data-theme="light"] .dbm-machine-dialog-x,html[data-theme="light"] .dbm-machine-dialog-upload{border-color:#bdd6e7;color:#14304a}
+html[data-theme="light"] .dbm-machine-dialog-preview{border-color:#bdd6e7}
+html[data-theme="light"] .dbm-machine-dialog-image small{color:#53748b}
 .dbm-machine-actions button{font-size:.72rem;padding:8px 10px}
 .dbm-anchor-results{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.78rem}
 .dbm-anchor-results strong,.dbm-anchor-results>span:last-child{font-weight:950;color:#43c994}
@@ -82,7 +110,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
       <div class="dbm-machine-panel" id="machinePanel">
         <div class="dbm-machine-title"><strong>Juros da máquina</strong><small>Taxas iniciais do Mercado Pago • editáveis</small></div>
         <div class="profit-grid">
-          <label>Tabela da máquina<select name="machine_name" id="profitMachineName"></select></label>
+          <label>Tabela da máquina<span class="dbm-machine-pick"><img id="profitMachineLogo" class="dbm-machine-logo" alt="" hidden><select name="machine_name" id="profitMachineName"></select></span></label>
           <label>Taxa selecionada (%)<input type="text" id="profitMachineRate" inputmode="decimal" readonly value="0,00"></label>
         </div>
         <label class="dbm-machine-switch"><input type="checkbox" id="profitMachineEnabled"> Usar a taxa da máquina na simulação</label>
@@ -94,9 +122,25 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
           <div class="dbm-fixed-bands"><strong>Taxa fixa por venda (somada à variável)</strong>
             <div class="profit-grid dbm-fixed-grid"><label>1x a 6x (%)<input type="text" inputmode="decimal" data-fixed-band="1-6" placeholder="2,75"></label><label>7x a 12x (%)<input type="text" inputmode="decimal" data-fixed-band="7-12" placeholder="2,99"></label><label>13x a 18x (%)<input type="text" inputmode="decimal" data-fixed-band="13-18" placeholder="2,89"></label></div>
           </div>
-          <div class="dbm-machine-actions"><button type="button" class="ghost-button" id="profitMachineCreate">Nova tabela</button><button type="button" class="ghost-button danger" id="profitMachineDelete">Excluir tabela</button><button class="primary-button" type="button" id="profitMachineSave">Salvar tabelas</button></div>
+          <div class="dbm-machine-actions"><button type="button" class="ghost-button" id="profitMachineCreate">Nova tabela</button><button type="button" class="ghost-button" id="profitMachineEditInfo">Editar nome/imagem</button><button type="button" class="ghost-button danger" id="profitMachineDelete">Excluir tabela</button><button class="primary-button" type="button" id="profitMachineSave">Salvar tabelas</button></div>
           <small id="profitMachineSaveStatus" role="status"></small>
         </details>
+        <dialog class="dbm-machine-dialog" id="dbmMachineDialog" aria-labelledby="dbmMachineDialogTitle">
+          <div class="dbm-machine-dialog-box">
+            <div class="dbm-machine-dialog-head"><strong id="dbmMachineDialogTitle">Nova máquina</strong><button type="button" class="dbm-machine-dialog-x" data-machine-dialog-cancel aria-label="Fechar">×</button></div>
+            <label class="dbm-machine-dialog-field">Nome da máquina<input type="text" id="dbmMachineDialogName" maxlength="48" placeholder="Ex.: Cielo, Stone, InfinitePay" autocomplete="off"></label>
+            <div class="dbm-machine-dialog-image">
+              <span class="dbm-machine-dialog-preview" id="dbmMachineDialogPreview"><span>💳</span></span>
+              <div>
+                <label class="dbm-machine-dialog-upload">🖼️ Escolher imagem<input type="file" id="dbmMachineDialogFile" accept="image/png,image/jpeg,image/webp"></label>
+                <button type="button" class="dbm-machine-dialog-remove" id="dbmMachineDialogRemove" hidden>Remover imagem</button>
+                <small>Opcional • PNG, JPG ou WEBP. A imagem é reduzida automaticamente.</small>
+              </div>
+            </div>
+            <small class="dbm-machine-dialog-error" id="dbmMachineDialogError" role="alert"></small>
+            <div class="dbm-machine-dialog-actions"><button type="button" class="ghost-button" data-machine-dialog-cancel>Cancelar</button><button type="button" class="primary-button" id="dbmMachineDialogOk">Salvar</button></div>
+          </div>
+        </dialog>
       </div>
       <div class="dbm-anchor-panel">
         <label>Valor de comparação / ancoragem (R$)<input name="anchor_value" id="profitAnchorValue" inputmode="decimal" type="text" placeholder="Ex.: 8.698,00"></label>
@@ -182,6 +226,8 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   const cardRate = (n) => { const t=currentMachine(); return Math.round((Number(t?.rates?.[String(n)] ?? 0) + fixedRateFor(t, n))*10000)/10000; };
   function updateMachineInputs(){
     const machine=currentMachine();
+    const logoEl=document.getElementById('profitMachineLogo');
+    if(logoEl){if(machine?.logo){logoEl.src=machine.logo;logoEl.hidden=false;}else{logoEl.removeAttribute('src');logoEl.hidden=true;}}
     if(machineEditName) machineEditName.value=machine?.name||'';
     if(machineEditRate) machineEditRate.value=dec(Number(machine?.rates?.[String(machineRateInstallment?.value||1)]??0));
     const bands=fixedBands(machine);
@@ -461,13 +507,69 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     if(newName && newName!==table.name && !machines.some(entry=>entry!==table&&entry.name.toLowerCase()===newName.toLowerCase()))table.name=newName;
     table.rates[String(installment)]=rate;refreshMachines(table.name);recalcMachine();persistMachines('Taxa salva.');
   });
+  // Janela própria (tema claro/escuro) para criar ou editar nome e imagem da máquina.
+  const machineDialog=document.getElementById('dbmMachineDialog');
+  const dlgName=document.getElementById('dbmMachineDialogName');
+  const dlgFile=document.getElementById('dbmMachineDialogFile');
+  const dlgPreview=document.getElementById('dbmMachineDialogPreview');
+  const dlgRemove=document.getElementById('dbmMachineDialogRemove');
+  const dlgError=document.getElementById('dbmMachineDialogError');
+  let dlgMode='create',dlgLogo='';
+  function paintDialogLogo(){
+    dlgPreview.replaceChildren();
+    if(dlgLogo){const img=document.createElement('img');img.src=dlgLogo;img.alt='';dlgPreview.append(img);}
+    else{const s=document.createElement('span');s.textContent='💳';dlgPreview.append(s);}
+    dlgRemove.hidden=!dlgLogo;
+  }
+  function openMachineDialog(mode){
+    dlgMode=mode;const table=currentMachine();
+    document.getElementById('dbmMachineDialogTitle').textContent=mode==='create'?'Nova máquina':'Editar máquina';
+    dlgName.value=mode==='create'?'':(table?.name||'');dlgLogo=mode==='create'?'':(table?.logo||'');
+    dlgError.textContent='';dlgFile.value='';paintDialogLogo();
+    if(machineDialog?.showModal)machineDialog.showModal();else machineDialog?.setAttribute('open','');
+    setTimeout(()=>dlgName.focus(),30);
+  }
+  function closeMachineDialog(){if(machineDialog?.open)machineDialog.close?.()??machineDialog.removeAttribute('open');}
+  // Reduz a imagem para no máximo 96px (fica leve para salvar no usuário).
+  function shrinkImage(file){
+    return new Promise((resolve,reject)=>{
+      if(!/^image\/(png|jpeg|webp)$/.test(file.type))return reject(Error('Use PNG, JPG ou WEBP.'));
+      if(file.size>5*1024*1024)return reject(Error('Imagem muito grande (máx. 5 MB).'));
+      const reader=new FileReader();
+      reader.onload=()=>{const img=new Image();img.onload=()=>{
+        const max=96,scale=Math.min(1,max/Math.max(img.width,img.height));
+        const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        let out=c.toDataURL('image/png');if(out.length>60000)out=c.toDataURL('image/jpeg',.82);
+        out.length>60000?reject(Error('Imagem muito detalhada; tente outra.')):resolve(out);
+      };img.onerror=()=>reject(Error('Não foi possível ler a imagem.'));img.src=reader.result;};
+      reader.onerror=()=>reject(Error('Não foi possível ler a imagem.'));reader.readAsDataURL(file);
+    });
+  }
+  dlgFile?.addEventListener('change',async()=>{const f=dlgFile.files?.[0];if(!f)return;dlgError.textContent='';try{dlgLogo=await shrinkImage(f);paintDialogLogo();}catch(e){dlgError.textContent=e.message;}});
+  dlgRemove?.addEventListener('click',()=>{dlgLogo='';dlgFile.value='';paintDialogLogo();});
+  machineDialog?.querySelectorAll('[data-machine-dialog-cancel]').forEach(b=>b.addEventListener('click',closeMachineDialog));
+  dlgName?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();document.getElementById('dbmMachineDialogOk').click();}});
+  document.getElementById('dbmMachineDialogOk')?.addEventListener('click',()=>{
+    const name=dlgName.value.replace(/\s+/g,' ').trim().slice(0,48);
+    if(!name){dlgError.textContent='Informe o nome da máquina.';dlgName.focus();return;}
+    const table=dlgMode==='create'?null:currentMachine();
+    if(machines.some(t=>t!==table&&t.name.toLowerCase()===name.toLowerCase())){dlgError.textContent='Já existe uma máquina com esse nome.';return;}
+    if(dlgMode==='create'){
+      if(machines.length>=20){dlgError.textContent='Limite de 20 máquinas.';return;}
+      const entry={name,rates:{1:0},fixed:{'1-6':0,'7-12':0,'13-18':0}};if(dlgLogo)entry.logo=dlgLogo;
+      machines.push(entry);refreshMachines(name);updateMachineInputs();closeMachineDialog();
+      persistMachines('Nova máquina salva. Preencha as taxas de cada parcela.');
+    }else if(table){
+      table.name=name;if(dlgLogo)table.logo=dlgLogo;else delete table.logo;
+      refreshMachines(name);updateMachineInputs();closeMachineDialog();persistMachines('Máquina atualizada.');
+    }
+  });
   document.getElementById('profitMachineCreate')?.addEventListener('click',()=>{
     if(machines.length>=20){machineSaveStatus.textContent='Limite de 20 máquinas.';return;}
-    const name=window.prompt('Nome da nova máquina:');if(!name?.trim())return;
-    if(machines.some(t=>t.name.toLowerCase()===name.trim().toLowerCase())){machineSaveStatus.textContent='Já existe uma tabela com esse nome.';return;}
-    machines.push({name:name.trim().slice(0,48),rates:{1:0},fixed:{'1-6':0,'7-12':0,'13-18':0}});refreshMachines(name.trim().slice(0,48));updateMachineInputs();
-    persistMachines('Nova máquina salva. Preencha as taxas de cada parcela.');
+    openMachineDialog('create');
   });
+  document.getElementById('profitMachineEditInfo')?.addEventListener('click',()=>openMachineDialog('edit'));
   document.getElementById('profitMachineDelete')?.addEventListener('click',()=>{
     if(machines.length<=1){machineSaveStatus.textContent='Mantenha pelo menos uma tabela.';return;}
     if(window.confirm(`Excluir a tabela ${machineSelect.value}?`)){machines=machines.filter(t=>t.name!==machineSelect.value);refreshMachines();persistMachines('Tabela excluída.');}
