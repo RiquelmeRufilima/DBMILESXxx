@@ -122,3 +122,8 @@ html[data-theme=light] .dbm-main-row{background:#f9fcff;border-color:#c2d9ed}
 html[data-theme=light] .dbm-main-head span{color:#16324c}
 .option-airline .dbm-alt-row{grid-template-columns:18px auto minmax(0,1fr) auto auto;gap:10px}
 .option-airline .dbm-alt-row .dbm-flight-choice-marker{display:none}
+
+/* Aviso: ancoragem menor/igual à venda (o "De:" não aparece na mensagem). */
+.dbm-anchor-hint{display:block;margin:4px 0 6px;padding:7px 10px;border-radius:9px;background:rgba(255,190,90,.1);border:1px solid rgba(255,190,90,.35);color:#ffd9a3;font-size:.74rem;font-weight:700}
+.dbm-anchor-hint[hidden]{display:none}
+html[data-theme=light] .dbm-anchor-hint{background:#fff6e8;color:#8a5208;border-color:#f3cf98}

@@ -9,6 +9,33 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="DBMILESX">
   <title>{% block title %}DBMILESX{% endblock %}</title>
+  {% if user %}<script>
+    /* Guarda neste navegador o tema em uso (modo, cores e fundo) para que o
+       login e as telas sem sessão abram com o MESMO visual do sistema. */
+    (function(){try{
+      var root=document.documentElement;
+      var snap={mode:{{ theme.mode|tojson }},primary:{{ theme.primary|tojson }},secondary:{{ theme.secondary|tojson }},bg:{{ theme.background_style|tojson }}};
+      function save(){var t=root.getAttribute('data-theme');if(snap.mode!=='system'&&(t==='light'||t==='dark'))snap.mode=t;localStorage.setItem('dbmilesx-theme-snapshot',JSON.stringify(snap));}
+      save();
+      // Troca rápida de tema (botão sol/lua) também atualiza a cópia.
+      new MutationObserver(save).observe(root,{attributes:true,attributeFilter:['data-theme']});
+    }catch(_){}})();
+  </script>{% else %}<script>
+    /* Telas sem login: usa o tema salvo do sistema (modo + cores). Sem nada
+       salvo, segue o tema do aparelho. */
+    (function(){try{
+      var root=document.documentElement,snap=null;
+      try{snap=JSON.parse(localStorage.getItem('dbmilesx-theme-snapshot')||'null');}catch(_){snap=null;}
+      var prefersLight=window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches;
+      var mode=snap&&snap.mode||localStorage.getItem('dbmilesx-guest-theme')||'system';
+      if(mode!=='light'&&mode!=='dark')mode=prefersLight?'light':'dark';
+      root.setAttribute('data-theme',mode);
+      var hex=/^#[0-9a-fA-F]{6}$/;
+      if(snap&&hex.test(snap.primary||'')){root.style.setProperty('--cyan',snap.primary);root.style.setProperty('--cyan-2',snap.primary);}
+      if(snap&&hex.test(snap.secondary||''))root.style.setProperty('--blue',snap.secondary);
+      if(snap&&/^[a-z_-]{2,30}$/.test(snap.bg||''))document.addEventListener('DOMContentLoaded',function(){var b=document.body;b.className=b.className.replace(/\bbg-[a-z_-]+\b/,'bg-'+snap.bg);});
+    }catch(_){}})();
+  </script>{% endif %}
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icons/favicon-64.png">
   <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
@@ -18,6 +45,8 @@
 <style>
     /* Proteção: blocos de CSS/JS nunca aparecem como texto na tela (ex.: Safari no celular). */
     body style,body script,body template{display:none!important}
+    .guest-theme-toggle{position:fixed;top:16px;right:16px;z-index:50;width:44px;height:44px;border-radius:14px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:1.15rem;cursor:pointer;box-shadow:var(--shadow)}
+    .guest-theme-toggle:hover{border-color:var(--cyan-2)}
     .dbm-modal-overlay{position:fixed;inset:0;background:rgba(3,10,24,.72);backdrop-filter:blur(7px);display:none;align-items:center;justify-content:center;z-index:4000;padding:20px}
     .dbm-modal-overlay.is-open{display:flex}
     .dbm-modal{width:min(560px,96vw);border-radius:24px;border:1px solid rgba(110,185,255,.18);background:linear-gradient(180deg,rgba(13,28,55,.98),rgba(8,18,37,.98));box-shadow:0 24px 80px rgba(0,0,0,.42);overflow:hidden}
@@ -175,6 +204,16 @@
   </header>
   {% endif %}
 
+  {% if not user %}
+  <button type="button" class="guest-theme-toggle" id="guestThemeToggle" aria-label="Alternar tema claro/escuro" title="Tema claro/escuro">☀️</button>
+  <script>
+    (function(){var b=document.getElementById('guestThemeToggle');if(!b)return;var root=document.documentElement;
+      function paint(){var light=root.getAttribute('data-theme')==='light';b.textContent=light?'🌙':'☀️';b.setAttribute('aria-pressed',String(light));b.title=light?'Usar tema escuro':'Usar tema claro';}
+      b.addEventListener('click',function(){var next=root.getAttribute('data-theme')==='light'?'dark':'light';root.setAttribute('data-theme',next);
+        try{localStorage.setItem('dbmilesx-guest-theme',next);var snap=JSON.parse(localStorage.getItem('dbmilesx-theme-snapshot')||'null');if(snap){snap.mode=next;localStorage.setItem('dbmilesx-theme-snapshot',JSON.stringify(snap));}}catch(_){}paint();});
+      paint();})();
+  </script>
+  {% endif %}
   <main class="{% if user %}main-content{% else %}auth-main{% endif %}">
     {% if flashes %}<div class="flash-stack" aria-live="polite">{% for flash in flashes %}<div class="flash {{ flash.kind }}">{{ flash.message }}</div>{% endfor %}</div>{% endif %}
     {% block content %}{% endblock %}
