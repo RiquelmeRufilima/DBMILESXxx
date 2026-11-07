@@ -51,6 +51,26 @@ def _words(value: str | None) -> list[str]:
     return re.findall(r"[a-z0-9]+", _NOISE.sub(" ", _normalize(value)))
 
 
+LOGO_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".svg")
+
+
+def find_logo_file(stem: str | None) -> str | None:
+    """Nome do arquivo em app/imagens para o código da companhia.
+
+    Aceita <código>.png, .jpg, .jpeg, .webp ou .svg (ex.: euroatlantic.png).
+    """
+    stem = re.sub(r"[^a-z0-9]", "", str(stem or "").lower())
+    if not stem:
+        return None
+    for ext in LOGO_EXTENSIONS:
+        try:
+            if (AIRLINE_IMAGE_DIR / f"{stem}{ext}").is_file():
+                return f"{stem}{ext}"
+        except Exception:
+            return None
+    return None
+
+
 def _file_url(filename: str) -> str | None:
     try:
         if (AIRLINE_IMAGE_DIR / filename).is_file():
@@ -87,7 +107,11 @@ def logo_from_name(name: str | None) -> str | None:
     for word in words:
         if word in _ALIASES:
             return _file_url(_ALIASES[word])
-    return None
+    # Companhias do catálogo: arquivo app/imagens/<código>.png (ou .jpg/.webp/.svg).
+    from .travel_data import airline_key
+
+    found = find_logo_file(airline_key(name)) or find_logo_file(full)
+    return f"/imagens/{found}" if found else None
 
 
 def initials(name: str | None) -> str:

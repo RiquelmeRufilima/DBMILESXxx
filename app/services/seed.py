@@ -200,7 +200,11 @@ def _image_asset(filename: str) -> Path | None:
         source = AIRLINE_IMAGE_DIR / name
         if source.exists() and source.is_file():
             return source
-    return None
+    # Mesmo código com outra extensão (euroatlantic.jpg, euroatlantic.webp...).
+    from .airline_logos import find_logo_file
+
+    found = find_logo_file(Path(filename).stem)
+    return AIRLINE_IMAGE_DIR / found if found else None
 
 
 def _copy_logo(filename: str) -> str | None:
@@ -434,6 +438,14 @@ def _catalog_needs_update(db: Session) -> bool:
         .where(Airline.builtin.is_(True))
     ).all()
     have_airlines = {row[0] for row in rows}
+    # Logo colocada depois na pasta app/imagens: atualiza a companhia sem logo.
+    from .airline_logos import find_logo_file
+
+    sem_logo = db.scalars(
+        select(Airline.slug).where(Airline.builtin.is_(True), (Airline.logo_path.is_(None)) | (Airline.logo_path == ""))
+    ).all()
+    if any(find_logo_file(slug) for slug in sem_logo):
+        return True
     types = {row[1]: (bool(row[2]), row[3], bool(row[4])) for row in rows if row[1]}
     for item in _expected_catalog():
         if item["slug"] not in have_airlines:
