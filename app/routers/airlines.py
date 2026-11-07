@@ -23,14 +23,14 @@ from ..services.airline_logos import logo_from_name
 from ..services.seed import ensure_catalog_airlines
 from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
 from ..services.uploads import AIRLINE_IMAGE_EXTENSIONS, delete_relative_upload, save_upload_image
-from ..web import context, flash, templates
+from ..web import context, flash, templates, catalog_group, CATALOG_GROUPS
 
 router = APIRouter(prefix="/airlines", tags=["airlines"])
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 CATALOG_CATEGORIES = (
-    ("airlines", "Companhias"),
+    ("airlines", "Programa de milhas ou companhia aérea"),
     ("systems", "Sistemas"),
     ("consolidators", "Consolidadoras e Operadoras"),
 )
@@ -311,6 +311,9 @@ def airline_list(request: Request, db: Session = Depends(get_db)):
         .options(selectinload(Airline.calculation_types))
         .order_by(Airline.builtin.desc(), Airline.name)
     ).all()
+    # Programas de milhas primeiro, depois companhias aéreas, sistemas e consolidadoras.
+    group_order = {key: index for index, (key, _label) in enumerate(CATALOG_GROUPS)}
+    airlines = sorted(airlines, key=lambda item: (group_order.get(catalog_group(item), 9), not item.builtin, (item.name or "").lower()))
     return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines, catalog_categories=CATALOG_CATEGORIES, catalog_logo_urls={item.id: _catalog_logo(item) for item in airlines}))
 
 

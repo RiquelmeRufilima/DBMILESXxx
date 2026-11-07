@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Companhias | DBMILESX{% endblock %}
-{% block page_title %}Companhias{% endblock %}
+{% block title %}Programas | DBMILESX{% endblock %}
+{% block page_title %}Programas{% endblock %}
 {% block eyebrow %}MOTORES DE CÁLCULO{% endblock %}
 {% block head %}
 <style>
@@ -10,29 +10,38 @@
 .catalog-tabs{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 16px}
 .catalog-tab{font-weight:850!important}
 .catalog-tab.is-active{background:linear-gradient(105deg,#085875,#0b6379)!important;border-color:#34b7cd!important;color:#fff!important}
+.catalog-tab-count{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.10);font-size:.72rem;font-weight:900}
+.catalog-group-badge.is-miles{background:rgba(250,204,21,.14);border-color:rgba(250,204,21,.35);color:#fde68a}
+.catalog-group-badge.is-airlines{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.32);color:#bae6fd}
+html[data-theme="light"] .catalog-group-badge.is-miles{color:#854d0e}
+html[data-theme="light"] .catalog-group-badge.is-airlines{color:#075985}
+.airline-card-top{flex-wrap:wrap;gap:6px}
 .catalog-empty{padding:22px;border-radius:14px;border:1px dashed rgba(91,171,207,.4);color:var(--text-muted,#9db9c9)}
 @media(max-width:700px){.catalog-tabs{display:grid;grid-template-columns:1fr;gap:7px}.catalog-tab{width:100%}}
 </style>
 {% endblock %}
 {% block content %}
 <section class="page-heading inline">
-  <div><span class="eyebrow">COMPANHIAS</span><h1>Regras originais e cálculos criados por você.</h1><p>As companhias padrão preservam a lógica atual. As personalizadas permitem fórmulas, campos, descontos, juros e taxas próprias.</p></div>
+  <div><span class="eyebrow">PROGRAMAS</span><h1>Programas de milhas e companhias aéreas.</h1><p>Programas de milhas têm cálculo por milhas/pontos. Companhias aéreas sem programa são cotadas pelo valor cheio do site com desconto. Os personalizados permitem fórmulas, campos, descontos, juros e taxas próprias.</p></div>
   <a class="primary-button" href="/airlines/new"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Criar novo cadastro</a>
 </section>
 <section class="generic-airline-callout"><div class="generic-airline-icon"><svg class="ui-icon"><use href="#icon-sparkles"></use></svg></div><div><span class="eyebrow">COMPANHIA GENÉRICA E CUSTOMIZÁVEL</span><h2>Crie sua própria calculadora sem mexer no código.</h2><p>Defina nome, logo opcional, campos, descontos, juros, taxas, modo total ou por passageiro e quantos tipos de cálculo desejar.</p></div><a class="secondary-button" href="/airlines/new">Abrir construtor →</a></section>
-<div class="airline-page-search card-panel compact-toolbar"><svg class="ui-icon"><use href="#icon-search"></use></svg><input type="search" id="airlinePageSearch" placeholder="Pesquisar companhia, sistema ou operadora..." autocomplete="off"></div>
+<div class="airline-page-search card-panel compact-toolbar"><svg class="ui-icon"><use href="#icon-search"></use></svg><input type="search" id="airlinePageSearch" placeholder="Pesquisar programa, companhia, sistema ou operadora..." autocomplete="off"></div>
 <nav class="catalog-tabs" aria-label="Categorias do catálogo" id="catalogTabs">
   <button class="secondary-button catalog-tab is-active" type="button" data-category-tab="all" aria-pressed="true">Todos</button>
-  {% for category_key, category_label in catalog_categories %}
-  <button class="secondary-button catalog-tab" type="button" data-category-tab="{{ category_key }}" aria-pressed="false">{{ category_label }}</button>
+  {% for category_key, category_label in catalog_groups %}
+  {% set group_count = airlines|map('catalog_group')|select('equalto', category_key)|list|length %}
+  <button class="secondary-button catalog-tab" type="button" data-category-tab="{{ category_key }}" aria-pressed="false">{{ category_label }} <small class="catalog-tab-count">{{ group_count }}</small></button>
   {% endfor %}
 </nav>
 <p class="catalog-empty" id="catalogEmpty" hidden>Nenhum cadastro encontrado nesta categoria.</p>
 <section class="airline-grid" id="airlinePageGrid">
 {% for airline in airlines %}
-  <article class="airline-card" data-airline-page-card data-category="{{ 'airlines' if airline.builtin else (airline.catalog_category or 'airlines') }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+  <article class="airline-card" data-airline-page-card data-category="{{ airline|catalog_group }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
     <div class="airline-card-top">
       <span class="status-dot"></span>
+      {% set group = airline|catalog_group %}
+      <span class="badge catalog-group-badge is-{{ group }}">{% if group == 'miles' %}Programa de milhas{% elif group == 'airlines' %}Companhia aérea{% elif group == 'systems' %}Sistema{% else %}Consolidadora{% endif %}</span>
       <span class="badge {{ 'builtin' if airline.builtin else 'custom' }}">{{ 'Regra original' if airline.builtin else 'Personalizada' }}</span>
     </div>
     <div class="airline-logo-wrap">

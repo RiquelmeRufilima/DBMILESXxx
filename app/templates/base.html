@@ -137,7 +137,7 @@
       <a href="/company/chat" class="nav-link {% if request.url.path == '/company/chat' %}active{% endif %}"><svg class="ui-icon"><use href="#icon-chat"></use></svg> Chat <b id="dbmChatUnreadBadge" hidden></b></a>
       <a href="/tasks" class="nav-link nav-link-badge {% if request.url.path.startswith('/tasks') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-tasks"></use></svg> Tarefas {% if pending_task_count %}<b>{{ pending_task_count }}</b>{% endif %}</a>
       <a href="/calculations/history" class="nav-link {% if '/calculations/history' in request.url.path or '/calculations/result' in request.url.path or request.url.path.startswith('/calculations/group') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Histórico</a>
-      <a href="/airlines" class="nav-link {% if '/airlines' in request.url.path %}active{% endif %}"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Companhias</a>
+      <a href="/airlines" class="nav-link {% if '/airlines' in request.url.path %}active{% endif %}"><svg class="ui-icon"><use href="#icon-plane"></use></svg> Programas</a>
 
       <span class="nav-group-label">Cadastros</span>
       <a href="/persons" class="nav-link {% if request.url.path.startswith('/persons') %}active{% endif %}"><svg class="ui-icon"><use href="#icon-user"></use></svg> Pessoas</a>

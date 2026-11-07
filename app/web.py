@@ -182,6 +182,49 @@ from .services.travel_data import IATA_CITY_GROUPS, airport_city_label, BR_AIRPO
 # Fusos fixos dos aeroportos brasileiros (sem horário de verão) para calcular a duração na tela.
 templates.env.globals["br_airport_offsets"] = {code: br_airport_utc_offset(code) for code in sorted(BR_AIRPORT_CODES)}
 templates.env.filters["airport_city"] = airport_city_label
+
+
+_MILES_FIELD_KEYS = {"milhas", "pontos", "milheiro", "milhas_ida", "milhas_volta"}
+
+
+def catalog_group(airline) -> str:
+    """Grupo de exibição do cadastro: miles | airlines | systems | consolidators.
+
+    A categoria salva continua "airlines" para companhias e programas; aqui ela
+    é separada em "Programas de milhas" e "Companhias aéreas":
+    - padrão do sistema: conforme o organograma (MILES_AIRLINE_SLUGS);
+    - personalizada: tem algum tipo de cálculo ativo com campo de milhas/pontos.
+    """
+    from .services.travel_data import MILES_AIRLINE_SLUGS
+
+    category = str(getattr(airline, "catalog_category", "") or "airlines")
+    if getattr(airline, "builtin", False):
+        category = "airlines"
+    if category != "airlines":
+        return category
+    if getattr(airline, "builtin", False):
+        return "miles" if getattr(airline, "slug", "") in MILES_AIRLINE_SLUGS else "airlines"
+    try:
+        for calc_type in getattr(airline, "calculation_types", None) or []:
+            if not getattr(calc_type, "active", True) or getattr(calc_type, "legacy_key", None) == "valor_site":
+                continue
+            if getattr(calc_type, "legacy_key", None):
+                return "miles"
+            if any(str(getattr(field, "key", "")).lower() in _MILES_FIELD_KEYS for field in getattr(calc_type, "fields", None) or []):
+                return "miles"
+    except Exception:
+        pass
+    return "airlines"
+
+
+CATALOG_GROUPS = (
+    ("miles", "Programas de milhas"),
+    ("airlines", "Companhias aéreas"),
+    ("systems", "Sistemas"),
+    ("consolidators", "Consolidadoras e Operadoras"),
+)
+templates.env.filters["catalog_group"] = catalog_group
+templates.env.globals["catalog_groups"] = CATALOG_GROUPS
 templates.env.globals["iata_city_groups"] = IATA_CITY_GROUPS
 templates.env.filters["percent_br"] = percent_br
 templates.env.filters["commercial_meta"] = commercial_meta

@@ -506,7 +506,8 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
     <label class="calc-catalog-filter-label" for="calcCatalogFilter">Categoria do catálogo
       <select id="calcCatalogFilter" aria-label="Filtrar tipo de fornecedor">
         <option value="all">Todas as categorias</option>
-        <option value="airlines">Companhias</option>
+        <option value="miles">Programas de milhas</option>
+        <option value="airlines">Companhias aéreas</option>
         <option value="systems">Sistemas</option>
         <option value="consolidators">Consolidadoras e operadoras</option>
       </select>
@@ -514,12 +515,12 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
     <div class="airline-mini-list" id="airlineCalcList">
       {% if national_airlines %}<div class="airline-list-section-title">NACIONAIS</div>{% endif %}
       {% for airline in national_airlines %}
-      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini national-priority {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline.catalog_category|default('airlines', true) }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini national-priority {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline|catalog_group }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
         {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %}</small></span><em class="airline-national-badge">Prioridade</em>
       </a>{% endfor %}
       {% if other_airlines %}<div class="airline-list-section-title">INTERNACIONAIS E OUTRAS</div>{% endif %}
       {% for airline in other_airlines %}
-      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline.catalog_category|default('airlines', true) }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
+      <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline|catalog_group }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
         {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
       </a>{% endfor %}
     </div>
@@ -769,7 +770,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <div class="form-grid cols-2">
         {% set fields_to_render = calculation_fields or selected_type.fields %}
         {% if not fields_to_render %}
-          <div class="notice-card warning span-2"><strong>Campos de cálculo não carregados.</strong><br>Abra Companhias e confira se essa companhia tem pelo menos um tipo de cálculo com campos cadastrados.</div>
+          <div class="notice-card warning span-2"><strong>Campos de cálculo não carregados.</strong><br>Abra Programas e confira se essa companhia tem pelo menos um tipo de cálculo com campos cadastrados.</div>
         {% endif %}
         {% for field in fields_to_render %}
           {% set saved_value = (field_display_values or {}).get(field.key, field_values.get(field.key, field.default_value or '0')) %}
