@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
+import logging
 import os
 from urllib.parse import urlsplit
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -10,11 +11,29 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies import current_user
-from ..models import Notification, PushSubscription
+from ..models import CheckinReminder, Notification, PushSubscription
 from ..security import validate_csrf_token
 from ..web import context, flash, templates
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
+logger = logging.getLogger(__name__)
+
+
+def ensure_push_tables(db: Session) -> bool:
+    """Cria as tabelas de Web Push se ainda não existirem no banco.
+
+    Na Vercel o startup não cria tabelas; sem isso o Neon nunca recebia
+    web_push_subscriptions / web_checkin_reminders e a ativação falhava com
+    "Serviço de notificações ainda não configurado no banco".
+    """
+    try:
+        bind = db.get_bind()
+        PushSubscription.__table__.create(bind=bind, checkfirst=True)
+        CheckinReminder.__table__.create(bind=bind, checkfirst=True)
+        return True
+    except SQLAlchemyError:
+        logger.exception("Não foi possível criar as tabelas de notificação.")
+        return False
 
 
 @router.get("/push/config")
@@ -42,7 +61,7 @@ async def push_subscribe(request: Request, db: Session = Depends(get_db)):
                  or host.endswith(".notify.windows.com") or host.endswith(".push.apple.com"))
     if not endpoint.startswith("https://") or not push_host or len(endpoint) > 2048 or not (20 <= len(p256dh) <= 256) or not (10 <= len(auth) <= 256):
         return JSONResponse({"ok": False, "message": "Inscrição de dispositivo inválida."}, status_code=400)
-    try:
+    def save() -> None:
         sub = db.scalar(select(PushSubscription).where(PushSubscription.endpoint == endpoint))
         if sub is None:
             sub = PushSubscription(user_id=user.id, endpoint=endpoint, p256dh=p256dh, auth=auth)
@@ -50,9 +69,20 @@ async def push_subscribe(request: Request, db: Session = Depends(get_db)):
         else:
             sub.user_id, sub.p256dh, sub.auth = user.id, p256dh, auth
         db.commit()
+
+    try:
+        save()
     except SQLAlchemyError:
         db.rollback()
-        return JSONResponse({"ok": False, "message": "Serviço de notificações ainda não configurado no banco."}, status_code=503)
+        # Primeira ativação num banco sem a tabela: cria e tenta de novo.
+        if not ensure_push_tables(db):
+            return JSONResponse({"ok": False, "message": "Serviço de notificações ainda não configurado no banco."}, status_code=503)
+        try:
+            save()
+        except SQLAlchemyError:
+            db.rollback()
+            logger.exception("Falha ao salvar o dispositivo de notificação.")
+            return JSONResponse({"ok": False, "message": "Não foi possível salvar este dispositivo. Tente novamente."}, status_code=503)
     return {"ok": True}
 
 

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..services.checkin_reminders import process_checkin_reminders
+from .notifications import ensure_push_tables
 
 router = APIRouter(tags=["check-in"])
 
@@ -20,4 +21,5 @@ def checkin_cron(request: Request, db: Session = Depends(get_db)):
     received = request.headers.get("authorization", "")
     if not expected or not secrets.compare_digest(received, f"Bearer {expected}"):
         return JSONResponse({"ok": False}, status_code=401)
+    ensure_push_tables(db)
     return {"ok": True, **process_checkin_reminders(db)}
