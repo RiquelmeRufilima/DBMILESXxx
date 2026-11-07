@@ -50,3 +50,17 @@ def test_telas_completam_o_catalogo_na_vercel():
 def test_seletor_de_horario_conta_opcao_so_com_data():
     picker = (ROOT / "app/templates/partials/flight_choice_picker.html").read_text(encoding="utf-8")
     assert "f.get('departure_date')" in picker
+
+
+def test_so_companhias_do_organograma_tem_milhas():
+    from app.services.travel_data import MILES_AIRLINE_SLUGS
+    por_slug = {b["slug"]: b for b in seed.EXTRA_BUILTINS}
+    for slug in ("sky", "voepass", "boa", "tap", "qatar", "ethiopian", "aircanada"):
+        assert slug in MILES_AIRLINE_SLUGS
+        assert por_slug[slug]["types"][0]["legacy_key"] is None
+    # Pagantes do organograma e companhias fora dele: valor cheio + desconto.
+    for slug in ("arajet", "conviasa", "flybondi", "jetsmart", "paranair", "airchina", "singapore", "condor", "euroatlantic"):
+        assert slug not in MILES_AIRLINE_SLUGS
+        tipo = por_slug[slug]["types"]
+        assert [t["legacy_key"] for t in tipo] == ["valor_site"]
+        assert tipo[0]["name"] == "Valor cheio + desconto"

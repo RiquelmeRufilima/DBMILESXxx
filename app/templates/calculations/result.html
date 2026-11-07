@@ -762,7 +762,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const blocks=['📊 RESUMO INTERNO DA COTAÇÃO'];
    const head=[`🧮 Tipo de cálculo: ${method}`];
    if(['systems','consolidators'].includes(catalogCategory))head.push(`🏢 Plataforma: ${airline}`);
-   else if(airline && !method.toLocaleLowerCase('pt-BR').includes(airline.toLocaleLowerCase('pt-BR')))head.push(`✈️ ${/valor do site/i.test(method)?'Companhia':'Programa'}: ${airline}`);
+   else if(airline && !method.toLocaleLowerCase('pt-BR').includes(airline.toLocaleLowerCase('pt-BR')))head.push(`✈️ ${/valor do site|valor cheio/i.test(method)?'Companhia':'Programa'}: ${airline}`);
    blocks.push(head.join('\n'));
    // Deságio: valor cheio da companhia menos o desconto informado.
    const fullValue=numberOf('valor_gol'), discountPct=numberOf('desagio');
@@ -772,10 +772,10 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      blocks.push(`🧮 Deságio ${pctText(discountPct)}%: - ${formatMoney(discountValue)}`);
      blocks.push(`🟰 Valor com deságio: ${formatMoney(fullValue-discountValue)}`);
    }
-   // Valor do site (companhias sem programa de milhas): valor total − desconto.
+   // Valor cheio + desconto (companhias sem programa de milhas).
    const siteValue=numberOf('valor_site'), siteDiscount=numberOf('desconto_site');
    if(siteValue!==null && fullValue===null){
-     blocks.push(`🌐 Valor total no site${airline?' da '+airline:''}: ${formatMoney(siteValue)}`);
+     blocks.push(`🌐 Valor cheio${airline?' da '+airline:''} (site): ${formatMoney(siteValue)}`);
      if(siteDiscount){
        const siteOff=Math.round(siteValue*siteDiscount)/100;
        blocks.push(`🧮 Desconto ${pctText(siteDiscount)}%: - ${formatMoney(siteOff)}`);

@@ -221,13 +221,22 @@ def _copy_logo(filename: str) -> str | None:
     return None
 
 
+SITE_VALUE_TYPE_NAME = "Valor cheio + desconto"
+_OLD_SITE_VALUE_NAMES = {"Valor do site"}
+
+
+def _auto_type_slugs(slug: str) -> set[str]:
+    """Tipos criados automaticamente pelo catálogo (não pelo administrador)."""
+    return {f"{slug}-padrao", f"{slug}-valor-site"}
+
+
 def _site_value_type(slug: str) -> dict:
-    """Cotação pelo valor total do site, com desconto opcional."""
+    """Cotação pelo valor cheio do site, com desconto opcional."""
     return {
-        "name": "Valor do site", "slug": f"{slug}-valor-site", "legacy_key": "valor_site",
-        "description": "Companhia sem programa de milhas: valor total do site menos o desconto (%) informado.",
+        "name": SITE_VALUE_TYPE_NAME, "slug": f"{slug}-valor-site", "legacy_key": "valor_site",
+        "description": "Companhia sem programa de milhas: valor cheio do site menos o desconto (%) informado.",
         "fields": [
-            ("valor_site", "Valor total no site", "money", "0", 0, None, 0.01, None),
+            ("valor_site", "Valor cheio (site)", "money", "0", 0, None, 0.01, None),
             ("desconto_site", "Desconto (%)", "percent", "0", 0, 100, 1, None),
             ("bagagem_unitaria", "Bagagem adicional por unidade", "money", "0", 0, None, 1, None),
         ],
@@ -362,31 +371,84 @@ def seed_builtin_airlines(db: Session) -> int:
                 if resolved_logo:
                     airline.logo_path = resolved_logo
 
-        existing_types = {calc.slug: calc for calc in airline.calculation_types}
-        had_types = bool(existing_types)
-        for index, type_item in enumerate(item["types"]):
-            calc_type = existing_types.get(type_item["slug"])
-            if calc_type is None:
-                site_value = type_item.get("legacy_key") == "valor_site"
-                # Companhia sem milhas que já existia com o "Cálculo padrão"
-                # automático: o "Valor do site" passa a ser o padrão.
-                make_default = (not had_types and index == 0) or site_value
-                if site_value:
-                    for other in airline.calculation_types:
-                        if other.slug == f"{item['slug']}-padrao":
-                            other.is_default = False
-                            # Companhia sem milhas: o cálculo de milhas automático
-                            # sai da lista, a menos que alguma cotação já o use.
-                            if other.id is not None and not db.scalar(
-                                select(WebQuote.id).where(WebQuote.calculation_type_id == other.id).limit(1)
-                            ):
-                                other.active = False
-                airline.calculation_types.append(_new_calc_type(type_item, is_default=make_default))
-                created += 1
-            elif not calc_type.fields:
-                _fill_fields(calc_type, type_item)
+        created += _reconcile_types(db, airline, item)
     db.commit()
     return created
+
+
+def _type_in_use(db: Session, calc_type: CalculationType) -> bool:
+    if calc_type.id is None:
+        return False
+    return db.scalar(select(WebQuote.id).where(WebQuote.calculation_type_id == calc_type.id).limit(1)) is not None
+
+
+def _reconcile_types(db: Session, airline: Airline, item: dict) -> int:
+    """Deixa os tipos automáticos da companhia de acordo com o catálogo.
+
+    Companhia com programa de milhas → "Cálculo padrão" (milhas).
+    Companhia sem programa → só "Valor cheio + desconto".
+    O tipo automático que não vale mais sai da lista (fica guardado se alguma
+    cotação já o usou). Tipos criados pelo administrador não são mexidos.
+    """
+    created = 0
+    by_slug = {calc.slug: calc for calc in airline.calculation_types}
+    expected_slugs = [type_item["slug"] for type_item in item["types"]]
+    for type_item in item["types"]:
+        calc_type = by_slug.get(type_item["slug"])
+        if calc_type is None:
+            calc_type = _new_calc_type(type_item, is_default=False)
+            airline.calculation_types.append(calc_type)
+            by_slug[calc_type.slug] = calc_type
+            created += 1
+        elif not calc_type.fields:
+            _fill_fields(calc_type, type_item)
+        if calc_type.slug in _auto_type_slugs(item["slug"]):
+            calc_type.active = True
+        if type_item.get("legacy_key") == "valor_site":
+            if calc_type.name in _OLD_SITE_VALUE_NAMES:
+                calc_type.name = type_item["name"]
+                calc_type.description = type_item["description"]
+            for field in calc_type.fields:
+                if field.key == "valor_site" and field.label == "Valor total no site":
+                    field.label = "Valor cheio (site)"
+    for stale_slug in _auto_type_slugs(item["slug"]) - set(expected_slugs):
+        stale = by_slug.get(stale_slug)
+        if stale is None:
+            continue
+        stale.is_default = False
+        if stale.active and not _type_in_use(db, stale):
+            stale.active = False
+    active_types = [calc for calc in airline.calculation_types if calc.active]
+    if not any(calc.is_default for calc in active_types):
+        first = by_slug.get(expected_slugs[0]) if expected_slugs else None
+        if first is not None:
+            for calc in airline.calculation_types:
+                calc.is_default = calc is first
+    return created
+
+
+def _catalog_needs_update(db: Session) -> bool:
+    rows = db.execute(
+        select(Airline.slug, CalculationType.slug, CalculationType.active, CalculationType.name, CalculationType.is_default)
+        .join(CalculationType, CalculationType.airline_id == Airline.id, isouter=True)
+        .where(Airline.builtin.is_(True))
+    ).all()
+    have_airlines = {row[0] for row in rows}
+    types = {row[1]: (bool(row[2]), row[3], bool(row[4])) for row in rows if row[1]}
+    for item in _expected_catalog():
+        if item["slug"] not in have_airlines:
+            return True
+        expected = {t["slug"] for t in item["types"]}
+        for slug in expected:
+            state = types.get(slug)
+            if state is None or not state[0] or state[1] in _OLD_SITE_VALUE_NAMES:
+                return True
+        for stale in _auto_type_slugs(item["slug"]) - expected:
+            # Tipo antigo ainda como padrão: precisa ser trocado. (Se só ficou
+            # ativo por já ter cotações, não precisa reprocessar a cada início.)
+            if stale in types and types[stale][0] and types[stale][2]:
+                return True
+    return False
 
 
 _CATALOG_READY = False
@@ -404,17 +466,7 @@ def ensure_catalog_airlines(db: Session) -> None:
     if _CATALOG_READY:
         return
     try:
-        rows = db.execute(
-            select(Airline.slug, CalculationType.slug)
-            .join(CalculationType, CalculationType.airline_id == Airline.id, isouter=True)
-            .where(Airline.builtin.is_(True))
-        ).all()
-        have_airlines = {row[0] for row in rows}
-        have_types = {row[1] for row in rows if row[1]}
-        missing = any(
-            item["slug"] not in have_airlines or any(t["slug"] not in have_types for t in item["types"])
-            for item in _expected_catalog()
-        )
+        missing = _catalog_needs_update(db)
         if missing:
             if db.get_bind().dialect.name == "postgresql":
                 db.execute(text("SELECT pg_advisory_xact_lock(740611)"))

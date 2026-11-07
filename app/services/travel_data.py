@@ -449,16 +449,21 @@ ALIASES.update({
     'air côte d ivoire': 'aircotedivoire',
 })
 
-# Companhias sem programa de milhas utilizável na agência: a cotação é feita
-# pelo valor total do site com desconto opcional (tipo "Valor do site").
-NO_MILES_AIRLINE_SLUGS: frozenset[str] = frozenset({
-    "amaszonas", "arajet", "condor", "jetsmart", "panamair", "voepass", "sky",
-    "euroatlantic", "flybondi", "paranair", "iberojet", "norse", "plusultra", "world2fly",
-    "skyhigh", "airpremia", "airtransat", "level", "airarabia",
-    "map", "wingo", "volaris", "vivaaerobus", "conviasa", "estelar", "laser", "avior", "cubana",
-    "ryanair", "easyjet", "wizzair", "volotea", "pegasus",
-    "caboverde", "airsenegal", "aircotedivoire", "indigo",
+# Companhias COM programa de milhas, conforme o "Organograma Internacional de
+# Emissão" da ISI Viagens (07/11/2026). Só elas têm cálculo de milhas; todas as
+# demais (incluindo as "Pagante" do organograma: Arajet, Conviasa, Flybondi,
+# JetSmart e Paranair) são cotadas pelo valor cheio do site com desconto.
+MILES_AIRLINE_SLUGS: frozenset[str] = frozenset({
+    "aerolineas", "aeromexico", "aircanada", "aireuropa", "airfrance", "american",
+    "avianca", "azul", "azulpelomundo", "boa", "british", "copa", "delta", "emirates",
+    "ethiopian", "gol", "iberia", "ita", "klm", "latam", "lufthansa", "qatar",
+    "royalairmaroc", "sky", "southafrican", "swiss", "taag", "tap", "turkish",
+    "united", "voepass",
 })
+
+NO_MILES_AIRLINE_SLUGS: frozenset[str] = frozenset(
+    item["slug"] for item in AIRLINE_OPTIONS if item["slug"] not in MILES_AIRLINE_SLUGS
+)
 
 # Companhias de operação nacional (Brasil).
 NATIONAL_AIRLINE_SLUGS: frozenset[str] = frozenset({"voepass", "azulconecta", "map"})

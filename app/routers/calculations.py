@@ -70,7 +70,7 @@ DEFAULT_FIELD_DEFINITIONS: dict[str, list[dict[str, Any]]] = {
         {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "175", "min_value": 0, "step": 1},
     ],
     "valor_site": [
-        {"key": "valor_site", "label": "Valor total no site", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
+        {"key": "valor_site", "label": "Valor cheio (site)", "field_type": "money", "default_value": "0", "min_value": 0, "step": 0.01},
         {"key": "desconto_site", "label": "Desconto (%)", "field_type": "percent", "default_value": "0", "min_value": 0, "max_value": 100, "step": 1},
         {"key": "bagagem_unitaria", "label": "Bagagem adicional por unidade", "field_type": "money", "default_value": "0", "min_value": 0, "step": 1},
     ],
