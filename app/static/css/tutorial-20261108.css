@@ -1,0 +1,44 @@
+/* Tutorial / onboarding: estilos isolados para não afetar cotações ou chat. */
+.dbm-tutorial{width:100%;max-width:1230px;margin:0 auto;padding:0 0 45px;display:grid;gap:24px;color:var(--text)}
+.dbm-tutorial-hero{border:1px solid color-mix(in srgb,var(--cyan) 28%,var(--border));border-radius:24px;background:linear-gradient(112deg,#09314b,#0d2543 68%,#15345c);padding:clamp(24px,4vw,46px);position:relative;overflow:hidden}
+.dbm-tutorial-hero:after{content:'';position:absolute;width:280px;height:280px;right:-70px;top:-120px;border-radius:50%;background:radial-gradient(circle,rgba(62,213,235,.25),transparent 70%);pointer-events:none}
+.dbm-tutorial-kicker{display:inline-flex;align-items:center;gap:8px;letter-spacing:.13em;color:#82e8ef;font-size:.74rem;font-weight:900}
+.dbm-tutorial-kicker .ui-icon{width:20px;height:20px}
+.dbm-tutorial-hero h1{color:#fff;font-size:clamp(1.8rem,3.6vw,2.8rem);letter-spacing:-.04em;line-height:1.17;margin:15px 0 8px}
+.dbm-tutorial-hero p{color:#b4d5ed;line-height:1.65;max-width:710px;margin:0;font-size:.95rem}
+.dbm-tutorial-hero-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+.dbm-tutorial-hero-tags span{border:1px solid rgba(170,235,255,.2);background:rgba(255,255,255,.07);border-radius:100px;color:#ddf5ff;padding:7px 11px;font-weight:700;font-size:.74rem}
+.dbm-tutorial-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:0 0 14px}
+.dbm-tutorial-overline{letter-spacing:.13em;font-size:.67rem;color:var(--cyan);font-weight:900}
+.dbm-tutorial-heading h2{font-size:1.3rem;margin:4px 0 0;letter-spacing:-.02em}
+.dbm-tutorial-count{font-size:.75rem;color:var(--muted);padding-bottom:3px}
+.dbm-tutorial-video-card{border:1px solid var(--border);border-radius:22px;background:var(--panel);padding:clamp(14px,2.5vw,26px);box-shadow:0 12px 34px rgba(0,0,0,.08)}
+.dbm-tutorial-video-info{display:flex;align-items:center;gap:14px;margin-bottom:19px}
+.dbm-tutorial-video-mark{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;flex:none;border:1px solid color-mix(in srgb,var(--cyan) 40%,var(--border));background:color-mix(in srgb,var(--cyan) 12%,var(--panel));color:var(--cyan)}
+.dbm-tutorial-video-mark .ui-icon{width:25px;height:25px}
+.dbm-tutorial-video-type{color:var(--cyan);font-size:.68rem;letter-spacing:.1em;font-weight:850}
+.dbm-tutorial-video-info h3{margin:4px 0;font-size:1.15rem;letter-spacing:-.02em}
+.dbm-tutorial-video-info p{margin:0;color:var(--muted);font-size:.84rem;line-height:1.5}
+.dbm-tutorial-player-wrap{overflow:hidden;border-radius:16px;border:1px solid color-mix(in srgb,var(--cyan) 17%,var(--border));background:#030f1d;aspect-ratio:16 / 9}
+.dbm-tutorial-player{display:block;width:100%;height:100%;object-fit:contain;background:#030f1d}
+.dbm-tutorial-player-help{color:var(--muted);font-size:.76rem;line-height:1.5;margin:12px 3px 0}
+.dbm-tutorial-next{display:flex;gap:16px;align-items:center;border:1px dashed var(--border);padding:20px 22px;border-radius:18px;background:color-mix(in srgb,var(--panel) 90%,var(--cyan) 10%)}
+.dbm-tutorial-next-icon{flex:none;display:grid;place-items:center;width:46px;height:46px;border-radius:13px;background:color-mix(in srgb,var(--cyan) 12%,var(--panel));color:var(--cyan)}
+.dbm-tutorial-next-icon .ui-icon{width:22px;height:22px}
+.dbm-tutorial-next h3{font-size:.95rem;margin:0 0 4px}
+.dbm-tutorial-next p{font-size:.79rem;color:var(--muted);line-height:1.5;margin:0}
+/* Modal só na primeira visita, com confirmação salva no banco por usuário. */
+.dbm-tutorial-welcome-backdrop{position:fixed;z-index:10050;inset:0;background:rgba(2,10,24,.79);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.dbm-tutorial-welcome-dialog{width:min(520px,100%);border-radius:24px;background:linear-gradient(150deg,#0c2d47,#101c36 88%);border:1px solid rgba(81,198,245,.35);box-shadow:0 30px 95px rgba(0,0,0,.45);padding:clamp(24px,4vw,36px);color:#effaff;text-align:center}
+.dbm-tutorial-welcome-icon{margin:0 auto 17px;display:grid;place-items:center;width:72px;height:72px;border-radius:22px;background:linear-gradient(125deg,rgba(0,219,218,.23),rgba(37,106,240,.23));border:1px solid rgba(88,213,241,.24);color:#74edf2}
+.dbm-tutorial-welcome-icon .ui-icon{width:36px;height:36px}
+.dbm-tutorial-welcome-caption{font-size:.66rem;letter-spacing:.16em;color:#67d9f2;font-weight:900}
+.dbm-tutorial-welcome-dialog h2{color:#fff;font-size:clamp(1.45rem,3vw,2rem);letter-spacing:-.035em;margin:10px 0 12px}
+.dbm-tutorial-welcome-dialog>p{line-height:1.65;color:#c4dcf0;font-size:.92rem;margin:0}
+.dbm-tutorial-welcome-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;margin-top:24px}
+.dbm-tutorial-welcome-actions button{border-radius:12px;padding:13px 16px;min-height:48px;font-size:.85rem;font-weight:850;cursor:pointer}
+.dbm-tutorial-welcome-primary{background:linear-gradient(100deg,#14c6de,#257efa);border:0;color:#fff;display:flex;align-items:center;justify-content:center;gap:8px}
+.dbm-tutorial-welcome-primary .ui-icon{width:17px;height:17px}
+.dbm-tutorial-welcome-later{background:rgba(255,255,255,.06);border:1px solid rgba(205,232,255,.19);color:#e1ebf9}
+.dbm-tutorial-welcome-footnote{margin-top:17px!important;font-size:.74rem!important;color:#9bb6d2!important}
+@media(max-width:620px){.dbm-tutorial-hero{padding:23px 19px}.dbm-tutorial-heading{align-items:start}.dbm-tutorial-count{white-space:nowrap}.dbm-tutorial-video-info{align-items:flex-start}.dbm-tutorial-welcome-actions{grid-template-columns:1fr}.dbm-tutorial-welcome-dialog{padding:26px 22px}.dbm-tutorial-next{align-items:flex-start}}

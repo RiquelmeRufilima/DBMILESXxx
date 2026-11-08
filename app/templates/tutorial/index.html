@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Tutorial | DBMILESX{% endblock %}
+{% block page_title %}Tutorial{% endblock %}
+{% block eyebrow %}CENTRAL DE APRENDIZADO{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/tutorial-20261108.css?v=1">{% endblock %}
+{% block content %}
+<div class="dbm-tutorial">
+  <section class="dbm-tutorial-hero">
+    <span class="dbm-tutorial-kicker"><svg class="ui-icon"><use href="#icon-book-open"></use></svg> CENTRAL DE APRENDIZADO</span>
+    <h1>Aprenda a usar o DBMILESX</h1>
+    <p>Vídeos e materiais para ajudar você a dominar o sistema, do primeiro acesso às rotinas da equipe.</p>
+    <div class="dbm-tutorial-hero-tags"><span>Conteúdo prático</span><span>Atualizações contínuas</span><span>Acesso para toda a equipe</span></div>
+  </section>
+
+  <section class="dbm-tutorial-section" aria-labelledby="tutorial-videos-title">
+    <div class="dbm-tutorial-heading"><div><span class="dbm-tutorial-overline">COMECE POR AQUI</span><h2 id="tutorial-videos-title">Tutoriais disponíveis</h2></div><span class="dbm-tutorial-count">{{ tutorial_items|length }} vídeo disponível</span></div>
+    {% for item in tutorial_items %}
+      {% if item.kind == 'video' %}
+      <article class="dbm-tutorial-video-card" id="tutorial-{{ item.slug }}">
+        <div class="dbm-tutorial-video-info"><div class="dbm-tutorial-video-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></div><div><span class="dbm-tutorial-video-type">VÍDEO AULA • {{ item.duration }}</span><h3>{{ item.title }}</h3><p>{{ item.description }}</p></div></div>
+        <div class="dbm-tutorial-player-wrap">
+          <video class="dbm-tutorial-player" controls playsinline preload="metadata" aria-label="{{ item.title }}">
+            <source src="{{ item.video_url }}" type="video/mp4">
+            Seu navegador não suporta a reprodução de vídeos. Atualize o navegador para assistir.
+          </video>
+        </div>
+        <p class="dbm-tutorial-player-help">▶ Aperte reproduzir para assistir. Você pode pausar, mudar o volume e avançar para o ponto desejado.</p>
+      </article>
+      {% endif %}
+    {% endfor %}
+  </section>
+  <section class="dbm-tutorial-next" aria-label="Novos materiais">
+    <div class="dbm-tutorial-next-icon"><svg class="ui-icon"><use href="#icon-file"></use></svg></div>
+    <div><h3>Mais materiais em breve</h3><p>Esta área receberá novos vídeos, guias e arquivos didáticos conforme o DBMILESX evoluir.</p></div>
+  </section>
+</div>
+{% endblock %}

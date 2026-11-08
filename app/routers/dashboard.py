@@ -9,6 +9,7 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..models import Airline, CompanyTask, Person, WebQuote
 from ..web import context, templates
+from .tutorial import welcome_pending
 
 router = APIRouter(tags=["dashboard"])
 
@@ -96,5 +97,6 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             recent_quotes=recent_quotes,
             pending_persons=pending_persons,
             pending_tasks=pending_tasks,
+            show_tutorial_welcome=welcome_pending(user),
         ),
     )

@@ -2,7 +2,7 @@
 {% block title %}Início | DBMILESX{% endblock %}
 {% block page_title %}Visão geral{% endblock %}
 {% block eyebrow %}CENTRAL DE OPERAÇÃO{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/dashboard-refresh-20261108.css?v=2">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/dashboard-refresh-20261108.css?v=2"><link rel="stylesheet" href="/static/css/tutorial-20261108.css?v=1">{% endblock %}
 {% block content %}
 <div class="dbm-home-refresh">
   <section class="dbm-home-hero" aria-label="Resumo da operação">
@@ -46,6 +46,7 @@
     <div class="dbm-home-shortcuts">
       <a class="dbm-home-shortcut" href="/calculations/new?clean=1"><span class="dbm-shortcut-icon dbm-shortcut-cyan"><svg class="ui-icon"><use href="#icon-calculator"></use></svg></span><span><strong>Nova cotação</strong><small>Começar do zero</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
       <a class="dbm-home-shortcut" href="/company/chat"><span class="dbm-shortcut-icon dbm-shortcut-blue"><svg class="ui-icon"><use href="#icon-chat"></use></svg></span><span><strong>Chat da equipe</strong><small>Conversar e compartilhar</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
+      <a class="dbm-home-shortcut" href="/tutorial"><span class="dbm-shortcut-icon dbm-shortcut-cyan"><svg class="ui-icon"><use href="#icon-book-open"></use></svg></span><span><strong>Tutorial</strong><small>Assista às videoaulas do sistema</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
       <a class="dbm-home-shortcut" href="/tasks"><span class="dbm-shortcut-icon dbm-shortcut-purple"><svg class="ui-icon"><use href="#icon-tasks"></use></svg></span><span><strong>Tarefas</strong><small>Acompanhar pendências</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
       <a class="dbm-home-shortcut" href="/requests/links"><span class="dbm-shortcut-icon dbm-shortcut-green"><svg class="ui-icon"><use href="#icon-link"></use></svg></span><span><strong>Gerar link</strong><small>Formulários de solicitação</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
     </div>
@@ -86,4 +87,20 @@
     </aside>
   </div>
 </div>
+{% if show_tutorial_welcome %}
+<div class="dbm-tutorial-welcome-backdrop" aria-hidden="false">
+  <section class="dbm-tutorial-welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="dbmWelcomeTitle" aria-describedby="dbmWelcomeDesc">
+    <span class="dbm-tutorial-welcome-icon"><svg class="ui-icon"><use href="#icon-book-open"></use></svg></span>
+    <span class="dbm-tutorial-welcome-caption">BEM-VINDO AO DBMILESX</span>
+    <h2 id="dbmWelcomeTitle">Que bom ter você por aqui!</h2>
+    <p id="dbmWelcomeDesc">Preparamos uma aba <strong>Tutorial</strong> para você aprender a usar o sistema. Comece com o vídeo de cotação; outros materiais serão adicionados depois.</p>
+    <form action="/tutorial/welcome" method="post" class="dbm-tutorial-welcome-actions">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" name="destination" value="tutorial" class="dbm-tutorial-welcome-primary" autofocus>Assistir ao tutorial <svg class="ui-icon"><use href="#icon-arrow-right"></use></svg></button>
+      <button type="submit" name="destination" value="later" class="dbm-tutorial-welcome-later">Agora não</button>
+    </form>
+    <p class="dbm-tutorial-welcome-footnote">Você pode voltar à aba Tutorial a qualquer momento pelo menu.</p>
+  </section>
+</div>
+{% endif %}
 {% endblock %}

@@ -46,6 +46,7 @@ from .routers import (
     requests,
     settings,
     menu_aliases,
+    tutorial,
     local_control,
     amadeus,
     tags,
@@ -193,6 +194,7 @@ if AIRLINE_IMAGE_DIR.exists():
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
+app.include_router(tutorial.router)
 app.include_router(calculations.router)
 app.include_router(airlines.router)
 from .routers import service_tracking
