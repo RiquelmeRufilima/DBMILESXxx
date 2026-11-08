@@ -53,6 +53,8 @@ def avatar_url(user) -> str | None:
         return None
     updated = getattr(profile, "updated_at", None)
     version = int(updated.timestamp() * 1000) if isinstance(updated, datetime) else 0
+    if str(path).startswith("profile/avatar-file/"):
+        return f"/profile/avatar/{user.id}?v={version}"
     return f"/{path}?v={version}"
 
 

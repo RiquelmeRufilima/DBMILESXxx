@@ -92,7 +92,7 @@
         <article class="finance-sale-card card-panel">
           <header>
             <div class="finance-sale-title">
-              <span class="card-user-avatar" title="{{ row.user.name if row.user else 'Usuário' }}">{% if row.user and row.user.profile and row.user.profile.avatar_path %}<img src="/{{ row.user.profile.avatar_path }}" alt="{{ row.user.name }}">{% else %}{{ (row.user.name[:1] if row.user else '?')|upper }}{% endif %}</span>
+              <span class="card-user-avatar" title="{{ row.user.name if row.user else 'Usuário' }}">{% if row.user and row.user.profile and row.user.profile.avatar_path %}<img src="{{ avatar_url(row.user) }}" alt="{{ row.user.name }}">{% else %}{{ (row.user.name[:1] if row.user else '?')|upper }}{% endif %}</span>
               <div>
                 <span class="eyebrow">{{ row.code }}</span>
                 <h2>{{ row.client }}</h2>

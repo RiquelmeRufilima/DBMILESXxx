@@ -13,13 +13,13 @@ from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from ..config import PROFILE_UPLOAD_DIR, SECRET_KEY, IS_VERCEL
 from ..database import get_db
 from ..dependencies import current_user
-from ..models import WebUser, UserChatContact
+from ..models import WebUser, UserChatContact, PrivateChatMessage
 from ..security import validate_csrf_token
 from ..services.realtime import manager, profile_event
 from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
@@ -207,6 +207,65 @@ async def avatar_upload_direct(request: Request, db: Session = Depends(get_db)):
     return JSONResponse({"url": blob_url, "pathname": pathname})
 
 
+def _can_view_avatar(db: Session, viewer: WebUser, target: WebUser) -> bool:
+    """Privacidade: dono, equipe ou contatos com vínculo/conversa privada."""
+    if viewer.id == target.id:
+        return True
+    if viewer.company_id and viewer.company_id == target.company_id:
+        return True
+    if db.scalar(select(UserChatContact.id).where(or_(
+        (UserChatContact.owner_user_id == viewer.id) & (UserChatContact.contact_user_id == target.id),
+        (UserChatContact.owner_user_id == target.id) & (UserChatContact.contact_user_id == viewer.id),
+    )).limit(1)) is not None:
+        return True
+    # Quem recebeu a primeira mensagem pode ver a foto mesmo sem ter
+    # cadastrado manualmente o remetente na agenda.
+    return db.scalar(select(PrivateChatMessage.id).where(or_(
+        (PrivateChatMessage.sender_id == viewer.id) & (PrivateChatMessage.recipient_id == target.id),
+        (PrivateChatMessage.sender_id == target.id) & (PrivateChatMessage.recipient_id == viewer.id),
+    )).limit(1)) is not None
+
+
+def _blob_avatar_response(blob_url: str) -> Response:
+    try:
+        content, content_type = blob_get(blob_url)
+    except Exception:
+        logger.exception("Não foi possível ler avatar do armazenamento persistente")
+        return Response(status_code=503, headers={"Cache-Control": "no-store"})
+    return Response(
+        content=content,
+        media_type=content_type if content_type in _ALLOWED_AVATAR_TYPES else "image/jpeg",
+        headers={
+            "Cache-Control": "private, max-age=15, must-revalidate",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/profile/avatar/{avatar_user_id}")
+def serve_current_avatar(avatar_user_id: int, request: Request, db: Session = Depends(get_db)):
+    """Endereço estável: a mesma URL sempre consulta a foto atual no banco."""
+    viewer = current_user(request, db)
+    if viewer is None:
+        return Response(status_code=401)
+    target = db.get(WebUser, int(avatar_user_id))
+    if target is None or not _can_view_avatar(db, viewer, target):
+        return Response(status_code=403 if target else 404)
+    stored = str(getattr(target.profile, "avatar_path", None) or "")
+    if not stored:
+        return Response(status_code=404, headers={"Cache-Control": "no-store"})
+    blob_url = _blob_url_from_avatar_path(stored)
+    if blob_url:
+        if not _valid_blob_avatar_url(blob_url, target.id):
+            return Response(status_code=404)
+        return _blob_avatar_response(blob_url)
+    # Fotos locais antigas seguem pela rota histórica. Uploads novos na
+    # Vercel são sempre gravados em armazenamento permanente.
+    if stored.startswith("uploads/profiles/") and ".." not in stored and "\\" not in stored:
+        return RedirectResponse(f"/{stored}", status_code=307)
+    return Response(status_code=404)
+
+
 @router.get("/profile/avatar-file/{avatar_user_id}/{blob_ref}")
 async def serve_private_avatar(
     avatar_user_id: int,
@@ -214,44 +273,23 @@ async def serve_private_avatar(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    """Compatibilidade para URLs de avatares emitidas antes desta correção."""
     viewer = current_user(request, db)
     if viewer is None:
         return Response(status_code=401)
-
     target = db.get(WebUser, int(avatar_user_id))
-    if target is None:
-        return Response(status_code=404)
-    same_company = bool(viewer.company_id and viewer.company_id == target.company_id)
-    saved_contact = bool(db.scalar(select(UserChatContact.id).where(
-        UserChatContact.owner_user_id == viewer.id,
-        UserChatContact.contact_user_id == target.id,
-    ))) if viewer.id != target.id and not same_company else False
-    if viewer.id != target.id and not same_company and not saved_contact:
-        return Response(status_code=403)
-
+    if target is None or not _can_view_avatar(db, viewer, target):
+        return Response(status_code=403 if target else 404)
     try:
         blob_url = _b64url_decode(blob_ref).decode("utf-8")
     except Exception:
         return Response(status_code=404)
     if not _valid_blob_avatar_url(blob_url, target.id):
         return Response(status_code=404)
-    # O proxy só atende o arquivo atualmente associado ao perfil. URLs de
-    # avatares antigos não permanecem válidas depois da substituição.
+    # Links antigos não podem ler Blobs já substituídos.
     if not target.profile or target.profile.avatar_path != _blob_avatar_route(target.id, blob_url):
         return Response(status_code=404)
-
-    # Avatar é pequeno e privado: fazemos o proxy autenticado pelo FastAPI.
-    # Assim a exibição não depende de Function Node/presign separado.
-    try:
-        content, content_type = blob_get(blob_url)
-    except Exception:
-        return Response(status_code=404)
-    return Response(
-        content=content,
-        media_type=content_type or "image/webp",
-        headers={"Cache-Control": "private, max-age=60", "X-Content-Type-Options": "nosniff"},
-    )
-
+    return _blob_avatar_response(blob_url)
 
 
 @router.post("/profile")

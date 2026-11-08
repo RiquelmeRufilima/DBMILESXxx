@@ -6,7 +6,7 @@
 <section class="page-heading inline"><div><span class="eyebrow">PERFIL</span><h1>Seu espaço dentro do DBMILESX.</h1><p>Atualize foto, nome, contato e cargo exibidos para sua equipe.</p></div><a class="secondary-button" href="/settings"><svg class="ui-icon"><use href="#icon-settings"></use></svg> Configurações</a></section>
 <section class="profile-layout">
   <aside class="panel profile-card">
-    {% if profile and profile.avatar_path %}<img class="profile-avatar" data-user-avatar-id="{{ user.id }}" data-user-name="{{ user.name }}" src="/{{ profile.avatar_path }}?v={{ (profile.updated_at.timestamp() * 1000)|int if profile.updated_at else 0 }}" alt="{{ user.name }}">{% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
+    {% if profile and profile.avatar_path %}<img class="profile-avatar" data-user-avatar-id="{{ user.id }}" data-user-name="{{ user.name }}" src="{{ avatar_url(user) }}" alt="{{ user.name }}">{% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
     <h2>{{ user.name }}</h2><p>{{ profile.job_title or user.role|title }}</p><span class="badge custom">{{ user.role|title }}</span>
     <div class="profile-meta">
       <div><svg class="ui-icon"><use href="#icon-building"></use></svg><span>{{ user.company.name if user.company else 'Conta individual' }}</span></div>

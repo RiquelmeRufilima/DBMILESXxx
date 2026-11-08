@@ -43,7 +43,7 @@
     {% for item in users %}
     <article class="local-user-card {% if not item.active %}inactive{% endif %}">
       <div class="local-user-summary">
-        <div class="local-avatar">{% if item.profile and item.profile.avatar_path %}<img src="/{{ item.profile.avatar_path }}" alt="{{ item.name }}">{% else %}{{ item.name[:1]|upper }}{% endif %}</div>
+        <div class="local-avatar">{% if item.profile and item.profile.avatar_path %}<img src="{{ avatar_url(item) }}" alt="{{ item.name }}">{% else %}{{ item.name[:1]|upper }}{% endif %}</div>
         <div><h3>{{ item.name }}</h3><p>{{ item.email }}</p><div class="local-badges"><span>{{ item.company.name if item.company else 'Sem empresa' }}</span><span>{{ item.role|title }}</span>{% if item.is_owner %}<b>Acesso principal</b>{% endif %}{% if not item.active %}<em>Bloqueado</em>{% endif %}</div></div>
       </div>
       <details>

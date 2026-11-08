@@ -67,7 +67,7 @@
       <article class="quote-made-card card-panel">
         <div class="quote-made-left">
           <span class="card-user-avatar big" title="{{ maker.name if maker else 'Usuário' }}">
-            {% if maker and maker.profile and maker.profile.avatar_path %}<img src="/{{ maker.profile.avatar_path }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
+            {% if maker and maker.profile and maker.profile.avatar_path %}<img src="{{ avatar_url(maker) }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
           </span>
           <div>
             <span class="eyebrow">{{ 'Manual' if card.source == 'manual' else ('Aceita' if card.source == 'aceita' else 'Calculada') }}</span>
@@ -108,7 +108,7 @@
       <article class="quote-made-card card-panel legacy-card">
         <div class="quote-made-left">
           <span class="card-user-avatar big" title="{{ maker.name if maker else 'Usuário' }}">
-            {% if maker and maker.profile and maker.profile.avatar_path %}<img src="/{{ maker.profile.avatar_path }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
+            {% if maker and maker.profile and maker.profile.avatar_path %}<img src="{{ avatar_url(maker) }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
           </span>
           <div>
             <span class="eyebrow">Cotação antiga</span>

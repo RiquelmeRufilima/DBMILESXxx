@@ -131,7 +131,7 @@ def test_chat_entrega_avatar_atual_de_cada_usuario():
         assert member['avatar_url'] == avatar_url(user)
         payload = company._group_message_payload(db.query(ChatMessage).first())
         assert payload['user_avatar_url'] == avatar_url(user)
-        assert member['avatar_url'].startswith('/profile/avatar-file/1/')
+        assert member['avatar_url'].startswith('/profile/avatar/1?v=')
 
 
 def test_cliente_upload_por_blob_e_chat_usa_fotos():

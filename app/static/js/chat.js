@@ -395,9 +395,19 @@
         holder.innerHTML = '<div class="dbm-empty-side"><div><strong>Nenhum chat iniciado</strong><span>Adicione um contato ou crie um grupo para começar.</span></div></div>';
         return;
       }
+      // Não recria as imagens em cada polling de 7s: isso causava
+      // piscadas e novas requisições a cada atualização, mesmo sem mudança.
+      const signature = JSON.stringify({
+        view, contactId, groupId,
+        rows: rows.map(item => [item.isGroup, item.id, item.contact_id,
+          item.name, item.avatar_url, item.last_message, item.last_at, item.unread]),
+      });
+      if (holder.dataset.renderSignature !== signature) {
       holder.innerHTML = rows.map((item) => item.isGroup
         ? `<button class="dbm-chat-item ${view === 'cgroup' && groupId === Number(item.id) ? 'active' : ''}" type="button" data-group-id="${Number(item.id)}" data-search="${esc(item.name)}"><span class="dbm-avatar is-group">👥</span><span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`
         : `<button class="dbm-chat-item ${contactId === item.contact_id ? 'active' : ''}" type="button" data-contact-id="${esc(item.contact_id)}" data-search="${esc(`${item.name} ${item.contact_id}`)}">${avatarHtml(item)}<span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`).join('');
+      holder.dataset.renderSignature = signature;
+      }
       updateAvatarInstances([...(data.conversations || []), ...(data.contacts || [])]);
       const q = ($('dbmChatSearch')?.value || '').trim().toLowerCase();
       if (q) holder.querySelectorAll('[data-search]').forEach((el) => { el.hidden = !el.dataset.search.toLowerCase().includes(q); });

@@ -17,6 +17,8 @@ from .security import ensure_csrf_token
 
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+from .services.realtime import avatar_url
+templates.env.globals["avatar_url"] = avatar_url
 
 
 

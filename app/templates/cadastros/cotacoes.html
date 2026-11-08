@@ -151,7 +151,7 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
                 <span class="quote-tag">{{ card.code }}</span>
                 <span>{% if card.item %}{{ card.item.selected_at|date_br }}{% else %}Cálculo{% endif %}</span>
                 <span class="card-user-avatar" title="{{ maker.name if maker else 'Usuário' }}">
-                  {% if maker and maker.profile and maker.profile.avatar_path %}<img src="/{{ maker.profile.avatar_path }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
+                  {% if maker and maker.profile and maker.profile.avatar_path %}<img src="{{ avatar_url(maker) }}" alt="{{ maker.name }}">{% else %}{{ (maker.name[:1] if maker else '?')|upper }}{% endif %}
                 </span>
               </div>
               <a class="quote-card-client" href="{% if card.accepted %}/cadastros/cotacoes/{{ card.group.id }}{% else %}/calculations/group/{{ card.group.id }}{% endif %}">{{ card.client }}</a>
