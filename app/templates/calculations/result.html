@@ -113,6 +113,7 @@
       {% set fare_bags = fare_bags_value|int if fare_bags_known else 0 %}
       {% set fare_bags_total = fare_bags * (quote.passengers|default(0, true)|int) %}
       {% set extra_bags_total = quote.bags|default(0, true)|int %}
+      {% set extra_bags_meta = inputs.get('_meta', {}) if inputs.get('_meta') is mapping else {} %}
       <div><small>Bagagens{% if not fare_bags_known %} adicionais{% endif %}</small><strong>{{ fare_bags_total + extra_bags_total }}{% if not fare_bags_known %} <small>+ franquia a confirmar</small>{% endif %}</strong></div>
       <div><small>Escopo calculado</small><strong>{{ quote.scope_label or 'Cálculo' }}</strong></div>
     </div>
@@ -120,6 +121,9 @@
       <strong class="dbm-bag-title">Franquia e bagagens adicionais</strong>
       {% if fare_bags_known %}{{ extra_bags_total }} bagagem(ns) adicional(is) + {{ fare_bags_total }} bagagem(ns) da tarifa = <strong>{{ extra_bags_total + fare_bags_total }} bagagem(ns) no total</strong>{% else %}{{ extra_bags_total }} bagagem(ns) adicional(is) • franquia da tarifa ainda não informada{% endif %}
       <div class="dbm-bag-cost">
+        {% if extra_bags_meta.get('extra_bags_outbound') is not none or extra_bags_meta.get('extra_bags_return') is not none %}
+          <span>Adicionais na ida: <b>{{ extra_bags_meta.get('extra_bags_outbound', 0)|int }}</b> • adicionais na volta: <b>{{ extra_bags_meta.get('extra_bags_return', 0)|int }}</b> ({{ extra_bags_total }} no percurso inteiro).</span>
+        {% endif %}
         {% if extra_bags_total > 0 %}
           {% set extra_unit_cost = inputs.get('bagagem_unitaria', none) %}
           {% if extra_unit_cost is not none and extra_unit_cost|string|trim not in ('', '0', '0.0', '0.00') %}
@@ -265,6 +269,9 @@
     <div class="dbm-pay-options" aria-label="Formas de pagamento na mensagem">
       <strong class="dbm-pay-title">Formas de pagamento na mensagem</strong>
       {% if not shared_view|default(false) %}<div class="dbm-pay-row dbm-machine-row"><span>💳 Maquininha</span><img id="dbmMessageMachineLogo" class="dbm-msg-machine-logo" alt="" hidden><select id="dbmMessageMachine" aria-label="Maquininha usada nos juros"><option value="">Mercado Pago</option></select><small id="dbmMachineStatus">Mesma tabela do “Editar lucro”.</small></div>{% endif %}
+      {% if not shared_view|default(false) %}
+      <div class="dbm-pay-row dbm-pix-message-row"><span>💠 Entrada no Pix (R$)</span><input id="dbmPayPixEntry" type="text" inputmode="decimal" autocomplete="off" value="0,00" aria-label="Entrada em Pix ou dinheiro"><small id="dbmPayPixStatus" role="status">Sincronizada com “Editar lucro”.</small></div>
+      {% endif %}
       <div class="dbm-pay-row" data-pay="cash"><button type="button" class="dbm-eye" data-eye="cash" aria-pressed="true" title="Mostrar/ocultar">👁️</button><span>À vista</span><small id="dbmPayCashPreview"></small></div>
       <div class="dbm-pay-row" data-pay="free"><button type="button" class="dbm-eye" data-eye="free" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão sem juros em até</span><input id="dbmPayFreeN" type="number" min="2" max="15" value="3"><span>x</span><small id="dbmPayFreePreview"></small></div>
       <div class="dbm-pay-row" data-pay="interest"><button type="button" class="dbm-eye" data-eye="interest" aria-pressed="false" title="Mostrar/ocultar">🙈</button><span>Cartão com juros em até</span><input id="dbmPayIntN" type="number" min="2" max="15" value="12"><span>x • total R$</span><input id="dbmPayIntTotal" type="text" inputmode="decimal" placeholder="calculado pela máquina"><small id="dbmPayIntPreview"></small></div>
@@ -325,6 +332,8 @@
        'origin':quote.origin,'destination':quote.destination,
        'airline':quote.airline.name if quote.airline else '',
        'itinerary':inputs.get('_itinerary_v1', {}), 'flight_options':quote.flight_details, 'extra_bags_quantity':quote.bags,
+       'extra_bags_outbound':inputs.get('_meta', {}).get('extra_bags_outbound'),
+       'extra_bags_return':inputs.get('_meta', {}).get('extra_bags_return'),
        'sale':quote.commercial.sale_value if quote.commercial and quote.commercial.profit_value is not none else none,
        'cost':quote.total,
        'installments':quote.commercial.card_installments if quote.commercial else 1,
@@ -362,6 +371,8 @@ html[data-theme="light"] .quote-share-muted{color:#47677d}
 .dbm-pay-row{display:flex!important;align-items:center;gap:8px;flex-wrap:wrap;font-size:.78rem;font-weight:750}
 .dbm-pay-row input{width:90px;padding:6px 8px;border:1px solid var(--border,#315273);border-radius:8px;background:var(--panel-2,#081e32);color:var(--text,#fff)}
 .dbm-pay-row input#dbmPayFreeN,.dbm-pay-row input#dbmPayIntN{width:60px}
+.dbm-pay-row input#dbmPayPixEntry{width:115px}
+.dbm-pix-message-row small{font-weight:600;color:var(--muted,#a6bfd2)}
 .dbm-pay-row.is-hidden>span,.dbm-pay-row.is-hidden>small,.dbm-pay-row.is-hidden>input{opacity:.4}
 .dbm-eye{border:1px solid var(--border,#315273);background:transparent;border-radius:8px;padding:3px 7px;cursor:pointer;font-size:.95rem;line-height:1}
 .dbm-eye[aria-pressed="true"]{background:rgba(22,161,237,.18);border-color:#16a1ed}
@@ -442,6 +453,9 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const payFreeN=document.getElementById('dbmPayFreeN');
  const payIntN=document.getElementById('dbmPayIntN');
  const payIntTotal=document.getElementById('dbmPayIntTotal');
+ const pixInput=document.getElementById('dbmPayPixEntry');
+ const pixStatus=document.getElementById('dbmPayPixStatus');
+ let pixChanged=false, pixSequence=0, pixTimer=null, pixSaveQueue=Promise.resolve();
  const parseBR=raw=>{let v=String(raw??'').trim().replace(/[R$\s]/g,'');if(!v)return 0;if(v.includes(',')&&v.includes('.'))v=v.lastIndexOf(',')>v.lastIndexOf('.')?v.replace(/\./g,'').replace(',','.'):v.replace(/,/g,'');else if(v.includes(','))v=v.replace(',','.');else if(/^\d{1,3}(\.\d{3})+$/.test(v))v=v.replace(/\./g,'');const n=Number(v);return Number.isFinite(n)?n:0;};
  // Valores salvos no "Lucro / venda" definem o padrão inicial do olho.
  if(cardSaved.mode==='no_interest' && Number(cardSaved.installments)>1){payState.free=true;payFreeN.value=cardSaved.installments;}
@@ -449,7 +463,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function interestTotal(){
    const typed=parseBR(payIntTotal.value); if(typed>0)return typed;
    const n=Math.max(1,Number(payIntN.value)||1);
-   if(cardSaved.mode==='with_interest' && Number(cardSaved.installments)===n && Number(cardSaved.total)>0)return Number(cardSaved.total);
+   if(!pixChanged && cardSaved.mode==='with_interest' && Number(cardSaved.installments)===n && Number(cardSaved.total)>0)return Number(cardSaved.total);
    const rate=machineRate(n);
    const base=Math.max(0,sale-entryAmount());
    return rate>0&&rate<100?Math.round(base/(1-rate/100)*100)/100:base;
@@ -472,6 +486,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      lines.push(`${lines.length?'💠 ou':'💰 Por:'} entrada de R$ ${m(entry)} no Pix`);
      card.forEach((text,i)=>lines.push(`💳 ${i?'ou o':'+ o'} restante no cartão ${text}`));
    }else{
+     if(entry>0)lines.push(`💠 Entrada no Pix: R$ ${m(entry)}`);
      card.forEach((text,i)=>lines.push(lines.length?`💳 ou no cartão ${text}`:`💰 Por: no cartão ${text}`));
    }
    document.getElementById('dbmPayCashPreview').textContent=`R$ ${m(displaySale)}`;
@@ -519,45 +534,54 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function getBaggageLines(){
    const paid=Math.max(1,Number(passengers)||1);
    const added=Math.max(0,Number(baggage)||0);
+   const meta=(()=>{try{return JSON.parse(includedBags||'{}')._meta||{}}catch(_){return {}}})();
+   const assigned=meta.extra_bags_outbound!==undefined||meta.extra_bags_return!==undefined;
+   const outbound=assigned?Math.max(0,Number(meta.extra_bags_outbound)||0):0;
+   const returning=assigned?Math.max(0,Number(meta.extra_bags_return)||0):0;
    const original=Number(fareIncluded);
    const fallback=Number.isFinite(original)&&original>0?original:0;
    const mode=selectedPriceMode();
-   const segments=itinerarySides.length?itinerarySides:[{key:'one_way',included_bags:String(fareIncluded||'')}];
-   const franchisePerSide=segments.map(s=>{
+   const sides=itinerarySides.length?itinerarySides:[{key:'one_way',included_bags:String(fareIncluded||'')}];
+   const franchise=sides.map(s=>{
      const n=Number(s.included_bags);
      return s.included_bags==null||s.included_bags===''?fallback:(Number.isFinite(n)&&n>0?n:0);
    });
-   // Percurso completo: o mesmo adicional em cada SENTIDO principal,
-   // nunca em cada conexão. Apenas apresentação; não muda o custo calculado.
-   const scope=String(itineraryData.bags_applies_to||'all');
-   const extraCount=scope==='all'?added*segments.length:(segments.some(s=>s.key===scope)?added:0);
-   const baseIncluded=franchisePerSide.reduce((sum,bags)=>sum+bags*paid,0);
-   const total=baseIncluded+extraCount;
+   // quote.bags sempre representa a SOMA do percurso, nunca uma quantidade
+   // que deve ser repetida em cada trecho ou conexão.
+   const baseTotal=franchise.reduce((sum,n)=>sum+n*paid,0);
+   const total=baseTotal+added;
    if(bagModeBox)bagModeBox.hidden=total===0;
-   if(total===0)return '';
-   const line=txt=>`✅ +${txt}\n`;
+   if(!total)return '';
+   const line=txt=>`✅ +${txt}
+`;
    if(mode==='total')return line(bagQty(total));
    if(mode==='per_person'){
-     const base=franchisePerSide.reduce((sum,bags)=>sum+bags,0);
+     const base=franchise.reduce((sum,n)=>sum+n,0);
      return (base>0?line(`${bagQty(base)} por passageiro no percurso`):'')+
-       (extraCount>0?line(`${bagQty(extraCount)} adicionais no percurso`):'');
+       (added>0?line(`${bagQty(added)} adicionais no percurso inteiro (total)`):'');
    }
-   const labelOf=(side,i)=>side.key==='return'?'VOLTA':side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`;
+   const label=(side,i)=>side.key==='return'?'VOLTA':(side.key==='outbound'||side.key==='one_way'?'IDA':`TRECHO ${i+1}`);
    const lines=[];
-   segments.forEach((side,i)=>{
-     const included=franchisePerSide[i];
-     // 'all' representa a mesma quantidade EM CADA SENTIDO principal.
-     const extras=(scope==='all'||scope===side.key)?added:0;
-     if(included*paid+extras===0)return;
-     const label=labelOf(side,i);
+   sides.forEach((side,i)=>{
+     const included=franchise[i];
+     const extras=assigned?(side.key==='return'?returning:
+       (side.key==='outbound'||side.key==='one_way'||i===0?outbound:(i===sides.length-1?returning:0))):0;
+     if(!included&&!extras)return;
      if(mode==='per_person_leg'){
-       if(included)lines.push(line(`${label}: ${bagQty(included)} por passageiro`).trimEnd());
-       if(extras)lines.push(line(`${label}: ${bagQty(extras)} adicionais na cotação`).trimEnd());
+       if(included)lines.push(line(`${label(side,i)}: ${bagQty(included)} por passageiro`).trimEnd());
+       if(extras)lines.push(line(`${label(side,i)}: ${bagQty(extras)} adicionais na cotação`).trimEnd());
      }else{
-       lines.push(line(`${label}: ${bagQty(included*paid+extras)}`).trimEnd());
+       lines.push(line(`${label(side,i)}: ${bagQty(included*paid+extras)}`).trimEnd());
      }
    });
-
+   if(assigned && returning && !sides.some(side=>side.key==='return')){
+     lines.push(line(`VOLTA: ${bagQty(returning)} adicionais na cotação`).trimEnd());
+   }
+   if(!assigned&&added){
+     // Cotações antigas não registravam o sentido: não inventar que havia
+     // a mesma quantidade em cada lado da viagem.
+     lines.push(line(`${bagQty(added)} adicionais no percurso inteiro (sem trecho definido)`).trimEnd());
+   }
    return lines.length?lines.join('\n')+'\n':'';
  }
  function itineraryExtraDetails(){
@@ -795,7 +819,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      const n=Math.max(2,Number(payIntN.value)||2), rate=machineRate(n);
      const cardTotal=interestTotal();
      const fee=cardTotal*rate/100;
-     const realProfit=profit-(fee-(cardTotal-sale));
+     const realProfit=profit-(fee-(cardTotal-(sale-entryAmount())));
      const pct=rate.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
      blocks.push(`💳 Com juros ${n}x: taxa ${pct}% = ${formatMoney(fee)} (cliente paga) • lucro real ${formatMoney(realProfit)}`);
    }
@@ -834,7 +858,10 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      // Quantidade × valor unitário = total das bagagens adicionais.
      const unit=Number(bagCost.unit)>0?Number(bagCost.unit):numberOf('bagagem_unitaria');
      const bagsTotal=Number(bagCost.total)>0?Number(bagCost.total):(unit?Math.round(unit*amount*100)/100:null);
-     let bagLine=`🧳 Bagagens adicionais: ${amount} ${amount===1?'unidade':'unidades'}`;
+     let bagLine=`🧳 Bagagens adicionais: ${amount} ${amount===1?'unidade':'unidades'} no percurso inteiro`;
+     let bagMeta={};try{bagMeta=JSON.parse(includedBags||'{}')._meta||{}}catch(_){}
+     if(bagMeta.extra_bags_outbound!==undefined||bagMeta.extra_bags_return!==undefined)
+       bagLine+=` (ida ${Number(bagMeta.extra_bags_outbound)||0} + volta ${Number(bagMeta.extra_bags_return)||0})`;
      if(unit&&bagsTotal)bagLine=`🧳 Bagagens adicionais: ${amount} × ${formatMoney(unit)} = ${formatMoney(bagsTotal)}`;
      else if(bagsTotal)bagLine+=` • total ${formatMoney(bagsTotal)}`;
      // Só mostra valor máximo se esse dado for realmente informado no cálculo.
@@ -905,6 +932,44 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  });
  // Mexer nas formas de pagamento refaz a mensagem do cliente.
  const refreshClient=()=>{delete editor.dataset.edited;editor.value=template();if(!internalEditor.dataset.edited)internalEditor.value=internalTemplate();};
+ // O mesmo valor de entrada fica editável aqui e no formulário de lucro.
+ if(pixInput)pixInput.value=entryAmount().toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+ function markPixChanged(){
+   if(!pixInput)return;
+   const entry=Math.min(sale,Math.max(0,parseBR(pixInput.value)));
+   commercialMeta.entry_amount=entry;
+   pixChanged=true;
+   payIntTotal.value='';
+   syncProfitButtonsMeta();
+   refreshClient();
+   document.dispatchEvent(new Event('dbm:commercial-entry-changed'));
+   if(pixStatus)pixStatus.textContent='Salvando entrada...';
+   const seq=++pixSequence;
+   clearTimeout(pixTimer);
+   pixTimer=setTimeout(()=>savePixEntry(seq,entry),500);
+ }
+ function savePixEntry(seq,entry){
+   pixSaveQueue=pixSaveQueue.then(async()=>{
+     if(seq!==pixSequence)return;
+     try{
+       const res=await fetch('/calculations/option/{{ quote.id }}/entry',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({entry_amount:entry,csrf_token:{{ csrf_token|tojson }}})});
+       const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Erro ao salvar entrada.');
+       if(seq!==pixSequence)return;
+       commercialMeta.entry_amount=Number(data.entry_amount||0);
+       cardSaved={...cardSaved,mode:data.card_interest_mode||cardSaved.mode,installments:Number(data.card_installments||cardSaved.installments),total:Number(data.card_total_value||0)};
+       pixChanged=false;
+       pixInput.value=entryAmount().toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+       syncProfitButtonsMeta();refreshClient();
+       document.dispatchEvent(new Event('dbm:commercial-entry-changed'));
+       if(pixStatus)pixStatus.textContent='Entrada salva na cotação ✓';
+     }catch(err){if(seq===pixSequence&&pixStatus)pixStatus.textContent=err.message||'Não foi possível salvar.';}
+   });
+ }
+ pixInput?.addEventListener('input',markPixChanged);
+ pixInput?.addEventListener('blur',()=>{
+   clearTimeout(pixTimer);
+   if(pixChanged)savePixEntry(pixSequence,entryAmount());
+ });
  document.querySelectorAll('.dbm-eye').forEach(btn=>btn.addEventListener('click',()=>{payState[btn.dataset.eye]=!payState[btn.dataset.eye];syncEyes();refreshClient();}));
  [payFreeN,payIntN,payIntTotal].forEach(el=>el.addEventListener('input',refreshClient));
  payIntN.addEventListener('input',()=>{payIntTotal.value='';refreshClient();});
@@ -920,6 +985,8 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      cardSaved={installments:Number(item.card_installments||1),mode:item.card_interest_mode||'cash',total:Number(item.card_total_value||0)};
    }
    paintMachineSelect?.();
+   pixChanged=false;
+   if(pixInput)pixInput.value=entryAmount().toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
    refreshClient();internalEditor.value=internalTemplate();
  });
  // Maquininha da mensagem: mesma tabela salva na cotação ("Editar lucro").
@@ -936,7 +1003,9 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function syncProfitButtonsMeta(){
    document.querySelectorAll('.js-profit-open[data-quote-id="{{ quote.id }}"]').forEach(btn=>{
      let meta={};try{meta=JSON.parse(btn.dataset.commercialMeta||'{}')||{}}catch(_){meta={}}
-     meta.machine_name=commercialMeta.machine_name||'';btn.dataset.commercialMeta=JSON.stringify(meta);
+     meta.machine_name=commercialMeta.machine_name||'';
+     meta.entry_amount=entryAmount();
+     btn.dataset.commercialMeta=JSON.stringify(meta);
    });
  }
  machineSelectMsg?.addEventListener('change',async()=>{

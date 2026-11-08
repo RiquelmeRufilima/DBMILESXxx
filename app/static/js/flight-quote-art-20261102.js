@@ -102,13 +102,20 @@
     const shown=base.filter(side=>!hidden.has(side.key));
     return shown.length?shown:base;
   }
-  // Total de bagagens despachadas: franquia da tarifa × passageiros em cada sentido
-  // + adicionais (mesma conta da mensagem do cliente).
+  // Bagagens adicionais são unidades no percurso inteiro; nunca multiplicar
+  // por cada trecho/conexão. Os campos de ida e volta identificam o sentido.
   function artBagTotal(){
     const pax=Math.max(1,Number(brand.passengers||1));
     const list=visibleSides();
-    const extra=Math.max(0,Number(data.extra_bags_quantity||0)),where=itin.bags_applies_to||'all';
-    return list.reduce((sum,side)=>{const n=Number(side.included_bags);return sum+(Number.isFinite(n)&&n>0?n*pax:0)+((where==='all'||where===side.key)?extra:0);},0);
+    const extra=Math.max(0,Number(data.extra_bags_quantity||0));
+    return list.reduce((sum,side)=>{const n=Number(side.included_bags);return sum+(Number.isFinite(n)&&n>0?n*pax:0);},extra);
+  }
+  function artExtraForSide(side,index){
+    const assigned=data.extra_bags_outbound!==null&&data.extra_bags_outbound!==undefined || data.extra_bags_return!==null&&data.extra_bags_return!==undefined;
+    if(!assigned)return index===0?Math.max(0,Number(data.extra_bags_quantity||0)):0;
+    return side.key==='return'?Math.max(0,Number(data.extra_bags_return||0)):
+      (['outbound','one_way'].includes(side.key)||index===0)?Math.max(0,Number(data.extra_bags_outbound||0)):
+      (index===visibleSides().length-1?Math.max(0,Number(data.extra_bags_return||0)):0);
   }
   // Altura exata: cabeçalho + passageiros + cada trecho (com ou sem bagagens) + resumo.
   function computeHeight(){
@@ -217,8 +224,11 @@
         const n=Number(info.bags);
         text('Bagagens',112,y+208,'bold 17px Arial',MUTED);
         text(Number.isFinite(n)&&n>0?`🧳 Despachada 23 kg: ${n} por passageiro`:'🧳 Sem bagagem despachada incluída',250,y+208,'19px Arial',INK);
-        const extra=Math.max(0,Number(data.extra_bags_quantity||0)),where=itin.bags_applies_to||'all';
-        if(extra>0&&checkbox.checked&&(where==='all'||where===side.key))text(`+ ${extra} adicional(is)`,968,y+208,'bold 17px Arial',TEAL,'right');
+        const extra=artExtraForSide(side,list.indexOf(side));
+        if(extra>0&&checkbox.checked){
+          const assigned=data.extra_bags_outbound!=null||data.extra_bags_return!=null;
+          text(`+ ${extra} adicional(is)${assigned?'':' no percurso (total)'}`,968,y+208,'bold 17px Arial',TEAL,'right');
+        }
       }
       y+=boxH+52;
     });
@@ -309,6 +319,7 @@
     }
     setTimeout(()=>{installmentRows();render();},0);
   });
+  document.addEventListener('dbm:commercial-entry-changed',()=>{installmentRows();render();});
   document.addEventListener('dbm:machine-fees-loaded',installmentRows);
   setTimeout(installmentRows,100);
   render();

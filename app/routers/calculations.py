@@ -3989,8 +3989,25 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     }
 
     try:
-        option_bags_count = 0 if is_skip_record else max(0, int(form.get("bags_override") or 0))
-    except ValueError:
+        has_leg_bags = "bags_outbound" in form or "bags_return" in form
+        if has_leg_bags:
+            bags_outbound = int(form.get("bags_outbound") or 0)
+            bags_return = int(form.get("bags_return") or 0)
+            if not 0 <= bags_outbound <= 100 or not 0 <= bags_return <= 100:
+                raise ValueError()
+            option_bags_count = bags_outbound + bags_return
+            values["_meta"]["extra_bags_outbound"] = bags_outbound
+            values["_meta"]["extra_bags_return"] = bags_return
+        else:
+            # Compatibilidade com formulários e cotações anteriores.
+            option_bags_count = int(form.get("bags_override") or 0)
+            if not 0 <= option_bags_count <= 200:
+                raise ValueError()
+        if is_skip_record:
+            option_bags_count = 0
+            values["_meta"].pop("extra_bags_outbound", None)
+            values["_meta"].pop("extra_bags_return", None)
+    except (ValueError, TypeError):
         flash(request, "Quantidade de bagagens inválida.", "error")
         return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&airline_id={airline.id}&type_id={calc_type.id}", status_code=303)
 
@@ -4707,22 +4724,44 @@ def _commercial_number(raw: Any) -> float:
         return 0.0
 
 
-# Taxas de máquina — valores iniciais fornecidos pelo usuário, não consultados em tempo real.
-# O catálogo é salvo por usuário nas preferências já existentes do banco.
+# Catálogo de maquininhas compartilhado por empresa. Usa as preferências já
+# existentes dos usuários da empresa (sem exigir migração do banco em produção).
 MERCADO_PAGO_FEES = {"1": 3.29, "2": 2.08, "3": 2.75, "4": 3.48, "5": 4.15,
     "6": 5.01, "7": 5.82, "8": 6.54, "9": 7.19, "10": 7.86, "11": 8.48,
-    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26}
+    "12": 9.21, "13": 12.89, "14": 13.63, "15": 14.26,
+    "16": 15.06, "17": 15.75, "18": 16.45}
 
 
-def _machine_tables(user):
+def _machine_team(db: Session, user: WebUser) -> list[WebUser]:
+    if user.company_id is None:
+        return [user]
+    members = list(db.scalars(
+        select(WebUser).where(WebUser.company_id == user.company_id)
+        .order_by(WebUser.is_owner.desc(), WebUser.id.asc())
+    ).all())
+    return members or [user]
+
+
+def _machine_settings(member: WebUser) -> dict:
     try:
-        settings = json.loads(user.preference.settings_json or '{}') if user.preference else {}
-        entries = settings.get('machine_fee_tables')
+        data = json.loads(member.preference.settings_json or '{}') if member.preference else {}
+        return data if isinstance(data, dict) else {}
+    except (TypeError, ValueError, AttributeError):
+        return {}
+
+
+def _machine_tables(user: WebUser, db: Session) -> list[dict]:
+    # Em instalações antigas, tabelas eram salvas individualmente. Prioriza o
+    # catálogo do dono; enquanto não existir, aproveita o cadastro mais recente
+    # entre os integrantes da mesma empresa. Depois do primeiro salvamento,
+    # todos passam a ter exatamente o mesmo catálogo.
+    team = _machine_team(db, user)
+    for member in team:
+        entries = _machine_settings(member).get('machine_fee_tables')
         if isinstance(entries, list) and entries:
             return entries
-    except (TypeError, ValueError, AttributeError):
-        pass
-    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy()}]
+    return [{"name": "Mercado Pago", "rates": MERCADO_PAGO_FEES.copy(),
+             "fixed": {"1-6": 2.75, "7-12": 2.99, "13-18": 2.89}}]
 
 
 @router.get('/machine-fees')
@@ -4730,7 +4769,7 @@ def list_machine_fee_tables(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if not user:
         return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
-    return {"ok": True, "tables": _machine_tables(user)}
+    return {"ok": True, "tables": _machine_tables(user, db)}
 
 
 @router.post('/machine-fees')
@@ -4795,17 +4834,18 @@ async def update_machine_fee_tables(request: Request, db: Session = Depends(get_
         if logo and len(logo) <= 70000 and re.fullmatch(r"data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+", logo):
             table["logo"] = logo
         cleaned.append(table)
-    preference = user.preference
-    if preference is None:
-        preference = UserPreference(user_id=user.id)
-        db.add(preference)
-    try:
-        settings = json.loads(preference.settings_json or '{}')
-        if not isinstance(settings, dict): settings = {}
-    except (TypeError, ValueError):
-        settings = {}
-    settings['machine_fee_tables'] = cleaned
-    preference.settings_json = json.dumps(settings, ensure_ascii=False)
+    # O catálogo é da empresa, não do navegador ou agente. A gravação é feita
+    # para todos os integrantes na mesma transação; novos usuários consultam o
+    # cadastro do dono/primeiro integrante pela rotina _machine_tables.
+    for member in _machine_team(db, user):
+        preference = member.preference
+        if preference is None:
+            preference = UserPreference(user_id=member.id)
+            member.preference = preference
+            db.add(preference)
+        settings = _machine_settings(member)
+        settings['machine_fee_tables'] = cleaned
+        preference.settings_json = json.dumps(settings, ensure_ascii=False)
     db.commit()
     return {"ok": True, "tables": cleaned}
 
@@ -4829,7 +4869,7 @@ async def save_option_machine(quote_id: int, request: Request, db: Session = Dep
     if not _quote_allowed(user, quote):
         return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
     name = " ".join(str(data.get("machine_name") or "").split())[:48]
-    if name and name.casefold() not in {str(t.get("name") or "").casefold() for t in _machine_tables(user)}:
+    if name and name.casefold() not in {str(t.get("name") or "").casefold() for t in _machine_tables(user, db)}:
         return JSONResponse({"ok": False, "message": "Maquininha não encontrada."}, status_code=400)
     commercial = quote.commercial or QuoteCommercial(quote_id=quote.id)
     meta = _safe_json(commercial.observations, {})
@@ -4840,6 +4880,65 @@ async def save_option_machine(quote_id: int, request: Request, db: Session = Dep
     db.add(commercial)
     db.commit()
     return {"ok": True, "machine_name": name}
+
+
+@router.post("/option/{quote_id}/entry")
+async def save_option_pix_entry(quote_id: int, request: Request, db: Session = Depends(get_db)):
+    """Sincroniza a entrada Pix da mensagem com o editor de lucro e a reserva."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "message": "Faça login."}, status_code=401)
+    try:
+        data = await request.json()
+    except (ValueError, TypeError):
+        data = {}
+    if not validate_csrf_token(request.session, str(data.get("csrf_token") or "")):
+        return JSONResponse({"ok": False, "message": "Sessão expirada."}, status_code=403)
+    quote = db.scalar(select(WebQuote).where(WebQuote.id == quote_id).options(selectinload(WebQuote.commercial)))
+    if not _quote_allowed(user, quote):
+        return JSONResponse({"ok": False, "message": "Cotação não encontrada."}, status_code=404)
+    commercial = quote.commercial
+    if commercial is None or commercial.profit_value is None:
+        return JSONResponse({"ok": False, "message": "Defina primeiro o lucro da cotação."}, status_code=409)
+    value = _commercial_number(data.get("entry_amount"))
+    if not 0 <= value <= 1000000000 or value != value:
+        return JSONResponse({"ok": False, "message": "Entrada Pix inválida."}, status_code=400)
+    sale = round(float(commercial.sale_value or (float(quote.total or 0) + float(commercial.profit_value or 0))), 2)
+    meta = _safe_json(commercial.observations, {})
+    if not isinstance(meta, dict):
+        meta = {}
+    old_entry = round(max(0.0, float(meta.get("entry_amount") or 0)), 2)
+    entry = round(min(max(0.0, sale), value), 2)
+    old_basis = max(0.0, sale - old_entry)
+    basis = max(0.0, sale - entry)
+    previous_difference = max(0.0, float(commercial.card_difference_value or 0))
+    # Mantém a condição/taxa proporcional dos juros já cadastrados, mas passa a
+    # financiar apenas o saldo restante depois da entrada.
+    ratio = previous_difference / old_basis if old_basis > 0 else 0.0
+    installments = max(1, int(commercial.card_installments or 1))
+    mode = commercial.card_interest_mode or "cash"
+    difference = round(basis * ratio, 2) if mode == "with_interest" and installments > 1 else 0.0
+    card_total = round(basis + difference, 2)
+    commercial.card_total_value = card_total
+    commercial.card_difference_value = difference
+    commercial.card_installment_value = round(card_total / installments, 2)
+    meta["entry_amount"] = entry
+    commercial.observations = json.dumps(meta, ensure_ascii=False)
+    accepted = db.scalar(select(AcceptedQuote).where(AcceptedQuote.quote_id == quote.id))
+    if accepted is not None:
+        accepted_data = _safe_json(accepted.extra_json, {})
+        if not isinstance(accepted_data, dict):
+            accepted_data = {}
+        offer = accepted_data.get("commercial_offer")
+        if isinstance(offer, dict):
+            offer.update({"entry_amount": entry, "card_total_value": card_total,
+                          "card_difference_value": difference,
+                          "card_installment_value": commercial.card_installment_value})
+            accepted.extra_json = json.dumps(accepted_data, ensure_ascii=False)
+    db.commit()
+    return {"ok": True, "entry_amount": entry, "card_total_value": card_total,
+            "card_difference_value": difference, "card_installments": installments,
+            "card_interest_mode": mode, "card_installment_value": commercial.card_installment_value}
 
 
 @router.post("/option/{quote_id}/profit")

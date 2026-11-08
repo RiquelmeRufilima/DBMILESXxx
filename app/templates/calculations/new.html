@@ -792,11 +792,16 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       </div>
 
       <div class="form-section soft baggage-section" data-standard-calculation-section>
-        <div class="section-title"><span class="step-badge">3</span><div><h3>Bagagens desta opção</h3><p>Defina aqui a quantidade de bagagens apenas para a companhia selecionada.</p></div></div>
+        <div class="section-title"><span class="step-badge">3</span><div><h3>Bagagens desta opção</h3><p>Informe as bagagens adicionais separadamente para ida e volta. Cada unidade é contabilizada <strong>uma única vez</strong>, sem duplicação no percurso.</p></div></div>
         <div class="form-grid cols-2">
-          <label>Quantidade de bagagens adicionais<input type="number" name="bags_override" value="{{ option_bags or 0 }}" min="0" max="100" step="1"></label>
-          <div class="notice-card muted compact-note">Essa quantidade será usada somente nesta opção de cálculo. A base fixa da cotação não será alterada.</div>
+          <label>Bagagens adicionais somente na IDA
+            <input type="number" name="bags_outbound" value="{{ option_meta.get('extra_bags_outbound', option_bags or 0) }}" min="0" max="100" step="1">
+          </label>
+          <label>Bagagens adicionais somente na VOLTA
+            <input type="number" name="bags_return" value="{{ option_meta.get('extra_bags_return', 0) }}" min="0" max="100" step="1">
+          </label>
         </div>
+        <div class="notice-card muted compact-note">O custo adicional considera a soma de ida e volta. Uma conexão não gera outra bagagem; se a viagem for somente ida, deixe a volta em zero.</div>
       </div>
 
       <div class="form-section soft skip-financial-panel" id="skipFinancialPanel" hidden>

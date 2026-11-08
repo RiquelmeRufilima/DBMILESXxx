@@ -172,6 +172,14 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     </div>
   </form>
 </dialog>
+<dialog id="dbmMachineDeleteDialog" class="dbm-machine-dialog" aria-labelledby="dbmMachineDeleteTitle">
+  <div class="dbm-machine-dialog-box" style="display:grid;gap:15px">
+    <div class="dbm-machine-dialog-head"><strong id="dbmMachineDeleteTitle">Excluir maquininha?</strong><button type="button" class="dbm-machine-dialog-x" data-machine-delete-cancel aria-label="Cancelar">×</button></div>
+    <p style="margin:0;font-size:.88rem">Excluir <strong id="dbmMachineDeleteName"></strong> definitivamente? Ela deixará de aparecer para todos da empresa.</p>
+    <small id="dbmMachineDeleteError" class="dbm-machine-dialog-error" role="alert"></small>
+    <div class="dbm-machine-dialog-actions"><button type="button" class="ghost-button" data-machine-delete-cancel>Cancelar</button><button type="button" class="ghost-button danger" id="dbmMachineDeleteConfirm">Excluir definitivamente</button></div>
+  </div>
+</dialog>
 <div id="commercialToast" class="commercial-toast" aria-live="polite"></div>
 
 
@@ -242,7 +250,8 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     updateMachineInputs();
   }
   async function loadMachines(){
-    if(machinesLoaded)return;
+    // Recarrega ao abrir: uma máquina cadastrada por outro colaborador já
+    // aparece aqui sem exigir que ele atualize a página inteira.
     try{
       const res=await fetch('/calculations/machine-fees',{credentials:'same-origin'});
       const data=await res.json();
@@ -391,7 +400,7 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     const box=document.getElementById('profitNetBox'); if(!box)return;
     const profit=Math.max(0,num(valueInput.value));
     let fee=0, who='—';
-    if(mode.value==='no_interest'){ fee=sale*cardRate(times)/100; who=`agência paga • ${dec(cardRate(times))}% em ${times}x`; }
+    if(mode.value==='no_interest'){ fee=total*cardRate(times)/100; who=`agência paga • ${dec(cardRate(times))}% em ${times}x`; }
     else if(mode.value==='with_interest'){ fee=total*cardRate(times)/100; who=`cliente paga ${money(difference)} de juros • ${dec(cardRate(times))}%`; }
     const net=mode.value==='with_interest' ? profit-Math.max(0,fee-difference) : profit-fee;
     box.hidden=mode.value==='cash';
@@ -509,6 +518,8 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
   });
   // Janela própria (tema claro/escuro) para criar ou editar nome e imagem da máquina.
   const machineDialog=document.getElementById('dbmMachineDialog');
+  // Dialog independente: sempre fica sobre a janela de lucro, inclusive no celular.
+  if(machineDialog?.parentElement !== document.body) document.body.appendChild(machineDialog);
   const dlgName=document.getElementById('dbmMachineDialogName');
   const dlgFile=document.getElementById('dbmMachineDialogFile');
   const dlgPreview=document.getElementById('dbmMachineDialogPreview');
@@ -570,27 +581,57 @@ html[data-theme="light"] .dbm-machine-panel .profit-grid :is(input,select){backg
     openMachineDialog('create');
   });
   document.getElementById('profitMachineEditInfo')?.addEventListener('click',()=>openMachineDialog('edit'));
+  // A confirmação de exclusão é modal, acima da janela de lucro, e a
+  // tabela só é dada como excluída depois da resposta do servidor.
+  const deleteDialog=document.getElementById('dbmMachineDeleteDialog');
+  const deleteName=document.getElementById('dbmMachineDeleteName');
+  const deleteError=document.getElementById('dbmMachineDeleteError');
+  const deleteConfirm=document.getElementById('dbmMachineDeleteConfirm');
+  deleteDialog?.querySelectorAll('[data-machine-delete-cancel]').forEach(btn=>btn.addEventListener('click',()=>deleteDialog.close()));
   document.getElementById('profitMachineDelete')?.addEventListener('click',()=>{
     if(machines.length<=1){machineSaveStatus.textContent='Mantenha pelo menos uma tabela.';return;}
-    if(window.confirm(`Excluir a tabela ${machineSelect.value}?`)){machines=machines.filter(t=>t.name!==machineSelect.value);refreshMachines();persistMachines('Tabela excluída.');}
+    deleteName.textContent=machineSelect.value;
+    deleteError.textContent='';
+    deleteConfirm.disabled=false;
+    deleteDialog.showModal();
   });
-  // Tabelas de máquina ficam salvas no usuário: cada criação/edição/exclusão
-  // grava sozinha (antes era preciso lembrar de clicar em "Salvar tabelas").
-  let machineSaveChain=Promise.resolve();
+  deleteConfirm?.addEventListener('click',async()=>{
+    const name=deleteName.textContent;
+    if(!machines.some(t=>t.name===name)) {deleteDialog.close();return;}
+    if(machines.length<=1){deleteError.textContent='Mantenha pelo menos uma tabela.';return;}
+    const oldTables=structuredClone(machines);
+    machines=machines.filter(t=>t.name!==name);
+    refreshMachines();
+    deleteConfirm.disabled=true;
+    deleteConfirm.textContent='Excluindo...';
+    const saved=await persistMachines('Tabela excluída para toda a empresa.');
+    deleteConfirm.disabled=false;
+    deleteConfirm.textContent='Excluir definitivamente';
+    if(saved){deleteDialog.close();}
+    else {machines=oldTables;refreshMachines(name);deleteError.textContent='A exclusão não foi salva. Tente novamente.';}
+  });
+  // Cada edição é enviada ao servidor na ordem certa. Uma resposta antiga
+  // não pode desfazer uma alteração mais recente feita na mesma tela.
+  let machineSaveChain=Promise.resolve(), machineRevision=0;
   function persistMachines(okMessage){
-    machineSaveStatus.textContent='Salvando...';
+    machineSaveStatus.textContent='Salvando para a empresa...';
+    const revision=++machineRevision;
+    const snapshot=structuredClone(machines);
     machineSaveChain=machineSaveChain.then(async()=>{
       try{
-        const res=await fetch('/calculations/machine-fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({tables:machines,csrf_token:form.querySelector('[name="csrf_token"]').value})});
+        const res=await fetch('/calculations/machine-fees',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({tables:snapshot,csrf_token:form.querySelector('[name="csrf_token"]').value})});
         const data=await res.json();if(!res.ok||!data.ok)throw Error(data.message||'Não foi possível salvar.');
-        const selected=machineSelect.value;machines=data.tables;refreshMachines(selected);updateMachineInputs();
-        machineSaveStatus.textContent=okMessage||'Tabelas salvas no seu usuário.';
-        document.dispatchEvent(new CustomEvent('dbm:machine-tables-saved',{detail:{tables:machines}}));
-      }catch(e){machineSaveStatus.textContent=e.message||'Erro ao salvar.'}
+        if(revision===machineRevision){
+          const selected=machineSelect.value;machines=data.tables;refreshMachines(selected);updateMachineInputs();
+          machineSaveStatus.textContent=okMessage||'Tabelas salvas para toda a empresa.';
+        }
+        document.dispatchEvent(new CustomEvent('dbm:machine-tables-saved',{detail:{tables:data.tables}}));
+        return true;
+      }catch(e){machineSaveStatus.textContent=e.message||'Erro ao salvar.';return false;}
     });
     return machineSaveChain;
   }
-  document.getElementById('profitMachineSave')?.addEventListener('click',()=>persistMachines('Tabelas salvas no seu usuário.'));
+  document.getElementById('profitMachineSave')?.addEventListener('click',()=>persistMachines('Tabelas salvas para toda a empresa.'));
 
 
   cardTotal?.addEventListener('focus', () => {

@@ -80,6 +80,7 @@ def test_bagagem_franquia_mais_adicional_sem_duplicar_conexoes(tmp_path):
 function calculate(opts){
   const passengers=opts.passengers,baggage=opts.extra,fareIncluded=opts.fare;
   const itinerarySides=opts.sides,itineraryData={bags_applies_to:opts.where};
+  const includedBags=JSON.stringify({_meta:opts.meta||{}});
   const bagModeBox={hidden:null};
   const selectedPriceMode=()=>opts.mode;
   const bagQty=n=>`${n} ${n===1?'bagagem de 23kg inclusa':'bagagens de 23kg inclusas'}`;
@@ -88,8 +89,8 @@ function calculate(opts){
   return {result,hidden:bagModeBox.hidden};
 }
 const twoLegs=[{key:'outbound',included_bags:'1',stops:['BSB'],legs:[{},{},{}]},{key:'return',included_bags:'1',legs:[{}]}];
-assert.match(calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'all',mode:'total'}).result,/\+3 bagagens/);
-assert.ok(!calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'all',mode:'total'}).result.includes('+5'));
+assert.match(calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'all',mode:'total'}).result,/\+5 bagagens/);
+assert.ok(!calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'all',mode:'total'}).result.includes('+6'));
 assert.match(calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'all',mode:'per_person'}).result,/por passageiro/);
 assert.match(calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'return',mode:'per_leg'}).result,/VOLTA/);
 assert.match(calculate({passengers:2,extra:1,fare:'1',sides:twoLegs,where:'return',mode:'per_person_leg'}).result,/por passageiro/);
