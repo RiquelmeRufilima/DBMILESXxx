@@ -46,6 +46,7 @@ from ..models import (
     WebUser,
 )
 from ..security import hash_password, validate_csrf_token, validate_password
+from ..services.realtime import avatar_url
 from ..services.notifications import create_notification
 from ..services.protection import register_attempt, seconds_until_allowed, set_blocked, wait_message
 from ..services.team_accounts import remaining_team_slots, team_user_count
@@ -258,6 +259,7 @@ def _chat_member_payload(member: WebUser, current_user_id: int) -> dict:
         "active": bool(member.active),
         "is_me": member.id == current_user_id,
         "avatar_path": getattr(profile, "avatar_path", None) if profile else None,
+        "avatar_url": avatar_url(member),
     }
 
 
@@ -426,6 +428,7 @@ def _private_message_payload(item: PrivateChatMessage, user: WebUser, attachment
         "user_id": item.sender_id,
         "user_name": sender.name if sender else ("Você" if item.sender_id == user.id else "Usuário"),
         "user_contact_id": (getattr(sender, "contact_id", "") or "") if sender else "",
+        "user_avatar_url": avatar_url(sender) if sender else None,
         "message": item.message,
         "is_read": bool(item.is_read),
         "created_at": iso_utc(item.created_at),
@@ -439,6 +442,7 @@ def _group_message_payload(item: ChatMessage, attachment: dict | None = None) ->
         "user_id": item.user_id,
         "user_name": item.user.name if item.user else "Usuário",
         "user_contact_id": (getattr(item.user, "contact_id", "") or "") if item.user else "",
+        "user_avatar_url": avatar_url(item.user) if item.user else None,
         "message": item.message,
         "created_at": iso_utc(item.created_at),
         "attachment": attachment,
@@ -1927,6 +1931,7 @@ def _chat_group_payload(item: ChatGroupMessage, attachment: dict | None = None) 
         "user_id": item.user_id,
         "user_name": item.user.name if item.user else "Usuário",
         "user_contact_id": (getattr(item.user, "contact_id", "") or "") if item.user else "",
+        "user_avatar_url": avatar_url(item.user) if item.user else None,
         "message": item.message,
         "created_at": iso_utc(item.created_at),
         "attachment": attachment,

@@ -54,6 +54,62 @@
   const selected = new Set();
 
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'}[c]));
+  // Marcador de usuário único para o perfil, cabeçalho, lista e mensagens.
+  function avatarHtml(person, extra = '') {
+    const id = Number(person?.id || person?.user_id || 0);
+    const name = String(person?.name || person?.user_name || 'Usuário');
+    const url = String(person?.avatar_url || person?.user_avatar_url || '');
+    const attrs = id ? ` data-user-avatar-id="${id}" data-user-name="${esc(name)}"` : '';
+    return `<span class="dbm-avatar ${extra}"${attrs}>${url.startsWith('/') ? `<img src="${esc(url)}" alt="${esc(name)}">` : esc(name.charAt(0).toUpperCase() || '?')}</span>`;
+  }
+
+  function setHeaderAvatar(person) {
+    if (!avatar) return;
+    const url = String(person?.avatar_url || '');
+    if (url.startsWith('/') && avatar.querySelector('img')?.getAttribute('src') === url) return;
+    if (!url && !avatar.querySelector('img') && avatar.textContent === String(person?.name || '?').charAt(0).toUpperCase()) return;
+    avatar.replaceChildren();
+    if (url.startsWith('/')) {
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = person.name || 'Contato';
+      avatar.appendChild(image);
+    } else {
+      avatar.textContent = String(person?.name || '?').charAt(0).toUpperCase();
+    }
+  }
+
+  function updateAvatarInstances(people) {
+    for (const person of people || []) {
+      const id = Number(person.id || person.user_id || 0);
+      if (!id) continue;
+      const expected = String(person.avatar_url || person.user_avatar_url || '');
+      document.querySelectorAll(`[data-user-avatar-id="${id}"]`).forEach((element) => {
+        const image = element.querySelector('img');
+        if (expected.startsWith('/')) {
+          if (image?.getAttribute('src') === expected) return;
+          const newImage = document.createElement('img');
+          newImage.src = expected;
+          newImage.alt = person.name || person.user_name || 'Usuário';
+          element.replaceChildren(newImage);
+        } else if (image) {
+          element.textContent = String(person.name || person.user_name || '?').charAt(0).toUpperCase();
+        }
+      });
+      if (view === 'conversations' && contactId === person.contact_id) setHeaderAvatar(person);
+    }
+  }
+
+  // Se o Blob estiver temporariamente indisponível, exibe a inicial sem
+  // deixar o ícone de imagem quebrada.
+  shell.addEventListener('error', (event) => {
+    const img = event.target;
+    if (!(img instanceof HTMLImageElement) || !img.closest('.dbm-avatar')) return;
+    const parent = img.parentElement;
+    if (!parent) return;
+    parent.textContent = String(parent.dataset.userName || img.alt || '?').charAt(0).toUpperCase();
+  }, true);
+
   const fmt = new Intl.DateTimeFormat('pt-BR', {timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
   const fmtTime = new Intl.DateTimeFormat('pt-BR', {timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'});
   const parse = (iso) => {
@@ -142,7 +198,7 @@
     const key = `${prefix}-${Number(item.id)}`;
     messageInfo.set(key, {key, mine, name: mine ? 'Você' : (item.user_name || 'Usuário'), realName: item.user_name || 'Usuário', contactId: item.user_contact_id || '', message: String(item.message || ''), attachment: att || null});
     const fav = favorites.has(key) ? ' is-fav' : '';
-    return `<article class="dbm-msg ${mine ? 'mine' : ''}${fav}" data-message-id="${key}"><span class="dbm-msg-check" aria-hidden="true"></span><div class="dbm-msg-bubble"><button type="button" class="dbm-msg-menu-btn" data-msg-menu="${key}" aria-label="Opções da mensagem" title="Opções">⌄</button><strong>${esc(mine ? 'Você' : (item.user_name || 'Usuário'))}</strong>${attachmentHtml(att)}${bodyHtml(text)}<small>${esc(when(item.created_at))}</small></div></article>`;
+    return `<article class="dbm-msg ${mine ? 'mine' : ''}${fav}" data-message-id="${key}"><span class="dbm-msg-check" aria-hidden="true"></span>${avatarHtml({id: item.user_id ?? item.sender_id, name: item.user_name, avatar_url: item.user_avatar_url}, 'dbm-msg-avatar')}<div class="dbm-msg-bubble"><button type="button" class="dbm-msg-menu-btn" data-msg-menu="${key}" aria-label="Opções da mensagem" title="Opções">⌄</button><strong>${esc(mine ? 'Você' : (item.user_name || 'Usuário'))}</strong>${attachmentHtml(att)}${bodyHtml(text)}<small>${esc(when(item.created_at))}</small></div></article>`;
   }
 
   function emptyHtml(strong, span) {
@@ -219,6 +275,7 @@
         if (firstLoad) {
           groupInfo = data.group;
           mentionPeople = (data.members || []).filter((p) => !p.is_me);
+          updateAvatarInstances(data.members || []);
           title.textContent = data.group?.name || 'Grupo';
           subtitle.textContent = (data.members || []).map((p) => (p.is_me ? 'Você' : String(p.name || '').split(' ')[0])).join(', ');
           avatar.textContent = '👥';
@@ -233,7 +290,7 @@
         if (firstLoad && data.contact) {
           title.textContent = data.contact.name;
           subtitle.textContent = `${data.contact.contact_id} • Chat privado`;
-          avatar.textContent = (data.contact.name || '?').charAt(0).toUpperCase();
+          setHeaderAvatar(data.contact);
         }
         const initial = firstLoad;
         render(data.messages || [], 'p');
@@ -300,7 +357,10 @@
   async function loadTeamPeople() {
     try {
       const data = await getJSON('/company/chat/people?scope=team');
-      if (view === 'team') mentionPeople = (data.people || []).filter((p) => !p.is_me);
+      if (view === 'team') {
+        mentionPeople = (data.people || []).filter((p) => !p.is_me);
+        updateAvatarInstances(data.people || []);
+      }
     } catch (_) { /* menções ficam sem sugestões */ }
   }
 
@@ -337,7 +397,8 @@
       }
       holder.innerHTML = rows.map((item) => item.isGroup
         ? `<button class="dbm-chat-item ${view === 'cgroup' && groupId === Number(item.id) ? 'active' : ''}" type="button" data-group-id="${Number(item.id)}" data-search="${esc(item.name)}"><span class="dbm-avatar is-group">👥</span><span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`
-        : `<button class="dbm-chat-item ${contactId === item.contact_id ? 'active' : ''}" type="button" data-contact-id="${esc(item.contact_id)}" data-search="${esc(`${item.name} ${item.contact_id}`)}"><span class="dbm-avatar">${esc((item.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`).join('');
+        : `<button class="dbm-chat-item ${contactId === item.contact_id ? 'active' : ''}" type="button" data-contact-id="${esc(item.contact_id)}" data-search="${esc(`${item.name} ${item.contact_id}`)}">${avatarHtml(item)}<span class="dbm-chat-copy"><strong>${esc(item.name)}</strong><small>${esc(item.last_message || '')}</small></span><span class="dbm-chat-meta">${esc(hhmm(item.last_at))}${item.unread ? `<b class="dbm-unread">${Number(item.unread)}</b>` : ''}</span></button>`).join('');
+      updateAvatarInstances([...(data.conversations || []), ...(data.contacts || [])]);
       const q = ($('dbmChatSearch')?.value || '').trim().toLowerCase();
       if (q) holder.querySelectorAll('[data-search]').forEach((el) => { el.hidden = !el.dataset.search.toLowerCase().includes(q); });
     } catch (_) { /* tenta na próxima */ }
@@ -494,7 +555,7 @@
       const holder = $('dbmContactList');
       holder?.querySelector('.dbm-empty-side')?.remove();
       if (holder && !holder.querySelector(`[data-agenda-contact="${CSS.escape(data.contact.contact_id)}"]`)) {
-        holder.insertAdjacentHTML('beforeend', `<div class="dbm-contact-row" data-agenda-contact="${esc(data.contact.contact_id)}"><span class="dbm-avatar">${esc(data.contact.name.charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(data.contact.name)}</strong><small>${esc(data.contact.email || '')}</small><span class="dbm-contact-id">${esc(data.contact.contact_id)}</span></span><button type="button" data-start-contact="${esc(data.contact.contact_id)}">Conversar</button></div>`);
+        holder.insertAdjacentHTML('beforeend', `<div class="dbm-contact-row" data-agenda-contact="${esc(data.contact.contact_id)}">${avatarHtml(data.contact)}<span class="dbm-chat-copy"><strong>${esc(data.contact.name)}</strong><small>${esc(data.contact.email || '')}</small><span class="dbm-contact-id">${esc(data.contact.contact_id)}</span></span><button type="button" data-start-contact="${esc(data.contact.contact_id)}">Conversar</button></div>`);
       }
     } catch (err) {
       agendaMessage.textContent = err.message || 'Erro ao adicionar contato.'; agendaMessage.className = 'dbm-agenda-message error';
@@ -703,7 +764,7 @@
         if (!c?.contact_id || c.is_me || c.active === false) return;
         rows.push({contact_id: c.contact_id, name: c.name, sub: c.last_at ? `Última mensagem ${when(c.last_at)} • ${c.contact_id}` : `ID ${c.contact_id}`});
       });
-      holder.innerHTML = rows.map((c) => `<label class="dbm-fwd-row" data-fwd-search="${esc(`${c.name} ${c.contact_id}`.toLowerCase())}"><input type="checkbox" value="${esc(c.contact_id)}"><span class="dbm-avatar">${c.group ? '👥' : esc((c.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></span></label>`).join('') || '<div class="dbm-fwd-empty">Nenhum contato. Adicione pela agenda.</div>';
+      holder.innerHTML = rows.map((c) => `<label class="dbm-fwd-row" data-fwd-search="${esc(`${c.name} ${c.contact_id}`.toLowerCase())}"><input type="checkbox" value="${esc(c.contact_id)}">${c.group ? '<span class="dbm-avatar is-group">👥</span>' : avatarHtml(c)}<span class="dbm-chat-copy"><strong>${esc(c.name)}</strong><small>${esc(c.sub)}</small></span></label>`).join('') || '<div class="dbm-fwd-empty">Nenhum contato. Adicione pela agenda.</div>';
     } catch (_) { holder.innerHTML = '<div class="dbm-fwd-empty">Erro ao carregar os contatos.</div>'; }
   }
   function closeForward() { fwd?.classList.remove('open'); fwd?.setAttribute('aria-hidden', 'true'); }
@@ -849,7 +910,7 @@
 
   function renderMentions() {
     if (!mentionState || !mentionState.items.length) { closeMentions(); return; }
-    mentionPop.innerHTML = mentionState.items.map((it, i) => `<button type="button" class="dbm-mention-item ${i === mentionState.index ? 'active' : ''}" data-mention-index="${i}" role="option"><span class="dbm-avatar">${it.all ? '👥' : esc(String(it.name || '?').charAt(0).toUpperCase())}</span><span><strong>${esc(it.name)}</strong>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
+    mentionPop.innerHTML = mentionState.items.map((it, i) => `<button type="button" class="dbm-mention-item ${i === mentionState.index ? 'active' : ''}" data-mention-index="${i}" role="option">${it.all ? '<span class="dbm-avatar is-group">👥</span>' : avatarHtml(it)}<span><strong>${esc(it.name)}</strong>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('');
     mentionPop.hidden = false;
     mentionPop.querySelector('.active')?.scrollIntoView({block: 'nearest'});
   }
@@ -912,7 +973,7 @@
   function peopleRows(people, disabledIds = new Set()) {
     return people.filter((p) => !p.is_me).map((p) => {
       const off = disabledIds.has(p.contact_id);
-      return `<label class="dbm-fwd-row" data-group-search="${esc(`${p.name} ${p.contact_id}`.toLowerCase())}"><input type="checkbox" value="${esc(p.contact_id)}" ${off ? 'checked disabled' : ''}><span class="dbm-avatar">${esc(String(p.name || '?').charAt(0).toUpperCase())}</span><span class="dbm-chat-copy"><strong>${esc(p.name)}</strong><small>${off ? 'Já participa' : esc(p.contact_id)}</small></span></label>`;
+      return `<label class="dbm-fwd-row" data-group-search="${esc(`${p.name} ${p.contact_id}`.toLowerCase())}"><input type="checkbox" value="${esc(p.contact_id)}" ${off ? 'checked disabled' : ''}>${avatarHtml(p)}<span class="dbm-chat-copy"><strong>${esc(p.name)}</strong><small>${off ? 'Já participa' : esc(p.contact_id)}</small></span></label>`;
     }).join('') || '<div class="dbm-fwd-empty">Ninguém disponível. Adicione contatos pela agenda.</div>';
   }
 

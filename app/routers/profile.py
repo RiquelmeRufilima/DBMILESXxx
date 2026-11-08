@@ -7,17 +7,19 @@ import json
 import time
 import uuid
 from datetime import datetime
+import logging
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..config import PROFILE_UPLOAD_DIR, SECRET_KEY
+from ..config import PROFILE_UPLOAD_DIR, SECRET_KEY, IS_VERCEL
 from ..database import get_db
 from ..dependencies import current_user
-from ..models import WebUser
+from ..models import WebUser, UserChatContact
 from ..security import validate_csrf_token
 from ..services.realtime import manager, profile_event
 from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
@@ -25,6 +27,7 @@ from ..services.uploads import delete_relative_upload, save_upload_image
 from ..web import context, flash, templates
 
 router = APIRouter(tags=["profile"])
+logger = logging.getLogger(__name__)
 
 _ALLOWED_AVATAR_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 _MAX_AVATAR_BYTES = 10 * 1024 * 1024
@@ -88,6 +91,30 @@ def profile_page(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
     return templates.TemplateResponse(request, "profile/index.html", context(request, user=user))
+
+
+def _is_valid_avatar_image(content: bytes, content_type: str) -> bool:
+    # Confere cabeçalhos reais, sem confiar somente no Content-Type enviado.
+    return (
+        (content_type == "image/jpeg" and content.startswith(b"\xff\xd8\xff"))
+        or (content_type == "image/png" and content.startswith(b"\x89PNG\r\n\x1a\n"))
+        or (content_type == "image/webp" and content.startswith(b"RIFF") and content[8:12] == b"WEBP")
+    )
+
+
+def _replace_old_avatar(old_path: str | None, new_path: str | None) -> None:
+    """Apaga o objeto anterior somente depois do commit da nova foto."""
+    if not old_path or old_path == new_path:
+        return
+    try:
+        old_blob_url = _blob_url_from_avatar_path(old_path)
+        if old_blob_url:
+            blob_delete(old_blob_url)
+        else:
+            delete_relative_upload(old_path)
+    except Exception:
+        # O avatar novo já é válido; uma falha de limpeza não deve desfazer o perfil.
+        logger.exception("Falha ao excluir avatar antigo do armazenamento")
 
 
 @router.post("/profile/avatar-upload-intent")
@@ -161,6 +188,9 @@ async def avatar_upload_direct(request: Request, db: Session = Depends(get_db)):
     if len(content) > 1200 * 1024:
         return JSONResponse({"error": "A foto otimizada ficou muito grande. Escolha outra imagem."}, status_code=413)
 
+    if not _is_valid_avatar_image(content, content_type):
+        return JSONResponse({"error": "O arquivo não é uma imagem válida."}, status_code=400)
+
     ext = _ALLOWED_AVATAR_TYPES[content_type]
     pathname = f"users/{user.id}/avatars/{int(time.time())}-{uuid.uuid4().hex[:12]}{ext}"
     try:
@@ -191,7 +221,12 @@ async def serve_private_avatar(
     target = db.get(WebUser, int(avatar_user_id))
     if target is None:
         return Response(status_code=404)
-    if viewer.id != target.id and viewer.company_id != target.company_id:
+    same_company = bool(viewer.company_id and viewer.company_id == target.company_id)
+    saved_contact = bool(db.scalar(select(UserChatContact.id).where(
+        UserChatContact.owner_user_id == viewer.id,
+        UserChatContact.contact_user_id == target.id,
+    ))) if viewer.id != target.id and not same_company else False
+    if viewer.id != target.id and not same_company and not saved_contact:
         return Response(status_code=403)
 
     try:
@@ -199,6 +234,10 @@ async def serve_private_avatar(
     except Exception:
         return Response(status_code=404)
     if not _valid_blob_avatar_url(blob_url, target.id):
+        return Response(status_code=404)
+    # O proxy só atende o arquivo atualmente associado ao perfil. URLs de
+    # avatares antigos não permanecem válidas depois da substituição.
+    if not target.profile or target.profile.avatar_path != _blob_avatar_route(target.id, blob_url):
         return Response(status_code=404)
 
     # Avatar é pequeno e privado: fazemos o proxy autenticado pelo FastAPI.
@@ -210,7 +249,7 @@ async def serve_private_avatar(
     return Response(
         content=content,
         media_type=content_type or "image/webp",
-        headers={"Cache-Control": "private, max-age=300"},
+        headers={"Cache-Control": "private, max-age=60", "X-Content-Type-Options": "nosniff"},
     )
 
 
@@ -255,18 +294,42 @@ async def update_profile(request: Request, background_tasks: BackgroundTasks, db
             return RedirectResponse("/profile", status_code=303)
         avatar_path = _blob_avatar_route(user.id, avatar_blob_url)
     else:
-        # Mantém compatibilidade com localhost e instalações antigas.
+        # Compatibilidade sem JavaScript: upload persistente no Blob, quando
+        # disponível, e armazenamento local apenas fora da Vercel.
         upload = form.get("avatar")
-        try:
-            avatar_path = await save_upload_image(
-                upload if getattr(upload, "filename", None) else None,
-                PROFILE_UPLOAD_DIR,
-                max_bytes=4 * 1024 * 1024,
-                filename_prefix=f"user-{user.id}",
-            )
-        except ValueError as exc:
-            flash(request, str(exc), "error")
-            return RedirectResponse("/profile", status_code=303)
+        if getattr(upload, "filename", None):
+            if blob_ready():
+                content = await upload.read()
+                content_type = str(getattr(upload, "content_type", "") or "").lower().strip()
+                if (content_type not in _ALLOWED_AVATAR_TYPES
+                        or not content or len(content) > 1200 * 1024
+                        or not _is_valid_avatar_image(content, content_type)):
+                    flash(request, "Imagem inválida ou acima de 1,2 MB. Reduza a foto e tente novamente.", "error")
+                    return RedirectResponse("/profile", status_code=303)
+                ext = _ALLOWED_AVATAR_TYPES[content_type]
+                pathname = f"users/{user.id}/avatars/{int(time.time())}-{uuid.uuid4().hex[:12]}{ext}"
+                try:
+                    result = blob_put(pathname, content, content_type)
+                    blob_url = str(result.get("url") or result.get("downloadUrl") or "")
+                    if not _valid_blob_avatar_url(blob_url, user.id):
+                        raise ValueError("URL inesperada do armazenamento.")
+                    avatar_path = _blob_avatar_route(user.id, blob_url)
+                except Exception:
+                    logger.exception("Falha ao guardar avatar no Blob")
+                    flash(request, "Não foi possível salvar a foto. A anterior foi mantida.", "error")
+                    return RedirectResponse("/profile", status_code=303)
+            elif IS_VERCEL:
+                flash(request, "Configure o Vercel Blob para salvar fotos de perfil permanentemente.", "error")
+                return RedirectResponse("/profile", status_code=303)
+            else:
+                try:
+                    avatar_path = await save_upload_image(
+                        upload, PROFILE_UPLOAD_DIR,
+                        max_bytes=4 * 1024 * 1024, filename_prefix=f"user-{user.id}",
+                    )
+                except ValueError as exc:
+                    flash(request, str(exc), "error")
+                    return RedirectResponse("/profile", status_code=303)
 
     if avatar_path:
         old_path = user.profile.avatar_path
@@ -276,14 +339,9 @@ async def update_profile(request: Request, background_tasks: BackgroundTasks, db
     db.refresh(user)
     db.refresh(user.profile)
 
-    # Limpeza do avatar anterior acontece depois da resposta. Isso evita deixar
-    # o usuário preso em "Salvando informações..." caso o Blob demore.
-    if old_path and old_path != avatar_path:
-        old_blob_url = _blob_url_from_avatar_path(old_path)
-        if old_blob_url:
-            background_tasks.add_task(blob_delete, old_blob_url)
-        else:
-            background_tasks.add_task(delete_relative_upload, old_path)
+    # Limpeza confirmada antes do redirect: BackgroundTasks em serverless
+    # podem não executar depois da resposta HTTP.
+    _replace_old_avatar(old_path, avatar_path)
 
     if user.company_id:
         await manager.broadcast(user.company_id, profile_event(user))
@@ -310,11 +368,7 @@ async def remove_avatar(request: Request, background_tasks: BackgroundTasks, db:
     db.refresh(user)
     db.refresh(user.profile)
 
-    old_blob_url = _blob_url_from_avatar_path(old_path)
-    if old_blob_url:
-        background_tasks.add_task(blob_delete, old_blob_url)
-    else:
-        background_tasks.add_task(delete_relative_upload, old_path)
+    _replace_old_avatar(old_path, None)
 
     if user.company_id:
         await manager.broadcast(user.company_id, profile_event(user))

@@ -6,7 +6,7 @@
 <section class="page-heading inline"><div><span class="eyebrow">PERFIL</span><h1>Seu espaço dentro do DBMILESX.</h1><p>Atualize foto, nome, contato e cargo exibidos para sua equipe.</p></div><a class="secondary-button" href="/settings"><svg class="ui-icon"><use href="#icon-settings"></use></svg> Configurações</a></section>
 <section class="profile-layout">
   <aside class="panel profile-card">
-    {% if profile and profile.avatar_path %}<img class="profile-avatar" src="/{{ profile.avatar_path }}" alt="{{ user.name }}">{% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
+    {% if profile and profile.avatar_path %}<img class="profile-avatar" data-user-avatar-id="{{ user.id }}" data-user-name="{{ user.name }}" src="/{{ profile.avatar_path }}?v={{ (profile.updated_at.timestamp() * 1000)|int if profile.updated_at else 0 }}" alt="{{ user.name }}">{% else %}<div class="profile-avatar fallback">{{ user.name[:1]|upper }}</div>{% endif %}
     <h2>{{ user.name }}</h2><p>{{ profile.job_title or user.role|title }}</p><span class="badge custom">{{ user.role|title }}</span>
     <div class="profile-meta">
       <div><svg class="ui-icon"><use href="#icon-building"></use></svg><span>{{ user.company.name if user.company else 'Conta individual' }}</span></div>
@@ -16,9 +16,9 @@
   </aside>
   <article class="panel">
     <div class="panel-heading"><div><span class="eyebrow">DADOS PESSOAIS</span><h2>Editar perfil</h2></div></div>
-    <form id="profileForm" method="post" action="/profile" enctype="multipart/form-data" class="form-stack">
+    <form id="profileForm" method="post" action="/profile" enctype="multipart/form-data" class="form-stack" data-no-loader="1">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <div class="form-grid cols-2"><label>Nome<input name="name" value="{{ user.name }}" required></label><label>E-mail<input value="{{ user.email }}" disabled><small>O e-mail de login não é alterado aqui.</small></label></div>
+      <div class="form-grid cols-2"><label>Nome<input name="name" value="{{ user.name }}" minlength="2" required></label><label>E-mail<input value="{{ user.email }}" disabled><small>O e-mail de login não é alterado aqui.</small></label></div>
       <div class="form-grid cols-2"><label>Telefone<input name="phone" value="{{ user.phone or '' }}" placeholder="(85) 99999-9999"></label><label>Cargo / função<input name="job_title" value="{{ profile.job_title or '' }}" placeholder="Ex.: Emissor, CEO, Atendimento"></label></div>
       <div class="form-grid cols-2">
         <label>ID de contato
@@ -33,6 +33,7 @@
       <label>Sobre você<textarea name="bio" rows="4" placeholder="Opcional">{{ profile.bio or '' }}</textarea></label>
       <label>Foto de perfil
         <input id="avatarInput" type="file" name="avatar" accept="image/png,image/jpeg,image/webp">
+        <input id="avatarBlobUrl" type="hidden" name="avatar_blob_url" value="">
         <small id="avatarHelp">PNG, JPG ou WEBP. Fotos grandes serão reduzidas automaticamente antes do envio.</small>
       </label>
       <div id="avatarStatus" style="display:none;font-size:.9rem;opacity:.85"></div>
@@ -79,8 +80,14 @@
   const button = document.getElementById('saveProfileButton');
   if (!input || !form) return;
 
-  const MAX_DIMENSION = 1200;
-  const TARGET_BYTES = 1500 * 1024; // ~1,5 MB: fica bem abaixo do limite da Function da Vercel.
+  const MAX_DIMENSION = 1000;
+  const cloudField = document.getElementById('avatarBlobUrl');
+  const csrf = form.querySelector('[name="csrf_token"]')?.value || '';
+  let readyFile = null;
+  let preparing = null;
+  let saving = false;
+  let imageSelection = 0;
+  const TARGET_BYTES = 800 * 1024; // Caber no limite de 1,2 MB do endpoint e Vercel.
 
   function showStatus(message, isError = false) {
     if (!status) return;
@@ -133,9 +140,20 @@
 
     let quality = 0.88;
     let blob = await canvasToBlob(canvas, 'image/jpeg', quality);
-    while (blob.size > TARGET_BYTES && quality > 0.48) {
+    while (blob.size > TARGET_BYTES && quality > 0.4) {
       quality -= 0.08;
       blob = await canvasToBlob(canvas, 'image/jpeg', quality);
+    }
+    // Grandes PNGs/arte: reduzir a resolução, além da qualidade.
+    while (blob.size > TARGET_BYTES && canvas.width > 250) {
+      const previous = document.createElement('canvas');
+      previous.width = canvas.width;
+      previous.height = canvas.height;
+      previous.getContext('2d').drawImage(canvas, 0, 0);
+      canvas.width = Math.max(250, Math.round(previous.width * .8));
+      canvas.height = Math.max(250, Math.round(previous.height * .8));
+      canvas.getContext('2d').drawImage(previous, 0, 0, canvas.width, canvas.height);
+      blob = await canvasToBlob(canvas, 'image/jpeg', .75);
     }
 
     if (blob.size > TARGET_BYTES) {
@@ -146,27 +164,61 @@
     return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
   }
 
-  input.addEventListener('change', async () => {
+  input.addEventListener('change', () => {
     const original = input.files && input.files[0];
+    const selection = ++imageSelection;
+    readyFile = null;
     if (!original) return;
-
-    button && (button.disabled = true);
+    button.disabled = true;
     showStatus('Otimizando foto para envio...');
-
-    try {
-      const compressed = await compressAvatar(original);
-      const transfer = new DataTransfer();
-      transfer.items.add(compressed);
-      input.files = transfer.files;
-
+    preparing = compressAvatar(original).then((compressed) => {
+      if (selection !== imageSelection) return;
+      readyFile = compressed;
       const beforeMb = (original.size / 1024 / 1024).toFixed(1);
       const afterKb = Math.max(1, Math.round(compressed.size / 1024));
-      showStatus(`Foto pronta: ${beforeMb} MB → ${afterKb} KB.`);
-    } catch (error) {
+      showStatus(`Foto pronta para substituir a anterior: ${beforeMb} MB → ${afterKb} KB.`);
+    }).catch((error) => {
+      if (selection !== imageSelection) return;
+      readyFile = null;
       input.value = '';
       showStatus(error?.message || 'Não foi possível preparar a foto.', true);
-    } finally {
-      button && (button.disabled = false);
+    }).finally(() => { if (selection === imageSelection) { preparing = null; button.disabled = false; } });
+  });
+
+  form.addEventListener('submit', async (event) => {
+    if (saving) { event.preventDefault(); return; }
+    const requestedFile = input.files && input.files[0];
+    if (!requestedFile) return;
+    const name = String(form.querySelector('[name="name"]')?.value || '').trim();
+    if (name.length < 2) { event.preventDefault(); showStatus('Informe um nome com pelo menos 2 caracteres.', true); return; } // Salvar apenas texto sem alterar a foto.
+    event.preventDefault();
+    if (preparing) await preparing;
+    if (!readyFile) { showStatus('Selecione uma foto válida antes de salvar.', true); return; }
+    saving = true;
+    button.disabled = true;
+    input.disabled = true;
+    showStatus('Enviando foto para o armazenamento permanente...');
+    try {
+      const response = await fetch('/profile/avatar-upload-direct', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'image/jpeg', 'x-csrf-token': csrf },
+        body: readyFile,
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.url) throw new Error(result.error || 'Falha ao salvar a foto.');
+      // O POST final só leva a URL autenticada, nunca o arquivo temporário.
+      cloudField.value = result.url;
+      input.removeAttribute('name');
+      showStatus('Foto enviada. Atualizando perfil e excluindo a anterior...');
+      HTMLFormElement.prototype.submit.call(form);
+    } catch (error) {
+      input.setAttribute('name', 'avatar');
+      cloudField.value = '';
+      saving = false;
+      button.disabled = false;
+      input.disabled = false;
+      showStatus(error?.message || 'Falha ao substituir a foto. A anterior foi mantida.', true);
     }
   });
 })();

@@ -461,6 +461,27 @@
     }, true);
   })();
   </script>
+    {% if user %}<script>
+    // Se uma foto legada no disco temporário não existir mais, não exibir
+    // imagem quebrada. A inicial é mostrada até o próximo upload persistente.
+    document.addEventListener('error', function (event) {
+      const img = event.target;
+      if (!(img instanceof HTMLImageElement)) return;
+      const holder = img.closest('.card-user-avatar,.local-avatar,.dbm-avatar');
+      if (!img.hasAttribute('data-user-avatar-id') &&
+          !img.classList.contains('profile-avatar') && !holder) return;
+      const name = img.getAttribute('data-user-name') || img.alt || '?';
+      const initial = String(name).trim().charAt(0).toUpperCase() || '?';
+      if (holder) { img.replaceWith(document.createTextNode(initial)); return; }
+      const node = document.createElement(img.classList.contains('profile-avatar') ? 'div' : 'span');
+      node.className = img.className.replace(/\bavatar-image\b/g, '').trim();
+      if (img.classList.contains('profile-avatar')) node.classList.add('fallback');
+      node.textContent = initial;
+      if (img.dataset.userAvatarId) node.dataset.userAvatarId = img.dataset.userAvatarId;
+      node.dataset.userName = name;
+      img.replaceWith(node);
+    }, true);
+    </script>{% endif %}
     {% if user %}<script src="/static/js/chat-notifications.js?v=20261101a" defer></script><script src="/static/js/dbm-fast-navigation-20261101.js?v=1" defer></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>

@@ -122,6 +122,13 @@
 .dbm-edit-inline-actions{display:flex;justify-content:flex-end;gap:8px}.dbm-edit-inline-actions button{border:1px solid #416e89;padding:8px 12px;border-radius:8px;background:#173952;color:#e2f4ff;cursor:pointer}.dbm-edit-inline-actions button:last-child{background:#176cb7;color:white}
 html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c4dbea!important}html[data-theme="light"] .dbm-msg-menu button{color:#173951!important}html[data-theme="light"] .dbm-msg-menu button:hover{background:#e6f3ff!important}html[data-theme="light"] .dbm-msg-menu button.danger{color:#bd2949!important}html[data-theme="light"] .dbm-edit-inline textarea{background:#fff;color:#143650}
 
+
+/* Fotos de perfil: pessoas recebem avatar real, grupos mantêm ícone. */
+.dbm-avatar img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.dbm-msg-avatar{width:32px;height:32px;min-width:32px;border-radius:11px;align-self:flex-end;font-size:.75rem}
+.dbm-msg{align-items:flex-end;gap:7px}
+.dbm-msg.mine .dbm-msg-avatar{order:3}
+.dbm-msg .dbm-msg-bubble{min-width:0}
 </style>
 {% endblock %}
 
@@ -151,7 +158,7 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
         {% for item in conversations %}
         <button class="dbm-chat-item {% if selected_contact and selected_contact.contact_id == item.member.contact_id %}active{% endif %}"
           type="button" data-contact-id="{{ item.member.contact_id }}" data-search="{{ item.member.name }} {{ item.member.contact_id }}">
-          <span class="dbm-avatar">{{ item.member.name[:1]|upper }}</span>
+          <span class="dbm-avatar" data-user-avatar-id="{{ item.member.id }}" data-user-name="{{ item.member.name }}">{% if item.member.avatar_url %}<img src="{{ item.member.avatar_url }}" alt="{{ item.member.name }}">{% else %}{{ item.member.name[:1]|upper }}{% endif %}</span>
           <span class="dbm-chat-copy"><strong>{{ item.member.name }}</strong><small>{{ item.last_message }}</small></span>
           <span class="dbm-chat-meta">{{ item.last_at|brt('%H:%M') }}{% if item.unread %}<b class="dbm-unread">{{ item.unread }}</b>{% endif %}</span>
         </button>
@@ -170,7 +177,7 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
   <main class="dbm-chat-main">
     <header class="dbm-chat-header">
       <button class="dbm-chat-back" id="dbmChatBack" type="button">←</button>
-      <span class="dbm-avatar" id="dbmHeaderAvatar">{% if chat_view == 'team' and company %}{{ company.name[:1]|upper }}{% elif selected_contact %}{{ selected_contact.name[:1]|upper }}{% else %}C{% endif %}</span>
+      <span class="dbm-avatar" id="dbmHeaderAvatar">{% if chat_view == 'team' and company %}{{ company.name[:1]|upper }}{% elif selected_contact %}{% if selected_contact.avatar_url %}<img src="{{ selected_contact.avatar_url }}" alt="{{ selected_contact.name }}">{% else %}{{ selected_contact.name[:1]|upper }}{% endif %}{% else %}C{% endif %}</span>
       <div class="dbm-chat-header-copy">
         <strong id="dbmChatTitle">{% if chat_view == 'team' %}{{ company.name if company else 'Chat da equipe' }}{% elif selected_contact %}{{ selected_contact.name }}{% else %}Conversas{% endif %}</strong>
         <small id="dbmChatSubtitle">{% if chat_view == 'team' %}Grupo da empresa{% elif selected_contact %}{{ selected_contact.contact_id }} • Chat privado{% else %}Selecione um contato{% endif %}</small>
@@ -228,7 +235,7 @@ html[data-theme="light"] .dbm-msg-menu{background:#fff!important;border-color:#c
       {% if contacts %}
         {% for contact in contacts %}
         <div class="dbm-contact-row" data-agenda-contact="{{ contact.contact_id }}">
-          <span class="dbm-avatar">{{ contact.name[:1]|upper }}</span>
+          <span class="dbm-avatar" data-user-avatar-id="{{ contact.id }}" data-user-name="{{ contact.name }}">{% if contact.avatar_url %}<img src="{{ contact.avatar_url }}" alt="{{ contact.name }}">{% else %}{{ contact.name[:1]|upper }}{% endif %}</span>
           <span class="dbm-chat-copy"><strong>{{ contact.name }}</strong><small>{{ contact.email }}</small><span class="dbm-contact-id">{{ contact.contact_id }}</span></span>
           <button type="button" data-start-contact="{{ contact.contact_id }}">Conversar</button>
         </div>
