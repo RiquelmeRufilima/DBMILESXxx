@@ -1034,7 +1034,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
                     value="{{ quote.id }}"
                     form="{{ combine_form_id }}"
                     class="js-combine-check"
-                    data-combine-scope="{{ quote.combine_scope_key }}"
+                    data-combine-scope="{{ quote.combine_scope_key }}" data-combine-pax="{{ quote.passengers }}:{{ quote.babies }}"
                     data-combine-cost="{{ quote.total }}"
                     data-combine-sale="{{ quote.commercial.sale_value if quote.commercial and quote.commercial.sale_value is not none else quote.total }}"
                   >
@@ -1138,7 +1138,7 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
                 <strong>Juntar opções e somar valores</strong>
                 <span>MESMA COTAÇÃO</span>
               </div>
-              <small>Nas opções compatíveis aparece o botão <b>Selecionar para juntar</b>. Escolha <b>1 Só ida + 1 Só volta</b>, ou <b>Trechos diferentes</b> desta mesma cotação/subcotação. As opções originais permanecem salvas.</small>
+              <small>Nas opções compatíveis aparece o botão <b>Selecionar para juntar</b>. Escolha <b>SKIP + SKIP</b>, <b>SKIP + voo normal</b>, <b>ida + volta</b> ou <b>trechos diferentes</b>. Para cruzar subcotações, use a página “Opções por companhia”. As opções originais permanecem salvas.</small>
               <div class="combine-live">
                 <span>Selecionadas: <strong data-combine-count>0</strong></span>
                 <span>Custo somado: <strong data-combine-cost>R$ 0,00</strong></span>
@@ -1277,7 +1277,8 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
         scopes.every(scope => /^segment_\d+$/.test(scope)) &&
         uniqueScopes.size === selected.length;
 
-      const valid = roundPair || outboundSet || returnSet || segmentSet;
+      const mixedSet = selected.length >= 2 && scopes.every(scope => ['outbound','return'].includes(scope) || /^segment_\d+$/.test(scope));
+      const valid = (roundPair || outboundSet || returnSet || segmentSet || mixedSet) && new Set(selected.map(input => input.dataset.combinePax || '')).size <= 1;
       const cost = selected.reduce((sum, input) => sum + Number(input.dataset.combineCost || 0), 0);
       const sale = selected.reduce((sum, input) => sum + Number(input.dataset.combineSale || input.dataset.combineCost || 0), 0);
 
@@ -1302,6 +1303,9 @@ html[data-theme="light"] body .history-pager strong {color:#183b59!important}
       } else if(segmentSet){
         status.textContent = `Pronto: ${selected.length} trechos diferentes.`;
         submit.textContent = `Juntar ${selected.length} trechos`;
+      } else if(mixedSet){
+        status.textContent = `Pronto: ${selected.length} opções convencionais e/ou SKIPs.`;
+        submit.textContent = 'Juntar opções';
       } else if(selected.length === 0){
         status.textContent = 'Selecione as opções compatíveis.';
         submit.textContent = 'Juntar e somar';

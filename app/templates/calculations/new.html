@@ -706,7 +706,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
             </div>
             <div class="calc-scope-cards">
               {% for scope in route_scopes %}
-                {% if scope.key not in ['skip_normal', 'skip_inverse'] %}
+                {% if not scope.skip_mode %}
                 <button type="button" class="calc-scope-card {% if (selected_scope_key and selected_scope_key == scope.key) or (not selected_scope_key and loop.first) %}active{% endif %}" data-scope-key="{{ scope.key }}" data-departure-date="{{ scope.departure_date or '' }}" data-return-date="{{ scope.return_date or '' }}" data-requires-skip-airport="{{ '1' if scope.requires_skip_airport else '0' }}" data-skip-mode="{{ scope.skip_mode or '' }}" data-route-ready="1">
                   <span class="scope-icon-soft">{% if scope.key == 'round_trip' %}↔{% elif scope.key == 'outbound' or scope.key == 'one_way' %}→{% elif scope.key == 'return' %}←{% elif scope.key == 'multi_city' %}⋯{% else %}{{ loop.index }}{% endif %}</span>
                   <span class="scope-copy-soft">
@@ -723,16 +723,16 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
           {% if skip_scopes %}
           <section class="scope-category-block skip-category-block">
             <div class="scope-category-heading skip-category-heading">
-              <div><strong>Opções Skip</strong><small>Disponíveis tanto para cotações Só ida quanto para cotações Ida e volta.</small></div>
-              <span class="scope-availability-pill">Só ida + Ida e volta</span>
+              <div><strong>Opções Skip</strong><small>Escolha o trecho realmente VOADO: ida, volta ou uma perna do multitrecho. O outro trecho será NÃO VOADO.</small></div>
+              <span class="scope-availability-pill">Ida • Volta • Multitrecho</span>
             </div>
             <div class="calc-scope-cards skip-scope-cards">
               {% for scope in skip_scopes %}
                 <button type="button" class="calc-scope-card skip-scope-card {% if selected_scope_key == scope.key %}active{% endif %}" data-scope-key="{{ scope.key }}" data-departure-date="{{ scope.departure_date or '' }}" data-return-date="{{ scope.return_date or '' }}" data-requires-skip-airport="1" data-skip-mode="{{ scope.skip_mode or '' }}" data-route-ready="{{ '1' if scope.route_ready|default(false) else '0' }}">
-                  <span class="scope-icon-soft">{% if scope.key == 'skip_normal' %}⇥{% else %}⇤{% endif %}</span>
+                  <span class="scope-icon-soft">{% if scope.skip_mode == 'normal' %}⇥{% else %}⇤{% endif %}</span>
                   <span class="scope-copy-soft">
-                    <span class="scope-badge-soft">{% if scope.key == 'skip_normal' %}Skip normal{% else %}Skip inverso{% endif %}</span>
-                    <strong>{% if scope.key == 'skip_normal' %}Montar Skip normal{% else %}Montar Skip inverso{% endif %}</strong>
+                    <span class="scope-badge-soft">{% if scope.skip_mode == 'normal' %}Skip normal{% else %}Skip inverso{% endif %}</span>
+                    <strong>{{ scope.label }}</strong>
                     <small>{{ scope.hint }}</small>
                     {% if not scope.route_ready|default(false) %}<small class="scope-route-warning">Informe origem e destino em “Alterar cotação” para usar esta opção.</small>{% endif %}
                   </span>
@@ -1082,7 +1082,7 @@ document.addEventListener('person-selected', function(event) {
 
   function updateSkipPanel(key){
     const scope = scopeData.find(item => item && item.key === key) || {};
-    const isSkip = key === 'skip_normal' || key === 'skip_inverse';
+    const isSkip = Boolean(scope.skip_mode);
     const activeButton = grid.querySelector(`.calc-scope-card[data-scope-key="${key}"]`);
     const routeReady = !isSkip || activeButton?.dataset.routeReady === '1';
     if(skipPanel) skipPanel.hidden = !isSkip;
@@ -1101,8 +1101,8 @@ document.addEventListener('person-selected', function(event) {
     if(saveCalculationLabel) saveCalculationLabel.textContent = isSkip ? '{{ 'Salvar alteração do Skip' if option_id else 'Salvar opção Skip' }}' : '{{ 'Salvar alteração da opção' if option_id else 'Calcular e salvar opção' }}';
     if(!isSkip) return;
     const segments = Array.isArray(scope.segments) ? scope.segments.map(item => ({...item})) : [];
-    const editableIndex = key === 'skip_normal' ? 1 : 0;
-    const flownIndex = key === 'skip_normal' ? 0 : 1;
+    const editableIndex = scope.skip_mode === 'normal' ? 1 : 0;
+    const flownIndex = scope.skip_mode === 'normal' ? 0 : 1;
     const editable = segments[editableIndex] || {};
     const previousSkipKey = skipPanel?.dataset.activeSkipKey || '';
     const changedSkipMode = Boolean(previousSkipKey && previousSkipKey !== key);
@@ -1110,7 +1110,7 @@ document.addEventListener('person-selected', function(event) {
     if(skipEditOrigin && (changedSkipMode || !skipEditOrigin.value)) skipEditOrigin.value = editable.origin || '';
     if(skipEditDestination && (changedSkipMode || !skipEditDestination.value)) skipEditDestination.value = editable.destination || '';
     if(skipEditDate && (changedSkipMode || !skipEditDate.value)) skipEditDate.value = editable.date || '';
-    if(skipInput) skipInput.value = key === 'skip_normal' ? (skipEditDestination?.value || '') : (skipEditOrigin?.value || '');
+    if(skipInput) skipInput.value = scope.skip_mode === 'normal' ? (skipEditDestination?.value || '') : (skipEditOrigin?.value || '');
     if(skipPreview){
       skipPreview.replaceChildren();
       segments.forEach((segment,index) => {
@@ -1135,7 +1135,7 @@ document.addEventListener('person-selected', function(event) {
     const isReturn = key === 'return';
     const isRoundTrip = key === 'round_trip';
     const isMulti = key === 'multi_city';
-    const isSkip = key === 'skip_normal' || key === 'skip_inverse';
+    const isSkip = Boolean(scopeData.find(item => item && item.key === key)?.skip_mode);
 
     if(departureLabel){
       departureLabel.hidden = isReturn;

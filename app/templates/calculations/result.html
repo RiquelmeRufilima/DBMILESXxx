@@ -411,19 +411,20 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const name = {{ (quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name)|tojson }};
  const routeFallback = {{ ((quote.origin or '') ~ ' ✈️ ' ~ (quote.destination or ''))|tojson }};
  const scope = {{ (quote.scope_label or '')|tojson }};
+ const tripType = {{ (quote.trip.travel_type if quote.trip else 'one_way')|tojson }};
+ const combinedRecord = {{ (quote.is_combined or false)|tojson }};
+ const hasSkipComponents = {{ (quote.has_skip_components or false)|tojson }};
+ const clientTravelType = {{ ((quote.scope_data.get('client_travel_type') if quote.scope_data else none) or ('one_way' if quote.skip_mode else (quote.trip.travel_type if quote.trip else 'one_way')))|tojson }};
  const segments = {{ (quote.segment_rows or [])|tojson }};
+ const visibleSegments = (Array.isArray(segments)?segments:[]).filter(row=>row.status!=='not_flown');
  // Ida e volta (ou um único trecho): a rota da mensagem mostra só o 1º trecho,
  // ex.: "VCP ✈️ FOR" em vez de "VCP ✈️ VCP". Multitrecho mantém a rota completa.
  const route = (()=>{
-   const rows=Array.isArray(segments)?segments:[];
-   const first=rows[0];
+   const first=visibleSegments[0];
    if(!first)return routeFallback;
    const flight=first.flight||{};
    const origin=flight.origin||first.origin, destination=flight.destination||first.destination;
-   const last=rows[rows.length-1], lastFlight=last.flight||{};
-   const backHome=rows.length>1&&(lastFlight.destination||last.destination)===(first.origin||origin);
-   const useFirst=rows.length===1||/volta|round/i.test(scope)||backHome;
-   return useFirst&&origin&&destination&&origin!=='?'&&destination!=='?'?`${origin} ✈️ ${destination}`:routeFallback;
+   return origin && destination && origin!=='?' && destination!=='?' ? `${origin} ✈️ ${destination}`:routeFallback;
  })();
  let commercialMeta = {{ (commercial_meta or {})|tojson }};
  const skipRecord = {{ (quote.is_skip_record or false)|tojson }};
@@ -500,7 +501,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const showStopsOnly = document.getElementById('dbmMessageShowStops');
  // "📍 Informações sobre os voos": só as paradas de cada trecho (etapa 6).
  function stopsOnlyBlock(){
-   const rows=(Array.isArray(segments)?segments:[]).filter(r=>r&&r.status!=='not_flown');
+   const rows=clientLegs;
    if(!rows.length)return '';
    const label=(row,i)=>['outbound','one_way','ida'].includes(row.key)?'Ida':['return','volta'].includes(row.key)?'Volta':`Trecho ${row.segment||i+1}`;
    const lines=rows.map((row,i)=>{
@@ -517,8 +518,16 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  const msgShowFare = document.getElementById('dbmMessageShowFare');
  let itineraryData={};
  try { const raw=JSON.parse(includedBags||'{}');itineraryData=raw._itinerary_v1||{}; } catch(_){}
- const itinerarySides=Array.isArray(itineraryData.sides)?itineraryData.sides:[];
- const availableFlightOptions={{ (quote.flight_details or [])|tojson }};
+ const allItinerarySides=Array.isArray(itineraryData.sides)?itineraryData.sides:[];
+ // Evita vazar na mensagem os trechos NÃO VOADOS de uma opção Skip.
+ const clientLegs=clientTravelType==='multi_city'?visibleSegments:visibleSegments.slice(0,1);
+ const clientLegKeys=new Set(clientLegs.map(row=>String(row.key||'')));
+ const itinerarySides=allItinerarySides.filter((side,index)=>
+   !side || !(skipRecord||hasSkipComponents||combinedRecord) ? index<clientLegs.length : clientLegKeys.has(String(side.key||''))
+ );
+ const availableFlightOptions=({{ (quote.flight_details or [])|tojson }}).filter(option=>
+   option && clientLegKeys.has(String(option.segment_key||''))
+ );
  function chosenFlightOptions(){
    const seen=new Set(), answer=[];
    availableFlightOptions.filter(f=>f&&f.preferred).concat(availableFlightOptions).forEach(f=>{
@@ -702,7 +711,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
 
  function selectedPriceMode(){return document.querySelector('[name="dbmMessagePriceMode"]:checked')?.value||'total'}
  function sections(onlyFlown=false){
-   const rows = Array.isArray(segments)?segments:[];
+   const rows = visibleSegments;
    return rows.filter(row => !onlyFlown || row.status==='flown').map(row=>{
      const routeString=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
      const pieces=[`Trecho ${row.segment}`, routeString];
@@ -717,7 +726,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
  function skipFlightBlocks(){
    // Mensagem do cliente no Skip: mostra só o(s) trecho(s) efetivamente voado(s),
    // sem a rota completa do bilhete, sem "Trecho N" e sem a marca VOADO.
-   const rows=(Array.isArray(segments)?segments:[]).filter(row=>row.status==='flown');
+   const rows=visibleSegments;
    return rows.map(row=>{
      const routeString=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
      const times=Array.isArray(row.schedules)&&row.schedules.length?row.schedules:(row.display_date?[row.display_date]:[]);
@@ -748,7 +757,7 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const bagText=getBaggageLines();
    const optionalDetails=itineraryExtraDetails();
    const obs=note.value.trim();
-   const title = scope.match(/volta|round/i)?'IDA e VOLTA':'IDA';
+   const title = clientTravelType==='round_trip'?'IDA E VOLTA':(clientTravelType==='multi_city'?'MULTITRECHO':'SÓ IDA');
    const benefits=`✅ Todas as taxas inclusas\n✅ Suporte durante toda a viagem\n✅ Suporte jurídico\n${bagText}${optionalDetails}${obs?`✅ ${obs}\n`:''}`;
    let payText='';
    if(saleKnown()){
@@ -758,15 +767,17 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    const price=`👥 Valor total para ${people}.\n${saleKnown()?'\n'+discount+payText:''}`;
    const warning=`_⚠️ Os valores estão sujeitos a alterações a qualquer momento, sem aviso prévio, conforme a disponibilidade e atualização tarifária da companhia aérea._`;
    let header;
-   const skipBlocks=skipRecord?skipFlightBlocks():[];
-   if(skipRecord && skipBlocks.length){
-     header=`✈️ ${skipBlocks.length>1?'Voos':'Voo'} de *${title}*\n${skipBlocks.join('\n\n')}\n${showStopsOnly?.checked?'\n'+stopsOnlyBlock():''}`;
+   // Apenas multitrecho mostra todos os trechos VOADOS. Em só ida ou
+   // ida e volta, a mensagem contém apenas o primeiro trajeto voado.
+   if(clientTravelType==='multi_city'){
+     const blocks=skipFlightBlocks();
+     header=`✈️ Voos de *MULTITRECHO*\n${blocks.map((text,index)=>`Trecho ${index+1} • ${text}`).join('\n\n')}\n${showStopsOnly?.checked?'\n'+stopsOnlyBlock():''}`;
    } else {
-     const selectedFlights=sections(false);
-     // Com horário principal informado (etapa 6), o bloco 🕒 já mostra tudo: evita repetir.
-     const hasMainSchedule=chosenFlightOptions().some(o=>o.departure_time||o.arrival_time||o.departure_date);
-     const flightInfo=selectedFlights.length && showTimes.checked && !hasMainSchedule && !itinerarySides.some(s=>(s.legs||[]).some(l=>l.departure||l.arrival))?`\n🛫 *TRECHOS DO VOO*\n${selectedFlights.join('\n\n')}\n`:'';
-     header=`🛫 ${route}\n\n✈️ Voos de *${title}*\n${flightInfo}${showStopsOnly?.checked?'\n'+stopsOnlyBlock():''}`;
+     const first=visibleSegments[0];
+     const routeName=first?`${first.origin||'?'} ✈️ ${first.destination||'?'}`:route;
+     const times=first&&(showTimes.checked||skipRecord)?(Array.isArray(first.schedules)&&first.schedules.length?first.schedules:(first.display_date?[first.display_date]:[])):[];
+     const schedule=times.length?`\n${times.join('\n')}`:'';
+     header=`🛫 ${routeName}\n\n✈️ Voo de *${title}*${schedule}\n${showStopsOnly?.checked?'\n'+stopsOnlyBlock():''}`;
    }
    return `✈️ COTAÇÃO - *${name}*\n\n${header}\n${benefits}\n${price}\n${warning}`;
  }
@@ -869,11 +880,14 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      if(maxBag!==null)bagLine+=` • valor máximo: ${formatMoney(maxBag)}`;
      blocks.push(bagLine);
    }
-   if(skipRecord){
-     // Skip normal e invertido: os dois trechos, na ordem do bilhete.
+   if(combinedRecord){
+     blocks.push(`🔗 Opção combinada: ${visibleSegments.length} trecho(s) voado(s), custo consolidado ${formatMoney(cost)}`);
+   }
+   function addOperationalSegments(){
+     // Mostrar TODOS os trechos das emissões, sem ocultar o não voado.
      // Voado = com horários; não voado = com a data (importante para a emissão).
      const rows=(Array.isArray(segments)?segments:[]);
-     const skipLines=['⚡ Tipo: SKIP'];
+     const skipLines=[combinedRecord?'🔗 Trechos das emissões combinadas (operacional)':'⚡ Tipo: SKIP'];
      const parts=[];
      for(const row of rows){
        const routeName=row.route||`${row.origin||'?'} → ${row.destination||'?'}`;
@@ -886,6 +900,8 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      blocks.push(skipLines.concat(parts.length?[parts[0]]:[]).join('\n'));
      parts.slice(1).forEach(text=>blocks.push(text));
    }
+   if(skipRecord){addOperationalSegments();}
+   else if(hasSkipComponents || combinedRecord){addOperationalSegments();}
    const obs=note.value.trim();if(obs)blocks.push(`📝 ${obs}`);
    return blocks.join('\n\n');
  }

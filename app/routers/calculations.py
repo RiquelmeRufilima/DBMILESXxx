@@ -778,7 +778,7 @@ def _calculation_scopes(base: dict[str, Any]) -> list[dict[str, Any]]:
     if travel_type in {"one_way", "round_trip"}:
         scopes.append(scope_payload(
             "skip_normal",
-            "Skip normal",
+            "Skip normal • IDA",
             f"Trecho 1: {shown_origin} → {shown_destination} • Trecho 2: {shown_destination} → ?",
             [
                 {"key": "skip_normal_1", "origin": route_origin, "destination": route_destination, "date": base_date, "label": f"Trecho 1 • {shown_origin} → {shown_destination}"},
@@ -792,7 +792,7 @@ def _calculation_scopes(base: dict[str, Any]) -> list[dict[str, Any]]:
         scopes[-1]["route_ready"] = route_ready
         scopes.append(scope_payload(
             "skip_inverse",
-            "Skip inverso",
+            "Skip inverso • IDA",
             f"Trecho 1: ? → {shown_origin} • Trecho 2: {shown_origin} → {shown_destination}",
             [
                 {"key": "skip_inverse_1", "origin": "", "destination": route_origin, "date": "", "label": f"Trecho 1 • ? → {shown_origin}"},
@@ -804,6 +804,42 @@ def _calculation_scopes(base: dict[str, Any]) -> list[dict[str, Any]]:
             flown_segment=2,
         ))
         scopes[-1]["route_ready"] = route_ready
+
+    # Cada perna real pode ser a parte VOADA de uma emissão Skip. A chave
+    # independente evita tratar sempre a ida da cotação como trecho voado.
+    leg_choices = []
+    if travel_type == "round_trip" and len(segments) >= 2:
+        leg_choices.append(("return", segments[1], "VOLTA"))
+    elif travel_type == "multi_city":
+        leg_choices.extend((f"segment_{index}", segment, f"TRECHO {index}")
+                           for index, segment in enumerate(segments, start=1))
+    for suffix, leg, direction_label in leg_choices:
+        leg_origin = _required_iata_code(leg.get("origin"))
+        leg_destination = _required_iata_code(leg.get("destination"))
+        leg_date = str(leg.get("date") or "")
+        for mode in ("normal", "inverse"):
+            key = f"skip_{mode}_{suffix}"
+            if mode == "normal":
+                parts = [
+                    {"key": f"{key}_1", "origin": leg_origin, "destination": leg_destination, "date": leg_date, "label": "Trecho 1 • VOADO"},
+                    {"key": f"{key}_2", "origin": leg_destination, "destination": "", "date": "", "label": "Trecho 2 • NÃO VOADO"},
+                ]
+                flown = 1
+            else:
+                parts = [
+                    {"key": f"{key}_1", "origin": "", "destination": leg_origin, "date": "", "label": "Trecho 1 • NÃO VOADO"},
+                    {"key": f"{key}_2", "origin": leg_origin, "destination": leg_destination, "date": leg_date, "label": "Trecho 2 • VOADO"},
+                ]
+                flown = 2
+            scopes.append(scope_payload(
+                key, f"Skip {mode == 'inverse' and 'inverso' or 'normal'} • {direction_label}",
+                f"{direction_label}: {leg_origin or '?'} → {leg_destination or '?'} (voado)",
+                parts, departure_date=leg_date if flown == 1 else "",
+                return_date=leg_date if flown == 2 else "",
+                requires_skip_airport=True, skip_mode=mode, flown_segment=flown,
+            ))
+            scopes[-1]["route_ready"] = bool(leg_origin and leg_destination)
+            scopes[-1]["skip_direction"] = suffix
     return scopes
 
 
@@ -858,6 +894,7 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
     quote.skip_commission_value = 0.0
     quote.skip_record_value = 0.0
     quote.is_skip_record = False
+    quote.has_skip_components = False
     quote.operation_scope = ""
     quote.operation_scope_label = ""
     quote.partner_airline = ""
@@ -918,7 +955,16 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
         raw_combine_scope = str(scope_data.get("key") or "").strip().lower()
         label_bucket = _scope_bucket_key(getattr(quote, "scope_label", ""))
 
-        if raw_combine_scope in {"outbound", "return"}:
+        if str(scope_data.get("skip_mode") or ""):
+            direction = str(scope_data.get("skip_direction") or "").strip().lower()
+            if not direction:
+                if raw_combine_scope.endswith("_return"):
+                    direction = "return"
+                else:
+                    found_segment = re.search(r"_segment_(\d+)$", raw_combine_scope)
+                    direction = f"segment_{found_segment.group(1)}" if found_segment else "outbound"
+            quote.combine_scope_key = direction
+        elif raw_combine_scope in {"outbound", "return"}:
             quote.combine_scope_key = raw_combine_scope
         elif re.fullmatch(r"segment_\d+", raw_combine_scope):
             quote.combine_scope_key = raw_combine_scope
@@ -960,7 +1006,7 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
         quote.scope_segments = [dict(item) for item in raw_scope_segments if isinstance(item, dict)]
         quote.scope_route_chips = []
         quote.scope_route_items = []
-        for idx, segment in enumerate(quote.scope_segments[:12], start=1):
+        for idx, segment in enumerate(quote.scope_segments[:24], start=1):
             origin = _clean_code(segment.get("origin")) or "?"
             destination = _clean_code(segment.get("destination")) or "?"
             label = f"Trecho {idx} • {origin} → {destination}"
@@ -968,6 +1014,8 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
             status = "neutral"
             if quote.skip_mode:
                 status = "flown" if quote.flown_segment == idx else "not_flown"
+            elif segment.get("status") in {"flown", "not_flown"}:
+                status = str(segment["status"])
             quote.scope_route_items.append({"label": label, "status": status, "segment": idx})
 
         skip_financial = data.get("_skip_financial") if isinstance(data.get("_skip_financial"), dict) else {}
@@ -980,6 +1028,10 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
         except (TypeError, ValueError):
             quote.skip_commission_value = 0.0
         quote.is_skip_record = bool(quote.skip_mode)
+        quote.has_skip_components = bool(
+            quote.is_combined and any(isinstance(seg, dict) and seg.get("status") == "not_flown"
+                                      for seg in quote.scope_segments)
+        )
         partnership = data.get("_partnership") if isinstance(data.get("_partnership"), dict) else {}
         quote.operation_scope = str(partnership.get("operation_scope") or "").strip().lower()
         quote.operation_scope_label = {"national": "Nacional", "international": "Internacional"}.get(quote.operation_scope, "")
@@ -1269,7 +1321,7 @@ def _quote_flight_details(quote: WebQuote, data: dict[str, Any], scope_data: dic
     trip_segments = _safe_json(getattr(trip, "segments_json", None), []) if trip else []
     source_segments = selected_segments or (trip_segments if isinstance(trip_segments, list) else [])
     details: list[dict[str, Any]] = []
-    for idx, segment in enumerate(source_segments[:12]):
+    for idx, segment in enumerate(source_segments[:24]):
         if not isinstance(segment, dict):
             continue
         key = str(segment.get("key") or ("outbound" if idx == 0 else ("return" if idx == 1 and scope_key == "round_trip" else f"segment_{idx+1}")))
@@ -1957,7 +2009,7 @@ def _history_segment_rows(
     raw_segments = segments if isinstance(segments, list) else []
     raw_details = details if isinstance(details, list) else []
     rows: list[dict[str, Any]] = []
-    for idx, segment in enumerate(raw_segments[:12], start=1):
+    for idx, segment in enumerate(raw_segments[:24], start=1):
         if not isinstance(segment, dict):
             continue
         key = str(segment.get("key") or f"segment_{idx}")
@@ -1966,6 +2018,8 @@ def _history_segment_rows(
         status = "neutral"
         if skip_mode:
             status = "flown" if int(flown_segment or 0) == idx else "not_flown"
+        elif segment.get("status") in {"flown", "not_flown"}:
+            status = str(segment["status"])
         key_norm = str(key).strip().lower()
         aliases = {key_norm, f"segment_{idx}", f"trecho_{idx}", str(idx)}
         if idx == 1:
@@ -1980,7 +2034,7 @@ def _history_segment_rows(
             if detail_key in aliases or (not detail_key and detail_index == idx):
                 matched.append(item)
         # Em Skip, horário pertence apenas ao trecho efetivamente utilizado.
-        if skip_mode and status != "flown":
+        if status == "not_flown":
             matched = []
         schedules = [text for text in (_detail_schedule_text(item) for item in matched) if text]
         fallback_date = _clean_date_value(segment.get("date"))
@@ -1995,7 +2049,7 @@ def _history_segment_rows(
             fallback_date = _clean_date_value(skip_date)
 
         display_date = _display_full_date(fallback_date)
-        if not schedules and display_date and (not skip_mode or status == "flown"):
+        if not schedules and display_date and status != "not_flown":
             schedules = [display_date]
         # Voo exibido no bloco visual: a alternativa destacada (ou a primeira).
         flight = next((item for item in matched if item.get("preferred")), matched[0] if matched else None)
@@ -3112,7 +3166,7 @@ def _new_calculation_impl(
             option_bags=option_bags,
             option_meta=(field_values.get("_meta", {}) if isinstance(field_values.get("_meta"), dict) else {}),
             route_scopes=route_scopes,
-            skip_scopes=[scope for scope in route_scopes if scope.get("key") in {"skip_normal", "skip_inverse"}],
+            skip_scopes=[scope for scope in route_scopes if str(scope.get("key") or "").startswith(("skip_normal", "skip_inverse"))],
             selected_scope_key=selected_scope_key,
             option_departure_date=option_departure_date,
             option_return_date=option_return_date,
@@ -3124,7 +3178,7 @@ def _new_calculation_impl(
             saved_skip_origin=str(saved_scope.get("editable_origin") or ""),
             saved_skip_destination=str(saved_scope.get("editable_destination") or saved_scope.get("extra_airport") or ""),
             saved_skip_date=str(saved_scope.get("editable_date") or ""),
-            saved_skip_value=str((field_values.get("_skip_financial", {}) if isinstance(field_values.get("_skip_financial"), dict) else {}).get("value") or (edit_option.total if edit_option and selected_scope_key in {"skip_normal", "skip_inverse"} else "")),
+            saved_skip_value=str((field_values.get("_skip_financial", {}) if isinstance(field_values.get("_skip_financial"), dict) else {}).get("value") or (edit_option.total if edit_option and selected_scope_key.startswith(("skip_normal", "skip_inverse")) else "")),
             saved_skip_commission=str((field_values.get("_skip_financial", {}) if isinstance(field_values.get("_skip_financial"), dict) else {}).get("commission") or ""),
             operation_profile=_airline_operation_profile(selected_airline),
             partnership_meta=partnership_meta,
@@ -3185,9 +3239,9 @@ def _sync_primary_options_with_group(db: Session, group: QuoteGroup, trip: Quote
         if extra_airport:
             new_scope["extra_airport"] = extra_airport
             segments = [dict(item) for item in (new_scope.get("segments") or []) if isinstance(item, dict)]
-            if scope_key == "skip_normal" and len(segments) > 1:
+            if scope_key.startswith("skip_normal") and len(segments) > 1:
                 segments[1]["destination"] = extra_airport
-            elif scope_key == "skip_inverse" and segments:
+            elif scope_key.startswith("skip_inverse") and segments:
                 segments[0]["origin"] = extra_airport
             new_scope["segments"] = segments
         for keep in ("skip_mode", "flown_segment"):
@@ -3223,7 +3277,7 @@ def _sync_primary_options_with_group(db: Session, group: QuoteGroup, trip: Quote
             scope_segments = new_segments
             option_trip.travel_type = (
                 "round_trip" if scope_key == "round_trip"
-                else ("multi_city" if scope_key in {"multi_city", "skip_normal", "skip_inverse"} or len(scope_segments) > 1 else "one_way")
+                else ("multi_city" if (scope_key == "multi_city" or scope_key.startswith(("skip_normal", "skip_inverse"))) or len(scope_segments) > 1 else "one_way")
             )
             option_trip.departure_date = str(new_scope.get("departure_date") or trip.departure_date or "")[:20] or None
             option_trip.return_date = str(new_scope.get("return_date") or "")[:20] or None
@@ -3590,7 +3644,7 @@ async def save_group_variant(group_id: int, request: Request, db: Session = Depe
         raw_segments = []
     normalized_segments: list[dict[str, Any]] = []
     if travel_type == "multi_city":
-        for segment in raw_segments[:12]:
+        for segment in raw_segments[:24]:
             if not isinstance(segment, dict):
                 continue
             segment_origin = _iata_list_value(segment.get("origin"))
@@ -3743,7 +3797,7 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     selected_scope = _scope_from_key(base_for_scope, str(form.get("scope_key") or ""))
     selected_segments = [dict(segment) for segment in (selected_scope.get("segments") or [])]
     scope_key = str(selected_scope.get("key") or "one_way")
-    is_skip_record = scope_key in {"skip_normal", "skip_inverse"}
+    is_skip_record = scope_key.startswith("skip_normal") or scope_key.startswith("skip_inverse")
     option_departure_date = str(form.get("option_departure_date") or "").strip()
     option_return_date = str(form.get("option_return_date") or "").strip()
     dates_touched = str(form.get("option_dates_touched") or "0") == "1"
@@ -3753,8 +3807,10 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     skip_airport = ""
 
     if is_skip_record:
-        route_origin = _required_iata_code(base_for_scope.get("origin"))
-        route_destination = _required_iata_code(base_for_scope.get("destination"))
+        flown_index = max(0, int(selected_scope.get("flown_segment") or 1) - 1)
+        flown_leg = selected_segments[flown_index] if len(selected_segments) > flown_index else {}
+        route_origin = _required_iata_code(flown_leg.get("origin"))
+        route_destination = _required_iata_code(flown_leg.get("destination"))
         if not route_origin or not route_destination:
             flash(request, "Para usar Skip, altere a cotação e informe origem e destino válidos.", "error")
             return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&edit_base=1", status_code=303)
@@ -3774,17 +3830,17 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
         if set(_iata_codes(skip_edit_origin)) == set(_iata_codes(skip_edit_destination)):
             flash(request, "Origem e destino do trecho não voado precisam ser diferentes.", "error")
             return RedirectResponse(f"/calculations/new?group_id={group.id}&variant_key={variant_key}&calc=1", status_code=303)
-        if scope_key == "skip_normal" and len(selected_segments) > 1:
+        if scope_key.startswith("skip_normal") and len(selected_segments) > 1:
             selected_segments[1]["origin"] = skip_edit_origin
             selected_segments[1]["destination"] = skip_edit_destination
             selected_segments[1]["date"] = skip_edit_date
             selected_segments[1]["label"] = f"Trecho 2 • {skip_edit_origin} → {skip_edit_destination}"
-        elif scope_key == "skip_inverse" and selected_segments:
+        elif scope_key.startswith("skip_inverse") and selected_segments:
             selected_segments[0]["origin"] = skip_edit_origin
             selected_segments[0]["destination"] = skip_edit_destination
             selected_segments[0]["date"] = skip_edit_date
             selected_segments[0]["label"] = f"Trecho 1 • {skip_edit_origin} → {skip_edit_destination}"
-        skip_airport = skip_edit_destination if scope_key == "skip_normal" else skip_edit_origin
+        skip_airport = skip_edit_destination if scope_key.startswith("skip_normal") else skip_edit_origin
 
     if scope_key == "round_trip":
         if selected_segments:
@@ -3802,10 +3858,10 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
             selected_segments[0]["date"] = option_departure_date
         if len(selected_segments) > 1 and option_return_date:
             selected_segments[-1]["date"] = option_return_date
-    elif scope_key == "skip_normal":
+    elif scope_key.startswith("skip_normal"):
         if selected_segments and option_departure_date:
             selected_segments[0]["date"] = option_departure_date
-    elif scope_key == "skip_inverse":
+    elif scope_key.startswith("skip_inverse"):
         if len(selected_segments) > 1 and option_return_date:
             selected_segments[1]["date"] = option_return_date
     else:
@@ -3839,12 +3895,12 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
             option_departure_date = next((str(item.get("departure_date") or "") for item in flight_details if item.get("segment_key") != "return" and item.get("departure_date")), "")
         if scope_key == "round_trip" and not option_return_date:
             option_return_date = next((str(item.get("departure_date") or "") for item in flight_details if item.get("segment_key") == "return" and item.get("departure_date")), "")
-        if scope_key in {"multi_city", "skip_normal", "skip_inverse"} and len(selected_segments) > 1 and not option_return_date:
+        if (scope_key == "multi_city" or scope_key.startswith(("skip_normal", "skip_inverse"))) and len(selected_segments) > 1 and not option_return_date:
             last_key = str(selected_segments[-1].get("key") or "")
             option_return_date = next((str(item.get("departure_date") or "") for item in flight_details if item.get("segment_key") == last_key and item.get("departure_date")), "")
-        if selected_segments and option_departure_date:
+        if selected_segments and option_departure_date and (not is_skip_record or int(selected_scope.get("flown_segment") or 1) == 1):
             selected_segments[0]["date"] = option_departure_date
-        if scope_key in {"round_trip", "multi_city", "skip_normal", "skip_inverse"} and len(selected_segments) > 1 and option_return_date:
+        if (scope_key in {"round_trip", "multi_city"} or is_skip_record) and len(selected_segments) > 1 and option_return_date and (not is_skip_record or int(selected_scope.get("flown_segment") or 1) == 2):
             selected_segments[-1]["date"] = option_return_date
 
     airline = db.scalar(
@@ -3918,6 +3974,7 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
         "return_date": option_return_date,
         "requires_skip_airport": bool(selected_scope.get("requires_skip_airport")),
         "skip_mode": str(selected_scope.get("skip_mode") or ""),
+        "skip_direction": str(selected_scope.get("skip_direction") or ("return" if scope_key.endswith("_return") else (scope_key.rsplit("_", 2)[-2] + "_" + scope_key.rsplit("_", 1)[-1] if re.search(r"_segment_\d+$", scope_key) else "outbound"))),
         "extra_airport": skip_airport,
         "editable_origin": skip_edit_origin,
         "editable_destination": skip_edit_destination,
@@ -4084,7 +4141,7 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     base_trip = group.trip
     if scope_key == "round_trip":
         trip.travel_type = "round_trip"
-    elif scope_key in {"multi_city", "skip_normal", "skip_inverse"} or (scope_key.startswith("segment_") and len(selected_segments) > 1):
+    elif (scope_key == "multi_city" or scope_key.startswith(("skip_normal", "skip_inverse"))) or (scope_key.startswith("segment_") and len(selected_segments) > 1):
         trip.travel_type = "multi_city"
     else:
         trip.travel_type = "one_way"
@@ -4092,7 +4149,7 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     first_segment_date = selected_segments[0].get("date") if selected_segments else None
     last_segment_date = selected_segments[-1].get("date") if len(selected_segments) > 1 else None
     trip.departure_date = first_segment_date or (option_return_date if scope_key == "return" else option_departure_date) or None
-    trip.return_date = (option_return_date or last_segment_date or None) if scope_key in {"round_trip", "multi_city", "skip_normal", "skip_inverse"} else None
+    trip.return_date = (option_return_date or last_segment_date or None) if (scope_key in {"round_trip", "multi_city"} or scope_key.startswith(("skip_normal", "skip_inverse"))) else None
     trip.segments_json = json.dumps(selected_segments, ensure_ascii=False) if selected_segments else (base_trip.segments_json if base_trip else "[]")
     trip.client_name = base_trip.client_name if base_trip else None
     trip.client_email = base_trip.client_email if base_trip else None
@@ -5822,7 +5879,7 @@ async def save_option_profit(
 
 @router.post("/option/{quote_id}/duplicate")
 async def duplicate_option(quote_id: int, request: Request, db: Session = Depends(get_db)):
-    """Duplica um voo/cálculo dentro da mesma cotação e subcotação."""
+    """Copia uma opção para uma ou várias variantes do MESMO grupo autorizado."""
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
@@ -5831,92 +5888,91 @@ async def duplicate_option(quote_id: int, request: Request, db: Session = Depend
         flash(request, "Sessão expirada.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
     source = db.scalar(
-        select(WebQuote)
-        .where(WebQuote.id == quote_id)
+        select(WebQuote).where(WebQuote.id == quote_id)
         .options(selectinload(WebQuote.trip), selectinload(WebQuote.commercial))
     )
     link = db.get(QuoteOptionIndex, quote_id)
     if not _quote_allowed(user, source) or link is None:
         flash(request, "Opção calculada não encontrada.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
-    group = db.get(QuoteGroup, link.group_id)
+    group = db.scalar(select(QuoteGroup).where(QuoteGroup.id == link.group_id)
+                      .options(selectinload(QuoteGroup.trip)))
     if not _group_allowed(user, group):
         flash(request, "Cotação principal não encontrada.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
-    clone = WebQuote(
-        user_id=user.id,
-        company_id=user.company_id,
-        airline_id=source.airline_id,
-        calculation_type_id=source.calculation_type_id,
-        quote_name=source.quote_name,
-        origin=source.origin,
-        destination=source.destination,
-        passengers=source.passengers,
-        babies=source.babies,
-        bags=source.bags,
-        currency=source.currency,
-        input_json=source.input_json,
-        breakdown_json=source.breakdown_json,
-        total=source.total,
-    )
-    db.add(clone)
-    db.flush()
-    if source.trip:
-        db.add(QuoteTripDetail(
-            quote_id=clone.id,
-            travel_type=source.trip.travel_type,
-            departure_date=source.trip.departure_date,
-            return_date=source.trip.return_date,
-            segments_json=source.trip.segments_json,
-            client_person_id=source.trip.client_person_id,
-            client_name=source.trip.client_name,
-            client_email=source.trip.client_email,
-            client_phone=source.trip.client_phone,
-            notes=source.trip.notes,
-        ))
-    if source.commercial:
-        db.add(QuoteCommercial(
-            quote_id=clone.id, sale_value=source.commercial.sale_value,
-            cost_basis=source.commercial.cost_basis, profit_value=source.commercial.profit_value,
-            profit_percent=source.commercial.profit_percent, sent_to_client_at=source.commercial.sent_to_client_at,
-            card_installments=source.commercial.card_installments or 1,
-            card_interest_mode=source.commercial.card_interest_mode or "cash",
-            card_total_value=source.commercial.card_total_value,
-            card_installment_value=source.commercial.card_installment_value,
-            card_difference_value=source.commercial.card_difference_value,
-            observations=source.commercial.observations,
-        ))
+    source_data = _quote_input_data(source)
+    source_variant = source_data.get("_variant") if isinstance(source_data.get("_variant"), dict) else {}
+    targets = form.getlist("target_variant_keys") or [
+        str(form.get("target_variant_key") or source_variant.get("key") or "primary")
+    ]
+    targets = list(dict.fromkeys(str(value).strip() for value in targets if str(value).strip()))
+    available = {str(v["key"]): v for v in _group_variant_cards(group)}
+    if not targets or len(targets) > 20 or any(target not in available for target in targets):
+        flash(request, "Escolha uma ou mais subcotações válidas dentro desta cotação.", "error")
+        return RedirectResponse(f"/calculations/group/{group.id}", status_code=303)
     positions = db.scalars(select(QuoteOptionIndex).where(QuoteOptionIndex.group_id == group.id)).all()
-    max_position = max((item.position for item in positions), default=0)
-    db.add(QuoteOptionIndex(quote_id=clone.id, group_id=group.id, position=max_position + 1))
+    next_position = max((int(item.position or 0) for item in positions), default=0)
+    for target_key in targets:
+        clone_values = dict(source_data)
+        clone_values["_variant"] = {"key": target_key, "name": available[target_key].get("name") or "Cotação principal"}
+        clone_values["_copied_from"] = {"quote_id": source.id, "variant_key": str(source_variant.get("key") or "primary")}
+        clone = WebQuote(
+            user_id=user.id, company_id=user.company_id, airline_id=source.airline_id,
+            calculation_type_id=source.calculation_type_id,
+            quote_name=source.quote_name, origin=source.origin, destination=source.destination,
+            passengers=source.passengers, babies=source.babies, bags=source.bags,
+            currency=source.currency, input_json=json.dumps(clone_values, ensure_ascii=False),
+            breakdown_json=source.breakdown_json, total=source.total,
+        )
+        db.add(clone)
+        db.flush()
+        if source.trip:
+            db.add(QuoteTripDetail(
+                quote_id=clone.id, travel_type=source.trip.travel_type,
+                departure_date=source.trip.departure_date, return_date=source.trip.return_date,
+                segments_json=source.trip.segments_json,
+                client_person_id=source.trip.client_person_id, client_name=source.trip.client_name,
+                client_email=source.trip.client_email, client_phone=source.trip.client_phone,
+                notes=source.trip.notes,
+            ))
+        if source.commercial:
+            db.add(QuoteCommercial(
+                quote_id=clone.id, sale_value=source.commercial.sale_value,
+                cost_basis=source.commercial.cost_basis,
+                profit_value=source.commercial.profit_value,
+                profit_percent=source.commercial.profit_percent,
+                sent_to_client_at=None,
+                card_installments=source.commercial.card_installments or 1,
+                card_interest_mode=source.commercial.card_interest_mode or "cash",
+                card_total_value=source.commercial.card_total_value,
+                card_installment_value=source.commercial.card_installment_value,
+                card_difference_value=source.commercial.card_difference_value,
+                observations=source.commercial.observations,
+            ))
+        next_position += 1
+        db.add(QuoteOptionIndex(quote_id=clone.id, group_id=group.id, position=next_position))
     group.updated_at = datetime.utcnow()
     db.commit()
-    flash(request, "Voo/cálculo duplicado dentro da mesma cotação. Abra a cópia para alterar tarifa, datas, horários ou valores.", "success")
-    return RedirectResponse(f"/calculations/new?group_id={group.id}&edit_id={clone.id}&calc=1", status_code=303)
-
+    flash(request, f"Opção duplicada para {len(targets)} cotação(ões)/subcotação(ões). Original preservada.", "success")
+    return RedirectResponse(f"/calculations/group/{group.id}", status_code=303)
 
 
 @router.post("/group/{group_id}/combine")
 async def combine_group_options(group_id: int, request: Request, db: Session = Depends(get_db)):
-    """Junta opções compatíveis da MESMA cotação e soma os valores.
+    """Junta SKIPs e opções convencionais vinculados ao mesmo grupo.
 
-    Permitido:
-    - 1 opção Só ida + 1 opção Só volta;
-    - 2 ou mais opções Só ida;
-    - 2 ou mais opções Só volta;
-    - 2 ou mais Trechos diferentes (Trecho 1 + Trecho 2 + ...).
-
-    Nunca mistura grupos/cotações diferentes e nunca mistura subcotações
-    diferentes dentro do mesmo grupo.
+    Permite cruzar cotação principal/subcotações, conservando os trechos
+    não voados para a operação, e identificando apenas os voados ao cliente.
     """
     user = current_user(request, db)
     if user is None:
         return RedirectResponse("/login", status_code=303)
 
     form = await request.form()
+    redirect_path = f"/calculations/group/{group_id}" if str(form.get("return_to") or "") == "group" else "/calculations/history"
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
         flash(request, "Sessão expirada. Atualize a página e tente novamente.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
 
     group = db.scalar(
         select(QuoteGroup)
@@ -5925,7 +5981,7 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
     )
     if not _group_allowed(user, group):
         flash(request, "Cotação principal não encontrada.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
 
     raw_ids = form.getlist("quote_ids")
     quote_ids: list[int] = []
@@ -5939,10 +5995,10 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
 
     if len(quote_ids) < 2:
         flash(request, "Selecione pelo menos duas opções para juntar.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
     if len(quote_ids) > 12:
         flash(request, "Você pode juntar no máximo 12 trechos por vez.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
 
     # Segurança principal: todos os IDs precisam estar vinculados ao MESMO grupo.
     links = list(
@@ -5957,7 +6013,7 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
     linked_ids = {int(link.quote_id) for link in links}
     if linked_ids != set(quote_ids):
         flash(request, "Só é possível juntar opções da mesma cotação criada.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
 
     access_filter = WebQuote.company_id == user.company_id if user.company_id else WebQuote.user_id == user.id
     source_quotes = list(
@@ -5976,61 +6032,53 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
     by_id = {int(item.id): item for item in source_quotes}
     if set(by_id) != set(quote_ids):
         flash(request, "Uma das opções selecionadas não está mais disponível.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
 
     source_quotes = [_decorate_quote_scope(by_id[item_id], group) for item_id in quote_ids]
 
+    # Uma combinação antiga já pode conter vários trechos. É mantida como
+    # opção separada para evitar misturar novamente passagens já somadas.
     if any(getattr(item, "is_combined", False) for item in source_quotes):
-        flash(request, "Uma opção já combinada não pode ser combinada novamente.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        flash(request, "Selecione as emissões originais; uma combinação pronta não pode ser recombinada.", "error")
+        return RedirectResponse(redirect_path, status_code=303)
 
-    variant_keys = {str(getattr(item, "variant_key", "primary") or "primary") for item in source_quotes}
-    if len(variant_keys) != 1:
-        flash(request, "As opções precisam pertencer à mesma cotação/subcotação.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
-    variant_key = next(iter(variant_keys))
-
+    allowed_variants = {str(item["key"]): item for item in _group_variant_cards(group)}
+    destination_variant = str(form.get("target_variant_key") or "primary").strip()
+    if destination_variant not in allowed_variants:
+        flash(request, "Escolha uma cotação/subcotação válida para salvar a combinação.", "error")
+        return RedirectResponse(redirect_path, status_code=303)
+    variant_key = destination_variant
     scope_keys = [str(getattr(item, "combine_scope_key", "") or "") for item in source_quotes]
     if any(not key for key in scope_keys):
-        flash(request, "Só é possível juntar Só ida + Só volta ou Trechos diferentes.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        flash(request, "Selecione somente opções de um trecho: ida, volta ou trecho de multitrecho.", "error")
+        return RedirectResponse(redirect_path, status_code=303)
 
     is_round_pair = len(scope_keys) == 2 and set(scope_keys) == {"outbound", "return"}
     is_outbound_set = len(scope_keys) >= 2 and all(key == "outbound" for key in scope_keys)
     is_return_set = len(scope_keys) >= 2 and all(key == "return" for key in scope_keys)
-    is_segment_set = (
-        len(scope_keys) >= 2
-        and all(re.fullmatch(r"segment_\d+", key) for key in scope_keys)
-        and len(set(scope_keys)) == len(scope_keys)
-    )
-    if not (is_round_pair or is_outbound_set or is_return_set or is_segment_set):
-        flash(
-            request,
-            "Combinação inválida. Use ida + volta, duas ou mais idas, duas ou mais voltas, ou Trechos diferentes da mesma cotação.",
-            "error",
-        )
-        return RedirectResponse("/calculations/history", status_code=303)
+    is_segment_set = (len(scope_keys) >= 2 and all(re.fullmatch(r"segment_\d+", key) for key in scope_keys)
+                      and len(set(scope_keys)) == len(scope_keys))
+    # Os demais casos são multitrecho: sem descartar opções válidas por misturar
+    # SKIP com trecho convencional de outra subcotação.
+    is_mixed_set = not (is_round_pair or is_outbound_set or is_return_set or is_segment_set)
 
     # Mesma quantidade de passageiros para evitar combinação operacional incoerente.
     pax_signatures = {(int(item.passengers or 0), int(item.babies or 0)) for item in source_quotes}
     if len(pax_signatures) != 1:
         flash(request, "As opções selecionadas possuem quantidades de passageiros diferentes.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return RedirectResponse(redirect_path, status_code=303)
 
     def segment_number(key: str) -> int:
         match = re.fullmatch(r"segment_(\d+)", key)
         return int(match.group(1)) if match else 999
 
+    submitted_position = {quote_id: index for index, quote_id in enumerate(quote_ids)}
     if is_round_pair:
-        order_map = {"outbound": 0, "return": 1}
-        source_quotes.sort(key=lambda item: order_map.get(str(item.combine_scope_key), 99))
-    elif is_outbound_set or is_return_set:
-        # Em duas/múltiplas idas ou voltas, preserva a ordem visual em que os
-        # cards aparecem e foram enviados pelo formulário.
-        submitted_position = {quote_id: index for index, quote_id in enumerate(quote_ids)}
-        source_quotes.sort(key=lambda item: submitted_position.get(int(item.id), 999))
+        source_quotes.sort(key=lambda item: 0 if item.combine_scope_key == "outbound" else 1)
+    elif is_segment_set:
+        source_quotes.sort(key=lambda item: segment_number(item.combine_scope_key))
     else:
-        source_quotes.sort(key=lambda item: segment_number(str(item.combine_scope_key)))
+        source_quotes.sort(key=lambda item: submitted_position.get(int(item.id), 999))
 
     # Evita criar exatamente a mesma combinação repetidas vezes.
     wanted_signature = sorted(int(item.id) for item in source_quotes)
@@ -6044,9 +6092,10 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
                 existing_ids.append(int(raw))
             except (TypeError, ValueError):
                 pass
-        if sorted(existing_ids) == wanted_signature:
+        stored_variant = existing_data.get("_variant") if isinstance(existing_data.get("_variant"), dict) else {}
+        if sorted(existing_ids) == wanted_signature and str(stored_variant.get("key") or "primary") == variant_key:
             flash(request, "Essa combinação já existe no Histórico.", "warning")
-            return RedirectResponse("/calculations/history", status_code=303)
+            return RedirectResponse(redirect_path, status_code=303)
 
     total_cost = round(sum(float(item.total or 0) for item in source_quotes), 2)
     component_sales: list[float] = []
@@ -6070,97 +6119,55 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
         scope = item.scope_data if isinstance(getattr(item, "scope_data", None), dict) else {}
         segments = scope.get("segments") if isinstance(scope.get("segments"), list) else []
         if not segments and item.trip:
-            parsed_segments = _safe_json(item.trip.segments_json, [])
-            segments = parsed_segments if isinstance(parsed_segments, list) else []
-
-        same_direction_bundle = is_outbound_set or is_return_set
-        bundle_segment_key = f"segment_{component_index}" if same_direction_bundle else ""
-
-        for segment in segments:
-            if isinstance(segment, dict):
-                copied_segment = dict(segment)
-                if same_direction_bundle:
-                    copied_segment["key"] = bundle_segment_key
-                    copied_segment["label"] = (
-                        f"Ida {component_index}" if is_outbound_set
-                        else f"Volta {component_index}"
-                    )
-                merged_segments.append(copied_segment)
-
+            segment_payload = _safe_json(item.trip.segments_json, [])
+            segments = segment_payload if isinstance(segment_payload, list) else []
         details = data.get("_flight_details") if isinstance(data.get("_flight_details"), list) else []
-        airline_name = (
-            item.airline.name if item.airline
-            else str(getattr(item, "partner_airline", "") or "")
-            or "Companhia"
-        )
+        airline_name = item.airline.name if item.airline else (item.partner_airline or "Companhia")
         if airline_name not in airline_names:
             airline_names.append(airline_name)
-
-        if details:
-            for detail in details:
-                if not isinstance(detail, dict):
+        original_to_merged: dict[str, str] = {}
+        for index, segment in enumerate(segments, start=1):
+            if not isinstance(segment, dict):
+                continue
+            original_key = str(segment.get("key") or f"segment_{index}")
+            merged_key = f"combined_{component_index}_{index}"
+            original_to_merged[original_key] = merged_key
+            status = "flown" if not item.skip_mode or index == int(item.flown_segment or 1) else "not_flown"
+            copied = dict(segment)
+            copied.update({
+                "key": merged_key, "source_key": original_key,
+                "source_quote_id": int(item.id), "source_variant_key": str(item.variant_key),
+                "status": status, "direction": str(item.combine_scope_key),
+                "source_airline": airline_name,
+                "label": f"{item.scope_label} • Trecho {index} • {'VOADO' if status == 'flown' else 'NÃO VOADO'}",
+            })
+            merged_segments.append(copied)
+        for detail in details:
+            if not isinstance(detail, dict):
+                continue
+            copied_detail = dict(detail)
+            old_key = str(detail.get("segment_key") or detail.get("key") or "")
+            if old_key not in original_to_merged:
+                # Fallback para dados antigos com detalhe sem chave de trecho.
+                if not original_to_merged:
                     continue
-                copied = dict(detail)
-                copied["airline"] = str(copied.get("airline") or airline_name)
-                if same_direction_bundle:
-                    copied["segment_key"] = bundle_segment_key
-                    copied["kind"] = "ida" if is_outbound_set else "volta"
-                    copied["label"] = (
-                        f"Ida {component_index}" if is_outbound_set
-                        else f"Volta {component_index}"
-                    )
-                merged_details.append(copied)
-        else:
-            for index, segment in enumerate(segments, start=1):
-                if not isinstance(segment, dict):
-                    continue
-                key = (
-                    bundle_segment_key
-                    if same_direction_bundle
-                    else str(segment.get("key") or item.combine_scope_key or f"segment_{index}")
-                )
-                kind = (
-                    "ida" if is_outbound_set
-                    else ("volta" if is_return_set
-                          else ("volta" if key == "return"
-                                else ("ida" if key == "outbound" else "trecho")))
-                )
-                label = (
-                    f"Ida {component_index}" if is_outbound_set
-                    else (f"Volta {component_index}" if is_return_set
-                          else ("Voo de Volta" if kind == "volta"
-                                else ("Voo de Ida" if kind == "ida" else f"Trecho {index}")))
-                )
-                merged_details.append({
-                    "segment_key": key,
-                    "kind": kind,
-                    "label": label,
-                    "origin": str(segment.get("origin") or ""),
-                    "destination": str(segment.get("destination") or ""),
-                    "departure_date": str(segment.get("date") or ""),
-                    "departure_time": "",
-                    "arrival_date": "",
-                    "arrival_time": "",
-                    "airline": airline_name,
-                })
-
+                flown_index = max(0, int(item.flown_segment or 1) - 1) if item.skip_mode else 0
+                old_key = list(original_to_merged)[min(flown_index, len(original_to_merged)-1)]
+            copied_detail["segment_key"] = original_to_merged[old_key]
+            copied_detail["airline"] = str(copied_detail.get("airline") or airline_name)
+            merged_details.append(copied_detail)
         operation_scope = str(getattr(item, "operation_scope", "") or "")
         if operation_scope and operation_scope not in operation_scopes:
             operation_scopes.append(operation_scope)
-
         components.append({
-            "quote_id": int(item.id),
-            "scope_key": str(item.combine_scope_key),
-            "scope_label": str(getattr(item, "scope_label", "") or ""),
+            "quote_id": int(item.id), "variant_key": str(item.variant_key),
+            "scope_key": str(item.combine_scope_key), "scope_label": str(item.scope_label or ""),
+            "skip_mode": str(item.skip_mode or ""), "flown_segment": item.flown_segment,
             "airline": airline_name,
             "logo_path": str(getattr(getattr(item, "airline", None), "logo_path", "") or ""),
             "cost": round(float(item.total or 0), 2),
-            "sale": round(
-                float(item.commercial.sale_value)
-                if item.commercial and item.commercial.sale_value is not None
-                else float(item.total or 0),
-                2,
-            ),
+            "sale": round(float(item.commercial.sale_value) if item.commercial and item.commercial.sale_value is not None else float(item.total or 0), 2),
+            "segments": [dict(seg) for seg in merged_segments if seg.get("source_quote_id") == int(item.id)],
         })
 
     if is_round_pair:
@@ -6185,6 +6192,12 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
         travel_type = "multi_city"
         ordered_scope_names = segment_labels
 
+    if is_mixed_set:
+        combined_scope_key = "multi_city"
+        combined_scope_label = f"{len(source_quotes)} opções combinadas"
+        travel_type = "multi_city"
+        ordered_scope_names = [str(item.scope_label or item.combine_scope_key) for item in source_quotes]
+
     first_scope = source_quotes[0].scope_data if isinstance(source_quotes[0].scope_data, dict) else {}
     last_scope = source_quotes[-1].scope_data if isinstance(source_quotes[-1].scope_data, dict) else {}
     departure_date = str(
@@ -6199,11 +6212,8 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
         or ""
     )
 
-    first_input = _quote_input_data(source_quotes[0])
-    variant_data = first_input.get("_variant") if isinstance(first_input.get("_variant"), dict) else {
-        "key": variant_key,
-        "name": "Cotação principal" if variant_key == "primary" else "Subcotação",
-    }
+    variant_data = {"key": variant_key, "name": allowed_variants[variant_key].get("name") or "Cotação principal"}
+    flown_segments = [seg for seg in merged_segments if seg.get("status") != "not_flown"]
 
     display_name = " + ".join(airline_names) if airline_names else "Opção combinada"
     if len(display_name) > 220:
@@ -6217,6 +6227,8 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
             "segments": merged_segments,
             "departure_date": departure_date,
             "return_date": return_date if travel_type == "round_trip" else "",
+            "client_travel_type": travel_type,
+            "has_skip_components": any(seg.get("status") == "not_flown" for seg in merged_segments),
         },
         "_flight_details": merged_details,
         "_combined": {
@@ -6250,11 +6262,11 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
         airline_id=next(iter(same_airline_ids)) if len(same_airline_ids) == 1 else None,
         calculation_type_id=next(iter(same_type_ids)) if len(same_type_ids) == 1 else None,
         quote_name=group.quote_name,
-        origin=str((merged_segments[0].get("origin") if merged_segments else group.origin) or ""),
-        destination=str((merged_segments[-1].get("destination") if merged_segments else group.destination) or ""),
+        origin=str((flown_segments[0].get("origin") if flown_segments else group.origin) or ""),
+        destination=str((flown_segments[-1].get("destination") if flown_segments else group.destination) or ""),
         passengers=int(source_quotes[0].passengers or group.passengers or 1),
         babies=int(source_quotes[0].babies or group.babies or 0),
-        bags=max(int(item.bags or 0) for item in source_quotes),
+        bags=sum(int(item.bags or 0) for item in source_quotes),
         currency="BRL",
         input_json=json.dumps(values, ensure_ascii=False),
         breakdown_json=json.dumps({
@@ -6355,10 +6367,10 @@ async def combine_group_options(group_id: int, request: Request, db: Session = D
 
     flash(
         request,
-        f"Opções juntadas com sucesso. Novo custo combinado: R$ {total_cost:,.2f}.",
+        f"Opções combinadas, incluindo SKIPs, com custo total de R$ {total_cost:,.2f}. Trechos voados e não voados preservados.",
         "success",
     )
-    return RedirectResponse("/calculations/history", status_code=303)
+    return RedirectResponse(redirect_path, status_code=303)
 
 
 @router.post("/group/{group_id}/duplicate")
