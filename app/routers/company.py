@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import mimetypes
 import re
 import secrets
 import time
@@ -21,6 +22,7 @@ from ..config import COMPANY_UPLOAD_DIR, MAX_TEAM_USERS, SECRET_KEY
 from ..database import SessionLocal, get_db
 from ..dependencies import current_user
 from ..models import (
+    CompanyCover,
     AcceptedQuote,
     Airline,
     ChatAttachment,
@@ -49,6 +51,8 @@ from ..services.protection import register_attempt, seconds_until_allowed, set_b
 from ..services.team_accounts import remaining_team_slots, team_user_count
 from ..services.uploads import delete_relative_upload, read_stored_attachment, save_chat_document, save_upload_image
 from ..web import context, flash, iso_utc, templates
+from ..services.storage import blob_ready, blob_put, blob_get, blob_delete
+from ..config import IS_VERCEL, UPLOAD_DIR
 
 router = APIRouter(prefix="/company", tags=["company"])
 
@@ -498,8 +502,249 @@ def company_dashboard(request: Request, db: Session = Depends(get_db)):
             can_manage_members=_can_manage_company(user),
             role_options=ROLE_OPTIONS,
             invite_minutes=INVITE_CODE_MINUTES,
+            company_cover_path=_company_cover(db, company.id),
         ),
     )
+
+
+
+
+# Identidade visual da empresa. No Vercel, imagens precisam ficar em armazenamento
+# persistente; arquivos em /tmp desaparecem entre as invocações.
+_COVER_TABLE_READY = False
+
+
+def _prepare_company_cover_table(db: Session) -> None:
+    global _COVER_TABLE_READY
+    if not _COVER_TABLE_READY:
+        CompanyCover.__table__.create(bind=db.get_bind(), checkfirst=True)
+        _COVER_TABLE_READY = True
+
+
+def _company_cover(db: Session, company_id: int) -> str | None:
+    try:
+        _prepare_company_cover_table(db)
+        visual = db.get(CompanyCover, company_id)
+        return str(visual.image_path or "") if visual else None
+    except Exception:
+        db.rollback()
+        return None
+
+
+async def _save_company_image(upload: UploadFile | None, company_id: int, kind: str) -> str | None:
+    if upload is None or not getattr(upload, 'filename', None):
+        return None
+    ext = os.path.splitext(str(upload.filename))[-1].lower()
+    if ext not in {'.png', '.jpg', '.jpeg', '.webp'}:
+        raise ValueError('Use PNG, JPG ou WEBP para a imagem da empresa.')
+    if blob_ready():
+        content = await upload.read()
+        limit = 4 * 1024 * 1024 if IS_VERCEL else 6 * 1024 * 1024
+        if not content or len(content) > limit:
+            raise ValueError(f'A imagem deve ter entre 1 byte e {limit // (1024 * 1024)} MB.')
+        # Verificação de assinatura; a extensão sozinha não é suficiente.
+        signatures = {
+            '.png': content.startswith(b'\x89PNG\r\n\x1a\n'),
+            '.jpg': content.startswith(b'\xff\xd8\xff'),
+            '.jpeg': content.startswith(b'\xff\xd8\xff'),
+            '.webp': content.startswith(b'RIFF') and content[8:12] == b'WEBP',
+        }
+        if not signatures[ext]:
+            raise ValueError('O arquivo selecionado não é uma imagem válida.')
+        mime = 'image/jpeg' if ext in {'.jpg', '.jpeg'} else f'image/{ext[1:]}'
+        path = f'companies/{company_id}/{kind}-{secrets.token_hex(12)}{ext}'
+        try:
+            uploaded = blob_put(path, content, mime)
+        except RuntimeError as exc:
+            raise ValueError(f'Não foi possível salvar a imagem: {exc}') from exc
+        url = str(uploaded.get('url') or uploaded.get('downloadUrl') or '')
+        if not url.startswith('https://'):
+            raise ValueError('Armazenamento de imagens não devolveu uma URL válida.')
+        return 'blob:' + url
+    # Também valida o conteúdo no modo local; não confia na extensão do nome.
+    content = await upload.read()
+    limit = 6 * 1024 * 1024
+    if not content or len(content) > limit:
+        raise ValueError('A imagem deve ter entre 1 byte e 6 MB.')
+    signatures = {
+        '.png': content.startswith(b'\x89PNG\r\n\x1a\n'),
+        '.jpg': content.startswith(b'\xff\xd8\xff'),
+        '.jpeg': content.startswith(b'\xff\xd8\xff'),
+        '.webp': content.startswith(b'RIFF') and content[8:12] == b'WEBP',
+    }
+    if not signatures[ext]:
+        raise ValueError('O arquivo selecionado não é uma imagem válida.')
+    await upload.seek(0)
+    return await save_upload_image(
+        upload, COMPANY_UPLOAD_DIR, max_bytes=6 * 1024 * 1024,
+        filename_prefix=f'company-{company_id}-{kind}',
+    )
+
+
+def _delete_company_image(path: str | None) -> None:
+    if not path:
+        return
+    if path.startswith('blob:https://'):
+        try:
+            blob_delete(path[5:])
+        except RuntimeError:
+            pass
+    else:
+        delete_relative_upload(path)
+
+
+def _image_bytes(path: str) -> tuple[bytes, str]:
+    if path.startswith('blob:https://'):
+        data, mime = blob_get(path[5:])
+        if mime.split(';', 1)[0].lower() not in {'image/jpeg','image/png','image/webp'}:
+            raise ValueError('Formato de imagem não permitido')
+        return data, mime
+    normalized = str(path).replace('\\', '/').lstrip('/')
+    if not normalized.startswith('uploads/companies/'):
+        raise ValueError('Caminho inválido')
+    target = (UPLOAD_DIR / normalized.removeprefix('uploads/')).resolve()
+    target.relative_to(UPLOAD_DIR.resolve())
+    if not target.is_file():
+        raise FileNotFoundError('Imagem antiga indisponível. Envie a imagem novamente.')
+    mime = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
+    if mime not in {'image/png', 'image/jpeg', 'image/webp'}:
+        raise ValueError('Formato não permitido')
+    return target.read_bytes(), mime
+
+
+@router.get('/logo', include_in_schema=False)
+def company_logo_image(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user or not user.company_id:
+        return Response(status_code=404)
+    company = db.get(WebCompany, user.company_id)
+    if not company or not company.logo_path:
+        return Response(status_code=404)
+    try:
+        data, mime = _image_bytes(company.logo_path)
+    except (ValueError, FileNotFoundError, RuntimeError, OSError):
+        return Response(status_code=404)
+    return Response(data, media_type=mime, headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
+
+
+@router.get('/cover', include_in_schema=False)
+def company_cover_image(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user or not user.company_id:
+        return Response(status_code=404)
+    path = _company_cover(db, user.company_id)
+    if not path:
+        return Response(status_code=404)
+    try:
+        data, mime = _image_bytes(path)
+    except (ValueError, FileNotFoundError, RuntimeError, OSError):
+        return Response(status_code=404)
+    return Response(data, media_type=mime, headers={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'})
+
+
+@router.post('/branding')
+async def update_company_branding(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user:
+        return RedirectResponse('/login', status_code=303)
+    if not _can_manage_company(user):
+        flash(request, 'Apenas a administração pode editar a identidade da empresa.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get('csrf_token') or '')):
+        flash(request, 'Sessão expirada. Recarregue a página.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    company = db.get(WebCompany, user.company_id)
+    if not company:
+        flash(request, 'Empresa não encontrada.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    name = re.sub(r'\s+', ' ', str(form.get('name') or '')).strip()[:180]
+    if len(name) < 2:
+        flash(request, 'Informe um nome de empresa válido.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    # Salva uploads antes de alterar o registro. Se falhar, dados anteriores ficam intactos.
+    uploaded = []
+    try:
+        logo = await _save_company_image(form.get('logo'), company.id, 'logo')
+        if logo:
+            uploaded.append(logo)
+        cover = await _save_company_image(form.get('cover'), company.id, 'cover')
+        if cover:
+            uploaded.append(cover)
+        if cover:
+            _prepare_company_cover_table(db)
+        old_logo = company.logo_path
+        old_cover = _company_cover(db, company.id) if cover else None
+        company.name = name
+        company.cnpj = str(form.get('cnpj') or '').strip()[:30] or None
+        company.phone = str(form.get('phone') or '').strip()[:40] or None
+        company.email = str(form.get('email') or '').strip()[:180] or None
+        if logo:
+            company.logo_path = logo
+        if cover:
+            visual = db.get(CompanyCover, company.id)
+            if visual:
+                visual.image_path = cover
+            else:
+                db.add(CompanyCover(company_id=company.id, image_path=cover))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        for path in uploaded:
+            _delete_company_image(path)
+        # Falha de banco não deve expor detalhes internos no navegador.
+        message = str(exc) if isinstance(exc, (ValueError, RuntimeError)) else 'Não foi possível salvar os dados da empresa.'
+        flash(request, message, 'error')
+        return RedirectResponse('/company#identidade', status_code=303)
+    if logo and old_logo:
+        _delete_company_image(old_logo)
+    if cover and old_cover:
+        _delete_company_image(old_cover)
+    flash(request, 'Dados e imagens da empresa salvos para toda a equipe.', 'success')
+    return RedirectResponse('/company#identidade', status_code=303)
+
+
+@router.post('/branding/remove-logo')
+async def remove_company_logo(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user:
+        return RedirectResponse('/login', status_code=303)
+    if not _can_manage_company(user):
+        flash(request, 'Acesso restrito à administração.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get('csrf_token') or '')):
+        flash(request, 'Sessão expirada.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    company = db.get(WebCompany, user.company_id)
+    if company and company.logo_path:
+        old = company.logo_path
+        company.logo_path = None
+        db.commit()
+        _delete_company_image(old)
+    flash(request, 'Logo removida.', 'success')
+    return RedirectResponse('/company#identidade', status_code=303)
+
+
+@router.post('/branding/remove-cover')
+async def remove_company_cover(request: Request, db: Session = Depends(get_db)):
+    user = current_user(request, db)
+    if not user:
+        return RedirectResponse('/login', status_code=303)
+    if not _can_manage_company(user):
+        flash(request, 'Acesso restrito à administração.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get('csrf_token') or '')):
+        flash(request, 'Sessão expirada.', 'error')
+        return RedirectResponse('/company', status_code=303)
+    old = _company_cover(db, user.company_id)
+    if old:
+        db.delete(db.get(CompanyCover, user.company_id))
+        db.commit()
+        _delete_company_image(old)
+    flash(request, 'Imagem de capa removida.', 'success')
+    return RedirectResponse('/company#identidade', status_code=303)
 
 
 @router.get("/create")

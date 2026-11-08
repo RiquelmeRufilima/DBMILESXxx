@@ -22,6 +22,15 @@ class WebCompany(Base):
     users: Mapped[list["WebUser"]] = orm_relationship(back_populates="company")
 
 
+class CompanyCover(Base):
+    """Imagem de capa opcional, em tabela separada para não alterar web_companies."""
+    __tablename__ = "company_covers"
+
+    company_id: Mapped[int] = mapped_column(ForeignKey("web_companies.id", ondelete="CASCADE"), primary_key=True)
+    image_path: Mapped[str] = mapped_column(String(500), nullable=False)
+
+
+
 class WebUser(Base):
     __tablename__ = "web_users"
 

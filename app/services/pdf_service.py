@@ -14,15 +14,27 @@ from fastapi.templating import Jinja2Templates
 
 from ..config import BASE_DIR, STATIC_DIR, IS_VERCEL
 from ..models import WebQuote
+from ..config import UPLOAD_DIR
+from .storage import blob_get
 
 
 def file_to_data_uri(relative_path: str | None) -> str | None:
     if not relative_path:
         return None
-    path = (BASE_DIR / relative_path).resolve()
-    try:
-        path.relative_to(BASE_DIR.resolve())
-    except ValueError:
+    if relative_path.startswith('blob:https://'):
+        try:
+            content, mime = blob_get(relative_path[5:])
+            if mime.split(';', 1)[0] not in {'image/png', 'image/jpeg', 'image/webp'}:
+                return None
+            return f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
+        except (RuntimeError, ValueError, OSError):
+            return None
+    normalized = str(relative_path).lstrip('/')
+    path = ((UPLOAD_DIR / normalized.removeprefix('uploads/')) if normalized.startswith('uploads/') else (BASE_DIR / normalized)).resolve()
+    if normalized.startswith('uploads/'):
+        if not path.is_relative_to(UPLOAD_DIR.resolve()):
+            return None
+    elif not path.is_relative_to(BASE_DIR.resolve()):
         return None
     return path_to_data_uri(path)
 

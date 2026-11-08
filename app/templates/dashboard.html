@@ -1,35 +1,89 @@
 {% extends "base.html" %}
-{% block title %}Tela de início | DBMILESX{% endblock %}
-{% block page_title %}Tela de início{% endblock %}
-{% block eyebrow %}PAINEL PRINCIPAL{% endblock %}
+{% block title %}Início | DBMILESX{% endblock %}
+{% block page_title %}Visão geral{% endblock %}
+{% block eyebrow %}CENTRAL DE OPERAÇÃO{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/dashboard-refresh-20261108.css?v=2">{% endblock %}
 {% block content %}
-<section class="hero-panel dashboard-hero">
-  <div><span class="eyebrow">BEM-VINDO AO DBMILESX</span><h1>Olá, {{ user.name.split(' ')[0] }}.</h1><p>Comece uma cotação, revise o histórico, acompanhe solicitações e fale com sua equipe.</p></div>
-  <div class="action-cluster"><a class="secondary-button" href="/requests/inbox"><svg class="ui-icon"><use href="#icon-inbox"></use></svg> Solicitações</a><a class="primary-button" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Nova cotação</a></div>
-</section>
+<div class="dbm-home-refresh">
+  <section class="dbm-home-hero" aria-label="Resumo da operação">
+    <div class="dbm-home-hero-glow" aria-hidden="true"></div>
+    <div class="dbm-home-hero-main">
+      <div class="dbm-home-hero-top">
+        <span class="dbm-home-pill"><span class="dbm-pulse-dot"></span> Central de operações</span>
+        {% if user.company %}<span class="dbm-home-company">
+          {% if user.company.logo_path %}<img src="/company/logo" alt="" onerror="this.style.display='none'">{% endif %}
+          {{ user.company.name }}
+        </span>{% endif %}
+      </div>
+      <h1>Bom trabalho, {{ user.name.split(' ')[0] }}<span class="dbm-home-greeting-period">.</span></h1>
+      <p>Suas cotações, o que precisa de atenção e os atalhos da equipe em um só lugar.</p>
+      <div class="dbm-home-hero-actions">
+        <a class="dbm-home-action-primary" href="/calculations/new?clean=1"><svg class="ui-icon"><use href="#icon-plus-circle"></use></svg> Criar nova cotação</a>
+        <a class="dbm-home-action-secondary" href="/calculations/history"><svg class="ui-icon"><use href="#icon-clock"></use></svg> Ver histórico</a>
+      </div>
+    </div>
+    <aside class="dbm-home-hero-side" aria-label="Atividade da equipe">
+      <div class="dbm-home-side-icon"><svg class="ui-icon"><use href="#icon-plane"></use></svg></div>
+      <span>Histórico da operação</span>
+      <strong>{{ total_quotes }}</strong>
+      <small>cotações registradas no seu histórico visível</small>
+      <a href="/calculations/history">Explorar cotações <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+    </aside>
+  </section>
 
-<section class="dashboard-shortcuts-section">
-  <div class="dashboard-section-heading">
-    <div><span class="eyebrow">ACESSO RÁPIDO</span><h2>O que você quer fazer?</h2></div>
-    <a href="/calculations/history">Ver histórico <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+  <section class="dbm-home-section" aria-label="Indicadores">
+    <div class="dbm-home-section-head"><div><span class="eyebrow">SEUS NÚMEROS</span><h2>Visão rápida</h2></div><span class="dbm-home-section-detail">Dados das cotações visíveis</span></div>
+    <div class="dbm-home-kpi-grid">
+      <a href="/calculations/history" class="dbm-home-kpi dbm-kpi-blue"><span class="dbm-home-kpi-label">Cotações <svg class="ui-icon"><use href="#icon-calculator"></use></svg></span><strong>{{ total_quotes }}</strong><small>Acesse todas as cotações</small></a>
+      <div class="dbm-home-kpi dbm-kpi-green"><span class="dbm-home-kpi-label">Volume de cotações <svg class="ui-icon"><use href="#icon-dollar"></use></svg></span><strong>{{ total_value|money }}</strong><small>Somatório, não representa faturamento</small></div>
+      <a href="/airlines" class="dbm-home-kpi dbm-kpi-violet"><span class="dbm-home-kpi-label">Companhias próprias <svg class="ui-icon"><use href="#icon-plane"></use></svg></span><strong>{{ custom_airlines }}</strong><small>Regras e cálculos personalizados</small></a>
+      <a href="/notifications" class="dbm-home-kpi dbm-kpi-amber"><span class="dbm-home-kpi-label">Notificações <svg class="ui-icon"><use href="#icon-bell"></use></svg></span><strong>{{ unread_count }}</strong><small>{{ 'Tudo em dia' if unread_count == 0 else 'Aguardando sua leitura' }}</small></a>
+    </div>
+  </section>
+
+  <section class="dbm-home-section" aria-label="Atalhos">
+    <div class="dbm-home-section-head"><div><span class="eyebrow">ATALHOS</span><h2>Continue seu trabalho</h2></div></div>
+    <div class="dbm-home-shortcuts">
+      <a class="dbm-home-shortcut" href="/calculations/new?clean=1"><span class="dbm-shortcut-icon dbm-shortcut-cyan"><svg class="ui-icon"><use href="#icon-calculator"></use></svg></span><span><strong>Nova cotação</strong><small>Começar do zero</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
+      <a class="dbm-home-shortcut" href="/company/chat"><span class="dbm-shortcut-icon dbm-shortcut-blue"><svg class="ui-icon"><use href="#icon-chat"></use></svg></span><span><strong>Chat da equipe</strong><small>Conversar e compartilhar</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
+      <a class="dbm-home-shortcut" href="/tasks"><span class="dbm-shortcut-icon dbm-shortcut-purple"><svg class="ui-icon"><use href="#icon-tasks"></use></svg></span><span><strong>Tarefas</strong><small>Acompanhar pendências</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
+      <a class="dbm-home-shortcut" href="/requests/links"><span class="dbm-shortcut-icon dbm-shortcut-green"><svg class="ui-icon"><use href="#icon-link"></use></svg></span><span><strong>Gerar link</strong><small>Formulários de solicitação</small></span><svg class="ui-icon dbm-shortcut-arrow"><use href="#icon-chevron"></use></svg></a>
+    </div>
+  </section>
+
+  <div class="dbm-home-bottom-grid">
+    <section class="dbm-home-panel dbm-home-activity">
+      <div class="dbm-home-panel-heading"><div><span class="eyebrow">ATIVIDADE</span><h2>Cotações recentes</h2><p>Suas últimas cotações disponíveis</p></div><a href="/calculations/history">Ver todas <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a></div>
+      {% if recent_quotes %}
+      <div class="dbm-home-quote-table-wrap">
+        <table class="dbm-home-quote-table">
+          <thead><tr><th>Cliente / cotação</th><th>Rota</th><th>Companhia</th><th>Valor</th><th><span class="dbm-sr-only">Abrir</span></th></tr></thead>
+          <tbody>{% for quote in recent_quotes %}<tr>
+            <td><a class="dbm-home-quote-name" href="/calculations/result/{{ quote.id }}">{{ quote.quote_name or 'Cotação' }}</a><small>{{ quote.created_at|brt('%d/%m/%Y %H:%M') }}</small></td>
+            <td><span class="dbm-home-route">{{ quote.origin or '—' }} <span>→</span> {{ quote.destination or '—' }}</span></td>
+            <td>{{ quote.airline.name if quote.airline else 'Importada' }}</td>
+            <td><strong class="dbm-home-amount">{{ quote.total|money(quote.currency) }}</strong></td>
+            <td><a class="dbm-home-open" href="/calculations/result/{{ quote.id }}" aria-label="Abrir cotação {{ quote.quote_name or 'sem nome' }}"><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a></td>
+          </tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% else %}<div class="dbm-home-empty"><svg class="ui-icon"><use href="#icon-sparkles"></use></svg><h3>Comece com sua primeira cotação</h3><p>Suas cotações mais recentes aparecerão aqui.</p><a class="secondary-button" href="/calculations/new?clean=1">Criar cotação</a></div>{% endif %}
+    </section>
+
+    <aside class="dbm-home-aside">
+      <section class="dbm-home-panel dbm-home-attention">
+        <div class="dbm-home-panel-heading"><div><span class="eyebrow">ACOMPANHAMENTO</span><h2>Precisa de atenção</h2></div></div>
+        <a class="dbm-home-attention-row" href="/tasks"><span class="dbm-attention-icon"><svg class="ui-icon"><use href="#icon-tasks"></use></svg></span><span><strong>Tarefas pendentes</strong><small>{% if pending_tasks %}{{ pending_tasks|length }} tarefa(s) mais recente(s){% else %}Nenhuma tarefa pendente{% endif %}</small></span><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+        <a class="dbm-home-attention-row" href="/persons/pending"><span class="dbm-attention-icon dbm-attention-green"><svg class="ui-icon"><use href="#icon-briefcase"></use></svg></span><span><strong>Cadastros incompletos</strong><small>{% if pending_persons %}{{ pending_persons|length }} cadastro(s) recente(s){% else %}Nenhum cadastro incompleto{% endif %}</small></span><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+        <a class="dbm-home-attention-row" href="/requests/inbox"><span class="dbm-attention-icon dbm-attention-blue"><svg class="ui-icon"><use href="#icon-inbox"></use></svg></span><span><strong>Solicitações</strong><small>Conferir novas solicitações</small></span><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+      </section>
+      <section class="dbm-home-panel dbm-home-tools">
+        <div class="dbm-home-panel-heading"><div><span class="eyebrow">FERRAMENTAS</span><h2>Acessos úteis</h2></div></div>
+        {% if user.role in ['admin', 'gerente'] or user.is_owner %}<a href="/admin"><svg class="ui-icon"><use href="#icon-shield"></use></svg> Administração <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>{% else %}<a href="/member"><svg class="ui-icon"><use href="#icon-briefcase"></use></svg> Meu painel <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>{% endif %}
+        {% if user.company_id %}<a href="/company#identidade"><svg class="ui-icon"><use href="#icon-palette"></use></svg> Identidade da empresa <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>{% endif %}
+        <a href="/settings"><svg class="ui-icon"><use href="#icon-palette"></use></svg> Aparência do sistema <svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
+      </section>
+    </aside>
   </div>
-  <div class="home-action-grid">
-    <a class="home-action-card primary-home-action" href="/calculations/new?clean=1"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-calculator"></use></svg></span><div><strong>Nova cotação</strong><small>Abra uma calculadora limpa</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
-    <a class="home-action-card chat-home-action" href="/company/chat"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-chat"></use></svg></span><div><strong>Chat</strong><small>Converse com a equipe</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
-    <a class="home-action-card tasks-home-action" href="/tasks"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-tasks"></use></svg></span><div><strong>Tarefas</strong><small>Acompanhe o que precisa ser feito</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
-    <a class="home-action-card link-home-action" href="/requests/links"><span class="home-action-icon"><svg class="ui-icon"><use href="#icon-link"></use></svg></span><div><strong>Gerar link</strong><small>Formulário para clientes</small></div><svg class="ui-icon"><use href="#icon-chevron"></use></svg></a>
-  </div>
-</section>
-
-<section class="stats-grid">
-  <article class="stat-card icon-stat"><svg class="stat-icon"><use href="#icon-calculator"></use></svg><span>Cotações</span><strong>{{ total_quotes }}</strong><small>Histórico disponível</small></article>
-  <article class="stat-card icon-stat"><svg class="stat-icon"><use href="#icon-dollar"></use></svg><span>Volume calculado</span><strong>{{ total_value|money }}</strong><small>Soma das cotações visíveis</small></article>
-  <article class="stat-card icon-stat"><svg class="stat-icon"><use href="#icon-plane"></use></svg><span>Companhias próprias</span><strong>{{ custom_airlines }}</strong><small>Regras personalizadas</small></article>
-  <article class="stat-card accent icon-stat"><svg class="stat-icon"><use href="#icon-bell"></use></svg><span>Notificações</span><strong>{{ unread_count }}</strong><small>Não lidas</small></article>
-</section>
-
-<section class="content-grid two-one">
-  <article class="panel"><div class="panel-heading"><div><span class="eyebrow">ATIVIDADE</span><h2>Cotações recentes</h2></div><a href="/calculations/history">Ver todas</a></div>{% if recent_quotes %}<div class="table-wrap"><table class="data-table"><thead><tr><th>Cotação</th><th>Rota</th><th>Companhia</th><th>Total</th></tr></thead><tbody>{% for quote in recent_quotes %}<tr><td><a href="/calculations/result/{{ quote.id }}"><strong>{{ quote.quote_name }}</strong></a><small>{{ quote.created_at|brt('%d/%m/%Y %H:%M') }}</small></td><td>{{ quote.origin or '—' }} → {{ quote.destination or '—' }}</td><td>{{ quote.airline.name if quote.airline else 'Importada' }}</td><td><strong>{{ quote.total|money(quote.currency) }}</strong></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-state"><svg class="empty-icon"><use href="#icon-sparkles"></use></svg><h3>Nenhuma cotação ainda</h3><p>Faça o primeiro cálculo nesta versão.</p><a class="secondary-button" href="/calculations/new?clean=1">Começar</a></div>{% endif %}</article>
-  <aside class="panel quick-panel"><span class="eyebrow">SEU PAINEL</span><h2>Acessos importantes</h2>{% if user.role in ['admin','gerente'] %}<a class="quick-link" href="/admin"><svg class="quick-icon"><use href="#icon-shield"></use></svg><div><strong>Painel administrativo</strong><small>Equipe e operação</small></div></a>{% else %}<a class="quick-link" href="/member"><svg class="quick-icon"><use href="#icon-briefcase"></use></svg><div><strong>Painel de membro</strong><small>Seu trabalho e equipe</small></div></a>{% endif %}<a class="quick-link" href="/airlines/new"><svg class="quick-icon"><use href="#icon-plane"></use></svg><div><strong>Criar companhia</strong><small>Fórmula e campos próprios</small></div></a><a class="quick-link" href="/settings"><svg class="quick-icon"><use href="#icon-palette"></use></svg><div><strong>Personalizar tema</strong><small>Cores e aparência</small></div></a></aside>
-</section>
+</div>
 {% endblock %}

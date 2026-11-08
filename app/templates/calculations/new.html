@@ -3,6 +3,8 @@
 {% block page_title %}{{ 'Calcular companhias da cotação' if group and not edit_base else 'Nova cotação principal' }}{% endblock %}
 {% block eyebrow %}MOTOR DE CÁLCULO{% endblock %}
 {% block head %}
+<link rel="stylesheet" href="/static/css/dashboard-refresh-20261108.css?v=2">
+<script defer src="/static/js/baggage-leg-preview-20261108.js?v=2"></script>
 <link rel="stylesheet" href="/static/css/quote-new-ux.css?v=20261029">
 <link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
 <style>
@@ -793,15 +795,18 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
 
       <div class="form-section soft baggage-section" data-standard-calculation-section>
         <div class="section-title"><span class="step-badge">3</span><div><h3>Bagagens desta opção</h3><p>Informe as bagagens adicionais separadamente para ida e volta. Cada unidade é contabilizada <strong>uma única vez</strong>, sem duplicação no percurso.</p></div></div>
-        <div class="form-grid cols-2">
-          <label>Bagagens adicionais somente na IDA
-            <input type="number" name="bags_outbound" value="{{ option_meta.get('extra_bags_outbound', option_bags or 0) }}" min="0" max="100" step="1">
+        <div class="dbm-leg-baggage-cards">
+          <label class="dbm-leg-bag-card">
+            <span class="dbm-leg-bag-top"><span class="dbm-leg-bag-icon">🛫</span><span><strong>Bagagens na IDA</strong><small>Somente no percurso de ida</small></span></span>
+            <input type="number" name="bags_outbound" aria-label="Quantidade de bagagens adicionais na ida" value="{{ option_meta.get('extra_bags_outbound', option_bags or 0) }}" min="0" max="100" step="1">
           </label>
-          <label>Bagagens adicionais somente na VOLTA
-            <input type="number" name="bags_return" value="{{ option_meta.get('extra_bags_return', 0) }}" min="0" max="100" step="1">
+          <label class="dbm-leg-bag-card">
+            <span class="dbm-leg-bag-top"><span class="dbm-leg-bag-icon">🛬</span><span><strong>Bagagens na VOLTA</strong><small>Somente no percurso de volta</small></span></span>
+            <input type="number" name="bags_return" aria-label="Quantidade de bagagens adicionais na volta" value="{{ option_meta.get('extra_bags_return', 0) }}" min="0" max="100" step="1">
           </label>
         </div>
-        <div class="notice-card muted compact-note">O custo adicional considera a soma de ida e volta. Uma conexão não gera outra bagagem; se a viagem for somente ida, deixe a volta em zero.</div>
+        <div class="dbm-bag-leg-summary" role="status" aria-live="polite">🧳 <strong id="dbmBagOutboundCount">0</strong> na ida <span>+</span> <strong id="dbmBagReturnCount">0</strong> na volta <span>=</span> <strong id="dbmBagTotalCount">0</strong> bagagens adicionais no total</div>
+        <div class="notice-card muted compact-note">Cada quantidade pertence apenas ao trecho escolhido. Conexões não multiplicam bagagens. Caso tenha apenas ida, informe zero na volta.</div>
       </div>
 
       <div class="form-section soft skip-financial-panel" id="skipFinancialPanel" hidden>

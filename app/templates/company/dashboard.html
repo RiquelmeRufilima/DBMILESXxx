@@ -2,10 +2,12 @@
 {% block title %}Empresa | DBMILESX{% endblock %}
 {% block page_title %}{{ company.name }}{% endblock %}
 {% block eyebrow %}EMPRESA E EQUIPE{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/dashboard-refresh-20261108.css?v=2">{% endblock %}
 {% block content %}
-<section class="hero-panel company-hero company-brand-hero">
+<section class="hero-panel company-hero company-brand-hero dbm-company-hero{% if company_cover_path %} has-cover{% endif %}" id="company-top">
+  {% if company_cover_path %}<div class="dbm-company-cover-photo" role="img" aria-label="Capa da empresa" style="background-image:url('/company/cover')"></div>{% endif %}
   <div class="company-brand-lockup">
-    <div class="company-brand-avatar">{% if company.logo_path %}<img src="/{{ company.logo_path }}" alt="{{ company.name }}">{% else %}<svg class="empty-icon"><use href="#icon-building"></use></svg>{% endif %}</div>
+    <div class="company-brand-avatar">{% if company.logo_path %}<img src="/company/logo" alt="{{ company.name }}" onerror="this.style.display='none';this.nextElementSibling.hidden=false"><span class="dbm-company-logo-fallback" hidden>{{ company.name[:2]|upper }}</span>{% else %}<svg class="empty-icon"><use href="#icon-building"></use></svg>{% endif %}</div>
     <div><span class="eyebrow">OPERAÇÃO COMPARTILHADA</span><h1>{{ company.name }}</h1><p>Todos os membros usam a mesma empresa, compartilham o histórico e ficam identificados nas cotações que criarem.</p></div>
   </div>
   <div class="form-actions">
@@ -126,19 +128,33 @@
 
 <section class="content-grid two-one top-gap-xl">
   {% if can_manage_members %}
-  <article class="panel company-branding-panel">
-    <div class="panel-heading"><div><span class="eyebrow">IDENTIDADE DA EMPRESA</span><h2>Dados e logo</h2><p>A logo fica disponível nos documentos e PDFs.</p></div><svg class="panel-icon"><use href="#icon-palette"></use></svg></div>
+  <article class="panel company-branding-panel" id="identidade">
+    <div class="panel-heading"><div><span class="eyebrow">IDENTIDADE DA EMPRESA</span><h2>Dados e logo</h2><p>Personalize a logo dos documentos e uma imagem de capa para o painel da empresa.</p></div><svg class="panel-icon"><use href="#icon-palette"></use></svg></div>
     <div class="brand-edit-row">
-      <div class="brand-image-preview company-brand-preview">{% if company.logo_path %}<img src="/{{ company.logo_path }}" alt="{{ company.name }}">{% else %}<svg class="empty-icon"><use href="#icon-building"></use></svg>{% endif %}</div>
+      <div class="brand-image-preview company-brand-preview">{% if company.logo_path %}<img src="/company/logo" alt="{{ company.name }}" onerror="this.style.display='none';this.nextElementSibling.hidden=false"><span class="dbm-company-logo-fallback" hidden>{{ company.name[:2]|upper }}</span>{% else %}<svg class="empty-icon"><use href="#icon-building"></use></svg>{% endif %}</div>
       <form method="post" action="/company/branding" enctype="multipart/form-data" class="form-stack flex-one">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="form-grid cols-2"><label>Nome da empresa<input name="name" value="{{ company.name }}" required></label><label>CNPJ<input name="cnpj" value="{{ company.cnpj or '' }}"></label></div>
         <div class="form-grid cols-2"><label>Telefone<input name="phone" value="{{ company.phone or '' }}"></label><label>E-mail<input type="email" name="email" value="{{ company.email or '' }}"></label></div>
-        <label>Logo da empresa<input type="file" name="logo" accept="image/png,image/jpeg,image/webp"><small>PNG, JPG ou WEBP até 6 MB.</small></label>
-        <div class="form-actions"><button class="primary-button" type="submit">Salvar empresa e logo</button></div>
+        <div class="dbm-company-photo-inputs">
+          <label>Logo da empresa <span class="muted">(PDFs e cotações)</span>
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" data-company-image="logo">
+            <small>PNG, JPG ou WEBP. Ideal: quadrada, com fundo transparente.</small>
+          </label>
+          <label>Imagem de capa da empresa <span class="muted">(opcional)</span>
+            <input type="file" name="cover" accept="image/png,image/jpeg,image/webp" data-company-image="cover">
+            <small>Recomendado: imagem horizontal. Até 4 MB no Vercel.</small>
+          </label>
+        </div>
+        <div class="dbm-company-upload-preview" id="companyImagePreview" aria-live="polite" hidden></div>
+        <div class="form-actions"><button class="primary-button" type="submit">Salvar dados e imagens</button></div>
       </form>
     </div>
-    {% if company.logo_path %}<form method="post" action="/company/branding/remove-logo" class="top-gap"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger" type="submit">Remover logo</button></form>{% endif %}
+    <div class="dbm-company-image-actions">
+      {% if company.logo_path %}<form method="post" action="/company/branding/remove-logo" class="top-gap"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger" type="submit">Remover logo</button></form>{% endif %}
+      {% if company_cover_path %}<form method="post" action="/company/branding/remove-cover" class="top-gap"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="ghost-button danger" type="submit">Remover capa</button></form>{% endif %}
+    </div>
+    {% if company_cover_path %}<div class="dbm-company-cover-preview" style="background-image:url('/company/cover')" role="img" aria-label="Imagem de capa atual"></div>{% endif %}
   </article>
   {% else %}
   <article class="panel"><div class="panel-heading"><div><span class="eyebrow">SEU ACESSO</span><h2>{{ user.role|role_label }}</h2></div></div><p class="muted">A gestão de usuários, senhas e dados da empresa é exclusiva do administrador.</p></article>
@@ -152,6 +168,26 @@
 </section>
 <script>
 (() => {
+  document.querySelectorAll('[data-company-image]').forEach(input => {
+    input.addEventListener('change', () => {
+      const box = document.getElementById('companyImagePreview');
+      if (!box || !input.files?.length) return;
+      const file = input.files[0];
+      if (!file.type.startsWith('image/')) return;
+      const image = document.createElement('img');
+      image.alt = input.dataset.companyImage === 'cover' ? 'Prévia da capa' : 'Prévia da logo';
+      const uri = URL.createObjectURL(file);
+      image.onload = () => URL.revokeObjectURL(uri);
+      image.src = uri;
+      const label = document.createElement('strong');
+      label.textContent = input.dataset.companyImage === 'cover' ? 'Nova capa' : 'Nova logo';
+      const item = document.createElement('div');
+      item.append(label, image);
+      box.querySelector('[data-image="' + input.dataset.companyImage + '"]')?.remove();
+      item.dataset.image = input.dataset.companyImage;
+      box.append(item); box.hidden = false;
+    });
+  });
   const generateButton = document.getElementById('generateCompanyInviteCode');
   const copyButton = document.getElementById('copyCompanyInviteCode');
   const codeInput = document.getElementById('companyInviteCode');

@@ -322,7 +322,7 @@
        'company_name': art_company.name if art_company else 'ISI VIAGENS',
        'company_cnpj': art_company.cnpj if art_company and art_company.cnpj else '',
        'company_phone': art_company.phone if art_company and art_company.phone else '',
-       'company_logo': ('/' ~ art_company.logo_path.lstrip('/')) if art_company and art_company.logo_path else '',
+       'company_logo': '/company/logo' if art_company and art_company.logo_path else '',
        'airline_logo': ('/' ~ quote.airline.logo_path.lstrip('/')) if quote.airline and quote.airline.logo_path else '',
        'airport_names': art_names,
        'segments': quote.segment_rows or [],

@@ -31,7 +31,7 @@
         <div class="quote-card-brand">
           <div class="quote-card-logo">
             {% if company and company.logo_path %}
-              <img src="/{{ company.logo_path }}" alt="{{ company.name }}">
+              <img src="/company/logo" alt="{{ company.name }}">
             {% else %}
               <span>{{ (company.name[:1] if company else 'D') | upper }}</span>
             {% endif %}
