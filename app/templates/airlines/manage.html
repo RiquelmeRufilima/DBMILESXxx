@@ -52,10 +52,11 @@
   <div class="panel-heading"><div><span class="eyebrow">ORGANIZAÇÃO</span><h2>Categoria do catálogo</h2><p>Somente cadastros personalizados podem mudar de categoria. Os cálculos não são alterados.</p></div></div>
   <form method="post" action="/airlines/{{ airline.id }}/category" class="form-stack">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% set current_kind = airline|catalog_group %}
     <label>Categoria
-      <select name="catalog_category" required>
-        {% for category_key, category_label in catalog_categories %}
-        <option value="{{ category_key }}" {% if airline.catalog_category == category_key %}selected{% endif %}>{{ category_label }}</option>
+      <select name="catalog_kind" required>
+        {% for kind_key, kind_label, _hint in catalog_kinds %}
+        <option value="{{ kind_key }}" {% if current_kind == kind_key %}selected{% endif %}>{{ kind_label }}</option>
         {% endfor %}
       </select>
     </label>

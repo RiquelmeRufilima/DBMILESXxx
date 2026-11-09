@@ -1,44 +1,140 @@
 {% extends "base.html" %}
-{% block title %}Criar companhia | DBMILESX{% endblock %}
-{% block page_title %}Criar companhia{% endblock %}
-{% block eyebrow %}CONSTRUTOR DE CÁLCULO{% endblock %}
+{% block title %}Novo cadastro | DBMILESX{% endblock %}
+{% block page_title %}Novo cadastro{% endblock %}
+{% block eyebrow %}PROGRAMAS E COMPANHIAS{% endblock %}
+{% block head %}
+<style>
+.pb{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.pb-main{display:grid;gap:18px}
+.pb-card{padding:22px;border-radius:20px;border:1px solid var(--border);background:var(--panel)}
+.pb-card h2{margin:0 0 4px;font-size:1.1rem;display:flex;align-items:center;gap:10px}
+.pb-card>p{margin:0 0 16px;color:var(--muted);font-size:.9rem}
+.pb-step{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--cyan);color:#04121f;font-size:.8rem;font-weight:800}
+.pb-kinds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.pb-kind{position:relative;display:grid;gap:4px;padding:14px;border-radius:14px;border:1px solid var(--border);background:var(--panel-2);cursor:pointer;min-height:44px}
+.pb-kind input{position:absolute;opacity:0;pointer-events:none}
+.pb-kind strong{font-size:.95rem}.pb-kind small{color:var(--muted);font-size:.78rem;line-height:1.3}
+.pb-kind:has(input:checked){border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan) inset;background:color-mix(in srgb,var(--cyan) 9%,var(--panel-2))}
+.pb-kind:has(input:focus-visible){outline:2px solid var(--cyan);outline-offset:2px}
+.pb-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pb-grid label,.pb-test label{display:grid;gap:6px;font-size:.86rem;color:var(--muted)}
+.pb-grid input,.pb-grid select,.pb-test input,.pb-adv input,.pb-adv select,.pb-adv textarea{font:inherit}
+.pb-color{display:flex;gap:8px;align-items:center}.pb-color input[type=color]{width:48px;height:42px;padding:2px}
+.pb-formula{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border-radius:12px;background:var(--panel-2);border:1px dashed var(--border);font-family:ui-monospace,monospace;font-size:.88rem;margin-bottom:14px}
+.pb-test{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.pb-result{margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--cyan) 10%,var(--panel-2));border:1px solid color-mix(in srgb,var(--cyan) 40%,var(--border))}
+.pb-result span{color:var(--muted);font-size:.85rem}.pb-result strong{font-size:1.5rem}
+.pb-result.is-error{background:color-mix(in srgb,#ef4444 10%,var(--panel-2));border-color:color-mix(in srgb,#ef4444 45%,var(--border))}
+.pb-result.is-error strong{font-size:.95rem;color:#f87171}
+.pb-adv{margin-top:16px;border-top:1px solid var(--border);padding-top:14px}
+.pb-adv summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+.pb-adv-body{display:grid;gap:12px;margin-top:10px}
+.pb-adv-body label{display:grid;gap:6px;font-size:.86rem;color:var(--muted)}
+.pb-fields{display:grid;gap:8px}
+.pb-field{display:grid;grid-template-columns:1.4fr 1fr .9fr .8fr auto;gap:8px;align-items:end;padding:10px;border-radius:12px;background:var(--panel-2);border:1px solid var(--border)}
+.pb-field label{font-size:.78rem}
+.pb-field .pb-remove{min-width:44px;min-height:44px;border-radius:10px;border:1px solid var(--border);background:none;color:inherit;cursor:pointer;font-size:1.2rem}
+.pb-toolbar{display:flex;flex-wrap:wrap;gap:8px}
+.pb-error{padding:14px 16px;border-radius:14px;border:1px solid color-mix(in srgb,#ef4444 50%,var(--border));background:color-mix(in srgb,#ef4444 12%,var(--panel));color:var(--text)}
+.pb-side{position:sticky;top:90px;display:grid;gap:14px}
+.pb-preview{display:flex;gap:12px;align-items:center}
+.pb-logo{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-weight:800;color:#fff;background:var(--pb-color,#24b7d3);overflow:hidden;flex:none}
+.pb-logo img{width:100%;height:100%;object-fit:contain;background:#fff}
+.pb-side small{color:var(--muted)}
+.pb-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+@media(max-width:1100px){.pb{grid-template-columns:1fr}.pb-side{position:static}.pb-kinds{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.pb-grid,.pb-kinds{grid-template-columns:1fr}.pb-field{grid-template-columns:1fr 1fr}}
+</style>
+{% endblock %}
 {% block content %}
-<section class="page-heading"><div><span class="eyebrow">SEM ALTERAR CÓDIGO</span><h1>Crie uma companhia e edite a própria lógica de cálculo.</h1><p>O modelo inicial já calcula <b>tarifa menos X%</b>: <code>tarifa - (tarifa * desconto_percentual / 100)</code>. Você pode mudar a fórmula e os campos quando quiser.</p></div></section>
+{% set d = draft or {} %}
+<section class="page-heading"><div><span class="eyebrow">NOVO CADASTRO</span><h1>Criar programa, companhia, sistema ou consolidadora</h1><p>Escolha a categoria, dê um nome e teste o cálculo na hora. O resto já vem pronto.</p></div></section>
 
-<form method="post" action="/airlines/new" enctype="multipart/form-data" class="builder-layout" id="airlineBuilderForm" data-default-mode="tariff-discount">
+{% if form_error %}<div class="pb-error" role="alert" style="margin-bottom:16px"><strong>Não foi salvo:</strong> {{ form_error }} Seus dados foram mantidos abaixo.</div>{% endif %}
+
+<form method="post" action="/airlines/new" enctype="multipart/form-data" class="pb" id="programBuilderForm" data-no-loader="1" novalidate>
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-  <input type="hidden" name="fields_json" id="fieldsJson">
-  <section class="panel builder-main">
-    <div class="form-section no-top"><div class="section-title"><span class="step-badge">1</span><div><h2>Identidade da companhia</h2><p>Nome obrigatório. Foto e cor são opcionais.</p></div></div>
-      <div class="form-grid cols-2"><label>Nome da companhia<input name="name" required placeholder="Ex: Companhia Parceira"></label><label>Cor principal<input type="color" name="color" value="#24b7d3"></label></div>
-      <label>Logo opcional<input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml"><small>PNG, JPG, WEBP ou SVG; até 4 MB.</small></label>
-    </div>
+  <input type="hidden" name="fields_json" id="pbFieldsJson" value="{{ d.get('fields_json','') }}">
+  <script type="application/json" id="pbModels">{{ builder_models|tojson }}</script>
 
-    <div class="form-section"><div class="section-title"><span class="step-badge">2</span><div><h2>Primeiro tipo de cálculo</h2><p>O padrão retira um percentual da tarifa informada.</p></div></div>
-      <div class="form-grid cols-2"><label>Nome do cálculo<input name="calculation_name" value="Tarifa com desconto" required></label><label>Como aplicar o resultado<select name="apply_mode"><option value="total">O resultado já é o total</option><option value="per_passenger">Multiplicar o resultado por passageiro</option></select></label></div>
-      <label>Descrição opcional<textarea name="description" rows="2">Retira da tarifa informada o percentual de desconto definido.</textarea></label>
-    </div>
-
-    <div class="form-section"><div class="section-title"><span class="step-badge">3</span><div><h2>Campos da calculadora</h2><p>Edite os campos usados pela fórmula. Para o desconto, informe a tarifa e o percentual.</p></div></div>
-      <div class="field-builder-toolbar">
-        <button class="secondary-button" type="button" data-tariff-discount-model>％ Modelo tarifa − desconto</button>
-        <button class="secondary-button" type="button" data-add-field>＋ Adicionar campo</button>
-        <button class="ghost-button" type="button" data-add-preset="discount">＋ Desconto</button>
-        <button class="ghost-button" type="button" data-add-preset="interest">＋ Juros</button>
-        <button class="ghost-button" type="button" data-add-preset="fee">＋ Taxa adicional</button>
+  <div class="pb-main">
+    <section class="pb-card" aria-labelledby="pbKindTitle">
+      <h2 id="pbKindTitle"><span class="pb-step">1</span>Categoria</h2>
+      <p>Define em qual aba do catálogo ele aparece e qual cálculo vem pronto.</p>
+      <div class="pb-kinds" role="radiogroup" aria-labelledby="pbKindTitle">
+        {% for kind_key, kind_label, kind_hint in catalog_kinds %}
+        <label class="pb-kind"><input type="radio" name="catalog_kind" value="{{ kind_key }}" {% if selected_kind == kind_key %}checked{% endif %}><strong>{{ kind_label }}</strong><small>{{ kind_hint }}</small></label>
+        {% endfor %}
       </div>
-      <div id="fieldBuilder" class="field-builder"></div>
-      <p class="hint">Variáveis fixas disponíveis em toda fórmula: <code>passageiros</code>, <code>bebes</code> e <code>bagagens</code>.</p>
-    </div>
+    </section>
 
-    <div class="form-section"><div class="section-title"><span class="step-badge">4</span><div><h2>Fórmula</h2><p>Exemplo: tarifa de R$ 1.000 com 10% de desconto resulta em R$ 900.</p></div></div>
-      <label>Fórmula principal<textarea name="formula" id="formulaInput" rows="4" required>tarifa - (tarifa * desconto_percentual / 100)</textarea></label>
-      <div class="formula-help"><strong>Exemplos:</strong><code>tarifa - (tarifa * desconto_percentual / 100)</code><code>(milhas * milheiro) + taxa</code><code>((valor - desconto) * (1 + juros / 100)) + taxa</code></div>
-    </div>
+    <section class="pb-card" aria-labelledby="pbIdTitle">
+      <h2 id="pbIdTitle"><span class="pb-step">2</span>Identificação</h2>
+      <p>Só o nome é obrigatório.</p>
+      <div class="pb-grid">
+        <label for="pbName">Nome<input id="pbName" name="name" required minlength="2" maxlength="180" placeholder="Ex.: Smiles Diamante" value="{{ d.get('name','') }}" autocomplete="off"></label>
+        <label for="pbScope">Atuação
+          <select id="pbScope" name="market_scope">
+            {% set scope = d.get('market_scope') or 'both' %}
+            <option value="both" {% if scope == 'both' %}selected{% endif %}>Nacional e internacional</option>
+            <option value="national" {% if scope == 'national' %}selected{% endif %}>Somente nacional</option>
+            <option value="international" {% if scope == 'international' %}selected{% endif %}>Somente internacional</option>
+          </select>
+        </label>
+        <label for="pbColor">Cor<span class="pb-color"><input type="color" id="pbColor" name="color" value="{{ d.get('color') or '#24b7d3' }}"><small>Usada no card e nos relatórios</small></span></label>
+        <label for="pbLogo">Logo (opcional)<input type="file" id="pbLogo" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml"><small>PNG, JPG, WEBP ou SVG até 4 MB</small></label>
+      </div>
+    </section>
 
-    <div class="form-actions"><a class="secondary-button" href="/airlines">Cancelar</a><button class="primary-button large" type="submit">Criar companhia →</button></div>
-  </section>
-  <aside class="panel builder-preview"><span class="eyebrow">LÓGICA EDITÁVEL</span><h2>Você controla a regra.</h2><p>Depois de criar a companhia, abra os detalhes e clique em <b>Editar lógica</b> para alterar fórmula e campos.</p><div class="safe-list"><div><span>✓</span> Desconto percentual sobre a tarifa</div><div><span>✓</span> Fórmula editável</div><div><span>✓</span> Campos editáveis</div><div><span>✓</span> Juros e taxas extras</div><div><span>✓</span> Exclusão segura da personalizada</div></div><div class="info-card"><strong>Modelo inicial</strong><code>tarifa - (tarifa * desconto_percentual / 100)</code><small>O desconto é calculado sobre a própria tarifa informada.</small></div></aside>
+    <section class="pb-card" aria-labelledby="pbCalcTitle">
+      <h2 id="pbCalcTitle"><span class="pb-step">3</span>Cálculo</h2>
+      <p id="pbCalcHint">Preencha valores de exemplo para ver o resultado na hora.</p>
+      <div class="pb-formula" id="pbFormulaView" aria-live="polite"></div>
+      <div class="pb-test" id="pbTest"></div>
+      <div class="pb-result" id="pbResult" role="status" aria-live="polite"><span>Resultado do teste</span><strong id="pbResultValue">—</strong></div>
+
+      <details class="pb-adv" id="pbAdvanced" {% if form_error or d.get('fields_json') %}open{% endif %}>
+        <summary>Personalizar cálculo (avançado)</summary>
+        <div class="pb-adv-body">
+          <div class="pb-grid">
+            <label for="pbCalcName">Nome do cálculo<input id="pbCalcName" name="calculation_name" value="{{ d.get('calculation_name','') }}" maxlength="120"></label>
+            <label for="pbApply">Como aplicar o resultado
+              <select id="pbApply" name="apply_mode">
+                <option value="total" {% if d.get('apply_mode') != 'per_passenger' %}selected{% endif %}>O resultado já é o total</option>
+                <option value="per_passenger" {% if d.get('apply_mode') == 'per_passenger' %}selected{% endif %}>Multiplicar por passageiro</option>
+              </select>
+            </label>
+          </div>
+          <label for="pbDesc">Descrição<textarea id="pbDesc" name="description" rows="2">{{ d.get('description','') }}</textarea></label>
+          <div>
+            <div class="pb-toolbar" style="margin-bottom:8px">
+              <button type="button" class="secondary-button" data-pb-add>＋ Adicionar campo</button>
+              <button type="button" class="ghost-button" data-pb-preset="fee">＋ Taxa adicional</button>
+              <button type="button" class="ghost-button" data-pb-preset="discount">＋ Desconto (%)</button>
+              <button type="button" class="ghost-button" data-pb-reset>Restaurar modelo da categoria</button>
+            </div>
+            <div class="pb-fields" id="pbFields"></div>
+          </div>
+          <label for="pbFormula">Fórmula<textarea id="pbFormula" name="formula" rows="3" spellcheck="false">{{ d.get('formula','') }}</textarea><small>Use as chaves dos campos e também <code>passageiros</code>, <code>bebes</code> e <code>bagagens</code>. Ex.: <code>(milhas / 1000 * milheiro) + taxa</code></small></label>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <aside class="pb-side">
+    <section class="pb-card">
+      <span class="eyebrow">PRÉVIA</span>
+      <div class="pb-preview" style="margin-top:10px">
+        <div class="pb-logo" id="pbLogoPreview" aria-hidden="true">?</div>
+        <div><strong id="pbNamePreview">Sem nome</strong><br><small id="pbKindPreview"></small></div>
+      </div>
+    </section>
+    <div class="pb-actions">
+      <a class="secondary-button" href="/airlines">Cancelar</a>
+      <button class="primary-button large" type="submit" id="pbSubmit">Salvar cadastro</button>
+    </div>
+    <p class="pb-error" id="pbClientError" role="alert" hidden></p>
+  </aside>
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/company-builder.js?v=2" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/js/program-builder-20261109.js?v=1" defer></script>{% endblock %}

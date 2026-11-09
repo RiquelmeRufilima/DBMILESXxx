@@ -9,7 +9,7 @@ import uuid
 from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Depends, Request, UploadFile
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -18,7 +18,7 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..models import Airline, CalculationField, CalculationType
 from ..security import validate_csrf_token
-from ..services.formula_engine import validate_formula
+from ..services.formula_engine import FormulaError, evaluate_formula, validate_formula
 from ..services.airline_logos import logo_from_name
 from ..services.seed import ensure_catalog_airlines
 from ..services.storage import blob_delete, blob_get, blob_put, blob_ready
@@ -35,6 +35,24 @@ CATALOG_CATEGORIES = (
     ("consolidators", "Consolidadoras e Operadoras"),
 )
 _VALID_CATALOG_CATEGORIES = {key for key, _ in CATALOG_CATEGORIES}
+
+
+# O que o usuário escolhe na tela: separa "Programa de milhas" de
+# "Companhia aérea" (as duas ficam na categoria interna "airlines").
+CATALOG_KINDS = (
+    ("miles", "Programa de milhas", "Smiles, LATAM Pass, TudoAzul, Livelo…"),
+    ("airlines", "Companhia aérea", "Tarifa do site da companhia, com ou sem desconto"),
+    ("systems", "Sistema", "Sistema de emissão ou busca de tarifas"),
+    ("consolidators", "Consolidadora e Operadora", "Hotel DO, Pátria e outras"),
+)
+_KIND_TO_CATEGORY = {"miles": ("airlines", "miles"), "airlines": ("airlines", "airlines"), "systems": ("systems", None), "consolidators": ("consolidators", None)}
+
+
+def _catalog_kind(raw: str) -> tuple[str, str | None]:
+    value = str(raw or "").strip().lower()
+    if value not in _KIND_TO_CATEGORY:
+        raise ValueError("Escolha a categoria do cadastro.")
+    return _KIND_TO_CATEGORY[value]
 
 
 def _catalog_category(raw: str) -> str:
@@ -314,7 +332,50 @@ def airline_list(request: Request, db: Session = Depends(get_db)):
     # Programas de milhas primeiro, depois companhias aéreas, sistemas e consolidadoras.
     group_order = {key: index for index, (key, _label) in enumerate(CATALOG_GROUPS)}
     airlines = sorted(airlines, key=lambda item: (group_order.get(catalog_group(item), 9), not item.builtin, (item.name or "").lower()))
-    return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines, catalog_categories=CATALOG_CATEGORIES, catalog_logo_urls={item.id: _catalog_logo(item) for item in airlines}))
+    return templates.TemplateResponse(request, "airlines/list.html", context(request, user=user, airlines=airlines, catalog_categories=CATALOG_CATEGORIES, catalog_kinds=CATALOG_KINDS, catalog_logo_urls={item.id: _catalog_logo(item) for item in airlines}))
+
+
+MILES_MODEL = {
+    "calculation_name": "Milhas + taxas",
+    "description": "Milhas multiplicadas pelo valor do milheiro, mais as taxas de embarque.",
+    "formula": "(milhas / 1000 * milheiro) + taxa",
+    "fields": [
+        {"key": "milhas", "label": "Milhas", "field_type": "number", "default_value": "0", "required": True, "min_value": 0, "max_value": None, "step": 1, "help_text": "Quantidade total de milhas da emissão", "options": None},
+        {"key": "milheiro", "label": "Valor do milheiro (R$)", "field_type": "number", "default_value": "0", "required": True, "min_value": 0, "max_value": None, "step": 0.01, "help_text": "Preço de 1.000 milhas", "options": None},
+        {"key": "taxa", "label": "Taxas (R$)", "field_type": "number", "default_value": "0", "required": False, "min_value": 0, "max_value": None, "step": 0.01, "help_text": "Taxas de embarque", "options": None},
+    ],
+}
+TARIFF_MODEL = {
+    "calculation_name": "Tarifa com desconto",
+    "description": "Retira da tarifa informada o percentual de desconto definido.",
+    "formula": "tarifa - (tarifa * desconto_percentual / 100)",
+    "fields": [
+        {"key": "tarifa", "label": "Tarifa informada", "field_type": "number", "default_value": "0", "required": True, "min_value": 0, "max_value": None, "step": 0.01, "help_text": None, "options": None},
+        {"key": "desconto_percentual", "label": "Desconto da tarifa (%)", "field_type": "percent", "default_value": "0", "required": False, "min_value": 0, "max_value": 100, "step": 0.01, "help_text": None, "options": None},
+    ],
+}
+
+
+def _builder_page(request: Request, db: Session, user, *, draft: dict | None = None, error: str = "", status_code: int = 200):
+    draft = draft or {}
+    kind = draft.get("catalog_kind") or str(request.query_params.get("tipo") or "miles")
+    if kind not in _KIND_TO_CATEGORY:
+        kind = "miles"
+    return templates.TemplateResponse(
+        request,
+        "airlines/form.html",
+        context(
+            request,
+            user=user,
+            catalog_kinds=CATALOG_KINDS,
+            partner_airlines=_visible_partner_airlines(db, user),
+            draft=draft,
+            selected_kind=kind,
+            builder_models={"miles": MILES_MODEL, "tariff": TARIFF_MODEL},
+            form_error=error,
+        ),
+        status_code=status_code,
+    )
 
 
 @router.get("/new")
@@ -323,10 +384,39 @@ def new_airline_page(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
     if user.company_id and user.role not in {"admin", "gerente"}:
-        flash(request, "Somente administradores e gerentes podem criar companhias para a empresa.", "error")
+        flash(request, "Somente administradores e gerentes podem criar cadastros para a empresa.", "error")
         return RedirectResponse("/airlines", status_code=303)
-    partner_airlines = _visible_partner_airlines(db, user)
-    return templates.TemplateResponse(request, "airlines/form.html", context(request, user=user, catalog_categories=CATALOG_CATEGORIES, partner_airlines=partner_airlines))
+    return _builder_page(request, db, user)
+
+
+@router.post("/formula-preview")
+async def formula_preview(request: Request, db: Session = Depends(get_db)):
+    """Teste instantâneo da fórmula na tela de criação (não salva nada)."""
+    user = current_user(request, db)
+    if user is None:
+        return JSONResponse({"ok": False, "error": "Sessão expirada."}, status_code=401)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Dados inválidos."}, status_code=400)
+    try:
+        fields = _parse_fields(json.dumps(body.get("fields") or []))
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)})
+    formula = str(body.get("formula") or "").strip()[:2000]
+    allowed = {item["key"] for item in fields} | {"passageiros", "bebes", "bagagens"}
+    valid, message = validate_formula(formula, allowed)
+    if not valid:
+        return JSONResponse({"ok": False, "error": message})
+    raw_values = body.get("values") if isinstance(body.get("values"), dict) else {}
+    values = {"passageiros": raw_values.get("passageiros") or 1, "bebes": 0, "bagagens": 0}
+    for item in fields:
+        values[item["key"]] = raw_values.get(item["key"], item["default_value"]) or 0
+    try:
+        result = evaluate_formula(formula, values)
+    except (FormulaError, ZeroDivisionError, OverflowError, ValueError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc) or "Não foi possível calcular."})
+    return JSONResponse({"ok": True, "result": round(float(result), 2)})
 
 
 @router.post("/new")
@@ -335,64 +425,65 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
     if user is None:
         return RedirectResponse("/login", status_code=303)
     if user.company_id and user.role not in {"admin", "gerente"}:
-        flash(request, "Você não tem permissão para criar companhias.", "error")
+        flash(request, "Você não tem permissão para criar cadastros.", "error")
         return RedirectResponse("/airlines", status_code=303)
 
     form = await request.form()
-    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
-        flash(request, "Sessão expirada. Tente novamente.", "error")
-        return RedirectResponse("/airlines/new", status_code=303)
+    draft = {key: str(form.get(key) or "") for key in ("name", "color", "catalog_kind", "market_scope", "calculation_name", "apply_mode", "description", "formula", "fields_json")}
 
-    name = str(form.get("name") or "").strip()
-    calc_name = str(form.get("calculation_name") or "Cálculo padrão").strip() or "Cálculo padrão"
-    formula = str(form.get("formula") or "(milhas * milheiro) + taxa").strip()
+    def fail(message: str):
+        # Mostra o erro mantendo tudo o que foi preenchido (antes a tela voltava vazia).
+        return _builder_page(request, db, user, draft=draft, error=message, status_code=400)
+
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        return fail("Sua sessão expirou. Confira os dados e clique em salvar novamente.")
+
+    name = " ".join(str(form.get("name") or "").split())[:180]
+    if len(name) < 2:
+        return fail("Informe o nome do cadastro (mínimo 2 letras).")
+    try:
+        if form.get("catalog_kind"):
+            catalog_category, catalog_display = _catalog_kind(form.get("catalog_kind"))
+        else:
+            catalog_category, catalog_display = _catalog_category(form.get("catalog_category")), None
+    except ValueError as exc:
+        return fail(str(exc))
+    calc_name = str(form.get("calculation_name") or "").strip()[:120] or "Cálculo padrão"
     apply_mode = str(form.get("apply_mode") or "total")
     color = str(form.get("color") or "#24b7d3")
-    try:
-        catalog_category = _catalog_category(form.get("catalog_category"))
-    except ValueError as exc:
-        flash(request, str(exc), "error")
-        return RedirectResponse("/airlines/new", status_code=303)
-    if len(name) < 2:
-        flash(request, "O nome da companhia é obrigatório.", "error")
-        return RedirectResponse("/airlines/new", status_code=303)
-
     market_scope = str(form.get("market_scope") or "both").strip().lower()
     if market_scope not in {"national", "international", "both"}:
-        flash(request, "Atuação da companhia inválida.", "error")
-        return RedirectResponse("/airlines/new", status_code=303)
+        market_scope = "both"
     try:
         partner_names = _parse_partner_names(form, _visible_partner_airlines(db, user))
     except ValueError as exc:
-        flash(request, str(exc), "error")
-        return RedirectResponse("/airlines/new", status_code=303)
-
+        return fail(str(exc))
     try:
         fields = _parse_fields(str(form.get("fields_json") or "[]"))
     except ValueError as exc:
-        flash(request, str(exc), "error")
-        return RedirectResponse("/airlines/new", status_code=303)
+        return fail(str(exc))
 
-    # O cálculo padrão solicitado sempre nasce com milhas, milheiro e taxa.
+    model = MILES_MODEL if catalog_display == "miles" else TARIFF_MODEL
+    formula = str(form.get("formula") or "").strip() or model["formula"]
     if not fields:
-        fields = [
-            {"key": "milhas", "label": "Milhas", "field_type": "number", "default_value": "0", "required": False, "min_value": 0, "max_value": None, "step": 0.001, "help_text": None, "options": None, "order_index": 0},
-            {"key": "milheiro", "label": "Valor do milheiro", "field_type": "number", "default_value": "0", "required": False, "min_value": 0, "max_value": None, "step": 0.01, "help_text": None, "options": None, "order_index": 1},
-            {"key": "taxa", "label": "Taxa", "field_type": "number", "default_value": "0", "required": False, "min_value": 0, "max_value": None, "step": 0.01, "help_text": None, "options": None, "order_index": 2},
-        ]
+        fields = [dict(item, order_index=index) for index, item in enumerate(model["fields"])]
 
     allowed_variables = {item["key"] for item in fields} | {"passageiros", "bebes", "bagagens"}
     valid, message = validate_formula(formula, allowed_variables)
     if not valid:
-        flash(request, f"Fórmula inválida: {message}", "error")
-        return RedirectResponse("/airlines/new", status_code=303)
+        return fail(f"Fórmula inválida: {message}")
+
+    duplicate = db.scalar(
+        select(Airline.id).where(Airline.active.is_(True), _visibility(user), Airline.name.ilike(name)).limit(1)
+    )
+    if duplicate:
+        return fail(f"Já existe um cadastro chamado '{name}'. Use outro nome ou edite o existente.")
 
     upload = form.get("logo")
     try:
         logo_path = await _save_logo(upload if getattr(upload, "filename", None) else None, user)
     except ValueError as exc:
-        flash(request, str(exc), "error")
-        return RedirectResponse("/airlines/new", status_code=303)
+        return fail(f"{exc} O cadastro não foi salvo; escolha outra imagem ou remova a logo.")
 
     airline = Airline(
         owner_company_id=user.company_id,
@@ -403,6 +494,7 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
         color=color if re.match(r"^#[0-9A-Fa-f]{6}$", color) else "#24b7d3",
         engine_type="formula",
         catalog_category=catalog_category,
+        catalog_display=catalog_display,
         market_scope=market_scope,
         partner_airlines_json=json.dumps(partner_names, ensure_ascii=False),
         active=True,
@@ -426,7 +518,8 @@ async def create_airline(request: Request, db: Session = Depends(get_db)):
     _add_fields(db, calc_type, fields)
     db.commit()
 
-    flash(request, f"Companhia '{name}' criada com sucesso.", "success")
+    label = dict((key, label) for key, label, _hint in CATALOG_KINDS).get(str(form.get("catalog_kind") or ""), "Cadastro")
+    flash(request, f"{label} '{name}' criado com sucesso. Ele já aparece no catálogo e na calculadora.", "success")
     return RedirectResponse(f"/airlines/{airline.id}", status_code=303)
 
 
@@ -481,7 +574,7 @@ def manage_airline(airline_id: int, request: Request, db: Session = Depends(get_
     return templates.TemplateResponse(request, "airlines/manage.html",
         context(
             request, user=user, airline=airline, can_manage=_can_manage(user, airline),
-            catalog_categories=CATALOG_CATEGORIES,
+            catalog_categories=CATALOG_CATEGORIES, catalog_kinds=CATALOG_KINDS,
             catalog_logo_url=_catalog_logo(airline),
             partner_airlines=partner_airlines,
             selected_partner_names=selected_partner_names,
@@ -571,11 +664,15 @@ async def update_catalog_category(airline_id: int, request: Request, db: Session
         flash(request, "Sessão expirada. Atualize a página e tente novamente.", "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
     try:
-        category = _catalog_category(form.get("catalog_category"))
+        if form.get("catalog_kind"):
+            category, display = _catalog_kind(form.get("catalog_kind"))
+        else:
+            category, display = _catalog_category(form.get("catalog_category")), None
     except ValueError as exc:
         flash(request, str(exc), "error")
         return RedirectResponse(f"/airlines/{airline_id}", status_code=303)
     airline.catalog_category = category
+    airline.catalog_display = display
     db.commit()
     flash(request, "Categoria atualizada com sucesso.", "success")
     return RedirectResponse(f"/airlines/{airline_id}", status_code=303)

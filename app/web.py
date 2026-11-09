@@ -206,6 +206,9 @@ def catalog_group(airline) -> str:
         return category
     if getattr(airline, "builtin", False):
         return "miles" if getattr(airline, "slug", "") in MILES_AIRLINE_SLUGS else "airlines"
+    chosen = str(getattr(airline, "catalog_display", "") or "")
+    if chosen in {"miles", "airlines"}:
+        return chosen
     try:
         for calc_type in getattr(airline, "calculation_types", None) or []:
             if not getattr(calc_type, "active", True) or getattr(calc_type, "legacy_key", None) == "valor_site":
