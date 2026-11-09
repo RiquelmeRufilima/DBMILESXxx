@@ -1,0 +1,22 @@
+{# Logo da opção: uma companhia, ou várias sobrepostas quando a opção é combinada. #}
+{% macro quote_logo(quote) -%}
+{%- set items = quote.combined_logo_items if quote.is_combined else [] -%}
+{%- if items -%}
+<div class="history-logo-seal combined-logo-host">
+  <div class="combined-logo-stack" role="img" aria-label="Companhias combinadas: {{ items|map(attribute='name')|join(', ') }}">
+    {% for item in items[:3] %}
+    <span class="combined-logo-badge{% if not item.logo_path %} fallback{% endif %}" style="--i:{{ loop.index0 }};" title="{{ item.name }}">
+      {% if item.logo_path %}<img src="{{ item.logo_path|logo_url }}" alt="" loading="lazy" data-initial="{{ item.initial }}" onerror="this.parentElement.classList.add('fallback');this.replaceWith(Object.assign(document.createElement('span'),{textContent:this.dataset.initial}))">{% else %}<span>{{ item.initial }}</span>{% endif %}
+    </span>
+    {% endfor %}
+    {% if items|length > 3 %}<span class="combined-logo-badge combined-logo-more" style="--i:3;" title="+{{ items|length - 3 }} companhia(s)">+{{ items|length - 3 }}</span>{% endif %}
+  </div>
+</div>
+{%- else -%}
+{%- set name = quote.display_airline_name or (quote.airline.name if quote.airline else 'Companhia') -%}
+{%- set path = (quote.airline.logo_path if quote.airline and quote.airline.logo_path else '') or quote.fallback_logo_path or '' -%}
+<div class="history-logo-seal">
+  {% if path %}<img src="{{ path|logo_url }}" alt="{{ name }}" loading="lazy" data-initial="{{ (name[:1] or 'C')|upper }}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:this.dataset.initial}))">{% else %}<span>{{ (name[:1] or 'C')|upper }}</span>{% endif %}
+</div>
+{%- endif %}
+{%- endmacro %}

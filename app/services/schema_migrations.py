@@ -176,3 +176,25 @@ def ensure_runtime_schema(engine: Engine) -> None:
         "updated_at": "DATETIME",
     }
     _add_columns(engine, "web_company_tasks", task_cols)
+
+
+# Colunas novas pequenas que o código já usa. Rodam também no cold start do
+# Vercel: cada uma é um único ALTER ... IF NOT EXISTS (instantâneo no
+# PostgreSQL para coluna anulável sem default) com tempo-limite curto, para
+# nunca prender a inicialização.
+LIGHT_COLUMNS = (
+    ("web_airlines", "catalog_display", "VARCHAR(16)"),
+)
+
+
+def ensure_light_columns(engine: Engine) -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("SET LOCAL lock_timeout = '2s'"))
+            conn.execute(text("SET LOCAL statement_timeout = '4s'"))
+            for table, name, ddl in LIGHT_COLUMNS:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {ddl}"))
+    except Exception as exc:  # o sistema continua; a próxima inicialização tenta de novo
+        logger.warning("Colunas leves não verificadas: %s", exc)

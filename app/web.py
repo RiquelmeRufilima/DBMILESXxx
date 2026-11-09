@@ -229,6 +229,19 @@ CATALOG_GROUPS = (
     ("consolidators", "Consolidadoras e Operadoras"),
 )
 templates.env.filters["catalog_group"] = catalog_group
+
+
+def logo_url(path) -> str:
+    """Endereço pronto para <img src>: aceita caminho relativo, absoluto ou URL."""
+    value = str(path or "").strip()
+    if not value:
+        return ""
+    if value.startswith(("https://", "http://", "data:image/")):
+        return value
+    return "/" + value.lstrip("/")
+
+
+templates.env.filters["logo_url"] = logo_url
 templates.env.globals["catalog_groups"] = CATALOG_GROUPS
 templates.env.globals["iata_city_groups"] = IATA_CITY_GROUPS
 templates.env.filters["percent_br"] = percent_br

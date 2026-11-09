@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import delete, desc, func, inspect, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..services.airline_logos import logo_from_name
 from ..database import get_db, engine
 from ..dependencies import current_user
 from ..models import (
@@ -936,6 +937,7 @@ def _decorate_quote_scope(quote: WebQuote, group: QuoteGroup | None = None, part
                 component.get("logo_path")
                 or component.get("airline_logo_path")
                 or partner_logo_map.get(_normalized_token(airline_name), "")
+                or logo_from_name(airline_name)
                 or ""
             ).strip()
             quote.combined_logo_items.append({
@@ -2571,7 +2573,7 @@ def _load_options(db: Session, user, group_id: int) -> list[WebQuote]:
     by_id = {item.id: item for item in quotes}
     partner_airlines = list(db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all())
     partner_logo_map = {
-        _normalized_token(item.name): str(item.logo_path or "")
+        _normalized_token(item.name): str(item.logo_path or logo_from_name(item.name) or "")
         for item in partner_airlines
         if item.name
     }
@@ -2692,7 +2694,7 @@ def _history_group_cards_batch(
         db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all()
     )
     partner_logo_map = {
-        _normalized_token(item.name): str(item.logo_path or "")
+        _normalized_token(item.name): str(item.logo_path or logo_from_name(item.name) or "")
         for item in partner_airlines
         if item.name
     }

@@ -58,7 +58,7 @@ from .routers import (
 from .services.legacy_migration import migrate_legacy_data
 from .services.quote_trip_backfill import backfill_quote_trip_details
 from .services.seed import seed_builtin_airlines
-from .services.schema_migrations import ensure_runtime_schema
+from .services.schema_migrations import ensure_light_columns, ensure_runtime_schema
 from .services.user_defaults import ensure_user_defaults
 from .services.team_accounts import ensure_company_owners
 from .models import Airline, WebUser
@@ -79,6 +79,7 @@ async def lifespan(app: FastAPI):
         #
         # O banco deve ser preparado uma única vez pelo script:
         #   python scripts/inicializar_neon.py
+        ensure_light_columns(engine)
         logger.info("Vercel: inicialização leve concluída; banco não é migrado no cold start.")
         yield
         return

@@ -1,0 +1,53 @@
+/* Logos sobrepostas das opções combinadas (Histórico e página da cotação). */
+.combined-logo-host{
+  width:84px!important;
+  height:48px!important;
+  min-width:84px!important;
+  overflow:visible!important;
+  display:flex!important;
+  justify-content:center;
+  align-items:center;
+  background:transparent!important;
+  border:0!important;
+}
+.combined-logo-stack{
+  position:relative;
+  width:84px;
+  height:48px;
+  display:block;
+}
+.combined-logo-badge{
+  --i:0;
+  position:absolute;
+  left:calc(var(--i) * 22px);
+  top:4px;
+  width:40px;
+  height:40px;
+  border-radius:14px;
+  border:1px solid rgba(82,205,255,.28);
+  background:linear-gradient(180deg,rgba(18,43,70,.96),rgba(7,25,43,.98));
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.combined-logo-badge img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#fff;
+  padding:4px;
+}
+.combined-logo-badge.fallback span,
+.combined-logo-more{
+  color:#ecfbff;
+  font-weight:900;
+  font-size:.95rem;
+}
+.combined-logo-more{
+  background:linear-gradient(180deg,rgba(21,90,106,.98),rgba(11,54,68,.98));
+  color:#bdf7ff;
+  font-size:.78rem;
+}
+.option-airline .combined-logo-host{margin-right:6px}
