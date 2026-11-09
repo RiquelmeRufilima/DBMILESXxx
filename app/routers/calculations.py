@@ -4181,6 +4181,18 @@ async def calculate_route(request: Request, db: Session = Depends(get_db)):
     db.commit()
     await publish_quote_activity(user.company_id, payload)
     request.session["active_quote_group_id"] = group.id
+    # Último custo calculado: fica visível na tela de cálculo (mesmo após
+    # recarregar) até o próximo cálculo, de qualquer companhia.
+    request.session["dbm_last_calc"] = {
+        "group_id": group.id,
+        "quote_id": quote.id,
+        "airline": airline.name,
+        "type": calc_type.name,
+        "total": round(float(quote.total or 0), 2),
+        "currency": quote.currency or "BRL",
+        "route": " → ".join(x for x in [quote.origin or "", quote.destination or ""] if x),
+        "at": datetime.utcnow().isoformat(timespec="seconds"),
+    }
     flash(request, "Opção atualizada dentro da cotação principal." if option_id else "Opção calculada e adicionada à cotação principal. Você pode trocar o card da companhia e calcular outra opção.", "success")
     # Salvar: permanecer no formulário de edição com o ID recém salvo.
     # Salvar e fechar: voltar ao cartão de opções do mesmo grupo.

@@ -539,6 +539,25 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       <div class="calc-workflow-step is-optional"><b>6</b><span><strong>Horários</strong><small>Opcional</small></span></div>
     </div>
 
+    {% set last_calc = request.session.get('dbm_last_calc') if request and request.session else none %}
+    {% if last_calc and group and last_calc.get('group_id') == group.id %}
+    <aside class="dbm-last-calc" role="status" aria-live="polite">
+      <div class="dbm-last-calc-main">
+        <span class="dbm-last-calc-eyebrow">Último custo calculado</span>
+        <strong class="dbm-last-calc-value">{{ last_calc.get('total', 0)|money(last_calc.get('currency') or 'BRL') }}</strong>
+        <small>{{ last_calc.get('airline') }}{% if last_calc.get('type') %} · {{ last_calc.get('type') }}{% endif %}{% if last_calc.get('route') %} · {{ last_calc.get('route') }}{% endif %}</small>
+      </div>
+      <a class="secondary-button small-button" href="/calculations/group/{{ group.id }}">Ver opções</a>
+    </aside>
+    <style>
+      .dbm-last-calc{position:sticky;top:10px;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 16px;padding:14px 18px;border-radius:16px;border:1px solid color-mix(in srgb,var(--cyan) 45%,var(--border));background:color-mix(in srgb,var(--cyan) 10%,var(--panel));box-shadow:0 10px 30px rgba(0,0,0,.18)}
+      .dbm-last-calc-main{display:grid;gap:2px}
+      .dbm-last-calc-eyebrow{font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+      .dbm-last-calc-value{font-size:1.6rem;line-height:1.1;color:var(--text)}
+      .dbm-last-calc small{color:var(--muted)}
+    </style>
+    {% endif %}
+
     <div class="selected-airline-head calc-selected-airline" style="--airline-color: {{ selected_airline.color }}">
       <div>{% if selected_airline.logo_path %}<img src="/{{ selected_airline.logo_path }}" alt="{{ selected_airline.name }}">{% else %}<span class="brand-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}</div>
       <div>
