@@ -3,8 +3,8 @@
 {% block head %}<style>.auth-note{padding:12px 14px;border-radius:13px;background:rgba(38,197,230,.07);border:1px solid rgba(38,197,230,.16);color:#9fc5d7;font-size:.74rem;line-height:1.55}.auth-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:600px){.auth-two{grid-template-columns:1fr}}</style>{% endblock %}
 {% block content %}
 <section class="auth-shell auth-shell-branded">
-  <div class="auth-visual register-visual"><div class="login-brand-row"><img class="login-main-logo" src="/static/brand/dbmilesx-dark.png" alt="DBMILESX"><img class="login-mark" src="/static/brand/marca.png" alt="Marca"></div><p class="eyebrow">NOVO ACESSO</p><h1>Crie sua conta e confirme seu e-mail com segurança.</h1><p>Você recebe um código de 6 dígitos no e-mail. Depois da confirmação, sua conta é liberada automaticamente.</p></div>
-  <div class="auth-card"><div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png" alt="DBMILESX"><div><h2>Criar conta</h2><p>Preencha seus dados para começar.</p></div></div>
+  <div class="auth-visual register-visual"><div class="login-brand-row"><img class="login-main-logo" src="/static/brand/dbmilesx-dark.png?v=20261109" alt="DBMILESX"><img class="login-mark" src="/static/brand/marca.png?v=20261109" alt="Marca"></div><p class="eyebrow">NOVO ACESSO</p><h1>Crie sua conta e confirme seu e-mail com segurança.</h1><p>Você recebe um código de 6 dígitos no e-mail. Depois da confirmação, sua conta é liberada automaticamente.</p></div>
+  <div class="auth-card"><div class="auth-card-head branded-head"><img class="login-app-icon" src="/static/icons/icon-192.png?v=20261109" alt="DBMILESX"><div><h2>Criar conta</h2><p>Preencha seus dados para começar.</p></div></div>
     <form method="post" action="/register" class="form-stack">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <label>Nome completo<input name="name" autocomplete="name" required placeholder="Seu nome completo"></label>

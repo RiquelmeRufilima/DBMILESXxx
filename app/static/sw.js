@@ -1,4 +1,4 @@
-const CACHE = 'dbmilesx-v5-29-static-20261106';
+const CACHE = 'dbmilesx-v5-30-static-20261109';
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE)); });
 self.addEventListener('activate', e => e.waitUntil((async () => {
   for (const key of await caches.keys()) if (key !== CACHE) await caches.delete(key);
@@ -32,7 +32,7 @@ self.addEventListener('push', event => {
   const target = url.startsWith('/') && !url.startsWith('//') ? url : '/notifications';
   event.waitUntil(self.registration.showNotification(title, {
     body: String(data.body || 'Você tem uma nova notificação.'),
-    icon: '/static/icons/dbmilesx.ico', badge: '/static/icons/dbmilesx.ico',
+    icon: '/static/icons/dbmilesx.ico?v=20261109', badge: '/static/icons/dbmilesx.ico?v=20261109',
     data: {url: target}, tag: `dbmilesx-${title}-${target}`, renotify: false,
   }));
 });
