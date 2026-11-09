@@ -42,11 +42,28 @@ html[data-theme="light"] .tracking-entry{background:#fff!important;color:#14304a
 html[data-theme="light"] .tracking-entry :is(strong,b,span){color:inherit}
 html[data-theme="light"] .tracking-entry .tracking-hotel-stars{color:#b67c06!important}
 </style>
+<style>
+.tracking-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.tracking-new-form{margin:0}.tracking-new-form .primary-button{min-height:44px}
+.tracking-move-form{margin:0;display:inline}
+button.tracking-move{cursor:pointer;font:inherit;background:none;border:1px solid var(--border,#d4e2ef)}
+</style>
 {% endblock %}
 {% block content %}
 <div class="tracking-shell">
   <header class="tracking-heading">
     <div><span class="eyebrow">ACOMPANHAMENTO DA EQUIPE</span><h1>{{ title }}</h1><p>Registros das cotações da sua empresa. Use o lápis para editar o serviço diretamente na cotação de origem.</p></div>
+    <form method="post" action="/acompanhamentos/{{ kind }}/novo" class="tracking-new-form"
+          data-quote-target="1" data-target-ask-client="1"
+          data-target-title="Novo acompanhamento: {{ title }}"
+          data-target-description="Escolha em qual cotação este serviço será cadastrado."
+          data-target-new-label="Criar nova cotação"
+          data-target-new-hint="Uma cotação manual é criada na aba Cotações com este serviço."
+          data-target-existing-label="Cadastrar numa cotação já criada"
+          data-target-existing-hint="O serviço entra na cotação escolhida, junto com o que ela já tem.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="primary-button" type="submit">+ Novo</button>
+    </form>
   </header>
   <nav class="tracking-types" aria-label="Tipos de acompanhamento">
     {% for code, entry in kinds.items() %}<a href="/acompanhamentos/{{ code }}" {% if code == kind %}aria-current="page"{% endif %}>{{ entry[1] }}</a>{% endfor %}
@@ -88,6 +105,18 @@ html[data-theme="light"] .tracking-entry .tracking-hotel-stars{color:#b67c06!imp
         <div class="tracking-actions">
           <span class="tracking-status">{{ item.status|replace('_',' ')|capitalize }}</span>
           <a class="tracking-edit" href="/cadastros/cotacoes/{{ item.group_id }}?origem={{ kind }}&amp;tab=orcamento&amp;service={{ kinds[kind][0] }}&amp;service_index={{ item.index }}" aria-label="Editar {{ title }} da cotação de {{ item.client }}" title="Abrir o serviço na cotação original">✎ Editar</a>
+          <form method="post" action="/acompanhamentos/{{ kind }}/{{ item.group_id }}/{{ item.index }}/mover" class="tracking-move-form"
+                data-quote-target="1" data-target-ask-client="1" data-target-exclude="{{ item.group_id }}"
+                data-target-title="Mover acompanhamento"
+                data-target-description="Transferir este serviço da cotação {{ item.code }} ({{ item.client }}) para outra cotação."
+                data-target-new-label="Mover para uma nova cotação"
+                data-target-new-hint="Cria uma cotação manual na aba Cotações. Se não informar o cliente, usamos o mesmo da cotação atual."
+                data-target-existing-label="Mover para uma cotação já criada"
+                data-target-existing-hint="O serviço sai da cotação atual e entra na escolhida, com valores e reserva."
+                data-target-ok="Mover">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="tracking-edit tracking-move" type="submit" aria-label="Mover {{ title }} da cotação de {{ item.client }} para outra cotação" title="Mover para outra cotação">⇄ Mover</button>
+          </form>
         </div>
       </article>
     {% else %}

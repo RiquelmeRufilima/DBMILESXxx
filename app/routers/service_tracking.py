@@ -1,15 +1,20 @@
 """Acompanhamentos vinculados às cotações aceitas; não duplica os dados."""
 from __future__ import annotations
 import json
+from datetime import datetime
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
-from sqlalchemy import select, func, desc, case, cast, or_
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select, func, desc, case, cast, or_, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, selectinload
 from ..database import get_db
 from ..dependencies import require_user
-from ..models import AcceptedQuote, QuoteGroup, WebUser
-from ..web import templates, context
+from ..models import AcceptedQuote, QuoteGroup, QuoteTagLink, WebUser
+from ..security import validate_csrf_token
+from ..web import templates, context, flash
 from ..services.tags import list_tags, tags_for_targets
+from ..services.quote_activity import record_quote_activity, publish_quote_activity
+from .cadastros import _current_item, _group_allowed, _new_manual_accepted, _payload, _set_payload
 
 router = APIRouter(prefix="/acompanhamentos", tags=["acompanhamentos"])
 # Cada tipo possui sua própria faixa de 200 índices (evita repetir etiquetas
@@ -123,3 +128,127 @@ def list_tracking(kind: str, request: Request, page: int = 1, q: str = "", tag: 
         tags_ready=tags_ready, all_tags=all_tags, selected_tags=selected_tags,
         tag_query=''.join(f'&tag={i}' for i in selected_tags),
         scan_limited=(backend != 'postgresql' and len(candidates) == 2000)))
+
+
+SERVICE_LABELS = {
+    "hospedagens": "Hospedagem",
+    "transportes": "Transporte",
+    "experiencias": "Experiência turística",
+    "cruzeiros": "Cruzeiro",
+    "seguros": "Seguro",
+}
+EMPTY_SERVICES = {"hotel": [], "transport": [], "cruise": [], "experiences": [], "insurance": [], "additional": [], "itinerary": ""}
+
+
+def _services_of(data: dict) -> dict:
+    services = data.get("services") if isinstance(data.get("services"), dict) else {}
+    for key, default in EMPTY_SERVICES.items():
+        if key not in services or not isinstance(services.get(key), type(default)):
+            services[key] = [] if isinstance(default, list) else (services.get(key) or "")
+    data["services"] = services
+    return services
+
+
+def _resolve_target(db: Session, user, form, kind: str, *, default_client: str = "", exclude_group_id: int | None = None):
+    """Destino escolhido na janela: cotação existente (id) ou nova cotação."""
+    raw = str(form.get("target_group_id") or "").strip()
+    if raw.isdigit():
+        item = _current_item(db, user, int(raw))
+        if item is None or not _group_allowed(user, item.group):
+            return None, False, "A cotação escolhida não foi encontrada."
+        if exclude_group_id is not None and item.group_id == exclude_group_id:
+            return None, False, "Este acompanhamento já está nessa cotação."
+        return item, False, ""
+    client = " ".join(str(form.get("client_name") or default_client or "").split())[:200]
+    label = SERVICE_LABELS.get(kind, "Serviço")
+    title = f"{label} • {client}" if client else f"{label} • nova cotação"
+    _group, item = _new_manual_accepted(db, user, title, client)
+    db.flush()
+    return item, True, ""
+
+
+@router.post("/{kind}/novo")
+async def novo_acompanhamento(kind: str, request: Request, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    if kind not in KINDS:
+        raise HTTPException(status_code=404, detail="Acompanhamento não encontrado")
+    form = await request.form()
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse(f"/acompanhamentos/{kind}", status_code=303)
+    key, title = KINDS[kind]
+    target, created, error = _resolve_target(db, user, form, kind)
+    if target is None:
+        flash(request, error, "error")
+        return RedirectResponse(f"/acompanhamentos/{kind}", status_code=303)
+    if created:
+        _msg, payload = record_quote_activity(db, user, target.group, f"Cotação {target.group.quote_name} criada em {title} por {user.name}.", event="quote_created")
+    else:
+        payload = None
+    db.commit()
+    if payload:
+        await publish_quote_activity(user.company_id, payload)
+    flash(request, f"Preencha {SERVICE_LABELS.get(kind, 'o serviço').lower()} e salve a cotação para concluir.", "success")
+    return RedirectResponse(f"/cadastros/cotacoes/{target.group_id}?origem={kind}&tab=orcamento&new_service={key}", status_code=303)
+
+
+@router.post("/{kind}/{group_id}/{index}/mover")
+async def mover_acompanhamento(kind: str, group_id: int, index: int, request: Request, db: Session = Depends(get_db)):
+    user = require_user(request, db)
+    if kind not in KINDS:
+        raise HTTPException(status_code=404, detail="Acompanhamento não encontrado")
+    form = await request.form()
+    back = f"/acompanhamentos/{kind}"
+    if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
+        flash(request, "Sessão expirada.", "error")
+        return RedirectResponse(back, status_code=303)
+    key, title = KINDS[kind]
+    source = _current_item(db, user, group_id)
+    if source is None or not _group_allowed(user, source.group):
+        flash(request, "Cotação de origem não encontrada.", "error")
+        return RedirectResponse(back, status_code=303)
+    source_data = _payload(source)
+    source_rows = _services_of(source_data)[key]
+    if index < 0 or index >= len(source_rows) or not isinstance(source_rows[index], dict):
+        flash(request, "Acompanhamento não encontrado. Atualize a página e tente novamente.", "error")
+        return RedirectResponse(back, status_code=303)
+    old_len = len(source_rows)
+    target, created, error = _resolve_target(
+        db, user, form, kind,
+        default_client=str(source_data.get("client_name") or (source.group.trip.client_name if source.group.trip else "") or ""),
+        exclude_group_id=source.group_id,
+    )
+    if target is None:
+        flash(request, error, "error")
+        return RedirectResponse(back, status_code=303)
+
+    service = source_rows.pop(index)
+    target_data = _payload(target)
+    target_rows = _services_of(target_data)[key]
+    target_rows.append(service)
+    new_index = len(target_rows) - 1
+    _set_payload(source, source_data)
+    _set_payload(target, target_data)
+    now = datetime.utcnow()
+    source.updated_at = now
+    target.updated_at = now
+
+    # As etiquetas do acompanhamento acompanham o serviço; os itens seguintes da
+    # cotação de origem sobem uma posição, então as etiquetas deles também.
+    def _move_links(old_id: int, new_id: int) -> None:
+        db.execute(update(QuoteTagLink)
+                   .where(QuoteTagLink.target_kind == "service", QuoteTagLink.target_id == old_id)
+                   .values(target_id=new_id))
+    if index <= 199 and new_index <= 199:
+        _move_links(_service_tag_id(source.group_id, kind, index), _service_tag_id(target.group_id, kind, new_index))
+    for position in range(index + 1, min(old_len, 200)):
+        _move_links(_service_tag_id(source.group_id, kind, position), _service_tag_id(source.group_id, kind, position - 1))
+
+    name = str(service.get("name") or service.get("description") or title)[:80]
+    _m1, p1 = record_quote_activity(db, user, source.group, f"{SERVICE_LABELS.get(kind, 'Serviço')} \"{name}\" movido para a cotação {target.group.quote_name} por {user.name}.", event="quote_updated")
+    _m2, p2 = record_quote_activity(db, user, target.group, f"{SERVICE_LABELS.get(kind, 'Serviço')} \"{name}\" recebido da cotação {source.group.quote_name} por {user.name}.", event="quote_updated")
+    db.commit()
+    for payload in (p1, p2):
+        await publish_quote_activity(user.company_id, payload)
+    flash(request, f"{SERVICE_LABELS.get(kind, 'Serviço')} movido para {'a nova cotação' if created else 'a cotação'} {target.group.quote_name}.", "success")
+    return RedirectResponse(back, status_code=303)

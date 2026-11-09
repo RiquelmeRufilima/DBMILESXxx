@@ -774,6 +774,86 @@ def _mark_flight(db: Session, user, groups: list[QuoteGroup]) -> int:
     return count
 
 
+def _new_manual_accepted(db: Session, user, title: str, client_name: str = "") -> tuple[QuoteGroup, AcceptedQuote]:
+    """Cria uma cotação manual vazia na aba Cotações (mesmo formato de /cotacoes/nova)."""
+    title = (title or "Nova cotação manual").strip()[:200] or "Nova cotação manual"
+    client_name = (client_name or "").strip()[:200]
+    group = QuoteGroup(user_id=user.id, company_id=user.company_id, assigned_user_id=user.id, quote_name=title, passengers=1, babies=0, bags=0, status="aberta")
+    db.add(group)
+    db.flush()
+    db.add(QuoteGroupTripDetail(group_id=group.id, travel_type="round_trip", client_name=client_name or None))
+    item = AcceptedQuote(group_id=group.id, user_id=user.id, company_id=user.company_id, status="aguardando")
+    db.add(item)
+    db.flush()
+    data = _seed_payload(group, None)
+    data["title"] = title
+    data["client_name"] = client_name
+    data["quote_code"] = f"m{group.id:04d}"
+    _set_payload(item, data)
+    return group, item
+
+
+def _target_accepted_from_form(db: Session, user, form, source_group_id: int | None = None) -> tuple[AcceptedQuote | None, bool]:
+    """Cotação da aba Cotações escolhida como destino. Retorna (item, erro)."""
+    raw = str(form.get("target_group_id") or "").strip()
+    if not raw.isdigit():
+        return None, False
+    target_id = int(raw)
+    if source_group_id is not None and target_id == source_group_id:
+        return None, False
+    item = _current_item(db, user, target_id)
+    if item is None or not _group_allowed(user, item.group):
+        return None, True
+    return item, False
+
+
+def _merge_option_into_accepted(db: Session, user, target: AcceptedQuote, source_group: QuoteGroup, quote: WebQuote | None) -> int:
+    """Leva os trechos e os valores (custo e venda) de uma opção calculada para
+    uma cotação já existente, somando com o que ela já possui."""
+    seeded = _seed_payload(source_group, quote)
+    data = _payload(target) or _seed_payload(target.group, target.quote)
+
+    old_flights = [dict(fl) for fl in (data.get("flights") or []) if isinstance(fl, dict)]
+    new_flights = [dict(fl) for fl in (seeded.get("flights") or []) if isinstance(fl, dict)]
+    # Quando algum trecho usa seleção de horário, todos precisam do campo para
+    # que os voos antigos e os novos continuem aparecendo na agenda de Voos.
+    if any("selected_schedule" in fl for fl in old_flights + new_flights):
+        for fl in old_flights + new_flights:
+            fl.setdefault("selected_schedule", True)
+    data["flights"] = old_flights + new_flights
+
+    data["cost_items"] = [row for row in (data.get("cost_items") or []) if isinstance(row, dict)] + [dict(row) for row in (seeded.get("cost_items") or []) if isinstance(row, dict)]
+    data["sale_items"] = [row for row in (data.get("sale_items") or []) if isinstance(row, dict)] + [dict(row) for row in (seeded.get("sale_items") or []) if isinstance(row, dict)]
+
+    commission = data.get("commission") if isinstance(data.get("commission"), dict) else {"receive": [], "pay": [], "extra": 0}
+    seeded_commission = seeded.get("commission") if isinstance(seeded.get("commission"), dict) else {}
+    try:
+        commission["extra"] = round(float(commission.get("extra") or 0) + float(seeded_commission.get("extra") or 0), 2)
+    except (TypeError, ValueError):
+        pass
+    data["commission"] = commission
+
+    offer = data.get("commercial_offer") if isinstance(data.get("commercial_offer"), dict) else {}
+    new_offer = seeded.get("commercial_offer") if isinstance(seeded.get("commercial_offer"), dict) else {}
+    try:
+        offer["cost_value"] = round(float(offer.get("cost_value") or 0) + float(new_offer.get("cost_value") or 0), 2)
+        offer["cash_sale_value"] = round(float(offer.get("cash_sale_value") or 0) + float(new_offer.get("cash_sale_value") or 0), 2)
+        offer["profit_value"] = round(offer["cash_sale_value"] - offer["cost_value"], 2)
+    except (TypeError, ValueError):
+        pass
+    data["commercial_offer"] = offer
+
+    merged = data.get("_merged_options") if isinstance(data.get("_merged_options"), list) else []
+    merged.append({"group_id": source_group.id, "quote_id": quote.id if quote else None, "at": datetime.utcnow().isoformat(timespec="seconds"), "by": user.id})
+    data["_merged_options"] = merged[-50:]
+
+    _set_payload(target, data)
+    _apply_quote_from_payload(target, data)
+    target.updated_at = datetime.utcnow()
+    _sync_flight_registry(db, user, target, data)
+    return len(new_flights)
+
+
 def _item_total(data: dict[str, Any], key: str) -> float:
     total = 0.0
     for row in data.get(key, []) or []:
@@ -1789,6 +1869,43 @@ async def nova_cotacao_manual(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(f"/cadastros/cotacoes/{group.id}", status_code=303)
 
 
+@router.get("/cotacoes-aceitas/destinos")
+def destinos_cotacoes(request: Request, q: str = "", exclude: int = 0, db: Session = Depends(get_db)):
+    """Lista curta das cotações da aba Cotações para escolher como destino."""
+    user = require_user(request, db)
+    search = _search_normalized(q.strip()[:80]) if q else ""
+    rows = db.scalars(
+        select(AcceptedQuote)
+        .where(_accepted_filter(user))
+        .options(selectinload(AcceptedQuote.group).selectinload(QuoteGroup.trip))
+        .order_by(desc(AcceptedQuote.updated_at))
+        .limit(500)
+    ).all()
+    labels = {key: label for key, label, _color in DEFAULT_BOARD_STATUSES}
+    items = []
+    for row in rows:
+        group = row.group
+        if not _group_allowed(user, group) or group.id == exclude:
+            continue
+        data = _payload(row)
+        code = str(data.get("quote_code") or f"q{group.id:04d}")
+        title = str(data.get("title") or group.quote_name or "Cotação")
+        client = str(data.get("client_name") or (group.trip.client_name if group.trip else "") or "")
+        if search and search not in _search_normalized(f"{code} {title} {client}"):
+            continue
+        items.append({
+            "id": group.id,
+            "code": code,
+            "title": title,
+            "client": client,
+            "status": labels.get(row.status or "", (row.status or "").replace("_", " ").capitalize()),
+            "updated": row.updated_at.strftime("%d/%m/%Y") if row.updated_at else "",
+        })
+        if len(items) >= 40:
+            break
+    return JSONResponse({"items": items}, headers={"Cache-Control": "private, no-store"})
+
+
 @router.post("/selecionar/cotacoes-aceitas")
 async def selecionar_cotacoes_aceitas(request: Request, db: Session = Depends(get_db)):
     user = require_user(request, db)
@@ -1834,6 +1951,17 @@ async def aceitar_opcao(quote_id: int, request: Request, db: Session = Depends(g
     if quote is None or group is None:
         flash(request, "Opção não encontrada.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
+    target, target_error = _target_accepted_from_form(db, user, form, group.id)
+    if target_error:
+        flash(request, "A cotação escolhida não foi encontrada.", "error")
+        return RedirectResponse(request.headers.get("referer") or "/calculations/history", status_code=303)
+    if target is not None:
+        added = _merge_option_into_accepted(db, user, target, group, quote)
+        _message, payload = record_quote_activity(db, user, target.group, f"Voo da cotação {group.quote_name} adicionado à cotação {target.group.quote_name} por {user.name}.", event="quote_transferred_accepted")
+        db.commit()
+        await publish_quote_activity(user.company_id, payload)
+        flash(request, f"Voo adicionado à cotação {target.group.quote_name}: {added} trecho(s) incluído(s) e valores de custo e venda somados.", "success")
+        return RedirectResponse(f"/cadastros/cotacoes/{target.group_id}", status_code=303)
     _ensure_accepted(db, user, group, quote)
     _message, payload = record_quote_activity(db, user, group, f"Cotação {group.quote_name} transferida para Cotações aceitas por {user.name}.", event="quote_transferred_accepted")
     db.commit()
@@ -1873,6 +2001,17 @@ async def adicionar_cotacao_aceita(group_id: int, request: Request, db: Session 
         flash(request, "Cotação não encontrada.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
     quote = _first_option_for_group(db, user, group)
+    target, target_error = _target_accepted_from_form(db, user, form, group.id)
+    if target_error:
+        flash(request, "A cotação escolhida não foi encontrada.", "error")
+        return RedirectResponse(request.headers.get("referer") or "/calculations/history", status_code=303)
+    if target is not None:
+        added = _merge_option_into_accepted(db, user, target, group, quote)
+        _message, payload = record_quote_activity(db, user, target.group, f"Voo da cotação {group.quote_name} adicionado à cotação {target.group.quote_name} por {user.name}.", event="quote_transferred_accepted")
+        db.commit()
+        await publish_quote_activity(user.company_id, payload)
+        flash(request, f"Voo adicionado à cotação {target.group.quote_name}: {added} trecho(s) incluído(s) e valores de custo e venda somados.", "success")
+        return RedirectResponse(f"/cadastros/cotacoes/{target.group_id}", status_code=303)
     _ensure_accepted(db, user, group, quote)
     _message, payload = record_quote_activity(db, user, group, f"Cotação {group.quote_name} transferida para Cotações aceitas por {user.name}.", event="quote_transferred_accepted")
     db.commit()

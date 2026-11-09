@@ -999,6 +999,11 @@ if (trackingQuery.get('tab') === 'orcamento') {
       requestAnimationFrame(() => openServiceModal(serviceKey, index));
     }
   }
+  // Vindo de "+ Novo" em Acompanhamentos: abre o cadastro de um serviço novo.
+  const newServiceKey = trackingQuery.get('new_service');
+  if (allowedServices.includes(newServiceKey)) {
+    requestAnimationFrame(() => openServiceModal(newServiceKey));
+  }
 }
 </script>
 
