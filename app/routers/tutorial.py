@@ -28,10 +28,10 @@ TUTORIAL_ITEMS = (
     {
         "slug": "cotacao",
         "tab": "inicio",
-        "title": "Tutorial de cotação DBMILESX",
-        "description": "Aprenda a criar uma cotação e a utilizar o fluxo principal do sistema.",
+        "title": "Cotação e cálculo do início ao fim",
+        "description": "O fluxo completo: base da viagem, calculadora, lucro com cartão sem juros, mensagem, arte e resumo interno.",
         "kind": "video",
-        "duration": "4 min 50 s",
+        "duration": "2 min 55 s",
         "video_url": "/tutorial/video/cotacao",
     },
     {"slug": "criar-cotacao", "tab": "inicio", "kind": "video", "duration": "1 min 10 s",
@@ -51,7 +51,7 @@ TUTORIAL_ITEMS = (
 )
 for _item in TUTORIAL_ITEMS:
     _item.setdefault("video_url", f"/tutorial/video/{_item['slug']}")
-    _item.setdefault("poster", f"/static/tutorial/videos/{_item['slug']}.webp" if _item["slug"] != "cotacao" else "")
+    _item.setdefault("poster", f"/static/tutorial/videos/{_item['slug']}.webp")
 
 WELCOME_KEY = "tutorial_welcome_seen_v1"
 MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
