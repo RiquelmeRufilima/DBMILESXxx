@@ -4300,16 +4300,23 @@ async def assign_group_user(group_id: int, request: Request, db: Session = Depen
     if user is None:
         return RedirectResponse("/login", status_code=303)
     form = await request.form()
+    # Pedido feito pela página sem recarregar: responde em JSON.
+    wants_json = request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+    def fail(message: str, url: str):
+        if wants_json:
+            return JSONResponse({"ok": False, "message": message}, status_code=400)
+        flash(request, message, "error")
+        return RedirectResponse(url, status_code=303)
+
     return_to = str(form.get("return_to") or f"/calculations/group/{group_id}").strip()
     if not return_to.startswith("/") or return_to.startswith("//") or "\\" in return_to or any(ord(ch) < 32 for ch in return_to):
         return_to = f"/calculations/group/{group_id}"
     if not validate_csrf_token(request.session, str(form.get("csrf_token") or "")):
-        flash(request, "Sessão expirada.", "error")
-        return RedirectResponse(return_to, status_code=303)
+        return fail("Sessão expirada. Recarregue a página.", return_to)
     group = db.scalar(select(QuoteGroup).where(QuoteGroup.id == group_id).options(selectinload(QuoteGroup.assigned_user)))
     if not _group_allowed(user, group):
-        flash(request, "Cotação não encontrada.", "error")
-        return RedirectResponse("/calculations/history", status_code=303)
+        return fail("Cotação não encontrada.", "/calculations/history")
     try:
         assigned_user_id = int(form.get("assigned_user_id") or 0) or None
     except (TypeError, ValueError):
@@ -4318,8 +4325,7 @@ async def assign_group_user(group_id: int, request: Request, db: Session = Depen
     assigned_user_id = assigned_user_id or group.user_id
     assigned = db.scalar(select(WebUser).where(WebUser.id == assigned_user_id, WebUser.active.is_(True)))
     if assigned is None or (user.company_id and assigned.company_id != user.company_id) or (not user.company_id and assigned.id != user.id):
-        flash(request, "Usuário da empresa não encontrado.", "error")
-        return RedirectResponse(return_to, status_code=303)
+        return fail("Usuário da empresa não encontrado.", return_to)
     old_id = group.assigned_user_id or group.user_id
     old_name = group.assigned_user.name if group.assigned_user else (group.user.name if getattr(group, "user", None) else "Criador")
     group.assigned_user_id = assigned.id
@@ -4334,6 +4340,8 @@ async def assign_group_user(group_id: int, request: Request, db: Session = Depen
         )
     db.commit()
     await publish_quote_activity(user.company_id, payload)
+    if wants_json:
+        return JSONResponse({"ok": True, "message": f"Responsável atualizado: {new_name}.", "name": new_name, "user_id": assigned.id})
     flash(request, f"Responsável atualizado: {new_name}.", "success")
     return RedirectResponse(return_to, status_code=303)
 

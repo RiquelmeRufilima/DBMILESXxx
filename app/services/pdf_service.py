@@ -16,6 +16,7 @@ from ..config import BASE_DIR, STATIC_DIR, IS_VERCEL
 from ..models import WebQuote
 from ..config import UPLOAD_DIR
 from .storage import blob_get
+from .operating_airline import client_airline
 
 
 def file_to_data_uri(relative_path: str | None) -> str | None:
@@ -98,6 +99,7 @@ def quote_context(quote: WebQuote, overrides: dict[str, Any] | None = None) -> d
 
     company = _company_for_quote(quote)
     company_logo = file_to_data_uri(company.logo_path if company else None)
+    shown = client_airline(quote)
 
     return {
         "quote": quote,
@@ -105,7 +107,9 @@ def quote_context(quote: WebQuote, overrides: dict[str, Any] | None = None) -> d
         "segments": segments,
         "inputs": inputs,
         "breakdown": breakdown,
-        "airline_logo": file_to_data_uri(quote.airline.logo_path if quote.airline else None),
+        # Consolidadora/sistema: o cliente vê só a companhia que opera o voo.
+        "airline_logo": file_to_data_uri(shown["logo_path"] or None),
+        "client_airline": shown,
         "company_logo": company_logo,
         "company_name": company.name if company else None,
         "brand_logo": path_to_data_uri(STATIC_DIR / "brand" / "dbmilesx-light.png"),

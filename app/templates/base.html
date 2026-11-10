@@ -281,7 +281,10 @@
 
   <script src="/static/js/app.js?v=5.27.0" defer></script>
   <script src="/static/js/password-toggle.js?v=5.10.41" defer></script>
-  {% if user %}<script src="/static/js/quote-target-20261109.js?v=1" defer></script><script src="/static/js/person-search.js?v=5.10.41" defer></script><script src="/static/js/airport-search.js?v=5.10.42" defer></script>{% endif %}
+  {# Pré-carrega telas de consulta ao passar o mouse/encostar no link (Chrome/Edge).
+   Lista fechada: só páginas que apenas mostram dados, nunca as que alteram algo. #}
+  {% if user %}<script type="speculationrules">{"prefetch": [{"where": {"or": [{"href_matches": "/dashboard"}, {"href_matches": "/calculations/history"}, {"href_matches": "/calculations/history?*"}, {"href_matches": "/cadastros/cotacoes"}, {"href_matches": "/cadastros/cotacoes?*"}, {"href_matches": "/cadastros/voos"}, {"href_matches": "/cadastros/voos?*"}, {"href_matches": "/acompanhamentos/*"}, {"href_matches": "/airlines"}, {"href_matches": "/persons"}, {"href_matches": "/persons?*"}, {"href_matches": "/tasks"}, {"href_matches": "/tutorial"}]}, "eagerness": "moderate"}]}</script>{% endif %}
+  {% if user %}<script src="/static/js/quote-target-20261109.js?v=2" defer></script><script src="/static/js/ajax-save-20261110.js?v=1" defer></script><script src="/static/js/person-search.js?v=5.10.41" defer></script><script src="/static/js/airport-search.js?v=5.10.42" defer></script>{% endif %}
   {% if user and user.company_id %}<script src="/static/js/realtime.js?v=5.27.0" defer></script>{% endif %}
   <script>
   (() => {

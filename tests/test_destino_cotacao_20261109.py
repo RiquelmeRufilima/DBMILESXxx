@@ -135,3 +135,27 @@ def test_mover_para_nova_cotacao_e_novo_acompanhamento(monkeypatch):
 
     resp = asyncio.run(service_tracking.novo_acompanhamento("seguros", RequestStub({"csrf_token": "x", "target_group_id": "700"}), db))
     assert resp.headers["location"] == "/cadastros/cotacoes/700?origem=seguros&tab=orcamento&new_service=insurance"
+
+
+def test_envio_em_massa_para_cotacao_existente(monkeypatch):
+    db = _db(monkeypatch)
+    _accepted(db, 800, {"title": "Destino", "client_name": "Maria", "flights": [], "cost_items": [{"value": 100}], "sale_items": [{"value": 150}]})
+    for gid in (801, 802):
+        db.add(QuoteGroup(id=gid, user_id=10, company_id=1, quote_name=f"Origem {gid}"))
+    db.commit()
+    seeded = {"flights": [{"label": "Voo"}], "cost_items": [{"value": 200}], "sale_items": [{"value": 300}], "commission": {"extra": 0}, "commercial_offer": {"cost_value": 200, "cash_sale_value": 300}}
+    monkeypatch.setattr(cadastros, "_seed_payload", lambda group, quote=None: json.loads(json.dumps(seeded)))
+    monkeypatch.setattr(cadastros, "_first_option_for_group", lambda *a: None)
+
+    class Form(dict):
+        def getlist(self, key):
+            value = self.get(key)
+            return value if isinstance(value, list) else ([] if value is None else [value])
+    req = RequestStub(Form({"csrf_token": "x", "target_group_id": "800", "group_ids": ["801", "802"]}))
+    resp = asyncio.run(cadastros.selecionar_cotacoes_aceitas(req, db))
+    assert resp.headers["location"] == "/cadastros/cotacoes/800"
+    data = json.loads(db.get(AcceptedQuote, 800).extra_json)
+    assert len(data["flights"]) == 2
+    assert sum(r["value"] for r in data["cost_items"]) == 500
+    assert sum(r["value"] for r in data["sale_items"]) == 750
+    assert db.get(AcceptedQuote, 801) is None and db.get(AcceptedQuote, 802) is None

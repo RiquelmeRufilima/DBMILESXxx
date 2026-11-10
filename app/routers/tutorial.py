@@ -18,6 +18,7 @@ from ..database import get_db
 from ..dependencies import current_user
 from ..security import validate_csrf_token
 from ..web import context, flash, templates
+from ..services.tutorial_guides import TABS as GUIDE_TABS, guide_count
 
 router = APIRouter(tags=["tutorial"])
 
@@ -70,6 +71,17 @@ def _acknowledge(db: Session, user) -> None:
         db.commit()
 
 
+GUIDE_IMAGE_DIR = Path(__file__).resolve().parents[1] / "static" / "tutorial"
+
+
+def _available_images() -> set[str]:
+    """Prints existentes; um guia sem print aparece só com os passos."""
+    try:
+        return {p.stem for p in GUIDE_IMAGE_DIR.glob("*.webp")}
+    except OSError:
+        return set()
+
+
 @router.get("/tutorial")
 def tutorial_page(request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
@@ -77,7 +89,7 @@ def tutorial_page(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login", status_code=303)
     return templates.TemplateResponse(
         request, "tutorial/index.html",
-        context(request, user=user, tutorial_items=TUTORIAL_ITEMS),
+        context(request, user=user, tutorial_items=TUTORIAL_ITEMS, guide_tabs=GUIDE_TABS, guide_total=guide_count(), guide_images=_available_images()),
     )
 
 

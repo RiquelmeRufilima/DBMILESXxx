@@ -2,36 +2,116 @@
 {% block title %}Tutorial | DBMILESX{% endblock %}
 {% block page_title %}Tutorial{% endblock %}
 {% block eyebrow %}CENTRAL DE APRENDIZADO{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/tutorial-20261108.css?v=1">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/tutorial-20261108.css?v=1"><link rel="stylesheet" href="/static/css/tutorial-guides-20261110.css?v=1">{% endblock %}
 {% block content %}
 <div class="dbm-tutorial">
   <section class="dbm-tutorial-hero">
     <span class="dbm-tutorial-kicker"><svg class="ui-icon"><use href="#icon-book-open"></use></svg> CENTRAL DE APRENDIZADO</span>
     <h1>Aprenda a usar o DBMILESX</h1>
-    <p>Vídeos e materiais para ajudar você a dominar o sistema, do primeiro acesso às rotinas da equipe.</p>
-    <div class="dbm-tutorial-hero-tags"><span>Conteúdo prático</span><span>Atualizações contínuas</span><span>Acesso para toda a equipe</span></div>
+    <p>Vídeo e guias passo a passo com as telas reais do sistema, do primeiro acesso às rotinas da equipe.</p>
+    <div class="dbm-tutorial-hero-tags"><span>{{ guide_total }} guias</span><span>{{ tutorial_items|length }} vídeo</span><span>Acesso para toda a equipe</span></div>
   </section>
 
-  <section class="dbm-tutorial-section" aria-labelledby="tutorial-videos-title">
-    <div class="dbm-tutorial-heading"><div><span class="dbm-tutorial-overline">COMECE POR AQUI</span><h2 id="tutorial-videos-title">Tutoriais disponíveis</h2></div><span class="dbm-tutorial-count">{{ tutorial_items|length }} vídeo disponível</span></div>
-    {% for item in tutorial_items %}
-      {% if item.kind == 'video' %}
-      <article class="dbm-tutorial-video-card" id="tutorial-{{ item.slug }}">
-        <div class="dbm-tutorial-video-info"><div class="dbm-tutorial-video-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></div><div><span class="dbm-tutorial-video-type">VÍDEO AULA • {{ item.duration }}</span><h3>{{ item.title }}</h3><p>{{ item.description }}</p></div></div>
-        <div class="dbm-tutorial-player-wrap">
-          <video class="dbm-tutorial-player" controls playsinline preload="metadata" aria-label="{{ item.title }}">
-            <source src="{{ item.video_url }}" type="video/mp4">
-            Seu navegador não suporta a reprodução de vídeos. Atualize o navegador para assistir.
-          </video>
-        </div>
-        <p class="dbm-tutorial-player-help">▶ Aperte reproduzir para assistir. Você pode pausar, mudar o volume e avançar para o ponto desejado.</p>
-      </article>
-      {% endif %}
+  <div class="tg-tabs" role="tablist" aria-label="Assuntos dos tutoriais">
+    {% for tab in guide_tabs %}
+    <button type="button" class="tg-tab" role="tab" id="tg-tab-{{ tab.key }}" aria-controls="tg-panel-{{ tab.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}" data-tab="{{ tab.key }}">
+      {{ tab.label }} <span class="tg-tab-count">{{ tab.guides|length + (tutorial_items|length if loop.first else 0) }}</span>
+    </button>
     {% endfor %}
+  </div>
+
+  {% for tab in guide_tabs %}
+  <section class="tg-panel" role="tabpanel" id="tg-panel-{{ tab.key }}" aria-labelledby="tg-tab-{{ tab.key }}" {% if not loop.first %}hidden{% endif %}>
+    <p class="tg-intro">{{ tab.intro }}</p>
+
+    {% if loop.first %}
+      {% for item in tutorial_items %}
+        {% if item.kind == 'video' %}
+        <article class="dbm-tutorial-video-card" id="tutorial-{{ item.slug }}">
+          <div class="dbm-tutorial-video-info"><div class="dbm-tutorial-video-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></div><div><span class="dbm-tutorial-video-type">VÍDEO AULA • {{ item.duration }}</span><h3>{{ item.title }}</h3><p>{{ item.description }}</p></div></div>
+          <div class="dbm-tutorial-player-wrap">
+            <video class="dbm-tutorial-player" controls playsinline preload="metadata" aria-label="{{ item.title }}">
+              <source src="{{ item.video_url }}" type="video/mp4">
+              Seu navegador não suporta a reprodução de vídeos. Atualize o navegador para assistir.
+            </video>
+          </div>
+          <p class="dbm-tutorial-player-help">▶ Aperte reproduzir para assistir. Você pode pausar, mudar o volume e avançar para o ponto desejado.</p>
+        </article>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+
+    <div class="tg-list">
+      {% for guide in tab.guides %}
+      <details class="tg-guide" id="guia-{{ guide.slug }}">
+        <summary>
+          <span class="tg-guide-num" aria-hidden="true">{{ loop.index }}</span>
+          <span class="tg-guide-head"><strong>{{ guide.title }}</strong><small>{{ guide.summary }}</small></span>
+          <span class="tg-guide-time">{{ guide.minutes }} min</span>
+        </summary>
+        <div class="tg-guide-body">
+          {% if guide.image and guide.image in guide_images %}
+          <a class="tg-shot" href="/static/tutorial/{{ guide.image }}.webp" target="_blank" rel="noopener" aria-label="Ampliar a tela de {{ guide.title }}">
+            <img src="/static/tutorial/{{ guide.image }}.webp" alt="Tela do DBMILESX: {{ guide.title }}" loading="lazy" decoding="async" width="1200" height="750">
+            <span>Clique para ampliar</span>
+          </a>
+          {% endif %}
+          <ol class="tg-steps">
+            {% for step_title, step_text in guide.steps %}
+            <li><strong>{{ step_title }}</strong><p>{{ step_text }}</p></li>
+            {% endfor %}
+          </ol>
+          {% if guide.tip %}<p class="tg-tip"><b>Dica:</b> {{ guide.tip }}</p>{% endif %}
+          <a class="tg-link" href="#guia-{{ guide.slug }}" data-copy-link>Copiar link deste guia</a>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
   </section>
-  <section class="dbm-tutorial-next" aria-label="Novos materiais">
-    <div class="dbm-tutorial-next-icon"><svg class="ui-icon"><use href="#icon-file"></use></svg></div>
-    <div><h3>Mais materiais em breve</h3><p>Esta área receberá novos vídeos, guias e arquivos didáticos conforme o DBMILESX evoluir.</p></div>
-  </section>
+  {% endfor %}
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const tabs = [...document.querySelectorAll('.tg-tab')];
+  const panels = tabs.map((t) => document.getElementById(t.getAttribute('aria-controls')));
+  function select(i, focus) {
+    tabs.forEach((t, k) => {
+      const on = k === i;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      panels[k].hidden = !on;
+    });
+    if (focus) tabs[i].focus();
+    try { history.replaceState(null, '', '#' + tabs[i].dataset.tab); } catch (_) {}
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => select(i, false));
+    t.addEventListener('keydown', (e) => {
+      const map = {ArrowRight: 1, ArrowLeft: -1};
+      if (e.key in map) { e.preventDefault(); select((i + map[e.key] + tabs.length) % tabs.length, true); }
+      if (e.key === 'Home') { e.preventDefault(); select(0, true); }
+      if (e.key === 'End') { e.preventDefault(); select(tabs.length - 1, true); }
+    });
+  });
+  // Abre a aba (e o guia) do link: /tutorial#cotacao ou /tutorial#guia-lucro
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash) {
+    const guide = hash.startsWith('guia-') ? document.getElementById(hash) : null;
+    const key = guide ? guide.closest('.tg-panel').id.replace('tg-panel-', '') : hash;
+    const idx = tabs.findIndex((t) => t.dataset.tab === key);
+    if (idx >= 0) select(idx, false);
+    if (guide) { guide.open = true; setTimeout(() => guide.scrollIntoView({block: 'start'}), 50); history.replaceState(null, '', '#' + hash); }
+  }
+  document.addEventListener('click', async (e) => {
+    const a = e.target.closest('[data-copy-link]');
+    if (!a) return;
+    e.preventDefault();
+    const url = location.origin + location.pathname + a.getAttribute('href');
+    try { await navigator.clipboard.writeText(url); a.textContent = 'Link copiado ✓'; } catch (_) { prompt('Copie o link:', url); }
+    setTimeout(() => { a.textContent = 'Copiar link deste guia'; }, 2000);
+  });
+})();
+</script>
 {% endblock %}

@@ -1917,6 +1917,25 @@ async def selecionar_cotacoes_aceitas(request: Request, db: Session = Depends(ge
     if not groups:
         flash(request, "Selecione ao menos uma cotação no histórico.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
+    target, target_error = _target_accepted_from_form(db, user, form)
+    if target_error:
+        flash(request, "A cotação escolhida não foi encontrada.", "error")
+        return RedirectResponse("/calculations/history", status_code=303)
+    if target is not None:
+        # Todas as selecionadas entram numa cotação que já existe: trechos e
+        # valores (custo e venda) são somados ao que ela já tem.
+        trechos = 0
+        incluidas = 0
+        for group in groups:
+            if group.id == target.group_id:
+                continue
+            trechos += _merge_option_into_accepted(db, user, target, group, _first_option_for_group(db, user, group))
+            incluidas += 1
+        _message, payload = record_quote_activity(db, user, target.group, f"{incluidas} cotação(ões) adicionada(s) à cotação {target.group.quote_name} por {user.name}.", event="quote_transferred_accepted")
+        db.commit()
+        await publish_quote_activity(user.company_id, payload)
+        flash(request, f"{incluidas} cotação(ões) adicionada(s) à cotação {target.group.quote_name}: {trechos} trecho(s) e valores de custo e venda somados.", "success")
+        return RedirectResponse(f"/cadastros/cotacoes/{target.group_id}", status_code=303)
     added = _mark_accepted(db, user, groups)
     db.commit()
     flash(request, f"{len(groups)} cotação(ões) selecionada(s). {added} nova(s) enviada(s) para Cotações.", "success")
