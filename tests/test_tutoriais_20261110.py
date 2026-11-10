@@ -31,3 +31,28 @@ def test_pagina_tutorial_com_sessao():
     assert html.count('role="tab"') == len(TABS)
     assert html.count('class="tg-guide"') == guide_count()
     assert 'src="/static/tutorial/consolidadoras.webp"' in html
+
+
+def test_videos_dos_tutoriais():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.routers.tutorial import TUTORIAL_ITEMS, VIDEO_FILES
+    from tests.test_security import logged, make_company, make_user
+    videos = [i for i in TUTORIAL_ITEMS if i["kind"] == "video"]
+    assert len(videos) >= 8
+    for item in videos:
+        assert VIDEO_FILES[item["slug"]].is_file(), item["slug"]
+        if item.get("poster"):
+            assert (Path(__file__).resolve().parents[1] / "app" / item["poster"].lstrip("/")).is_file()
+    with TestClient(app):
+        assert TestClient(app).get("/tutorial/video/criar-programa").status_code == 401
+        company = make_company("Agência Vídeos")
+        make_user("videos@example.invalid", company_id=company, role="membro")
+        client = logged(None, "videos@example.invalid")
+        resp = client.get("/tutorial/video/criar-programa", headers={"Range": "bytes=0-1023"})
+        assert resp.status_code == 206 and resp.content == VIDEO_FILES["criar-programa"].read_bytes()[:1024]
+        assert client.get("/tutorial/video/..%2F..%2Fconfig").status_code == 404
+        assert client.get("/tutorial/video/nao-existe").status_code == 404
+        html = client.get("/tutorial").text
+    assert html.count("<video") == len(videos)
+    assert html.count('preload="metadata"') == 1

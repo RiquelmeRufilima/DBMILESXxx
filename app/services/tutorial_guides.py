@@ -45,7 +45,7 @@ TABS: list[dict] = [
                     ("Abra uma cotação nova", "No menu, clique em Nova cotação. Se já houver uma cotação aberta, use Nova cotação limpa."),
                     ("Preencha a viagem", "Nome da cotação, origem e destino (código IATA ou cidade), o tipo (Somente ida, Ida e volta ou Multitrecho) e, em Selecionar datas da viagem, as datas e a flexibilidade."),
                     ("Informe os passageiros", "Adultos pagantes, crianças pagantes e bebês. Os valores por passageiro são multiplicados automaticamente."),
-                    ("Identifique o cliente", "Em Dados do cliente e observações, digite o nome do cliente (ou escolha um cadastro em Pessoas), telefone e e-mail."),
+                    ("Identifique o cliente", "Em Dados do cliente e observações, digite o nome e escolha o cadastro na lista: o cliente precisa estar em Pessoas. Se não existir, use + Cadastrar pessoa."),
                     ("Salve a base", "Clique em Salvar base e ir para cálculo. A cotação fica fixa e abre a Bancada de cálculo. Para mudar esses dados depois, use Alterar cotação principal."),
                 ],
                 "tip": "Precisa cotar outra rota para o mesmo cliente? Use + Nova subcotação: ela fica dentro da mesma cotação, sem criar outra ficha.",
@@ -276,7 +276,7 @@ TABS: list[dict] = [
                     ("Dados principais", "Nome, CPF/CNPJ, data de nascimento, tipo de pessoa (passageiro, cliente…) e sexo. CPF e nascimento deixam o cadastro completo."),
                     ("Abas do cadastro", "Contato, Documentos (RG, passaporte), Informações, Endereço, Família, Anexos e Observação."),
                     ("Salve", "Salvar, Salvar e Fechar ou Salvar e Novo para cadastrar o próximo."),
-                    ("Use na cotação", "Ao criar a cotação, busque o cliente pelo nome para preencher os dados."),
+                    ("Use na cotação", "Ao criar a cotação, o cliente é escolhido da lista de Pessoas, por isso cadastre-o antes (ou pelo + Cadastrar pessoa da própria cotação)."),
                 ],
             },
             {

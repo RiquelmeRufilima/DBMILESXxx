@@ -99,7 +99,7 @@ def test_menu_template_and_material_catalog():
     assert 'href="/tutorial"' in dashboard
     assert 'action="/tutorial/welcome"' in dashboard
     assert 'value="tutorial"' in dashboard and 'value="later"' in dashboard
-    assert len(tutorial.TUTORIAL_ITEMS) == 1
+    assert tutorial.TUTORIAL_ITEMS[0]['slug'] == 'cotacao' and len(tutorial.TUTORIAL_ITEMS) >= 8
     for template in ['tutorial/index.html', 'dashboard.html', 'base.html']:
         assert templates.env.get_template(template) is not None
 

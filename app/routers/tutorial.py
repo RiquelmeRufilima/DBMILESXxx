@@ -27,16 +27,38 @@ router = APIRouter(tags=["tutorial"])
 TUTORIAL_ITEMS = (
     {
         "slug": "cotacao",
+        "tab": "inicio",
         "title": "Tutorial de cotação DBMILESX",
         "description": "Aprenda a criar uma cotação e a utilizar o fluxo principal do sistema.",
         "kind": "video",
         "duration": "4 min 50 s",
         "video_url": "/tutorial/video/cotacao",
     },
+    {"slug": "criar-cotacao", "tab": "inicio", "kind": "video", "duration": "1 min 10 s",
+     "title": "1. Criar uma cotação do zero", "description": "Nome, origem e destino, datas, passageiros e o cliente escolhido em Pessoas."},
+    {"slug": "calcular-e-comparar", "tab": "cotacao", "kind": "video", "duration": "1 min 15 s",
+     "title": "2. Calcular em milhas e comparar companhias", "description": "Milhas na LATAM, Deságio na GOL e as opções lado a lado."},
+    {"slug": "consolidadoras", "tab": "cotacao", "kind": "video", "duration": "1 min",
+     "title": "3. Consolidadoras e o \"Operado por\"", "description": "Cotar pelo fornecedor e mostrar ao cliente só a companhia que opera o voo."},
+    {"slug": "lucro-e-whatsapp", "tab": "venda", "kind": "video", "duration": "1 min",
+     "title": "4. Lucro, parcelamento e WhatsApp", "description": "Valor de venda, parcelas no cartão, arte e mensagem para o cliente."},
+    {"slug": "aceitar-e-quadro", "tab": "venda", "kind": "video", "duration": "50 s",
+     "title": "5. Aceitar o voo e acompanhar no quadro", "description": "Cotação nova ou existente, etapas da venda e responsável."},
+    {"slug": "acompanhamentos", "tab": "posvenda", "kind": "video", "duration": "55 s",
+     "title": "6. Acompanhamentos: hospedagem e mais", "description": "Cadastrar um serviço numa cotação e onde mover ou editar."},
+    {"slug": "criar-programa", "tab": "cadastros", "kind": "video", "duration": "1 min",
+     "title": "7. Criar um programa de milhas", "description": "Categoria, nome e o teste do cálculo na hora."},
 )
+for _item in TUTORIAL_ITEMS:
+    _item.setdefault("video_url", f"/tutorial/video/{_item['slug']}")
+    _item.setdefault("poster", f"/static/tutorial/videos/{_item['slug']}.webp" if _item["slug"] != "cotacao" else "")
 
 WELCOME_KEY = "tutorial_welcome_seen_v1"
-MEDIA_FILE = Path(__file__).resolve().parents[1] / "media" / "tutorial-cotacao-dbmilesx.mp4"
+MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
+MEDIA_FILE = MEDIA_DIR / "tutorial-cotacao-dbmilesx.mp4"
+# Só os vídeos do catálogo podem ser servidos (nada de caminho vindo da URL).
+VIDEO_FILES = {item["slug"]: (MEDIA_FILE if item["slug"] == "cotacao" else MEDIA_DIR / "tutoriais" / f"{item['slug']}.mp4")
+               for item in TUTORIAL_ITEMS if item.get("kind") == "video"}
 MAX_VIDEO_BYTES = 2 * 1024 * 1024  # evita respostas superiores ao limite da Vercel
 STREAM_BUFFER_BYTES = 128 * 1024
 
@@ -145,8 +167,8 @@ def _video_range(value: str | None, size: int) -> tuple[int, int] | None:
     return start, min(end, start + MAX_VIDEO_BYTES - 1)
 
 
-def _read_video(start: int, end: int) -> Iterator[bytes]:
-    with MEDIA_FILE.open("rb") as stream:
+def _read_video(start: int, end: int, path: Path = MEDIA_FILE) -> Iterator[bytes]:
+    with path.open("rb") as stream:
         stream.seek(start)
         remaining = end - start + 1
         while remaining:
@@ -159,12 +181,19 @@ def _read_video(start: int, end: int) -> Iterator[bytes]:
 
 @router.api_route("/tutorial/video/cotacao", methods=["GET", "HEAD"])
 def tutorial_video(request: Request, db: Session = Depends(get_db)):
+    """Vídeo principal (endereço original, mantido)."""
+    return tutorial_video_by_slug("cotacao", request, db)
+
+
+@router.api_route("/tutorial/video/{slug}", methods=["GET", "HEAD"])
+def tutorial_video_by_slug(slug: str, request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
     if user is None:
         return JSONResponse({"detail": "Faça login para assistir ao tutorial."}, status_code=401)
-    if not MEDIA_FILE.is_file():
+    video = VIDEO_FILES.get(slug)
+    if video is None or not video.is_file():
         return JSONResponse({"detail": "Vídeo indisponível."}, status_code=404)
-    size = MEDIA_FILE.stat().st_size
+    size = video.stat().st_size
     selected = _video_range(request.headers.get("range"), size)
     headers = {
         "Accept-Ranges": "bytes",
@@ -172,7 +201,7 @@ def tutorial_video(request: Request, db: Session = Depends(get_db)):
         "Cache-Control": "private, max-age=3600",
         "Vary": "Cookie",
         "X-Content-Type-Options": "nosniff",
-        "Content-Disposition": 'inline; filename="tutorial-cotacao-dbmilesx.mp4"',
+        "Content-Disposition": f'inline; filename="tutorial-{slug}.mp4"',
     }
     if selected is None:
         headers["Content-Range"] = f"bytes */{size}"
@@ -181,4 +210,4 @@ def tutorial_video(request: Request, db: Session = Depends(get_db)):
     headers.update({"Content-Range": f"bytes {start}-{end}/{size}", "Content-Length": str(end - start + 1)})
     if request.method == "HEAD":
         return StreamingResponse(iter(()), status_code=206, media_type="video/mp4", headers=headers)
-    return StreamingResponse(_read_video(start, end), status_code=206, media_type="video/mp4", headers=headers)
+    return StreamingResponse(_read_video(start, end, video), status_code=206, media_type="video/mp4", headers=headers)

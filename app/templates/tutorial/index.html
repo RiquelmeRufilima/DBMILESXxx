@@ -8,14 +8,14 @@
   <section class="dbm-tutorial-hero">
     <span class="dbm-tutorial-kicker"><svg class="ui-icon"><use href="#icon-book-open"></use></svg> CENTRAL DE APRENDIZADO</span>
     <h1>Aprenda a usar o DBMILESX</h1>
-    <p>Vídeo e guias passo a passo com as telas reais do sistema, do primeiro acesso às rotinas da equipe.</p>
-    <div class="dbm-tutorial-hero-tags"><span>{{ guide_total }} guias</span><span>{{ tutorial_items|length }} vídeo</span><span>Acesso para toda a equipe</span></div>
+    <p>Vídeos e guias passo a passo com as telas reais do sistema, do primeiro acesso às rotinas da equipe.</p>
+    <div class="dbm-tutorial-hero-tags"><span>{{ guide_total }} guias</span><span>{{ tutorial_items|length }} vídeos</span><span>Acesso para toda a equipe</span></div>
   </section>
 
   <div class="tg-tabs" role="tablist" aria-label="Assuntos dos tutoriais">
     {% for tab in guide_tabs %}
     <button type="button" class="tg-tab" role="tab" id="tg-tab-{{ tab.key }}" aria-controls="tg-panel-{{ tab.key }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="{{ '0' if loop.first else '-1' }}" data-tab="{{ tab.key }}">
-      {{ tab.label }} <span class="tg-tab-count">{{ tab.guides|length + (tutorial_items|length if loop.first else 0) }}</span>
+      {{ tab.label }} <span class="tg-tab-count">{{ tab.guides|length + (tutorial_items|selectattr('tab', 'equalto', tab.key)|list|length) }}</span>
     </button>
     {% endfor %}
   </div>
@@ -24,21 +24,21 @@
   <section class="tg-panel" role="tabpanel" id="tg-panel-{{ tab.key }}" aria-labelledby="tg-tab-{{ tab.key }}" {% if not loop.first %}hidden{% endif %}>
     <p class="tg-intro">{{ tab.intro }}</p>
 
-    {% if loop.first %}
-      {% for item in tutorial_items %}
-        {% if item.kind == 'video' %}
-        <article class="dbm-tutorial-video-card" id="tutorial-{{ item.slug }}">
-          <div class="dbm-tutorial-video-info"><div class="dbm-tutorial-video-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></div><div><span class="dbm-tutorial-video-type">VÍDEO AULA • {{ item.duration }}</span><h3>{{ item.title }}</h3><p>{{ item.description }}</p></div></div>
-          <div class="dbm-tutorial-player-wrap">
-            <video class="dbm-tutorial-player" controls playsinline preload="metadata" aria-label="{{ item.title }}">
-              <source src="{{ item.video_url }}" type="video/mp4">
-              Seu navegador não suporta a reprodução de vídeos. Atualize o navegador para assistir.
-            </video>
-          </div>
-          <p class="dbm-tutorial-player-help">▶ Aperte reproduzir para assistir. Você pode pausar, mudar o volume e avançar para o ponto desejado.</p>
-        </article>
-        {% endif %}
+    {% set tab_videos = tutorial_items|selectattr('tab', 'equalto', tab.key)|list %}
+    {% if tab_videos %}
+    <div class="tg-videos">
+      {% for item in tab_videos %}
+      <article class="dbm-tutorial-video-card" id="tutorial-{{ item.slug }}">
+        <div class="dbm-tutorial-video-info"><div class="dbm-tutorial-video-mark"><svg class="ui-icon"><use href="#icon-plane"></use></svg></div><div><span class="dbm-tutorial-video-type">VÍDEO AULA • {{ item.duration }}</span><h3>{{ item.title }}</h3><p>{{ item.description }}</p></div></div>
+        <div class="dbm-tutorial-player-wrap">
+          <video class="dbm-tutorial-player" controls playsinline preload="{{ 'metadata' if loop.first and loop.index == 1 and tab.key == 'inicio' else 'none' }}"{% if item.poster %} poster="{{ item.poster }}"{% endif %} aria-label="{{ item.title }}">
+            <source src="{{ item.video_url }}" type="video/mp4">
+            Seu navegador não suporta a reprodução de vídeos. Atualize o navegador para assistir.
+          </video>
+        </div>
+      </article>
       {% endfor %}
+    </div>
     {% endif %}
 
     <div class="tg-list">
