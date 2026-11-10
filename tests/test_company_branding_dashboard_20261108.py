@@ -14,7 +14,18 @@ from app.web import templates
 
 
 def test_rotas_de_empresa_estao_no_modulo_ativo():
-    routes = {(r.path, method) for r in app.routes for method in getattr(r, 'methods', set())}
+    # Pergunta ao próprio roteador se cada endereço existe (funciona em
+    # qualquer versão do FastAPI, ao contrário de listar app.routes).
+    from starlette.routing import Match
+
+    def exists(path, method):
+        scope = {"type": "http", "path": path, "method": method, "root_path": "", "query_string": b"", "headers": []}
+        for route in app.router.routes:
+            match, _ = route.matches(scope)
+            if match == Match.FULL:
+                return True
+        return False
+
     for path, method in (
         ('/company/branding', 'POST'),
         ('/company/branding/remove-logo', 'POST'),
@@ -22,7 +33,8 @@ def test_rotas_de_empresa_estao_no_modulo_ativo():
         ('/company/logo', 'GET'),
         ('/company/cover', 'GET'),
     ):
-        assert (path, method) in routes
+        assert exists(path, method), f"{method} {path} não está registrada"
+    assert not exists('/company/rota-que-nao-existe', 'GET')
 
 
 def test_templates_com_painel_e_bagagens_por_trecho():

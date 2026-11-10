@@ -1,0 +1,33 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "regions": [
+    "gru1"
+  ],
+  "crons": [
+    {
+      "path": "/internal/cron/checkin",
+      "schedule": "0 12 * * *"
+    }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300,
+      "includeFiles": "app/**",
+      "regions": ["gru1"]
+    }
+  },
+  "routes": [
+    {
+      "src": "/(?<path>.*)",
+      "dest": "/api",
+      "transforms": [
+        {
+          "type": "request.path",
+          "op": "set",
+          "args": "/$path"
+        }
+      ]
+    }
+  ]
+}
