@@ -836,6 +836,17 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
      const pct=rate.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
      blocks.push(`💳 Com juros ${n}x: taxa ${pct}% = ${formatMoney(fee)} (cliente paga) • lucro real ${formatMoney(realProfit)}`);
    }
+   // Sem juros: a agência paga a taxa da máquina sobre o valor no cartão, e o lucro cai.
+   if(profitDefined && payState.free){
+     const n=Math.min(15,Math.max(2,Number(payFreeN.value)||2)), rate=machineRate(n);
+     const onCard=Math.max(0,sale-entryAmount());
+     const fee=onCard*rate/100;
+     const realProfit=Number(profit||0)-fee;
+     const pct=rate.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+     const realMargin=Number(cost)>0?realProfit/Number(cost)*100:0;
+     blocks.push(`💳 Sem juros ${n}x: taxa da máquina ${pct}% = ${formatMoney(fee)} (agência paga)`);
+     blocks.push(`📉 Lucro real: ${formatMoney(realProfit)} • margem real ${realMargin.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%`);
+   }
    const isMiles=/milhas|smiles|pass|pontos|aadvantage|avios/i.test(method+' '+airline) ||
        (numberOf('milhas')!==null && numberOf('milheiro')!==null);
    if(isMiles){
