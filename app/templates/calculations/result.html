@@ -821,7 +821,9 @@ html[data-theme="light"] .dbm-pay-row input{background:#fff;color:#17304b;border
    if(profitDefined){
      blocks.push(`💵 Valor cobrado: ${formatMoney(sale)}`);
      blocks.push(`📈 Lucro: ${formatMoney(profit)}`);
-     blocks.push(`📊 Margem: ${Number(margin||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%`);
+     // Margem sobre o custo, sempre calculada do lucro atual (antes ficava 0 ao salvar o lucro sem recarregar).
+     const marginNow=Number(cost)>0?Number(profit||0)/Number(cost)*100:Number(margin||0);
+     blocks.push(`📊 Margem: ${marginNow.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}%`);
    }else{
      blocks.push('💵 Valor cobrado: não definido');
    }

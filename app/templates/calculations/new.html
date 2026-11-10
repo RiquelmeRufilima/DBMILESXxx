@@ -566,7 +566,10 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
         <p>{{ selected_type.description or 'Preencha os parâmetros para calcular uma opção dentro desta cotação.' }}</p>
       </div>
       {% if not selected_airline.builtin %}<span class="badge custom">Personalizada</span>{% endif %}
+      {% set recalc_url = "/calculations/new?group_id=" ~ group.id ~ "&variant_key=" ~ (selected_variant_key or 'primary') ~ "&airline_id=" ~ selected_airline.id ~ "&type_id=" ~ selected_type.id ~ "&calc=1&mode=calc" ~ ("&scope=" ~ (selected_scope_key|urlencode) if selected_scope_key else "") %}
+      {% if option_id %}<a class="secondary-button dbm-recalc-button" href="{{ recalc_url }}" title="Limpa os campos e calcula uma nova opção em {{ selected_airline.name }} • {{ selected_type.name }}. A opção salva continua na cotação.">↻ Calcular novamente</a>{% endif %}
     </div>
+    <style>.calc-selected-airline{position:relative}.dbm-recalc-button{margin-left:auto;align-self:center;min-height:44px;white-space:nowrap}@media(max-width:620px){.dbm-recalc-button{margin-left:0;width:100%;justify-content:center}}</style>
 
     {% set active_types = selected_airline.calculation_types|selectattr('active')|list %}
     {% if active_types|length > 1 %}
@@ -955,6 +958,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
 
       <div class="sticky-form-actions">
         <a class="ghost-button button-open" href="/calculations/group/{{ group.id }}">Ver opções salvas</a>
+        {% if option_id %}<a class="secondary-button large" href="{{ recalc_url }}">↻ Calcular novamente</a>{% endif %}
         <button class="primary-button large button-save" type="submit" id="saveCalculationButton" name="save_destination" value="stay"><svg class="ui-icon"><use href="#icon-calculator"></use></svg><span id="saveCalculationLabel">{{ 'Salvar alteração da opção' if option_id else 'Calcular e salvar opção' }}</span></button>
         <button class="secondary-button large" type="submit" name="save_destination" value="close">Salvar e fechar</button>
       </div>

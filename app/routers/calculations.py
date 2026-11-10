@@ -2127,6 +2127,10 @@ def _calculation_method_label(quote: WebQuote | None) -> str:
     calc = (quote.calculation_type.name if quote.calculation_type else "") or "Cálculo"
     airline_lower = airline.lower()
     calc_lower = calc.lower()
+    # Só troca pelo nome do programa quando o cálculo é de milhas/pontos.
+    # Deságio, valor do site etc. mostram o próprio tipo de cálculo.
+    if not any(word in calc_lower for word in ("milha", "ponto", "smiles", "pass", "aadvantage", "tudoazul", "voeazul")):
+        return calc
     if "azul" in airline_lower:
         if "dinheiro" in calc_lower:
             return "Azul Pontos + Dinheiro"
@@ -3114,6 +3118,11 @@ def _new_calculation_impl(
     route_scopes = _calculation_scopes(base) if group else []
     saved_scope = field_values.get("_scope", {}) if isinstance(field_values.get("_scope"), dict) else {}
     selected_scope_key = str(saved_scope.get("key") or "")
+    if not selected_scope_key:
+        # "Calcular novamente" mantém o mesmo trecho (ida e volta, só ida...).
+        wanted_scope = str(request.query_params.get("scope") or "")[:80]
+        if any(scope.get("key") == wanted_scope for scope in route_scopes):
+            selected_scope_key = wanted_scope
     selected_scope = next((scope for scope in route_scopes if scope.get("key") == selected_scope_key), route_scopes[0] if route_scopes else {})
     option_departure_date = str(saved_scope.get("departure_date") or (edit_option.trip.departure_date if edit_option and edit_option.trip else "") or selected_scope.get("departure_date") or "")
     option_return_date = str(saved_scope.get("return_date") or (edit_option.trip.return_date if edit_option and edit_option.trip else "") or selected_scope.get("return_date") or "")
