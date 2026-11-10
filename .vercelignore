@@ -14,3 +14,6 @@ backup
 backups
 tests/
 .pytest_cache/
+
+# Scripts de manutenção: rodam no Codespaces, não no servidor
+scripts/

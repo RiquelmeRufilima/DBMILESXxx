@@ -79,7 +79,7 @@ async def lifespan(app: FastAPI):
         # resposta e causavam FUNCTION_INVOCATION_TIMEOUT (504).
         #
         # O banco deve ser preparado uma única vez pelo script:
-        #   python scripts/inicializar_neon.py
+        #   (automático: app/services/schema_sync.py a cada deploy)
         # Cria tabelas/colunas novas do deploy (1 consulta quando já está em dia).
         sync_schema_safely(engine, Base.metadata)
         logger.info("Vercel: inicialização leve concluída; banco não é migrado no cold start.")
