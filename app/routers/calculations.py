@@ -4338,6 +4338,24 @@ async def assign_group_user(group_id: int, request: Request, db: Session = Depen
     return RedirectResponse(return_to, status_code=303)
 
 
+def _art_operator(quote: WebQuote) -> dict[str, str]:
+    """Companhia(s) que operam o voo de uma opção de consolidadora/sistema."""
+    names: list[str] = []
+    logo = ""
+    for item in getattr(quote, "segment_partner_airlines", None) or []:
+        name = str(item.get("name") or "").strip()
+        if name and name.lower() not in {n.lower() for n in names}:
+            names.append(name)
+            logo = logo or str(item.get("logo_path") or logo_from_name(name) or "")
+    if not names and getattr(quote, "partner_airline", ""):
+        names.append(quote.partner_airline)
+        logo = str(getattr(quote, "partner_airline_logo_path", "") or logo_from_name(quote.partner_airline) or "")
+    url = ""
+    if logo:
+        url = logo if logo.startswith(("http://", "https://", "data:image/")) else "/" + logo.lstrip("/")
+    return {"name": " + ".join(names), "logo": url}
+
+
 @router.get("/result/{quote_id}")
 def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     user = current_user(request, db)
@@ -4353,7 +4371,18 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
         flash(request, "Cotação não encontrada.", "error")
         return RedirectResponse("/calculations/history", status_code=303)
 
-    quote = _decorate_quote_scope(quote)
+    # Consolidadora/sistema: a arte do cliente mostra só a companhia que opera
+    # o voo (nunca o fornecedor), por isso precisamos das logos das parceiras.
+    is_supplier = bool(quote.airline and quote.airline.catalog_category in {"systems", "consolidators"})
+    partner_logo_map: dict[str, str] | None = None
+    if is_supplier:
+        partner_logo_map = {
+            _normalized_token(item.name): str(item.logo_path or logo_from_name(item.name) or "")
+            for item in db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all()
+            if item.name
+        }
+    quote = _decorate_quote_scope(quote, partner_logo_map=partner_logo_map)
+    art_operator = _art_operator(quote) if is_supplier else None
     link = db.get(QuoteOptionIndex, quote.id)
     inputs = _safe_json(quote.input_json, {})
     breakdown = _safe_json(quote.breakdown_json, {})
@@ -4366,7 +4395,7 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
         group_row = db.get(QuoteGroup, link.group_id)
         group_children = int(getattr(group_row, "children", 0) or 0) if group_row else 0
     group_children = max(0, min(group_children, max(0, int(quote.passengers or 1) - 1)))
-    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta, group_children=group_children))
+    return templates.TemplateResponse(request, "calculations/result.html", context(request, user=user, quote=quote, group_id=link.group_id if link else None, inputs=inputs, breakdown=breakdown, segments=segments, commercial_meta=commercial_meta, group_children=group_children, art_operator=art_operator))
 
 
 @router.post('/result/{quote_id}/observations')
