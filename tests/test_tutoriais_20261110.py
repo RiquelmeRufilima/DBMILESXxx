@@ -43,7 +43,7 @@ def test_videos_dos_tutoriais():
     for item in videos:
         assert VIDEO_FILES[item["slug"]].is_file(), item["slug"]
         if item.get("poster"):
-            assert (Path(__file__).resolve().parents[1] / "app" / item["poster"].lstrip("/")).is_file()
+            assert (Path(__file__).resolve().parents[1] / "app" / item["poster"].split("?")[0].lstrip("/")).is_file()
     with TestClient(app):
         assert TestClient(app).get("/tutorial/video/criar-programa").status_code == 401
         company = make_company("Agência Vídeos")

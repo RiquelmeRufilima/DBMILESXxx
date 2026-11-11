@@ -24,6 +24,7 @@ router = APIRouter(tags=["tutorial"])
 
 # Adicione novos materiais neste catálogo; outros tipos (PDF/guias) podem
 # ganhar uma rota protegida própria no futuro.
+MEDIA_VERSION = "20261110-voz"
 TUTORIAL_ITEMS = (
     {
         "slug": "cotacao",
@@ -31,29 +32,32 @@ TUTORIAL_ITEMS = (
         "title": "Cotação e cálculo do início ao fim",
         "description": "O fluxo completo: base da viagem, calculadora, lucro com cartão sem juros, mensagem, arte e resumo interno.",
         "kind": "video",
-        "duration": "2 min 55 s",
-        "video_url": "/tutorial/video/cotacao",
+        "duration": "2 min 50 s",
     },
-    {"slug": "criar-cotacao", "tab": "inicio", "kind": "video", "duration": "1 min 10 s",
+    {"slug": "criar-cotacao", "tab": "inicio", "kind": "video", "duration": "1 min 15 s",
      "title": "1. Criar uma cotação do zero", "description": "Nome, origem e destino, datas, passageiros e o cliente escolhido em Pessoas."},
-    {"slug": "calcular-e-comparar", "tab": "cotacao", "kind": "video", "duration": "1 min 15 s",
+    {"slug": "calcular-e-comparar", "tab": "cotacao", "kind": "video", "duration": "1 min 20 s",
      "title": "2. Calcular em milhas e comparar companhias", "description": "Milhas na LATAM, Deságio na GOL e as opções lado a lado."},
-    {"slug": "consolidadoras", "tab": "cotacao", "kind": "video", "duration": "1 min",
-     "title": "3. Consolidadoras e o \"Operado por\"", "description": "Cotar pelo fornecedor e mostrar ao cliente só a companhia que opera o voo."},
-    {"slug": "lucro-e-whatsapp", "tab": "venda", "kind": "video", "duration": "1 min",
+    {"slug": "consolidadoras", "tab": "cotacao", "kind": "video", "duration": "1 min 15 s",
+     "title": "3. Consolidadoras e o \"Operado por\"", "description": "Cotar pelo fornecedor e mostrar ao cliente só a companhia que opera o voo (vale também para milhas)."},
+    {"slug": "lucro-e-whatsapp", "tab": "venda", "kind": "video", "duration": "1 min 5 s",
      "title": "4. Lucro, parcelamento e WhatsApp", "description": "Valor de venda, parcelas no cartão, arte e mensagem para o cliente."},
-    {"slug": "aceitar-e-quadro", "tab": "venda", "kind": "video", "duration": "50 s",
+    {"slug": "aceitar-e-quadro", "tab": "venda", "kind": "video", "duration": "55 s",
      "title": "5. Aceitar o voo e acompanhar no quadro", "description": "Cotação nova ou existente, etapas da venda e responsável."},
-    {"slug": "acompanhamentos", "tab": "posvenda", "kind": "video", "duration": "55 s",
+    {"slug": "acompanhamentos", "tab": "posvenda", "kind": "video", "duration": "1 min 5 s",
      "title": "6. Acompanhamentos: hospedagem e mais", "description": "Cadastrar um serviço numa cotação e onde mover ou editar."},
-    {"slug": "criar-programa", "tab": "cadastros", "kind": "video", "duration": "1 min",
+    {"slug": "criar-programa", "tab": "cadastros", "kind": "video", "duration": "1 min 15 s",
      "title": "7. Criar um programa de milhas", "description": "Categoria, nome e o teste do cálculo na hora."},
 )
 for _item in TUTORIAL_ITEMS:
-    _item.setdefault("video_url", f"/tutorial/video/{_item['slug']}")
-    _item.setdefault("poster", f"/static/tutorial/videos/{_item['slug']}.webp")
+    # MEDIA_VERSION muda a URL quando os vídeos são regravados (evita cache antigo).
+    _item.setdefault("video_url", f"/tutorial/video/{_item['slug']}?v={MEDIA_VERSION}")
+    _item.setdefault("poster", f"/static/tutorial/videos/{_item['slug']}.webp?v={MEDIA_VERSION}")
 
 WELCOME_KEY = "tutorial_welcome_seen_v1"
+# Aviso de novidades: aparece uma única vez para cada usuário. Para anunciar
+# novidades de novo no futuro, basta trocar a data desta chave.
+NEWS_KEY = "novidades_seen_20261110"
 MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
 MEDIA_FILE = MEDIA_DIR / "tutorial-cotacao-dbmilesx.mp4"
 # Só os vídeos do catálogo podem ser servidos (nada de caminho vindo da URL).
@@ -80,15 +84,25 @@ def welcome_pending(user) -> bool:
     return not bool(_settings(getattr(user, "preference", None)).get(WELCOME_KEY))
 
 
-def _acknowledge(db: Session, user) -> None:
+def news_pending(user) -> bool:
+    """Novidades: só para quem já passou pelas boas-vindas e ainda não viu o aviso."""
+    if user is None or welcome_pending(user):
+        return False
+    return not bool(_settings(getattr(user, "preference", None)).get(NEWS_KEY))
+
+
+def _acknowledge(db: Session, user, keys: tuple[str, ...] = (WELCOME_KEY, NEWS_KEY)) -> None:
+    # Quem está chegando agora já encontra tudo novo: as boas-vindas também
+    # marcam as novidades como vistas, para não mostrar dois avisos seguidos.
     pref = user.preference
     if pref is None:  # segurança para dados legados ainda sem preferências
         from ..models import UserPreference
         pref = UserPreference(user_id=user.id)
         db.add(pref)
     data = _settings(pref)
-    if not data.get(WELCOME_KEY):
-        data[WELCOME_KEY] = True
+    if not all(data.get(key) for key in keys):
+        for key in keys:
+            data[key] = True
         pref.settings_json = json.dumps(data, ensure_ascii=False)
         db.commit()
 
@@ -133,6 +147,28 @@ def tutorial_welcome(
     except Exception:
         db.rollback()
         flash(request, "Não foi possível salvar a confirmação do tutorial.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+    return RedirectResponse("/dashboard" if destination == "later" else "/tutorial", status_code=303)
+
+
+@router.post("/tutorial/novidades")
+def tutorial_news(
+    request: Request,
+    csrf_token: str = Form(...),
+    destination: str = Form("tutorial"),
+    db: Session = Depends(get_db),
+):
+    user = current_user(request, db)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    if not validate_csrf_token(request.session, csrf_token):
+        flash(request, "Sua sessão expirou. Tente novamente.", "error")
+        return RedirectResponse("/dashboard", status_code=303)
+    try:
+        _acknowledge(db, user, (NEWS_KEY,))
+    except Exception:
+        db.rollback()
+        flash(request, "Não foi possível salvar a confirmação das novidades.", "error")
         return RedirectResponse("/dashboard", status_code=303)
     return RedirectResponse("/dashboard" if destination == "later" else "/tutorial", status_code=303)
 

@@ -32,7 +32,7 @@ def test_tutorial_persistence_reuses_settings_without_schema_migration():
         tutorial._acknowledge(db, user)
         assert tutorial.welcome_pending(user) is False
         assert json.loads(user.preference.settings_json) == {
-            'animations': True, tutorial.WELCOME_KEY: True,
+            'animations': True, tutorial.WELCOME_KEY: True, tutorial.NEWS_KEY: True,
         }
         db.expire_all()
         assert not tutorial.welcome_pending(db.get(WebUser, 401))

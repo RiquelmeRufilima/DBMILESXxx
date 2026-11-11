@@ -4382,15 +4382,23 @@ def result_page(quote_id: int, request: Request, db: Session = Depends(get_db)):
     # Consolidadora/sistema: a arte do cliente mostra só a companhia que opera
     # o voo (nunca o fornecedor), por isso precisamos das logos das parceiras.
     is_supplier = bool(quote.airline and quote.airline.catalog_category in {"systems", "consolidators"})
-    partner_logo_map: dict[str, str] | None = None
-    if is_supplier:
-        partner_logo_map = {
-            _normalized_token(item.name): str(item.logo_path or logo_from_name(item.name) or "")
-            for item in db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all()
-            if item.name
-        }
+    # As logos das parceiras também servem para o "Operado por" de programas
+    # de milhas (ex.: emitido pela GOL, voado pela Avianca).
+    partner_logo_map = {
+        _normalized_token(item.name): str(item.logo_path or logo_from_name(item.name) or "")
+        for item in db.scalars(_visible_airlines_query(user).where(Airline.active.is_(True))).all()
+        if item.name
+    }
     quote = _decorate_quote_scope(quote, partner_logo_map=partner_logo_map)
-    art_operator = _art_operator(quote) if is_supplier else None
+    if is_supplier:
+        art_operator = _art_operator(quote)
+    else:
+        # Programa/companhia com voo operado por outra companhia: a arte mostra
+        # a companhia que voa (logo e nome) e diz por quem foi emitido.
+        operator = _art_operator(quote)
+        issuer = quote.airline.name if quote.airline else ""
+        same = _normalized_token(operator["name"]) == _normalized_token(issuer)
+        art_operator = {**operator, "issuer": issuer} if operator["name"] and not same else None
     link = db.get(QuoteOptionIndex, quote.id)
     inputs = _safe_json(quote.input_json, {})
     breakdown = _safe_json(quote.breakdown_json, {})

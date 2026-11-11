@@ -103,4 +103,31 @@
   </section>
 </div>
 {% endif %}
+{% if show_news and not show_tutorial_welcome %}
+<div class="dbm-tutorial-welcome-backdrop" aria-hidden="false">
+  <section class="dbm-tutorial-welcome-dialog dbm-news-dialog" role="dialog" aria-modal="true" aria-labelledby="dbmNewsTitle" aria-describedby="dbmNewsDesc">
+    <span class="dbm-tutorial-welcome-icon"><svg class="ui-icon"><use href="#icon-book-open"></use></svg></span>
+    <span class="dbm-tutorial-welcome-caption">NOVIDADES NO DBMILESX</span>
+    <h2 id="dbmNewsTitle">Tem tutorial novo e mais coisas por aqui!</h2>
+    <p id="dbmNewsDesc">A aba <strong>Tutorial</strong> agora tem vídeos narrados e guias passo a passo, separados por assunto.</p>
+    <ul class="dbm-news-list">
+      <li><strong>8 vídeos com narração</strong>: cotação, cálculo, consolidadoras, lucro, aceite, acompanhamentos e programas.</li>
+      <li><strong>Voo aceito</strong> pode ir para uma cotação nova ou somar numa cotação que já existe.</li>
+      <li><strong>Arte com "Operado por"</strong>: mostra a companhia que voa e por quem foi emitido.</li>
+      <li><strong>Lucro real</strong> no resumo interno quando o cartão é sem juros.</li>
+    </ul>
+    <form action="/tutorial/novidades" method="post" class="dbm-tutorial-welcome-actions">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" name="destination" value="tutorial" class="dbm-tutorial-welcome-primary" autofocus>Ver os tutoriais <svg class="ui-icon"><use href="#icon-arrow-right"></use></svg></button>
+      <button type="submit" name="destination" value="later" class="dbm-tutorial-welcome-later">Agora não</button>
+    </form>
+    <p class="dbm-tutorial-welcome-footnote">Este aviso aparece só uma vez. Os tutoriais ficam sempre no menu Tutorial.</p>
+  </section>
+</div>
+<style>
+.dbm-news-list{margin:4px 0 6px;padding:0;list-style:none;display:grid;gap:8px;text-align:left}
+.dbm-news-list li{position:relative;padding:9px 12px 9px 34px;border-radius:12px;background:color-mix(in srgb,var(--cyan,#24b7d3) 8%,transparent);border:1px solid color-mix(in srgb,var(--cyan,#24b7d3) 22%,transparent);font-size:.9rem;line-height:1.45}
+.dbm-news-list li:before{content:"✓";position:absolute;left:12px;top:9px;color:var(--cyan,#24b7d3);font-weight:900}
+</style>
+{% endif %}
 {% endblock %}

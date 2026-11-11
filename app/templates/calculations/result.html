@@ -331,6 +331,7 @@
        'name':quote.trip.client_name if quote.trip and quote.trip.client_name else quote.quote_name,
        'origin':quote.origin,'destination':quote.destination,
        'airline':(art_operator.name if art_operator is not none else (quote.airline.name if quote.airline else '')),
+       'issuer':(art_operator.issuer if art_operator is not none and art_operator.issuer else ''),
        'itinerary':inputs.get('_itinerary_v1', {}), 'flight_options':quote.flight_details, 'extra_bags_quantity':quote.bags,
        'extra_bags_outbound':inputs.get('_meta', {}).get('extra_bags_outbound'),
        'extra_bags_return':inputs.get('_meta', {}).get('extra_bags_return'),
@@ -340,7 +341,7 @@
        'installment_value':quote.commercial.card_installment_value if quote.commercial else 0}|tojson }}</script>
   <link rel="stylesheet" href="/static/css/flight-itinerary-20261102.css?v=20261102.3">
   <link rel="stylesheet" href="/static/css/dbm-message-settings-20261103.css?v=20261103.7">
-  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261106.2"></script>
+  <script defer src="/static/js/flight-quote-art-20261102.js?v=20261110.1"></script>
 </section>
 <style>
 .dbm-message-new-settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px;padding:12px;border:1px solid #365e7d;border-radius:11px;background:rgba(21,67,101,.2)}

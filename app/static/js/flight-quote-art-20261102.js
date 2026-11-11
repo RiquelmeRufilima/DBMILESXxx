@@ -141,8 +141,15 @@
     ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(60,186);ctx.lineTo(1020,186);ctx.stroke();
     // Companhia + nº da cotação (no lugar do localizador: ainda não é reserva)
     drawImageBox(images.airline,60,206,72,'#1b8a94');
-    fitText(data.airline||'Companhia aérea',148,240,470,30,'bold','#ffffff');
-    text('COTAÇÃO • AINDA NÃO É RESERVA',148,268,'bold 15px Arial','#bfe9ee');
+    if(data.issuer&&data.airline){
+      // Voo emitido por um programa e operado por outra companhia (ex.: GOL → Avianca).
+      fitText(`Operado pela ${data.airline}`,148,234,560,28,'bold','#ffffff');
+      fitText(`EMITIDO PELA ${String(data.issuer).toLocaleUpperCase('pt-BR')}`,148,260,560,16,'bold','#d9f2f4');
+      text('COTAÇÃO • AINDA NÃO É RESERVA',148,284,'bold 13px Arial','#bfe9ee');
+    }else{
+      fitText(data.airline||'Companhia aérea',148,240,470,30,'bold','#ffffff');
+      text('COTAÇÃO • AINDA NÃO É RESERVA',148,268,'bold 15px Arial','#bfe9ee');
+    }
     text('COTAÇÃO Nº',1016,232,'bold 15px Arial','#bfe9ee','right');
     text(String(data.quote_id||'—'),1016,272,'bold 38px Arial','#ffffff','right');
     // Cartão branco
