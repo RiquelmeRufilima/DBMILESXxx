@@ -28,7 +28,8 @@ def test_tracking_reuses_existing_quote_editor():
     quote_form = (ROOT / 'cotacao_form.html').read_text()
     assert 'service_index={{ item.index }}' in tracking
     assert 'data-tab="orcamento"' in quote_form
-    assert 'openServiceModal(serviceKey, index)' in quote_form
+    # Abre o serviço (ou o pacote dele) na cotação original.
+    assert 'dbmEditService(serviceKey, index)' in quote_form
 
 
 def test_neutral_board_theme():

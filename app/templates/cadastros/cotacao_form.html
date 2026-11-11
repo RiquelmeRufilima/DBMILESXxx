@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "cadastros/_pacote_comissao.html" as pkg %}
 {% block title %}Cotação {{ data.quote_code or group.id }} | DBMILESX{% endblock %}
 {% from "partials/tags.html" import tag_row, tag_assets %}
 {% block content %}
@@ -130,6 +131,7 @@
       <div id="flightsList" class="itinerary-flight-stack"></div>
 
       <div class="service-command-grid" aria-label="Serviços opcionais da reserva">
+        <button type="button" class="service-command-card package" onclick="openPackageModal()"><span>▦</span><b>Pacote</b><small>Voo, hotel e mais de uma vez</small><em>+ Adicionar</em></button>
         <button type="button" class="service-command-card hotel" onclick="addService('hotel')"><span>▣</span><b>Hospedagem</b><small>Hotel, pousada, apartamento</small><em>+ Adicionar</em></button>
         <button type="button" class="service-command-card transport" onclick="addService('transport')"><span>▤</span><b>Transporte</b><small>Transfer, ônibus, locação</small><em>+ Adicionar</em></button>
         <button type="button" class="service-command-card cruise" onclick="addService('cruise')"><span>≈</span><b>Cruzeiro</b><small>Cabine, embarque e reserva</small><em>+ Adicionar</em></button>
@@ -140,6 +142,7 @@
     </div>
 
     <div class="accordion-stack premium-services-stack">
+      <details class="quote-accordion service-detail-panel" id="packageAccordion"><summary>Pacotes <button type="button" class="tiny primary-button" onclick="event.preventDefault();openPackageModal()">Incluir</button></summary><div id="packageList" class="service-list"></div></details>
       <details class="quote-accordion service-detail-panel" open><summary>Hospedagem <button type="button" class="tiny primary-button" onclick="addService('hotel')">Incluir</button></summary><div id="hotelList" class="service-list"></div></details>
       <details class="quote-accordion service-detail-panel"><summary>Transporte <button type="button" class="tiny primary-button" onclick="addService('transport')">Incluir</button></summary><div id="transportList" class="service-list"></div></details>
       <details class="quote-accordion service-detail-panel"><summary>Cruzeiro <button type="button" class="tiny primary-button" onclick="addService('cruise')">Incluir</button></summary><div id="cruiseList" class="service-list"></div></details>
@@ -360,6 +363,7 @@
       <label>Link<input id="svc_link" placeholder="Opcional"></label>
       <label>Nº da Reserva<input id="svc_reservation_number" placeholder="Opcional"></label>
     </div>
+    {{ pkg.insurer_picker() }}
     <div class="form-grid cols-4">
       <label>Entrada / Início<input id="svc_start_date" type="date"></label>
       <label>Hora<input id="svc_start_time" type="time"></label>
@@ -391,6 +395,7 @@
       <div class="field-with-button person-search-wrapper"><div class="field-label-line"><label for="svc_supplier">Fornecedor</label><a class="secondary-button tiny" href="/persons/new?quick=1&person_type=fornecedor" target="_blank" rel="noopener">+ Cadastrar</a></div><input id="svc_supplier" class="person-search" placeholder="Digite para filtrar fornecedores" autocomplete="off" data-person-type="fornecedor" data-require-selection="1"><input type="hidden" id="svc_supplier_id" class="person-id"></div>
       <label>Valor<input id="svc_value" placeholder="R$ 0,00"></label>
     </div>
+    <div id="svcCommissionWrap" hidden>{{ pkg.commission_box("svc", "Valor da hospedagem", "Coloque o valor de venda e a comissão em % ou em R$. O Valor (custo) vira o líquido da operadora e a comissão é o seu lucro.") }}</div>
     <div class="form-grid cols-2 svc-sales-fields">
       <label>Hóspedes / pessoas <small class="svc-auto-label">Vazio = nº de passageiros da cotação</small><input id="svc_guests" type="number" min="0" placeholder="Ex.: 3"></label>
       <label>Valor de venda ao cliente <small class="svc-auto-label">Usado na mensagem; vazio = campo Valor</small><input id="svc_sale_value" placeholder="R$ 0,00"></label>
@@ -433,6 +438,8 @@ html[data-theme="light"] .service-sales-message summary{color:#155b91}
 <script id="cotacaoInitialData" type="application/json">{{ data|default({})|tojson }}</script>
 <script id="airportMapData" type="application/json">{{ airport_map|default({})|tojson }}</script>
 <script id="airlineOptionsData" type="application/json">{{ airline_options|default([])|tojson }}</script>
+{% include "cadastros/_pacote_comissao.html" %}
+<script src="/static/js/package-commission-20261111.js?v=2"></script>
 <script>
 function readJsonData(id, fallback){
   try {
@@ -446,13 +453,13 @@ const commercialOffer = initialData.commercial_offer || {};
 let passengers = Array.isArray(initialData.passengers) ? initialData.passengers : [];
 let costItems = Array.isArray(initialData.cost_items) ? initialData.cost_items : [];
 let saleItems = Array.isArray(initialData.sale_items) ? initialData.sale_items : [];
-let services = initialData.services || {hotel:[],transport:[],cruise:[],experiences:[],insurance:[],additional:[],itinerary:""};
+let services = initialData.services || {package:[],hotel:[],transport:[],cruise:[],experiences:[],insurance:[],additional:[],itinerary:""};
 let commission = initialData.commission || {receive:[],pay:[],extra:0};
 let sale = initialData.sale || {date:"", launched:false, launched_at:"", notes:""};
 let attachments = Array.isArray(initialData.attachments) ? initialData.attachments : [];
 let editFlightIndex = null, editCostIndex = null, editSaleIndex = null, editServiceKey = null, editServiceIndex = null, editCommissionType = null, editCommissionIndex = null;
 let uiRendered = false;
-const serviceLabels={hotel:'Hospedagem',transport:'Transporte',cruise:'Cruzeiro',experiences:'Experiências Turísticas',insurance:'Seguro',additional:'Serviço Adicional'};
+const serviceLabels={package:'Pacote',hotel:'Hospedagem',transport:'Transporte',cruise:'Cruzeiro',experiences:'Experiências Turísticas',insurance:'Seguro',additional:'Serviço Adicional'};
 const AIRPORT_MAP = readJsonData('airportMapData', {});
 const AIRLINE_OPTIONS = readJsonData('airlineOptionsData', []);
 const CHECKIN_LINKS = {"aerolineas":"https://www.aerolineas.com.ar/check-in","aeromexico":"https://aeromexico.com/pt-br/check-in","aircanada":"https://www.aircanada.com/ca/en/aco/home/ssci.html","airchina":"https://www.airchina.com/","aireuropa":"https://www.aireuropa.com/br/pt/aea/gestoes/check-in.html","airfrance":"https://wwws.airfrance.com.br/check-in","airnewzealand":"https://www.airnewzealand.com/check-in-online","amaszonas":"https://www.amaszonas.com/","american":"https://www.aa.com/checkin","ana":"https://www.ana.co.jp/en/jp/guide/boarding-procedures/checkin/","arajet":"https://www.arajet.com/","avianca":"https://www.avianca.com/pt/gerencie-sua-reserva/check-in-online/","azul":"https://www.voeazul.com.br/check-in","boa":"https://www.boa.bo/","british":"https://www.britishairways.com/travel/olcilandingpageauthreq/public/en_br","condor":"https://www.condor.com/","copa":"https://www.copaair.com/pt-gs/check-in/","delta":"https://www.delta.com/us/en/check-in-security/overview","elal":"https://www.elal.com/","emirates":"https://www.emirates.com/br/english/manage-booking/online-check-in/","ethiopian":"https://www.ethiopianairlines.com/br/services/online-check-in","gol":"https://b2c.voegol.com.br/check-in","iberia":"https://www.iberia.com/br/check-in-online/","ita":"https://www.ita-airways.com/en_br/fly-ita/check-in.html","jal":"https://www.jal.co.jp/ar/en/inter/boarding/online-checkin/","jetsmart":"https://jetsmart.com/br/pt/check-in","klm":"https://www.klm.com.br/check-in","koreanair":"https://www.koreanair.com/","latam":"https://www.latamairlines.com/br/pt/check-in","lufthansa":"https://www.lufthansa.com/br/pt/check-in-online","qantas":"https://www.qantas.com/","qatar":"https://www.qatarairways.com/pt-br/services-checking-in.html","royalairmaroc":"https://www.royalairmaroc.com/","singapore":"https://www.singaporeair.com/en_UK/br/travel-info/check-in/online-mobile-checkin/","sky":"https://www.skyairline.com/","southafrican":"https://www.flysaa.com/","swiss":"https://www.swiss.com/br/en/fly/check-in/online-check-in","taag":"https://www.taag.com/","tap":"https://www.flytap.com/pt-br/check-in-online","turkish":"https://www.turkishairlines.com/en-int/flights/manage-booking/online-check-in/","united":"https://www.united.com/en/us/checkin","voepass":"https://www.voepass.com.br/"};
@@ -731,6 +738,7 @@ function openServiceModal(key,index=null){
   document.querySelectorAll('#serviceModal .svc-amenity').forEach(el=>{el.checked=amenities.includes(el.value);});
   setVal('svc_amenities_other', amenities.filter(a=>!known.includes(a)).join(', '));
   updateServiceFieldVisibility(key);
+  window.dbmServiceModalOpen?.(key, s);
   updateStayDuration();
   updateHotelStars();
   document.getElementById('serviceModal').showModal();
@@ -784,11 +792,14 @@ function saveServiceFromModal(){
 
   const s={name:val('svc_name'),link:val('svc_link'),reservation_number:val('svc_reservation_number'),start_date:val('svc_start_date'),start_time:val('svc_start_time'),end_date:val('svc_end_date'),end_time:val('svc_end_time'),origin:val('svc_origin'),destination:val('svc_destination'),address:val('svc_address'),nights:Number(val('svc_nights')||0),rooms:Number(val('svc_rooms')||0),type:val('svc_type'),stars:val('svc_stars'),supplier:val('svc_supplier'),supplier_person_id:val('svc_supplier_id')||null,value:parseMoney(val('svc_value')),description:val('svc_description'),guests:Number(val('svc_guests')||0)||'',sale_value:parseMoney(val('svc_sale_value'))||'',amenities:[...[...document.querySelectorAll('#serviceModal .svc-amenity:checked')].map(el=>el.value),...val('svc_amenities_other').split(',').map(t=>t.trim()).filter(Boolean)]};
   if(!Array.isArray(services[key]))services[key]=[];
+  const previous=editServiceIndex!==null?(services[key][editServiceIndex]||{}):{};
+  if(window.dbmServiceModalSave && window.dbmServiceModalSave(key, s, previous)===false) return;
   if(editServiceIndex!==null)services[key][editServiceIndex]=s; else services[key].push(s);
   closeDialog('serviceModal'); renderAll();
 }
 function serviceSummary(s){const parts=[];if(s.stars && Number(s.stars)>=1 && Number(s.stars)<=5)parts.push('★'.repeat(Number(s.stars))+'☆'.repeat(5-Number(s.stars)));if(s.nights)parts.push(s.nights+' diária(s)'); if(s.origin||s.destination)parts.push(`${s.origin||''}${s.origin||s.destination?' → ':''}${s.destination||''}`); if(s.start_date||s.start_time||s.end_date||s.end_time){const start=formatDateTime(s.start_date,s.start_time,'');const end=formatDateTime(s.end_date,s.end_time,'');parts.push([start,end].filter(Boolean).join(' até '));} if(s.address)parts.push(s.address); if(s.reservation_number)parts.push('Reserva '+s.reservation_number); if(s.value)parts.push(brMoney(s.value)); return parts.filter(Boolean).join(' • ');}
 const serviceSaleMeta={
+  package:{icon:'🌴',title:'COTAÇÃO DE PACOTE',total:'Valor total do pacote',support:'Suporte durante toda a viagem',details:'Confira todos os detalhes do pacote:'},
   hotel:{icon:'🏨',title:'COTAÇÃO DE HOSPEDAGEM',total:'Valor total da hospedagem',support:'Suporte durante toda a estadia',details:'Confira todos os detalhes da hospedagem:'},
   transport:{icon:'🚐',title:'COTAÇÃO DE TRANSPORTE',total:'Valor total do transporte',support:'Suporte durante todo o trajeto',details:'Confira todos os detalhes do transporte:'},
   cruise:{icon:'🚢',title:'COTAÇÃO DE CRUZEIRO',total:'Valor total do cruzeiro',support:'Suporte durante toda a viagem',details:'Confira todos os detalhes do cruzeiro:'},
@@ -841,7 +852,7 @@ function regenerateServiceMessage(btn,key,i){
   const area=btn.closest('.service-sales-message')?.querySelector('textarea'); if(!area)return;
   area.value=serviceSalesMessage(key,(services[key]||[])[i]||{});
 }
-function renderServices(){['hotel','transport','cruise','experiences','insurance','additional'].forEach(key=>{const box=document.getElementById(key+'List'); if(!box)return; const arr=Array.isArray(services[key])?services[key]:[]; box.innerHTML=arr.map((s,i)=>`<div class="service-row rich"><div><strong>${escapeHtml(s.name||serviceLabels[key]||'Serviço')}</strong><small>${escapeHtml(serviceSummary(s)||'Sem detalhes adicionais')}</small>${s.description?`<p>${escapeHtml(s.description)}</p>`:''}<details class="service-sales-message"><summary>💬 Mensagem de venda para o cliente</summary><textarea rows="18" spellcheck="true">${escapeHtml(serviceSalesMessage(key,s))}</textarea><div class="button-row"><button type="button" class="primary-button tiny" onclick="copyServiceMessage(this)">Copiar mensagem</button><button type="button" class="ghost-button tiny" onclick="regenerateServiceMessage(this,'${key}',${i})">Refazer texto</button></div></details></div><div class="button-row"><button type="button" class="ghost-button tiny" onclick="openServiceModal('${key}',${i})">Editar</button><button type="button" class="ghost-button danger tiny" onclick="services['${key}'].splice(${i},1);renderAll()">Excluir</button></div></div>`).join('')||'<div class="empty-strip">Nenhum item incluído.</div>';});}
+function renderServices(){['package','hotel','transport','cruise','experiences','insurance','additional'].forEach(key=>{const box=document.getElementById(key+'List'); if(!box)return; const arr=Array.isArray(services[key])?services[key]:[]; box.innerHTML=arr.map((s,i)=>`<div class="service-row rich"><div><strong>${escapeHtml(s.name||serviceLabels[key]||'Serviço')}</strong>${window.dbmServiceBadges?window.dbmServiceBadges(key,s):''}<small>${escapeHtml(serviceSummary(s)||'Sem detalhes adicionais')}</small>${s.description?`<p>${escapeHtml(s.description)}</p>`:''}<details class="service-sales-message"><summary>💬 Mensagem de venda para o cliente</summary><textarea rows="18" spellcheck="true">${escapeHtml(serviceSalesMessage(key,s))}</textarea><div class="button-row"><button type="button" class="primary-button tiny" onclick="copyServiceMessage(this)">Copiar mensagem</button><button type="button" class="ghost-button tiny" onclick="regenerateServiceMessage(this,'${key}',${i})">Refazer texto</button></div></details></div><div class="button-row"><button type="button" class="ghost-button tiny" onclick="dbmEditService('${key}',${i})">Editar</button><button type="button" class="ghost-button danger tiny" onclick="dbmDeleteService('${key}',${i})">Excluir</button></div></div>`).join('')||'<div class="empty-strip">Nenhum item incluído.</div>';});}
 function openCommissionModal(type,index=null){
   editCommissionType=type; editCommissionIndex=index;
   if(!Array.isArray(commission[type])) commission[type]=[];
@@ -992,17 +1003,17 @@ if (trackingQuery.get('tab') === 'orcamento') {
   document.querySelector('.quote-tabs button[data-tab="orcamento"]')?.click();
   const serviceKey = trackingQuery.get('service');
   const indexRaw = trackingQuery.get('service_index');
-  const allowedServices = ['hotel','transport','cruise','experiences','insurance','additional'];
+  const allowedServices = ['package','hotel','transport','cruise','experiences','insurance','additional'];
   if (allowedServices.includes(serviceKey) && /^\d+$/.test(indexRaw || '')) {
     const index = Number(indexRaw);
     if (Array.isArray(services[serviceKey]) && services[serviceKey][index]) {
-      requestAnimationFrame(() => openServiceModal(serviceKey, index));
+      requestAnimationFrame(() => dbmEditService(serviceKey, index));
     }
   }
   // Vindo de "+ Novo" em Acompanhamentos: abre o cadastro de um serviço novo.
   const newServiceKey = trackingQuery.get('new_service');
   if (allowedServices.includes(newServiceKey)) {
-    requestAnimationFrame(() => openServiceModal(newServiceKey));
+    requestAnimationFrame(() => newServiceKey === 'package' ? openPackageModal() : openServiceModal(newServiceKey));
   }
 }
 </script>

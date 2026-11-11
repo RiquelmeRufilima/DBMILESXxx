@@ -20,10 +20,11 @@ router = APIRouter(prefix="/acompanhamentos", tags=["acompanhamentos"])
 # Cada tipo possui sua própria faixa de 200 índices (evita repetir etiquetas
 # de hospedagem em transportes, por exemplo), mantendo o ID dentro do grupo.
 def _service_tag_id(group_id: int, kind: str, index: int) -> int:
-    family = {"hospedagens": 0, "transportes": 1, "experiencias": 2, "cruzeiros": 3, "seguros": 4}.get(kind, 0)
+    family = {"hospedagens": 0, "transportes": 1, "experiencias": 2, "cruzeiros": 3, "seguros": 4, "pacotes": 5}.get(kind, 0)
     return int(group_id)*1000 + family*200 + max(0, min(199, int(index)))
 
 KINDS = {
+    "pacotes": ("package", "Pacotes"),
     "hospedagens": ("hotel", "Hospedagens"),
     "transportes": ("transport", "Transportes"),
     "experiencias": ("experiences", "Experiências turísticas"),
@@ -131,13 +132,14 @@ def list_tracking(kind: str, request: Request, page: int = 1, q: str = "", tag: 
 
 
 SERVICE_LABELS = {
+    "pacotes": "Pacote",
     "hospedagens": "Hospedagem",
     "transportes": "Transporte",
     "experiencias": "Experiência turística",
     "cruzeiros": "Cruzeiro",
     "seguros": "Seguro",
 }
-EMPTY_SERVICES = {"hotel": [], "transport": [], "cruise": [], "experiences": [], "insurance": [], "additional": [], "itinerary": ""}
+EMPTY_SERVICES = {"package": [], "hotel": [], "transport": [], "cruise": [], "experiences": [], "insurance": [], "additional": [], "itinerary": ""}
 
 
 def _services_of(data: dict) -> dict:

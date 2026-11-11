@@ -36,6 +36,8 @@
 @media(max-width:950px){.tracking-entry{grid-template-columns:100px minmax(0,1fr) auto}.tracking-entry .tracking-service{grid-column:2}.tracking-entry .tracking-actions{grid-column:3;grid-row:1/3}}
 @media(max-width:680px){.tracking-search{align-items:stretch;flex-direction:column}.tracking-entry{grid-template-columns:1fr 1fr;gap:10px}.tracking-entry .tracking-date{grid-column:1}.tracking-entry .tracking-client{grid-column:1/-1;grid-row:2}.tracking-entry .tracking-service{grid-column:1/-1;grid-row:3}.tracking-entry .tracking-actions{grid-column:2;grid-row:1;justify-self:end}.tracking-types a{flex:1;justify-content:center;font-size:.71rem}}
 
+.tracking-package-includes{display:flex!important;flex-wrap:wrap;gap:5px}.tracking-package-includes em{font-style:normal;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--cyan) 12%,var(--panel-2));color:var(--text)}
+.tracking-insurer{display:inline-flex!important;align-items:center;gap:7px}.tracking-insurer img{border-radius:5px;background:#fff;object-fit:contain}
 .tracking-hotel-stars{display:inline-flex!important;align-items:center;gap:6px;color:#d49412!important;font-size:1rem;font-weight:900;letter-spacing:.07em}
 .tracking-hotel-stars small{color:var(--text-muted,#6c8099);font-size:.68rem;letter-spacing:0}
 html[data-theme="light"] .tracking-entry{background:#fff!important;color:#14304a!important;border-color:#d4e2ef!important}
@@ -97,9 +99,18 @@ button.tracking-move{cursor:pointer;font:inherit;background:none;border:1px soli
             <span>{{ item.address or service.get('description') or 'Endereço não informado' }}</span>
             <small>Check-in: {{ item.start_date or 'A informar' }}{% if item.start_time %} às {{ item.start_time }}{% endif %} · Check-out: {{ item.end_date or 'A informar' }}{% if item.end_time %} às {{ item.end_time }}{% endif %}</small>
             <small>{% if service.get('rooms') %}{{ service.get('rooms') }} quarto(s) · {% endif %}{% if service.get('nights') %}{{ service.get('nights') }} noite(s) · {% endif %}Hospedagem</small>
+          {% elif kind == 'pacotes' %}
+            {% set inc = service.get('includes') or [] %}
+            <span>{{ service.get('destination') or 'Destino a informar' }}{% if service.get('supplier') %} · {{ service.get('supplier') }}{% endif %}</span>
+            {% if inc %}<span class="tracking-package-includes">{% for part in inc %}<em>{{ {'flight':'✈ Voo','hotel':'🏨 Hotel','transfer':'🚐 Transfer','insurance':'🛡 Seguro','tours':'🎟 Passeios'}.get(part, part) }}</em>{% endfor %}</span>{% endif %}
+            {% if service.get('sale_value') %}<small>Venda: <b>{{ service.get('sale_value')|money }}</b>{% if service.get('commission_value') %} · Comissão: <b>{{ service.get('commission_value')|money }}</b>{% endif %}</small>{% endif %}
+          {% elif kind == 'seguros' and service.get('insurer') %}
+            <span class="tracking-insurer">{% if (service.get('insurer_logo') or '').startswith('/static/brand/seguros/') %}<img src="{{ service.get('insurer_logo') }}" alt="" width="22" height="22" loading="lazy">{% endif %}<b>{{ service.get('insurer') }}</b>{% if service.get('type') %} · {{ service.get('type') }}{% endif %}</span>
+            {% if service.get('description') %}<span>{{ service.get('description') }}</span>{% endif %}
           {% else %}
             <span>{{ item.address or service.get('description') or item.summary or 'Serviço cadastrado' }}</span>
           {% endif %}
+          {% if service.get('package_ref') %}<small>Parte de um pacote</small>{% endif %}
           {% if item.reservation %}<small>Reserva / confirmação: <b>{{ item.reservation }}</b></small>{% endif %}
         </div>
         <div class="tracking-actions">

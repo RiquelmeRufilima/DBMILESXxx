@@ -1,0 +1,179 @@
+{# Pacote (operadora/consolidadora), comissão e seguradoras.
+   Lógica em /static/js/package-commission-20261111.js #}
+{% macro commission_box(prefix, sale_label="Valor de venda", help="") %}
+<section class="cm-box" data-commission-box="{{ prefix }}" aria-labelledby="{{ prefix }}_cm_title">
+  <div class="cm-head">
+    <h3 id="{{ prefix }}_cm_title">Preço e lucro (comissão)</h3>
+    <small>{{ help or "Informe quanto o passageiro paga e a comissão em % ou em R$. Um campo completa o outro." }}</small>
+  </div>
+  <div class="cm-grid">
+    <label>{{ sale_label }} <small>O passageiro paga</small><input id="{{ prefix }}_cm_sale" data-cm="sale" placeholder="R$ 0,00" inputmode="decimal" autocomplete="off"></label>
+    <label>% comissão<input id="{{ prefix }}_cm_pct" data-cm="pct" placeholder="0,00" inputmode="decimal" autocomplete="off"></label>
+    <label>Valor da comissão<input id="{{ prefix }}_cm_value" data-cm="value" placeholder="R$ 0,00" inputmode="decimal" autocomplete="off"></label>
+  </div>
+  <div class="cm-total"><span>Seu ganho total (lucro)</span><strong data-cm="total">R$ 0,00</strong></div>
+  <div class="cm-net"><span>Valor líquido para a operadora</span><b data-cm="net">R$ 0,00</b></div>
+  <fieldset class="cm-mode">
+    <legend>Quem recebe o pagamento do passageiro?</legend>
+    <label><input type="radio" name="{{ prefix }}_cm_mode" value="operator" checked> <span><b>A operadora</b><small>Lança só a comissão em Venda → Recebimento de comissão.</small></span></label>
+    <label><input type="radio" name="{{ prefix }}_cm_mode" value="agency"> <span><b>A agência</b><small>Lança a venda em Valores de venda e o líquido da operadora em Valores de custo.</small></span></label>
+  </fieldset>
+  <p class="cm-note" data-cm="note" aria-live="polite"></p>
+</section>
+{% endmacro %}
+
+{% macro insurer_picker() %}
+<fieldset class="ins-picker" id="insurerPicker" hidden>
+  <legend>Seguradora</legend>
+  <div class="ins-options" role="radiogroup" aria-label="Seguradora">
+    <button type="button" class="ins-card" role="radio" aria-checked="false" data-insurer="Universal Assistance" data-logo="/static/brand/seguros/universal-assistance.png">
+      <img src="/static/brand/seguros/universal-assistance.png" alt="" width="44" height="46"><span>Universal Assistance</span>
+    </button>
+    <button type="button" class="ins-card ins-other" role="radio" aria-checked="false" data-insurer="">
+      <span class="ins-other-mark" aria-hidden="true">+</span><span>Outra seguradora</span>
+    </button>
+  </div>
+  <label class="ins-other-name" hidden>Nome da seguradora<input id="svc_insurer_other" list="insurerSuggestions" placeholder="Ex.: Assist Card, GTA, Affinity, Travel Ace"></label>
+  <datalist id="insurerSuggestions"><option value="Assist Card"><option value="GTA Global Travel Assistance"><option value="Affinity Seguro Viagem"><option value="Travel Ace"><option value="Intermac Assistance"><option value="Coris"><option value="Porto Seguro Viagem"><option value="April Brasil"></datalist>
+  <input type="hidden" id="svc_insurer"><input type="hidden" id="svc_insurer_logo">
+</fieldset>
+{% endmacro %}
+
+<dialog id="packageModal" class="dark-dialog large-dialog package-dialog" aria-labelledby="packageModalTitle">
+  <div class="dialog-head"><h2 id="packageModalTitle">Pacote</h2><button onclick="closeDialog('packageModal')" type="button" aria-label="Fechar">×</button></div>
+  <div class="dialog-body">
+    <p class="pkg-intro">Registre tudo de uma vez: o que for marcado em <b>O pacote inclui</b> entra também nas abas de Voos, Hospedagens, Transportes, Seguros e Experiências.</p>
+    <div class="form-grid cols-3">
+      <label>Nome do pacote<input id="pkg_name" placeholder="Ex.: Cancún 7 noites all inclusive"></label>
+      <label>Destino<input id="pkg_destination" placeholder="Cidade / país"></label>
+      <label>Nº da reserva / localizador<input id="pkg_reservation" placeholder="Código da operadora"></label>
+    </div>
+    <div class="form-grid cols-3">
+      <div class="field-with-button person-search-wrapper"><div class="field-label-line"><label for="pkg_supplier">Operadora / consolidadora</label><a class="secondary-button tiny" href="/persons/new?quick=1&person_type=fornecedor" target="_blank" rel="noopener">+ Cadastrar</a></div><input id="pkg_supplier" class="person-search" placeholder="Digite para filtrar fornecedores" autocomplete="off" data-person-type="fornecedor" data-require-selection="1"><input type="hidden" id="pkg_supplier_id" class="person-id"></div>
+      <label>Início da viagem<input id="pkg_start_date" type="date"></label>
+      <label>Fim da viagem<input id="pkg_end_date" type="date"></label>
+    </div>
+    <div class="form-grid cols-2">
+      <label>Link da reserva<input id="pkg_link" placeholder="Opcional"></label>
+      <label>Passageiros<input id="pkg_guests" type="number" min="0" placeholder="Vazio = passageiros da cotação"></label>
+    </div>
+
+    <fieldset class="pkg-includes">
+      <legend>O pacote inclui</legend>
+      <label><input type="checkbox" value="flight" class="pkg-inc"> ✈ Voo</label>
+      <label><input type="checkbox" value="hotel" class="pkg-inc"> 🏨 Hospedagem</label>
+      <label><input type="checkbox" value="transfer" class="pkg-inc"> 🚐 Transfer</label>
+      <label><input type="checkbox" value="insurance" class="pkg-inc"> 🛡 Seguro</label>
+      <label><input type="checkbox" value="tours" class="pkg-inc"> 🎟 Passeios</label>
+    </fieldset>
+
+    <section class="pkg-part" data-part="flight" hidden>
+      <h3>✈ Voo</h3>
+      <div class="form-grid cols-4">
+        <label>Companhia<input id="pkg_fl_airline" list="airlineSuggestions" placeholder="Selecione ou digite"></label>
+        <label>Origem<input id="pkg_fl_origin" class="iata-search" placeholder="IATA, ex.: FOR" autocomplete="off" maxlength="40"></label>
+        <label>Destino<input id="pkg_fl_destination" class="iata-search" placeholder="IATA, ex.: CUN" autocomplete="off" maxlength="40"></label>
+        <label>Localizador do voo<input id="pkg_fl_locator" placeholder="Opcional"></label>
+      </div>
+      <div class="form-grid cols-4">
+        <label>Ida: embarque<input id="pkg_fl_out_date" type="date"></label>
+        <label>Hora<input id="pkg_fl_out_time" type="time"></label>
+        <label>Nº do voo de ida<input id="pkg_fl_out_number" placeholder="Opcional"></label>
+        <label>Chegada (hora)<input id="pkg_fl_out_arrival" type="time"></label>
+      </div>
+      <div class="form-grid cols-4">
+        <label>Volta: embarque<input id="pkg_fl_back_date" type="date"></label>
+        <label>Hora<input id="pkg_fl_back_time" type="time"></label>
+        <label>Nº do voo de volta<input id="pkg_fl_back_number" placeholder="Opcional"></label>
+        <label>Chegada (hora)<input id="pkg_fl_back_arrival" type="time"></label>
+      </div>
+      <small class="muted">Sem data de volta, entra só o voo de ida.</small>
+    </section>
+
+    <section class="pkg-part" data-part="hotel" hidden>
+      <h3>🏨 Hospedagem</h3>
+      <div class="form-grid cols-3">
+        <label>Hotel<input id="pkg_ht_name" placeholder="Nome do hotel"></label>
+        <label>Endereço / cidade<input id="pkg_ht_address" placeholder="Opcional"></label>
+        <label>Regime / quarto<input id="pkg_ht_type" placeholder="Ex.: All inclusive, quarto duplo"></label>
+      </div>
+      <div class="form-grid cols-4">
+        <label>Check-in<input id="pkg_ht_in" type="date"></label>
+        <label>Check-out<input id="pkg_ht_out" type="date"></label>
+        <label>Quartos<input id="pkg_ht_rooms" type="number" min="0" value="1"></label>
+        <label>Estrelas<select id="pkg_ht_stars"><option value="">Não classificado</option><option value="3">★★★ 3</option><option value="4">★★★★ 4</option><option value="5">★★★★★ 5</option></select></label>
+      </div>
+    </section>
+
+    <section class="pkg-part" data-part="transfer" hidden>
+      <h3>🚐 Transfer</h3>
+      <div class="form-grid cols-2">
+        <label>Transfer<input id="pkg_tr_name" placeholder="Ex.: Aeroporto ⇄ hotel, compartilhado"></label>
+        <label>Detalhes<input id="pkg_tr_details" placeholder="Opcional"></label>
+      </div>
+    </section>
+
+    <section class="pkg-part" data-part="insurance" hidden>
+      <h3>🛡 Seguro</h3>
+      <div class="pkg-insurer" role="radiogroup" aria-label="Seguradora do pacote">
+        <button type="button" class="ins-card" role="radio" aria-checked="false" data-insurer="Universal Assistance" data-logo="/static/brand/seguros/universal-assistance.png"><img src="/static/brand/seguros/universal-assistance.png" alt="" width="40" height="42"><span>Universal Assistance</span></button>
+        <button type="button" class="ins-card ins-other" role="radio" aria-checked="false" data-insurer=""><span class="ins-other-mark" aria-hidden="true">+</span><span>Outra seguradora</span></button>
+      </div>
+      <div class="form-grid cols-2">
+        <label class="pkg-ins-other" hidden>Nome da seguradora<input id="pkg_ins_other" list="insurerSuggestions" placeholder="Ex.: Assist Card"></label>
+        <label>Plano / cobertura<input id="pkg_ins_plan" placeholder="Ex.: USD 60 mil"></label>
+      </div>
+    </section>
+
+    <section class="pkg-part" data-part="tours" hidden>
+      <h3>🎟 Passeios</h3>
+      <label>Passeios incluídos<input id="pkg_tours" placeholder="Ex.: Xcaret, Isla Mujeres (separe por vírgula)"></label>
+    </section>
+
+    {{ commission_box("pkg", "Valor do pacote", "Coloque o valor de venda do pacote e a comissão da operadora em % ou em R$. A comissão é o seu lucro.") }}
+    <label>Observações<textarea id="pkg_notes" rows="3" placeholder="Política de cancelamento, o que não inclui, instruções..."></textarea></label>
+  </div>
+  <div class="dialog-actions">
+    <button class="ghost-button" type="button" onclick="closeDialog('packageModal')">Cancelar</button>
+    <button class="primary-button" type="button" onclick="savePackageFromModal()">Salvar pacote</button>
+  </div>
+</dialog>
+
+<style>
+.cm-box{display:grid;gap:12px;margin:14px 0;padding:16px;border:1px solid color-mix(in srgb,var(--cyan,#26c5e6) 35%,var(--border,#315273));border-radius:14px;background:color-mix(in srgb,var(--cyan,#26c5e6) 5%,transparent)}
+.cm-head h3{margin:0;font-size:.98rem}
+.cm-head small{display:block;color:var(--muted);font-size:.78rem;margin-top:3px}
+.cm-grid{display:grid;grid-template-columns:1.2fr .8fr 1fr;gap:10px}
+.cm-grid label small{font-weight:600;color:var(--muted)}
+.cm-total{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-radius:10px;background:#0b1626;color:#fff;font-weight:800}
+.cm-total strong{font-size:1.05rem}
+.cm-net{display:flex;justify-content:space-between;padding:0 4px;color:var(--muted);font-size:.82rem}
+.cm-mode{border:0;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cm-mode legend{font-size:.78rem;font-weight:800;color:var(--muted);margin-bottom:6px}
+.cm-mode input{width:auto!important;margin:3px 0 0;flex:none}
+.cm-mode label{display:grid!important;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:10px 12px;border:1px solid var(--border,#315273);border-radius:10px;cursor:pointer}
+.cm-mode label:has(input:checked){border-color:var(--cyan,#26c5e6);background:color-mix(in srgb,var(--cyan,#26c5e6) 10%,transparent)}
+.cm-mode span{display:grid;gap:2px}.cm-mode small{color:var(--muted);font-size:.74rem;font-weight:500}
+.cm-note{margin:0;font-size:.78rem;color:var(--muted)}
+.cm-note.warn{color:#f5a524}
+.ins-picker{border:0;margin:6px 0;padding:0}
+.ins-picker legend{font-size:.8rem;font-weight:800;margin-bottom:6px}
+.ins-options,.pkg-insurer{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.ins-card{display:flex;align-items:center;gap:10px;min-height:58px;padding:8px 14px;border:1px solid var(--border,#315273);border-radius:12px;background:var(--panel-2,#0e2238);color:var(--text);font:inherit;font-weight:800;cursor:pointer}
+.ins-card img{border-radius:8px;background:#fff;object-fit:contain;padding:2px}
+.ins-card[aria-checked="true"]{border-color:var(--cyan,#26c5e6);box-shadow:0 0 0 2px color-mix(in srgb,var(--cyan,#26c5e6) 35%,transparent)}
+.ins-card:focus-visible{outline:2px solid var(--cyan,#26c5e6);outline-offset:2px}
+.ins-other-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:8px;border:1px dashed var(--border,#315273);font-size:1.3rem}
+.pkg-intro{margin:0 0 12px;color:var(--muted);font-size:.85rem}
+.pkg-includes{display:flex;flex-wrap:wrap;gap:8px;border:1px solid var(--border,#315273);border-radius:12px;padding:10px 12px;margin:12px 0}
+.pkg-includes legend{font-size:.8rem;font-weight:800;padding:0 4px}
+.pkg-includes label{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--border,#315273);cursor:pointer;font-weight:700}
+.pkg-includes label:has(input:checked){border-color:var(--cyan,#26c5e6);background:color-mix(in srgb,var(--cyan,#26c5e6) 12%,transparent)}
+.pkg-part{border-left:3px solid var(--cyan,#26c5e6);padding:4px 0 4px 12px;margin:10px 0}
+.pkg-part h3{margin:0 0 8px;font-size:.92rem}
+.svc-badges{display:flex!important;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+.svc-badges .pkg-badge,.svc-badges .ins-badge{display:inline-flex;align-items:center;gap:6px;width:auto;padding:3px 10px;border-radius:999px;font-size:.72rem;font-weight:800;background:color-mix(in srgb,var(--cyan,#26c5e6) 14%,transparent);color:var(--text)}
+.svc-badges .pkg-money{background:color-mix(in srgb,#22c55e 16%,transparent)}
+.service-row .ins-badge img{width:18px;height:18px;border-radius:4px;background:#fff;object-fit:contain}
+@media(max-width:720px){.cm-grid,.cm-mode{grid-template-columns:1fr}}
+</style>

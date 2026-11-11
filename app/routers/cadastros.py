@@ -101,8 +101,8 @@ PAYMENT_METHODS = [
     "Cartão Nubank", "Cartão Sicred", "Cartão XP", "Mercado Pago",
 ]
 ACCOUNTS = ["", "Mercado Pago", "Pix", "Dinheiro", "Cartão Nubank", "Cartão C6", "Cartão XP", "Banco Inter", "Outro"]
-COST_CATEGORIES = ["", "Pagamento Fornecedor", "Taxa", "Bagagem", "Milhas", "Hotel", "Transporte", "Seguro", "Serviço adicional", "Outro"]
-SALE_CATEGORIES = ["", "Venda de Passagem", "Venda de Hospedagem", "Venda de Pacote", "Taxa de Serviço", "Comissão", "Outro"]
+COST_CATEGORIES = ["", "Pagamento Fornecedor", "Pacote", "Taxa", "Bagagem", "Milhas", "Hotel", "Transporte", "Seguro", "Serviço adicional", "Outro"]
+SALE_CATEGORIES = ["", "Venda de Passagem", "Venda de Hospedagem", "Venda de Pacote", "Venda de Seguro", "Taxa de Serviço", "Comissão", "Outro"]
 CHANNELS = ["", "WhatsApp", "Instagram", "Telefone", "E-mail", "Indicação", "Presencial", "Site", "Outro"]
 CHECKIN_STATUSES = ["pendente", "em_periodo", "realizado", "nao_notificar"]
 
@@ -665,7 +665,7 @@ def _seed_payload(group: QuoteGroup, quote: WebQuote | None = None) -> dict[str,
             }
         ] if cash_sale_value else [],
         "commission": {"receive": [], "pay": [], "extra": round(skip_commission_value, 2)},
-        "services": {"hotel": [], "transport": [], "cruise": [], "experiences": [], "insurance": [], "additional": [], "itinerary": ""},
+        "services": {"package": [], "hotel": [], "transport": [], "cruise": [], "experiences": [], "insurance": [], "additional": [], "itinerary": ""},
         "terms": "",
         "notes": "",
         "sale": {"date": "", "launched": False, "launched_at": "", "notes": ""},
