@@ -523,7 +523,7 @@ html[data-theme="light"] .quote-base-summary .summary-grid > div:hover {
       {% if other_airlines %}<div class="airline-list-section-title">INTERNACIONAIS E OUTRAS</div>{% endif %}
       {% for airline in other_airlines %}
       <a href="/calculations/new?group_id={{ group.id }}&variant_key={{ selected_variant_key }}&airline_id={{ airline.id }}&calc=1" class="airline-mini {% if selected_airline and selected_airline.id == airline.id %}active{% endif %}" data-airline-item data-catalog-category="{{ airline|catalog_group }}" data-airline-name="{{ airline.name|lower }}" style="--airline-color: {{ airline.color }}">
-        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
+        {% if airline.logo_path %}<img src="/{{ airline.logo_path }}" alt="{{ airline.name }}" loading="lazy" decoding="async">{% else %}<span class="airline-fallback"><svg class="ui-icon"><use href="#icon-plane"></use></svg></span>{% endif %}<span><strong>{{ airline.name }}</strong><small>{% if airline.market_scope == 'national' %}Nacional{% elif airline.market_scope == 'international' %}Internacional{% else %}Nacional + internacional{% endif %} • {% if airline.builtin %}Original{% else %}Personalizada{% endif %}</small></span>
       </a>{% endfor %}
     </div>
   </aside>

@@ -19,6 +19,10 @@ from .security import ensure_csrf_token
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 from .services.realtime import avatar_url
 templates.env.globals["avatar_url"] = avatar_url
+from .services import seo as _seo  # noqa: E402
+templates.env.globals["page_seo"] = _seo.page_seo
+templates.env.globals["ga_measurement_id"] = _seo.ga_measurement_id
+templates.env.globals["google_site_verification"] = _seo.google_site_verification
 
 
 

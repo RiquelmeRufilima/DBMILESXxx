@@ -32,6 +32,7 @@ from .dependencies import require_user
 from .services.private_uploads import clean_upload_path, may_read_upload
 from .routers import (
     airlines,
+    seo as seo_routes,
     auth,
     tasks,
     cadastros,
@@ -158,11 +159,23 @@ async def security_and_cache_headers(request, call_next):
 
     # Cache: CSS/JS com ?v= mudam de URL a cada versão, então podem ficar 30 dias
     # no navegador. Demais estáticos: 1 dia. Isso acelera muito a navegação.
+    # Vercel-CDN-Cache-Control: a CDN do Vercel guarda o arquivo e responde sem
+    # chamar a função Python. Economiza execuções/CPU do plano e acelera.
     if path.startswith("/static/") and response.status_code == 200 and path != "/static/sw.js":
         if "v=" in (request.url.query or ""):
             headers["Cache-Control"] = "public, max-age=2592000, immutable"
+            headers["Vercel-CDN-Cache-Control"] = "max-age=31536000"
         else:
             headers.setdefault("Cache-Control", "public, max-age=86400")
+            headers["Vercel-CDN-Cache-Control"] = "max-age=3600"
+    if path.startswith("/imagens/") and response.status_code == 200:
+        # Logos das companhias: mudam raramente; ficam na CDN e no navegador.
+        headers["Cache-Control"] = "public, max-age=604800"
+        headers["Vercel-CDN-Cache-Control"] = "max-age=86400"
+    if path.startswith(("/static/", "/imagens/")) or path in {"/robots.txt", "/sitemap.xml", "/llms.txt"}:
+        # Arquivo público nunca leva cookie de sessão (com cookie a CDN não guarda).
+        if "set-cookie" in headers:
+            del headers["set-cookie"]
     if path == "/static/sw.js":
         headers["Service-Worker-Allowed"] = "/"
         headers["Cache-Control"] = "no-cache"
@@ -195,6 +208,7 @@ def protected_upload(relative_path: str, request: Request, db: Session = Depends
 if AIRLINE_IMAGE_DIR.exists():
     app.mount("/imagens", StaticFiles(directory=str(AIRLINE_IMAGE_DIR)), name="airline_images")
 
+app.include_router(seo_routes.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(tutorial.router)

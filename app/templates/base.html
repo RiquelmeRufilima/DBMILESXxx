@@ -8,7 +8,43 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="DBMILESX">
-  <title>{% block title %}DBMILESX{% endblock %}</title>
+  {% set seo = page_seo(request.url.path) %}
+  <title>{% if seo.indexable and seo.title %}{{ seo.title }}{% else %}{% block title %}DBMILESX{% endblock %}{% endif %}</title>
+  <meta name="description" content="{{ seo.description }}">
+  {# Só as páginas públicas entram no Google; as telas do sistema ficam fora da busca. #}
+  <meta name="robots" content="{{ 'index, follow' if seo.indexable and not user else 'noindex, nofollow' }}">
+  {% if seo.indexable %}
+  <meta name="keywords" content="{{ seo.keywords }}">
+  {% if seo.canonical %}<link rel="canonical" href="{{ seo.canonical }}">{% endif %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="DBMILESX">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:title" content="{{ seo.title }}">
+  <meta property="og:description" content="{{ seo.description }}">
+  {% if seo.canonical %}<meta property="og:url" content="{{ seo.canonical }}">{% endif %}
+  <meta property="og:image" content="{{ seo.image }}">
+  <meta name="twitter:card" content="summary">
+  {% if request.url.path == '/login' %}
+  <script type="application/ld+json">{{ {"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "DBMILESX", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "inLanguage": "pt-BR", "description": seo.description, "url": seo.canonical or None}|tojson }}</script>
+  {% endif %}
+  {% endif %}
+  {% if google_site_verification() %}<meta name="google-site-verification" content="{{ google_site_verification() }}">{% endif %}
+  {% set ga_id = ga_measurement_id() %}
+  {% if ga_id %}
+  {# Google Analytics 4: só o caminho da página (sem ?parâmetros) e, nas telas
+     internas, sem o título (que pode ter nome de cliente). #}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga_id }}"></script>
+  <script>
+    window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
+    gtag('js',new Date());
+    gtag('config',{{ ga_id|tojson }},{
+      page_location: location.origin + location.pathname,
+      page_title: {{ (seo.title if seo.indexable else 'DBMILESX (área logada)')|tojson }},
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false
+    });
+  </script>
+  {% endif %}
   {% if user %}<script>
     /* Guarda neste navegador o tema em uso (modo, cores e fundo) para que o
        login e as telas sem sessão abram com o MESMO visual do sistema. */

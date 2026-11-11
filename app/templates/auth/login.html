@@ -2,6 +2,7 @@
 {% block title %}Entrar | DBMILESX{% endblock %}
 {% block head %}<style>
 .auth-main{min-height:100vh;display:grid;place-items:center;padding:20px}.simple-login{width:min(420px,100%)}.simple-login-card{padding:28px;border-radius:22px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow)}.simple-login-logo{display:flex;justify-content:center;margin-bottom:18px}.simple-login-logo img{width:190px;max-height:64px;object-fit:contain}.simple-login-card h1{margin:0;text-align:center;font-size:1.55rem}.simple-login-card>p{text-align:center;color:var(--muted);margin:6px 0 22px}.simple-login-links{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:4px;font-size:.8rem}.simple-login-links a{color:var(--cyan-2);font-weight:850;text-decoration:none}.simple-login-register{text-align:center;color:var(--muted);margin:16px 0 0}.simple-login-register a{color:var(--cyan-2);font-weight:850}.simple-login .primary-button{width:100%;margin-top:14px}.auth-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:.78rem}.auth-divider::before,.auth-divider::after{content:"";height:1px;background:var(--border);flex:1}.google-login-button{display:flex;align-items:center;justify-content:center;gap:11px;width:100%;min-height:46px;padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel-2,var(--panel));color:var(--text);font-weight:850;text-decoration:none;transition:.15s ease}.google-login-button:hover{transform:translateY(-1px);border-color:var(--cyan-2);box-shadow:0 8px 22px rgba(0,0,0,.12)}.google-login-button svg{width:20px;height:20px;flex:none}.google-login-note{margin:9px 0 0!important;font-size:.72rem;text-align:center;color:var(--muted)}html[data-theme=light] .simple-login-links a,html[data-theme=light] .simple-login-register a{color:#0a6f9e}@media(max-width:620px){.auth-main{padding:14px}.simple-login-card{padding:22px 18px;border-radius:18px}.simple-login-logo img{width:165px}.simple-login-card h1{font-size:1.35rem}}
+.login-about{margin:18px auto 0;max-width:420px;text-align:center;color:var(--muted);font-size:.8rem;line-height:1.55}.login-about h2{margin:0 0 6px;font-size:.86rem;font-weight:800;color:var(--text);opacity:.85}.login-about p{margin:0}.login-about strong{color:var(--text);font-weight:700}.login-about-links{display:flex;justify-content:center;gap:8px;margin-top:8px}.login-about-links a{color:var(--cyan-2);font-weight:750;text-decoration:none}html[data-theme=light] .login-about-links a{color:#0a6f9e}
 </style>{% endblock %}
 {% block content %}
 <section class="simple-login">
@@ -36,5 +37,11 @@
 
     <p class="simple-login-register">Novo por aqui? <a href="/register">Criar minha conta</a></p>
   </div>
+  {# Texto curto para o Google entender o que é o sistema (palavras-chave reais). #}
+  <section class="login-about" aria-labelledby="loginAboutTitle">
+    <h2 id="loginAboutTitle">Sistema de cotação de passagens aéreas para agências de viagens</h2>
+    <p>Calcule passagens com <strong>milhas</strong>, deságio ou <strong>consolidadora</strong>, compare companhias lado a lado, adicione seu lucro e envie a <strong>cotação</strong> pronta pelo WhatsApp, com arte e PDF.</p>
+    <nav class="login-about-links" aria-label="Informações"><a href="/terms">Termos de Serviço</a><span aria-hidden="true">•</span><a href="/privacy">Privacidade</a></nav>
+  </section>
 </section>
 {% endblock %}
