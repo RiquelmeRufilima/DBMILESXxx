@@ -22,6 +22,7 @@
 .quotes-board-page .kanban-dropzone.drag-over{background:color-mix(in srgb,var(--cyan) 8%,var(--panel))!important}
 .quotes-board-page .quote-kanban-card{background:var(--panel-2)!important;border-color:var(--border)!important}
 .quotes-board-page .quote-card-footer strong{color:var(--text)!important}
+.quotes-board-page .card-delete-form{display:contents}.quotes-board-page .card-delete-form button{display:grid;place-items:center;width:25px;height:25px;padding:0;border-radius:7px;border:1px solid rgba(255,107,122,.35);background:transparent;color:var(--red,#ff6b7a);cursor:pointer}.quotes-board-page .card-delete-form button:hover{background:rgba(255,107,122,.12)}.quotes-board-page .card-delete-form .ui-icon{width:14px;height:14px}
 .quotes-board-page .quote-kanban-card.saving-status{opacity:.8;outline:2px solid var(--cyan);outline-offset:1px}
 .quotes-board-page .board-filter,.quotes-board-page .custom-status-maker{background:var(--panel)!important}
 html[data-theme="light"] .quotes-board-page .quote-kanban-card{box-shadow:0 3px 12px rgba(13,42,72,.07)!important}
@@ -162,7 +163,8 @@ html[data-theme="light"] .quotes-board-page .quote-kanban-card :is(.quote-card-r
                 <strong>{{ card.total|money }}</strong>
                 <span class="mini-actions">
                   {% if card.accepted %}<a title="Editar" href="/cadastros/cotacoes/{{ card.group.id }}"><svg class="ui-icon"><use href="#icon-edit"></use></svg></a>
-                  <a title="Visualizar reserva" href="/cadastros/cotacoes/{{ card.group.id }}/visualizar"><svg class="ui-icon"><use href="#icon-eye"></use></svg></a>{% else %}<a title="Abrir cálculos" href="/calculations/group/{{ card.group.id }}"><svg class="ui-icon"><use href="#icon-calculator"></use></svg></a>{% endif %}
+                  <a title="Visualizar reserva" href="/cadastros/cotacoes/{{ card.group.id }}/visualizar"><svg class="ui-icon"><use href="#icon-eye"></use></svg></a>
+                  <form method="post" action="/cadastros/cotacoes/{{ card.group.id }}/remove" class="card-delete-form" onsubmit="return confirm('Excluir a cotação {{ card.code }} do quadro?\n\nO cálculo original continua no Histórico de cotações.')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" title="Excluir cotação" aria-label="Excluir a cotação {{ card.code }}"><svg class="ui-icon"><use href="#icon-trash"></use></svg></button></form>{% else %}<a title="Abrir cálculos" href="/calculations/group/{{ card.group.id }}"><svg class="ui-icon"><use href="#icon-calculator"></use></svg></a>{% endif %}
                 </span>
               </div>
               <small class="quote-user-line">Cotação por {{ maker.name if maker else 'Usuário' }}</small>

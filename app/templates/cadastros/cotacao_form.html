@@ -23,6 +23,7 @@
       <h1>Cotação</h1>
     </div>
     <div class="button-row">
+      <button class="ghost-button danger" type="submit" formaction="/cadastros/cotacoes/{{ group.id }}/remove" formnovalidate onclick="return confirm('Excluir esta cotação do quadro?\n\nO cálculo original continua no Histórico de cotações.')" title="Excluir cotação"><svg class="ui-icon"><use href="#icon-trash"></use></svg> Excluir</button>
       <a class="ghost-button" href="/cadastros/cotacoes">Cancelar</a>
       <button class="secondary-button" type="submit">Salvar</button>
       <button class="primary-button" type="submit" name="save_close" value="1">Salvar e Fechar</button>
